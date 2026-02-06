@@ -1,0 +1,94 @@
+---
+title: "profclaw init"
+description: "Initialize a new profClaw project directory with default configuration files."
+---
+
+## Synopsis
+
+```bash
+profclaw init [directory] [flags]
+```
+
+## Description
+
+`init` creates the directory structure and default configuration files needed to run profClaw. It is a lightweight alternative to `profclaw onboard` for cases where you want to manage configuration manually or integrate with an existing setup script.
+
+For a guided first-time setup with environment detection, AI provider configuration, and admin account creation, use [`profclaw onboard`](/cli/onboard) instead.
+
+## Arguments
+
+<ParamField query="directory" type="string" default=".">
+  Directory to initialize. Defaults to the current directory. Created if it does not exist.
+</ParamField>
+
+## Flags
+
+<ParamField query="--mode" type="string" default="mini">
+  Deployment mode to write into the generated config: `pico`, `mini`, or `pro`.
+</ParamField>
+
+<ParamField query="--force" type="boolean">
+  Overwrite existing configuration files. By default, `init` skips files that already exist.
+</ParamField>
+
+<ParamField query="--no-env" type="boolean">
+  Skip creating the `.env` template file.
+</ParamField>
+
+## Files Created
+
+```
+config/
+  settings.yml    # Core server configuration
+  agents.yml      # Agent configuration
+  cron.yml        # Scheduled jobs (empty)
+  pricing.yml     # Model pricing overrides
+skills/           # Skills directory (empty)
+data/             # Database directory (empty, created on first run)
+.env.example      # Environment variable template
+```
+
+## Examples
+
+<CodeGroup>
+```bash Initialize current directory
+profclaw init
+```
+
+```bash Initialize in pico mode
+profclaw init --mode pico
+```
+
+```bash Initialize a new project directory
+profclaw init ./my-profclaw
+```
+
+```bash Re-initialize and overwrite existing files
+profclaw init --force
+```
+
+```bash Initialize without .env template
+profclaw init --no-env
+```
+</CodeGroup>
+
+## After Initializing
+
+```bash
+# Copy and edit the env template
+cp .env.example .env
+# Add your API keys and configuration
+
+# Run the interactive setup wizard
+profclaw onboard
+
+# Or start directly if already configured
+profclaw serve
+```
+
+## Related
+
+- [`profclaw onboard`](/cli/onboard) - Guided setup wizard (recommended for first-time setup)
+- [`profclaw serve`](/cli/serve) - Start the server
+- [`profclaw doctor`](/cli/doctor) - Verify environment after init
+- [Configuration Reference](/configuration) - All settings documentation

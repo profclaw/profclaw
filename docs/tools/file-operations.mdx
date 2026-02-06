@@ -1,0 +1,248 @@
+---
+title: "File Operations"
+description: "Read, write, edit, search, and navigate files and directories. All operations validated by FsGuard."
+---
+
+## Overview
+
+File operation tools give the agent read and write access to your filesystem within the configured allowed paths. Every operation passes through `FsGuard` - a path normalization and allowlist guard that prevents path traversal attacks and blocks access to sensitive files like `.env`, SSH keys, and system credentials.
+
+## Tools
+
+### `read_file`
+
+Read content from a file. Supports text and binary (base64) output and partial reads by line range.
+
+**Security level**: `safe` | **Tier**: Essential
+
+<ParamField path="path" type="string" required>
+  File path to read. Can be relative (resolved against workdir) or absolute.
+</ParamField>
+
+<ParamField path="encoding" type="string" default="utf-8">
+  Output encoding. Options: `utf-8`, `base64`.
+</ParamField>
+
+<ParamField path="lines" type="number">
+  Maximum lines to read from the start (or from `offset`).
+</ParamField>
+
+<ParamField path="offset" type="number">
+  Start reading from this line number (0-indexed).
+</ParamField>
+
+<CodeGroup>
+```json Read entire file
+{
+  "path": "src/server.ts"
+}
+```
+```json Read first 100 lines of a log
+{
+  "path": "app.log",
+  "lines": 100
+}
+```
+```json Read lines 50-80
+{
+  "path": "src/queue.ts",
+  "offset": 50,
+  "lines": 30
+}
+```
+</CodeGroup>
+
+**Limits**: Files over 10MB are rejected. Blocked paths include `/etc/passwd`, `/etc/shadow`, `~/.ssh`, `~/.gnupg`, `.env*`.
+
+---
+
+### `write_file`
+
+Write content to a file. Creates new files or overwrites existing ones.
+
+**Security level**: `moderate` | **Tier**: Essential
+
+<ParamField path="path" type="string" required>
+  File path to write.
+</ParamField>
+
+<ParamField path="content" type="string" required>
+  Content to write.
+</ParamField>
+
+<ParamField path="append" type="boolean" default="false">
+  Append to end of file instead of overwriting.
+</ParamField>
+
+<ParamField path="createDirs" type="boolean" default="false">
+  Create parent directories if they do not exist.
+</ParamField>
+
+<CodeGroup>
+```json Write a new file
+{
+  "path": "src/utils/helpers.ts",
+  "content": "export function clamp(n: number, min: number, max: number) {\n  return Math.max(min, Math.min(max, n));\n}\n"
+}
+```
+```json Append to a log file
+{
+  "path": "debug.log",
+  "content": "[2026-03-12] Server restarted\n",
+  "append": true
+}
+```
+</CodeGroup>
+
+---
+
+### `edit_file`
+
+Surgical find-and-replace in a file. Far more efficient than rewriting entire files - only changes what's needed.
+
+**Security level**: `moderate` | **Tier**: Essential
+
+<ParamField path="path" type="string" required>
+  File path to edit.
+</ParamField>
+
+<ParamField path="old_string" type="string" required>
+  Exact string to find. Must be unique in the file unless `replace_all` is true.
+</ParamField>
+
+<ParamField path="new_string" type="string" required>
+  Replacement string.
+</ParamField>
+
+<ParamField path="replace_all" type="boolean" default="false">
+  Replace all occurrences instead of just the first.
+</ParamField>
+
+<CodeGroup>
+```json Fix a typo
+{
+  "path": "src/index.ts",
+  "old_string": "cosnt handler",
+  "new_string": "const handler"
+}
+```
+```json Replace all occurrences
+{
+  "path": "src/config.ts",
+  "old_string": "localhost",
+  "new_string": "0.0.0.0",
+  "replace_all": true
+}
+```
+</CodeGroup>
+
+Returns a diff snippet showing the change. Fails with `AMBIGUOUS_MATCH` if `old_string` appears multiple times without `replace_all`.
+
+---
+
+### `search_files`
+
+Find files using glob patterns.
+
+**Security level**: `safe` | **Tier**: Essential
+
+<ParamField path="pattern" type="string" required>
+  Glob pattern (e.g., `**/*.ts`, `src/**/*.test.ts`).
+</ParamField>
+
+<ParamField path="directory" type="string">
+  Base directory to search from. Defaults to workdir.
+</ParamField>
+
+<ParamField path="maxResults" type="number" default="100">
+  Maximum files to return.
+</ParamField>
+
+Automatically ignores `node_modules/`, `.git/`, `dist/`, `build/`.
+
+---
+
+### `grep`
+
+Search file contents using regex patterns.
+
+**Security level**: `safe` | **Tier**: Essential
+
+<ParamField path="pattern" type="string" required>
+  Regex pattern to search for (case-insensitive by default).
+</ParamField>
+
+<ParamField path="path" type="string">
+  File or directory to search. Defaults to workdir.
+</ParamField>
+
+<ParamField path="glob" type="string">
+  Glob filter for files (e.g., `**/*.ts`).
+</ParamField>
+
+<ParamField path="maxResults" type="number" default="50">
+  Maximum matches to return.
+</ParamField>
+
+<ParamField path="context" type="number">
+  Lines of context to include around each match.
+</ParamField>
+
+Returns matches as `file:line: content` format.
+
+---
+
+### `directory_tree`
+
+Show the directory structure as a tree.
+
+**Security level**: `safe` | **Tier**: Essential
+
+<ParamField path="path" type="string" default=".">
+  Root directory.
+</ParamField>
+
+<ParamField path="depth" type="number" default="3">
+  Maximum depth to traverse (1-10).
+</ParamField>
+
+<ParamField path="include_files" type="boolean" default="true">
+  Include files, not just directories.
+</ParamField>
+
+<ParamField path="pattern" type="string">
+  Show only entries matching this glob (e.g., `*.ts`).
+</ParamField>
+
+Auto-skips: `node_modules`, `.git`, `dist`, `build`, `coverage`, `.next`, `__pycache__`, `.venv`.
+
+---
+
+### `patch_apply`
+
+Apply a unified diff patch to a file.
+
+**Security level**: `moderate` | **Tier**: Standard
+
+<ParamField path="path" type="string" required>
+  File to patch.
+</ParamField>
+
+<ParamField path="patch" type="string" required>
+  Unified diff content (standard `git diff` or `diff -u` format).
+</ParamField>
+
+<ParamField path="reverse" type="boolean" default="false">
+  Apply patch in reverse (undo a patch).
+</ParamField>
+
+## Related Tools
+
+<CardGroup cols={2}>
+  <Card title="Git Operations" icon="code-branch" href="/tools/git-operations">
+    Stage and commit file changes with git tools.
+  </Card>
+  <Card title="Code Analysis" icon="magnifying-glass" href="/tools/code-analysis">
+    Lint and type-check after editing files.
+  </Card>
+</CardGroup>

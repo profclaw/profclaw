@@ -1,0 +1,186 @@
+---
+title: "Plugin Sandboxing"
+description: "Plugin permission model, code scanning, trust levels, and security review process."
+---
+
+## Overview
+
+Plugins extend profClaw with new tools, providers, and integrations. Because plugins run as JavaScript in the same process, they have significant power. The plugin security system enforces a permission model, scans code for dangerous patterns, and requires explicit trust grants before plugins can run.
+
+## Permission Model
+
+Every plugin declares the permissions it needs in its manifest. profClaw only grants the minimum permissions required.
+
+```typescript
+type PluginPermission =
+  | 'exec'        // Shell command execution
+  | 'filesystem'  // File read/write access
+  | 'network'     // Outbound HTTP requests
+  | 'system'      // System information access
+  | 'browser'     // Browser automation
+  | 'memory'      // Memory read/write access
+  | 'tools'       // Register new tools
+```
+
+A plugin requesting only `network` and `tools` cannot access the filesystem or run shell commands.
+
+## Plugin Manifest
+
+```json
+{
+  "name": "my-weather-plugin",
+  "version": "1.0.0",
+  "description": "Real-time weather data",
+  "main": "dist/index.js",
+  "profclaw": {
+    "permissions": ["network", "tools"],
+    "minVersion": "2.0.0"
+  }
+}
+```
+
+## Code Scanning
+
+Before a plugin is loaded, the AuditScanner analyzes its code for dangerous patterns:
+
+| Pattern | Risk | Action |
+|---------|------|--------|
+| `child_process`, `exec()`, `spawn()` | CRITICAL | Block unless `exec` permission declared |
+| `eval()`, `new Function("code")` | CRITICAL | Always blocked |
+| `net.connect()`, raw sockets | CRITICAL | Always blocked |
+| `fetch()`, `axios` | HIGH | Block unless `network` permission declared |
+| `process.env.API_KEY` | HIGH | Warn - may be leaking credentials |
+| `writeFileSync` | MEDIUM | Block unless `filesystem` permission declared |
+| `process.exit()` | HIGH | Always blocked |
+
+If the scanner finds `CRITICAL` patterns that do not match declared permissions, the plugin is rejected at load time.
+
+## Trust Levels
+
+Plugins are assigned one of three trust levels:
+
+<Tabs>
+  <Tab title="Trusted">
+    Plugin has been explicitly reviewed and approved. All declared permissions are granted immediately.
+
+    ```bash
+    profclaw plugins trust my-weather-plugin --level trusted
+    ```
+
+    Only grant `trusted` to plugins you have reviewed yourself or that come from verified ClawHub publishers.
+  </Tab>
+  <Tab title="Sandboxed">
+    Plugin runs with its declared permissions but additional constraints:
+    - Network calls go through SSRF guard
+    - Filesystem access goes through FsGuard
+    - No access to internal profClaw state beyond the plugin SDK
+    - Resource limits applied (memory, CPU)
+
+    This is the **default for newly installed plugins**.
+  </Tab>
+  <Tab title="Blocked">
+    Plugin is installed but will not load. Use this to temporarily disable a plugin without uninstalling it.
+
+    ```bash
+    profclaw plugins block suspicious-plugin
+    ```
+  </Tab>
+</Tabs>
+
+## Installing Plugins
+
+```bash
+# Install from npm
+profclaw plugins install profclaw-plugin-weather
+
+# Install from a local directory
+profclaw plugins install ./my-local-plugin/
+
+# Install and trust immediately (after manual review)
+profclaw plugins install profclaw-plugin-weather --trust
+```
+
+When installing, the scanner runs immediately:
+
+```
+Installing profclaw-plugin-weather@1.2.0...
+Scanning plugin code...
+  No dangerous patterns found.
+  Declared permissions: network, tools
+  Permission analysis: OK
+
+Plugin installed in sandboxed mode.
+To trust this plugin: profclaw plugins trust profclaw-plugin-weather
+```
+
+## Plugin Allowlist
+
+In `allowlist` security mode, plugins must also be on the plugin allowlist:
+
+```yaml
+security:
+  pluginAllowlist:
+    - pluginId: "profclaw-plugin-weather"
+      name: "Weather Plugin"
+      version: "^1.0.0"
+      permissions:
+        - network
+        - tools
+      trusted: true
+      addedAt: "2026-03-12"
+      addedBy: "admin"
+```
+
+## Managing Plugins
+
+```bash
+# List all installed plugins with trust status
+profclaw plugins list
+
+# Show plugin details and scan results
+profclaw plugins info my-plugin
+
+# Re-scan a plugin after update
+profclaw plugins scan my-plugin
+
+# Update a plugin
+profclaw plugins update my-plugin
+
+# Uninstall
+profclaw plugins uninstall my-plugin
+```
+
+## Writing Secure Plugins
+
+When developing plugins, follow these rules:
+
+<Steps>
+  <Step title="Declare minimum permissions">
+    Only request the permissions your plugin actually needs. Users will see and approve each permission.
+  </Step>
+  <Step title="Use the plugin SDK">
+    Always use profClaw's SDK for tool execution rather than calling shell commands directly. The SDK applies security policies.
+  </Step>
+  <Step title="Never hardcode credentials">
+    Use `context.env` to access configuration values. Never embed API keys in code.
+
+    ```typescript
+    const apiKey = context.env.WEATHER_API_KEY;
+    if (!apiKey) return { available: false, reason: 'WEATHER_API_KEY not set' };
+    ```
+  </Step>
+  <Step title="Handle errors safely">
+    Catch all errors and return structured error responses. Never let unhandled exceptions crash the server.
+  </Step>
+</Steps>
+
+## Related Docs
+
+<CardGroup cols={2}>
+  <Card title="Plugin SDK" icon="code" href="/plugins/sdk">
+    Full plugin development API reference.
+  </Card>
+  <Card title="Audit Logging" icon="scroll" href="/security/audit">
+    Plugin load and scan events are audit-logged.
+  </Card>
+</CardGroup>

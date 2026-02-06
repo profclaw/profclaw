@@ -1,0 +1,115 @@
+---
+title: "profclaw security"
+description: "Manage security policies, review audit logs, and approve or deny pending tool execution requests."
+---
+
+## Synopsis
+
+```bash
+profclaw security <subcommand> [flags]
+```
+
+## Description
+
+`security` manages profClaw's security enforcement layer. Three policy levels control how strictly tool execution is governed. In `standard` and `strict` modes, certain tool calls require explicit approval before they run. This command lets you view the current policy, change it, review the audit log, and approve or deny pending requests.
+
+## Subcommands
+
+| Subcommand | Description |
+|---|---|
+| `status` | Show current policy level and pending approval count |
+| `set-policy <level>` | Set the security policy to `permissive`, `standard`, or `strict` |
+| `audit` | View the security audit log |
+| `approve <id>` | Approve a pending tool execution request |
+| `deny <id>` | Deny a pending tool execution request |
+
+## Security Policy Levels
+
+| Level | Description |
+|---|---|
+| `permissive` | All tools run without approval |
+| `standard` | Moderate and dangerous tools require approval |
+| `strict` | All non-safe tools require explicit approval |
+
+## `security status`
+
+<ParamField query="--json" type="boolean">
+  Output as JSON with policy level, pending approval count, and last audit time.
+</ParamField>
+
+## `security set-policy <level>`
+
+<ParamField query="level" type="string" required>
+  One of `permissive`, `standard`, or `strict`.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output the updated status as JSON.
+</ParamField>
+
+## `security audit`
+
+<ParamField query="-l, --limit" type="string" default="20">
+  Maximum number of entries to show.
+</ParamField>
+
+<ParamField query="--pending" type="boolean">
+  Show only entries with `pending` result status (awaiting approval).
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output as JSON array.
+</ParamField>
+
+## `security approve <id>` / `security deny <id>`
+
+<ParamField query="id" type="string" required>
+  Audit entry ID to approve or deny.
+</ParamField>
+
+<ParamField query="--reason" type="string">
+  Reason for denial (only for `deny` subcommand).
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output result as JSON.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash Check security status
+profclaw security status
+```
+
+```bash Set to strict mode
+profclaw security set-policy strict
+```
+
+```bash Set to permissive (development)
+profclaw security set-policy permissive
+```
+
+```bash View audit log
+profclaw security audit
+```
+
+```bash Show only pending approvals
+profclaw security audit --pending
+```
+
+```bash Approve a pending request
+profclaw security approve abc12345
+```
+
+```bash Deny a pending request with reason
+profclaw security deny abc12345 --reason "File write outside allowed directories"
+```
+</CodeGroup>
+
+## Related
+
+- [`profclaw audit`](/cli/audit) - Detailed audit log viewer
+- [`profclaw auth`](/cli/auth) - User and authentication management
+- [`profclaw device`](/cli/device) - Device pairing and trust
+- [Security Guide](/security) - Security architecture and configuration

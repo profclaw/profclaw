@@ -1,0 +1,174 @@
+---
+title: "Integrations API"
+description: "profClaw Integrations API - configure GitHub, Jira, Linear, and web search connections. Store credentials, check connectivity, and manage integration status."
+---
+
+The integrations API manages external service configuration - storing credentials, checking connectivity, and providing status information to the UI.
+
+## Web Search
+
+### GET /api/integrations/web-search
+
+Get web search configuration and provider status.
+
+```bash
+curl http://localhost:3000/api/integrations/web-search \
+  --cookie "profclaw_session=<token>"
+```
+
+**Response `200`**
+
+```json
+{
+  "config": {
+    "enabled": true,
+    "provider": "brave",
+    "brave": { "apiKey": "sk-*****" }
+  },
+  "status": {
+    "available": true,
+    "provider": "brave",
+    "reason": null
+  },
+  "providers": [
+    { "id": "brave", "name": "Brave Search", "description": "Fast, privacy-focused", "configFields": ["apiKey"] },
+    { "id": "serper", "name": "Serper (Google)", "description": "Google results via API", "configFields": ["apiKey"] },
+    { "id": "searxng", "name": "SearXNG", "description": "Self-hosted metasearch", "configFields": ["baseUrl", "apiKey"] },
+    { "id": "tavily", "name": "Tavily", "description": "AI-optimized search", "configFields": ["apiKey"] }
+  ]
+}
+```
+
+API keys are masked in responses (shown as `sk-*****`).
+
+### PUT /api/integrations/web-search
+
+Update web search configuration.
+
+```bash
+curl -X PUT http://localhost:3000/api/integrations/web-search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "enabled": true,
+    "provider": "brave",
+    "brave": { "apiKey": "your-brave-api-key" }
+  }'
+```
+
+---
+
+## GitHub Integration Status
+
+### GET /api/integrations/github
+
+Get GitHub connection status and OAuth details.
+
+```bash
+curl http://localhost:3000/api/integrations/github --cookie "profclaw_session=<token>"
+```
+
+**Response `200`**
+
+```json
+{
+  "connected": true,
+  "username": "alice",
+  "avatarUrl": "https://github.com/avatars/alice",
+  "scopes": ["repo", "read:user"],
+  "webhookConfigured": true,
+  "aiTaskLabel": "ai-task"
+}
+```
+
+---
+
+## Jira Integration Status
+
+### GET /api/integrations/jira
+
+```bash
+curl http://localhost:3000/api/integrations/jira --cookie "profclaw_session=<token>"
+```
+
+**Response `200`**
+
+```json
+{
+  "connected": true,
+  "cloudId": "abc-123",
+  "siteName": "your-org.atlassian.net",
+  "scopes": ["read:jira-work", "write:jira-work"],
+  "tokenExpiry": "2026-04-12T00:00:00Z"
+}
+```
+
+---
+
+## Linear Integration Status
+
+### GET /api/integrations/linear
+
+```bash
+curl http://localhost:3000/api/integrations/linear --cookie "profclaw_session=<token>"
+```
+
+**Response `200`**
+
+```json
+{
+  "connected": true,
+  "workspaceName": "Acme Corp",
+  "workspaceId": "workspace_01",
+  "teams": [
+    { "id": "team_01", "name": "Engineering", "key": "ENG" }
+  ]
+}
+```
+
+---
+
+## Disconnect an Integration
+
+```bash
+# Disconnect GitHub
+DELETE /api/integrations/github
+
+# Disconnect Jira
+DELETE /api/integrations/jira
+
+# Disconnect Linear
+DELETE /api/integrations/linear
+```
+
+These endpoints revoke OAuth tokens and remove stored credentials.
+
+---
+
+## Webhook Status
+
+Check if webhooks are correctly configured and receiving events:
+
+```bash
+GET /api/integrations/webhooks/status
+```
+
+**Response**
+
+```json
+{
+  "github": {
+    "configured": true,
+    "lastEvent": "2026-03-12T10:00:00Z",
+    "eventCount": 42
+  },
+  "jira": { "configured": false },
+  "linear": { "configured": true, "lastEvent": "2026-03-12T09:00:00Z", "eventCount": 15 }
+}
+```
+
+## Related
+
+- [Webhooks API](/api-reference/webhooks) - Inbound and outbound webhook management
+- [GitHub Integration](/integrations/github) - Set up the GitHub integration
+- [Jira Integration](/integrations/jira) - Connect Jira projects and configure automation
+- [Linear Integration](/integrations/linear) - Connect Linear workspaces and sync issues

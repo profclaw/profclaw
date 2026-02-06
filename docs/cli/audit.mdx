@@ -1,0 +1,84 @@
+---
+title: "profclaw security audit"
+description: "View the security audit log - a record of every tool execution, approval, and denial."
+---
+
+## Synopsis
+
+```bash
+profclaw security audit [flags]
+```
+
+## Description
+
+The security audit log captures every security-relevant action in profClaw: tool executions, approval requests, approvals, denials, and authentication events. It provides a tamper-evident trail for compliance and debugging.
+
+The `audit` subcommand is accessed via `profclaw security audit`. See the [`security`](/cli/security) command for the full security command group.
+
+## Flags
+
+<ParamField query="-l, --limit" type="string" default="20">
+  Maximum number of log entries to show.
+</ParamField>
+
+<ParamField query="--pending" type="boolean">
+  Show only entries with `pending` result - items awaiting approval.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output as JSON array with full entry details.
+</ParamField>
+
+## Audit Entry Fields
+
+| Field | Description |
+|---|---|
+| `id` | Unique entry ID |
+| `action` | What was attempted (e.g., `exec`, `write_file`, `http_request`) |
+| `actor` | User or agent that initiated the action |
+| `target` | Resource targeted (file path, URL, command) |
+| `result` | `approved`, `denied`, or `pending` |
+| `createdAt` | Timestamp |
+
+## Examples
+
+<CodeGroup>
+```bash View recent audit log
+profclaw security audit
+```
+
+```bash Show all pending approvals
+profclaw security audit --pending
+```
+
+```bash Show last 100 entries
+profclaw security audit --limit 100
+```
+
+```bash Export as JSON
+profclaw security audit --json | jq '.[] | select(.result == "denied")'
+```
+
+```bash Approve a pending item from the audit log
+profclaw security audit --pending
+profclaw security approve <id>
+```
+
+```bash Deny with a reason
+profclaw security deny <id> --reason "Unauthorized external request"
+```
+</CodeGroup>
+
+## Audit Results
+
+| Result | Description |
+|---|---|
+| `approved` | Action was allowed (automatically or manually) |
+| `denied` | Action was blocked |
+| `pending` | Awaiting manual approval from an admin |
+
+## Related
+
+- [`profclaw security`](/cli/security) - Full security command group
+- [`profclaw logs`](/cli/logs) - Server application logs
+- [Security Guide](/security) - Security architecture

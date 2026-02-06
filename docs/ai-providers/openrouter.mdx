@@ -1,0 +1,103 @@
+---
+title: "OpenRouter"
+description: "Access 200+ models from a single API key via OpenRouter. Route to Claude, GPT-4, Gemini, Llama, and more through one endpoint."
+---
+
+OpenRouter is a model gateway that provides access to 200+ models from dozens of providers through a single OpenAI-compatible API. Useful for model experimentation and fallback routing.
+
+## Overview
+
+OpenRouter acts as a proxy in front of all major AI providers. Configure one API key and access any model:
+
+- All Anthropic Claude models
+- All OpenAI GPT and o-series models
+- All Google Gemini models
+- Open-source models (Llama, Mistral, Qwen, DeepSeek, etc.)
+- Automatic fallback if a provider is down
+
+## Setup
+
+<Steps>
+  <Step title="Get an API key">
+    Sign up at [openrouter.ai](https://openrouter.ai). Free credits on signup.
+  </Step>
+  <Step title="Set the environment variable">
+    ```bash
+    export OPENROUTER_API_KEY=sk-or-...
+    ```
+  </Step>
+  <Step title="Use any model">
+    Reference models by their OpenRouter IDs (e.g., `anthropic/claude-opus-4-6`).
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="OPENROUTER_API_KEY" type="string" required>
+  Your OpenRouter API key. Format: `sk-or-...`
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    OPENROUTER_API_KEY=sk-or-...
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    providers:
+      openrouter:
+        api_key: "${OPENROUTER_API_KEY}"
+    ```
+  </Tab>
+</Tabs>
+
+## Using Models via OpenRouter
+
+Reference models using the `openrouter/` prefix or the full provider/model path:
+
+```bash
+# These all work:
+profclaw chat --model openrouter/anthropic/claude-opus-4-6 "Hello"
+profclaw chat --model openrouter/openai/gpt-4o "Hello"
+profclaw chat --model openrouter/meta-llama/llama-3.3-70b-instruct "Hello"
+profclaw chat --model openrouter/google/gemini-pro-1.5 "Hello"
+```
+
+## Usage Examples
+
+<CodeGroup>
+  ```bash CLI
+  # Access Claude via OpenRouter (useful when direct Anthropic key not set)
+  profclaw chat --model openrouter/anthropic/claude-sonnet-4-5 "Review this PR"
+
+  # Model auto-routing
+  profclaw chat --model openrouter/auto "Use the best available model"
+  ```
+
+  ```typescript SDK
+  import { chat } from 'profclaw';
+
+  const response = await chat("Explain this codebase", {
+    model: "openrouter/anthropic/claude-opus-4-6",
+  });
+  ```
+</CodeGroup>
+
+## Notes
+
+- API endpoint: `https://openrouter.ai/api/v1` (OpenAI-compatible)
+- Status: Stable
+- OpenRouter adds a small markup over provider prices (typically 10-15%).
+- Supports the `X-Title` and `HTTP-Referer` headers for app attribution.
+- Good for organizations that want one vendor relationship instead of managing many keys.
+- OpenRouter's "auto" model routes to the best available model for your prompt.
+
+## Related
+
+- [AI Providers Overview](/ai-providers/overview) - Compare all 37 supported providers
+- [Anthropic](/ai-providers/anthropic) - Direct Anthropic API for lower latency
+- [Together AI](/ai-providers/together) - Direct open-source model hosting alternative
+- [profclaw models](/cli/models) - Browse and alias available models

@@ -1,0 +1,99 @@
+---
+title: "Linear Integration"
+description: "Connect profClaw to Linear for issue sync, label-driven automation, and OAuth-based operations"
+---
+
+The Linear integration uses OAuth 2.0 to connect to your Linear workspace. profClaw can create issues, update their state, sync labels, and receive webhook events from Linear teams.
+
+## Setup
+
+### 1. Create a Linear OAuth app
+
+1. Go to [linear.app/settings/api](https://linear.app/settings/api)
+2. Create a new application
+3. Set the callback URL: `https://your-host/api/auth/linear/callback`
+4. Note the **Client ID** and **Client Secret**
+
+### 2. Configure environment variables
+
+```bash
+LINEAR_CLIENT_ID=your-client-id
+LINEAR_CLIENT_SECRET=your-client-secret
+LINEAR_REDIRECT_URI=https://your-host/api/auth/linear/callback
+```
+
+### 3. Connect via OAuth
+
+```
+GET /api/auth/linear
+```
+
+The callback at `/api/auth/linear/callback` stores the access token and associates it with the current user session.
+
+## Webhook Events
+
+Linear webhooks arrive at `/api/webhooks/linear`. Supported event types:
+
+| Event | Action |
+|-------|--------|
+| `Issue.created` | Creates a profClaw task |
+| `Issue.updated` | Updates local ticket state |
+| `Comment.created` | Syncs comment to profClaw |
+| `IssueLabel.created` | Updates label mapping |
+
+## State Mapping
+
+Linear uses workflow states per team. The Linear adapter maps these to profClaw statuses:
+
+| Linear State Type | profClaw Status |
+|-------------------|-----------------|
+| `triage` | `open` |
+| `backlog` | `open` |
+| `unstarted` | `open` |
+| `started` | `in_progress` |
+| `completed` | `closed` |
+| `cancelled` | `cancelled` |
+
+## Priority Mapping
+
+| Linear Priority | profClaw Priority |
+|----------------|-------------------|
+| Urgent (1) | `critical` |
+| High (2) | `high` |
+| Medium (3) | `medium` |
+| Low (4) | `low` |
+| No priority (0) | `low` |
+
+## Label Mapping
+
+Linear labels are synced as profClaw ticket labels. The `LabelMapper` (`src/integrations/linear.ts`) maintains a cache of the label ID-to-name mapping per team.
+
+## Bidirectional Sync
+
+Configure the Linear sync adapter in `settings.yml`:
+
+```yaml
+sync:
+  platforms:
+    linear:
+      apiKey: "${LINEAR_API_KEY}"
+      teamId: "your-team-id"
+      projectId: "your-project-id"  # optional
+```
+
+The sync engine pulls changes every 60 seconds using the Linear `updatedAt` cursor. Pushes happen immediately on local ticket mutations.
+
+## Linear Client
+
+The `LinearClient` class (`src/integrations/linear-client.ts`) wraps the Linear GraphQL API:
+
+- `createIssue(input)` - Create a new issue
+- `updateIssue(id, input)` - Update title, description, state, priority, or labels
+- `deleteIssue(id)` - Archive an issue
+- `getIssue(id)` - Fetch a single issue with state and labels
+- `listIssues(options)` - Paginated list with cursor support
+- `addComment(issueId, body)` - Add a comment
+- `getTeamStates(teamId)` - Fetch workflow states for mapping
+- `getTeamLabels(teamId)` - Fetch label definitions
+
+All GraphQL operations are authenticated with the `Authorization: Bearer <token>` header.

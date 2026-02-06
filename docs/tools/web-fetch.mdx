@@ -1,0 +1,134 @@
+---
+title: "Web Fetch"
+description: "Fetch URLs, call REST APIs, and retrieve web content. Protected by SSRF Guard."
+---
+
+## Overview
+
+`web_fetch` lets the agent make outbound HTTP requests. It supports all common HTTP methods, custom headers, request bodies, and can optionally extract readable text from HTML pages.
+
+Every request passes through `SsrfGuard` before execution - a defense layer that blocks private IP ranges, cloud metadata endpoints, and DNS rebinding attacks.
+
+## Tool: `web_fetch`
+
+**Security level**: `moderate` | **Tier**: Essential
+
+<ParamField path="url" type="string" required>
+  Full URL to fetch. Must be a valid `http://` or `https://` URL.
+</ParamField>
+
+<ParamField path="method" type="string" default="GET">
+  HTTP method: `GET`, `POST`, `PUT`, `DELETE`.
+</ParamField>
+
+<ParamField path="headers" type="object">
+  Custom request headers as key-value pairs.
+</ParamField>
+
+<ParamField path="body" type="string">
+  Request body for `POST` or `PUT`. Typically JSON-encoded.
+</ParamField>
+
+<ParamField path="timeout" type="number" default="30">
+  Request timeout in seconds. Maximum enforced by server policy.
+</ParamField>
+
+<ParamField path="extractText" type="boolean" default="false">
+  Extract readable text content from HTML pages (strips tags, navigation, scripts).
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```json Fetch a documentation page as text
+{
+  "url": "https://docs.example.com/api",
+  "extractText": true
+}
+```
+```json Call a JSON API
+{
+  "url": "https://api.github.com/repos/profclaw/profclaw",
+  "headers": {
+    "Accept": "application/vnd.github.v3+json"
+  }
+}
+```
+```json POST to a webhook
+{
+  "url": "https://hooks.slack.com/services/T00/B00/xxx",
+  "method": "POST",
+  "headers": { "Content-Type": "application/json" },
+  "body": "{\"text\": \"Build completed successfully\"}"
+}
+```
+```json Fetch with authentication
+{
+  "url": "https://api.example.com/v1/status",
+  "headers": {
+    "Authorization": "Bearer eyJhbGci..."
+  }
+}
+```
+</CodeGroup>
+
+## Response
+
+A successful fetch returns:
+
+```json
+{
+  "success": true,
+  "data": {
+    "url": "https://api.example.com/status",
+    "status": 200,
+    "contentType": "application/json",
+    "body": "{ \"status\": \"ok\" }",
+    "bodyLength": 16
+  }
+}
+```
+
+## Content Limits
+
+Responses are capped at **500KB**. Larger responses are truncated. For large downloads, consider fetching a specific resource path rather than a whole page.
+
+## SSRF Protection
+
+The `SsrfGuard` blocks requests to:
+
+| Category | Examples |
+|----------|---------|
+| Loopback | `127.0.0.1`, `::1`, `localhost` |
+| Private networks | `10.x.x.x`, `172.16-31.x.x`, `192.168.x.x` |
+| Link-local | `169.254.x.x` (includes cloud metadata at `169.254.169.254`) |
+| Cloud metadata | `metadata.google.internal`, `metadata.internal` |
+| Reserved ranges | RFC 1918 + all IANA special-use ranges |
+
+The guard resolves DNS before connecting to defend against DNS rebinding attacks. Redirect chains are re-validated at each hop, up to 5 redirects.
+
+<Tip>
+  To allow specific internal hosts (e.g., for self-hosted integrations), add them to `security.ssrfGuard.allowedHosts` in your `settings.yml`.
+</Tip>
+
+## Allowed Hosts Setting
+
+```yaml
+security:
+  ssrfGuard:
+    enabled: true
+    allowedHosts:
+      - "internal-api.company.local"
+      - "jenkins.internal"
+```
+
+## Related Tools
+
+<CardGroup cols={2}>
+  <Card title="Web Search" icon="magnifying-glass" href="/tools/web-search">
+    Search the web instead of fetching a specific URL.
+  </Card>
+  <Card title="Browser Tools" icon="browser" href="/tools/browser-tools">
+    Interact with JavaScript-rendered pages using a real browser.
+  </Card>
+</CardGroup>

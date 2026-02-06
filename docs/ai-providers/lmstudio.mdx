@@ -1,0 +1,113 @@
+---
+title: "LM Studio"
+description: "Run local models via LM Studio's built-in OpenAI-compatible server. GUI-based model management with hardware acceleration."
+---
+
+LM Studio provides a user-friendly desktop application for downloading and running local AI models. Its built-in server exposes an OpenAI-compatible API that profClaw connects to.
+
+## Overview
+
+LM Studio is a GUI application for macOS, Windows, and Linux that:
+- Downloads models from HuggingFace with one click
+- Provides hardware-accelerated inference (Metal, CUDA, CPU)
+- Runs a local OpenAI-compatible API server
+- Works without an internet connection after model download
+
+## Setup
+
+<Steps>
+  <Step title="Download LM Studio">
+    Download from [lmstudio.ai](https://lmstudio.ai) and install.
+  </Step>
+  <Step title="Download a model">
+    Open LM Studio, search for a model (e.g., `lmstudio-community/Meta-Llama-3.1-8B-Instruct-GGUF`), and download it.
+  </Step>
+  <Step title="Start the local server">
+    In LM Studio: go to **Local Server** tab, select a model, and click **Start Server**.
+
+    The server runs at `http://localhost:1234` by default.
+  </Step>
+  <Step title="Configure profClaw">
+    ```bash
+    export LM_STUDIO_BASE_URL=http://localhost:1234/v1
+    # Or configure as an OpenAI-compatible endpoint:
+    export OPENAI_BASE_URL=http://localhost:1234/v1
+    export OPENAI_API_KEY=lm-studio
+    ```
+  </Step>
+  <Step title="Verify">
+    ```bash
+    profclaw doctor --provider openai
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="LM_STUDIO_BASE_URL" type="string">
+  LM Studio server URL. Defaults to `http://localhost:1234/v1`. Configure via `OPENAI_BASE_URL`.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    # LM Studio uses the OpenAI provider with a local base URL
+    OPENAI_API_KEY=lm-studio
+    OPENAI_BASE_URL=http://localhost:1234/v1
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    providers:
+      openai:
+        api_key: "lm-studio"
+        base_url: "http://localhost:1234/v1"
+        default_model: "local-model"
+    ```
+  </Tab>
+  <Tab title="Remote LM Studio">
+    ```bash
+    # Access LM Studio on another machine
+    OPENAI_API_KEY=lm-studio
+    OPENAI_BASE_URL=http://192.168.1.100:1234/v1
+    ```
+  </Tab>
+</Tabs>
+
+## Usage Examples
+
+<CodeGroup>
+  ```bash CLI
+  # Use whatever model is loaded in LM Studio
+  profclaw chat --model local-model "Explain dependency injection"
+
+  # Reference LM Studio model by name
+  profclaw chat --model "Meta-Llama-3.1-8B-Instruct-Q4_K_M" "Quick question"
+  ```
+</CodeGroup>
+
+## Differences from Ollama
+
+| Feature | LM Studio | Ollama |
+|---------|-----------|--------|
+| Interface | GUI desktop app | CLI/headless |
+| Model format | GGUF | GGUF |
+| API | OpenAI-compatible | Custom + OpenAI-compatible |
+| Best for | Desktop users | Servers, Docker |
+| Auto-start | No (manual) | Yes (systemd/launchd) |
+
+## Notes
+
+- LM Studio's API key field accepts any non-empty string - use `lm-studio` as a placeholder.
+- Tool calling support depends on the loaded model - check the model's capabilities.
+- LM Studio supports Metal (Apple Silicon), CUDA, and Vulkan acceleration.
+- For headless/server deployments, Ollama is recommended over LM Studio.
+
+## Related
+
+- [AI Providers Overview](/ai-providers/overview) - Compare all 37 supported providers
+- [Ollama](/ai-providers/ollama) - Recommended local provider for headless deployments
+- [Local LLM Guide](/guides/local-llm) - Run profClaw fully offline with local models
+- [profclaw provider](/cli/provider) - Add and test providers from the CLI

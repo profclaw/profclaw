@@ -1,0 +1,123 @@
+---
+title: "Introduction"
+description: "profClaw is a local-first AI agent engine. Connect 37 AI providers, 27 chat channels, and 77+ tools in a single self-hosted install."
+---
+
+## Welcome to profClaw
+
+profClaw is a lightweight, self-hosted AI agent engine that runs anywhere - Docker, VPS, home server, or Mac. Wire together AI providers, chat channels, and tools through a single install and configuration file.
+
+<CardGroup cols={3}>
+  <Card title="37 AI Providers" icon="brain">
+    Anthropic, OpenAI, Google, Ollama, Groq, Mistral, and 31 more. Mix cloud and local models.
+  </Card>
+  <Card title="27 Chat Channels" icon="messages">
+    Slack, Discord, Telegram, WhatsApp, Teams, and more. One agent, every platform.
+  </Card>
+  <Card title="77+ Tools" icon="wrench">
+    File ops, git, browser, web search, cron, memory, sessions, and custom tools.
+  </Card>
+</CardGroup>
+
+## Quick Start
+
+Get profClaw running in under 5 minutes.
+
+<Steps>
+  <Step title="Install">
+    ```bash
+    npm install -g profclaw
+    ```
+
+    For Docker, see the [full installation guide](/getting-started/installation).
+  </Step>
+  <Step title="Initialize and configure">
+    ```bash
+    profclaw init
+    profclaw onboard
+    ```
+
+    The wizard detects your environment, sets the deployment mode, and configures your first AI provider.
+  </Step>
+  <Step title="Start the server">
+    ```bash
+    profclaw serve
+    ```
+
+    Open `http://localhost:3000` to access the web UI. See [First Run](/getting-started/first-run) for a walkthrough.
+  </Step>
+</Steps>
+
+<Card
+  title="Full Installation Guide"
+  icon="arrow-right"
+  href="/getting-started/installation"
+  horizontal
+>
+  Detailed setup instructions for all platforms, install methods, and post-install verification.
+</Card>
+
+## Choose Your Path
+
+<CardGroup cols={2}>
+  <Card title="Set up a Slack Bot" icon="slack" href="/guides/slack-bot">
+    Connect profClaw to your Slack workspace as an AI assistant with tool access.
+  </Card>
+  <Card title="Run Local LLMs" icon="microchip" href="/guides/local-llm">
+    Use Ollama or LM Studio for fully offline AI capabilities.
+  </Card>
+  <Card title="Docker Deployment" icon="docker" href="/guides/docker-deployment">
+    Production-ready Docker setup with Redis and persistent storage.
+  </Card>
+  <Card title="GitHub Workflow" icon="github" href="/guides/github-workflow">
+    Automate issues, PRs, and code reviews with profClaw agents.
+  </Card>
+</CardGroup>
+
+## Deployment Modes
+
+profClaw scales from a Raspberry Pi to a full production cluster. Choose the mode that fits your hardware.
+
+| Mode | RAM / CPU | AI Providers | Chat Channels | Tools | Best For |
+|------|-----------|-------------|---------------|-------|----------|
+| **Pico** | 512MB, 1 core | 3 | 2 | 15 | IoT, edge devices, personal use |
+| **Mini** | 2GB, 2 cores | 15 | 10 | 50 | Small teams, home servers |
+| **Pro** | 8GB+, 4+ cores | 37 | 27 | 77+ | Production, enterprise |
+
+<Card title="Deployment Modes" icon="server" href="/getting-started/deployment-modes" horizontal>
+  Compare features in detail and choose the right mode for your setup.
+</Card>
+
+## Key Features
+
+<AccordionGroup>
+  <Accordion title="Agentic Execution Engine">
+    Multi-step tool execution with self-correction, smart prompts, and sandboxed environments. Supports parallel tool calls and streaming responses. Model-aware tool routing ensures small local models only receive tools they can handle reliably.
+  </Accordion>
+  <Accordion title="50 Built-in Skills">
+    Pre-built expertise modules like `commit`, `review-pr`, `deploy`, `analyze-code`, and more. Invoked with slash commands (`/commit`, `/review-pr 42`). Create custom skills with a plain Markdown `SKILL.md` file - no code required. See [Skills](/skills/overview).
+  </Accordion>
+  <Accordion title="Plugin System">
+    Extend profClaw with custom plugins using the TypeScript SDK. Add new tools, search providers, integrations, or model adapters. Browse and install community plugins via ClawHub. See [Plugins](/plugins/overview).
+  </Accordion>
+  <Accordion title="Security First">
+    Five security modes (deny, sandbox, standard, ask, full), per-tool approval gates, filesystem path guards, SSRF protection, prompt injection detection, audit logging, and QR-based device pairing. See [Security Overview](/security/overview).
+  </Accordion>
+  <Accordion title="Configuration">
+    130+ environment variables for fine-grained control. All settings configurable via env vars or `settings.yml`. See [Configuration Overview](/configuration/overview) and [Environment Variables](/configuration/environment-variables).
+  </Accordion>
+</AccordionGroup>
+
+## Reference
+
+<CardGroup cols={3}>
+  <Card title="CLI Reference" icon="terminal" href="/cli/chat">
+    All CLI commands: chat, serve, agent, doctor, config, and more.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/overview">
+    REST API for chat, agents, tasks, memory, and webhooks.
+  </Card>
+  <Card title="Configuration" icon="sliders" href="/configuration/overview">
+    settings.yml schema, environment variables, and security config.
+  </Card>
+</CardGroup>

@@ -1,0 +1,115 @@
+---
+title: "LINE"
+description: "Connect profClaw to LINE Messaging API. Popular in Japan, Taiwan, and Southeast Asia."
+---
+
+LINE is the dominant messaging platform across Japan, Taiwan, Thailand, and Indonesia. profClaw integrates via the LINE Messaging API for bot interactions.
+
+## Capabilities
+
+| Feature | Supported |
+|---------|-----------|
+| 1:1 messages | Yes |
+| Group messages | Yes |
+| Quick reply buttons | Yes |
+| Flex messages | Yes |
+| File/image send | Yes |
+| Webhook | Yes |
+| Channel access | Yes |
+
+## Setup
+
+<Steps>
+  <Step title="Create a LINE Developers account">
+    Sign up at [developers.line.biz](https://developers.line.biz).
+  </Step>
+  <Step title="Create a Messaging API channel">
+    Create a new provider and channel. Choose **Messaging API** as the channel type.
+  </Step>
+  <Step title="Get credentials">
+    Under **Messaging API** tab:
+    - **Channel access token** (long-lived)
+    - **Channel secret**
+  </Step>
+  <Step title="Set webhook URL">
+    Under **Messaging API > Webhook settings**, set:
+    `https://your-domain.com/webhooks/line`
+
+    Enable **Use webhook**.
+  </Step>
+  <Step title="Configure profClaw">
+    ```bash
+    LINE_CHANNEL_ACCESS_TOKEN=your-channel-access-token
+    LINE_CHANNEL_SECRET=your-channel-secret
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="LINE_CHANNEL_ACCESS_TOKEN" type="string" required>
+  LINE Messaging API channel access token (long-lived).
+</ParamField>
+
+<ParamField path="LINE_CHANNEL_SECRET" type="string" required>
+  Channel secret for webhook signature verification.
+</ParamField>
+
+<ParamField path="LINE_WEBHOOK_URL" type="string">
+  Webhook URL. Required to be set in LINE Developer Console.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    LINE_CHANNEL_ACCESS_TOKEN=xxxxxxxxxxxxxxxxxxx
+    LINE_CHANNEL_SECRET=abcdef1234567890
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    chat:
+      line:
+        channel_access_token: "${LINE_CHANNEL_ACCESS_TOKEN}"
+        channel_secret: "${LINE_CHANNEL_SECRET}"
+    ```
+  </Tab>
+</Tabs>
+
+## Flex Messages
+
+profClaw can send LINE Flex Messages for rich layouts:
+
+```json
+{
+  "type": "flex",
+  "altText": "Task completed",
+  "contents": {
+    "type": "bubble",
+    "body": {
+      "type": "box",
+      "layout": "vertical",
+      "contents": [
+        { "type": "text", "text": "Result", "weight": "bold" }
+      ]
+    }
+  }
+}
+```
+
+## Notes
+
+- Status: Beta
+- LINE requires a public HTTPS webhook URL.
+- LINE's free tier allows 500 messages/month. Paid plans remove the limit.
+- The webhook URL must be verified in the LINE Developer Console.
+- LINE's Messaging API uses POST webhooks - profClaw verifies the `X-Line-Signature` header.
+
+## Related
+
+- [Chat Providers Overview](/chat-providers/overview) - Compare all 27 supported channels
+- [Zalo](/chat-providers/zalo) - Leading messaging platform in Vietnam
+- [Viber](/chat-providers/viber) - Messaging app popular in Southeast Asia and Eastern Europe
+- [profclaw channels](/cli/channels) - Enable and test the LINE connection from the CLI

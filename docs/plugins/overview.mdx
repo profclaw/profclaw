@@ -1,0 +1,212 @@
+---
+title: "Plugin System Overview"
+description: "Extend profClaw with custom tools, search providers, integrations, and model adapters. Covers the plugin lifecycle, settings schema, sandbox, and ClawHub marketplace."
+---
+
+profClaw's plugin system lets you add new capabilities without forking the core. Plugins can provide AI tools (for function calling), search providers, skills, and chat channel integrations.
+
+## Plugin Categories
+
+| Category | What it adds |
+|----------|-------------|
+| `tool` | New tools available to the AI during execution |
+| `search` | A new web or knowledge search backend |
+| `integration` | External service connection (ticket systems, APIs) |
+| `model` | A custom AI model provider |
+
+## Architecture
+
+```
+Plugin Package (npm)
+    |
+    v
+pluginRegistry.register(id, factory)
+    |
+    v
+pluginRegistry.create(config)  --> PluginInstance
+    |
+    v
+Tool Router / Search Router use the plugin at runtime
+```
+
+The registry (`src/plugins/registry.ts`) holds factories keyed by plugin ID. Configuration is stored in the database and loaded on startup. Plugins run in an optional sandbox (`src/plugins/sandbox.ts`) for untrusted code.
+
+## Plugin Metadata
+
+Every plugin declares metadata that drives the settings UI and ClawHub listing:
+
+```typescript
+export interface PluginMetadata {
+  id: string;
+  name: string;
+  description: string;
+  category: PluginCategory;
+  icon?: string;           // Lucide icon name
+  version: string;
+  author?: string;
+  homepage?: string;
+  pricing?: {
+    type: 'free' | 'paid' | 'freemium' | 'credit-based';
+    costPer1k?: number;
+    freeQuota?: number;
+  };
+  rateLimit?: {
+    requestsPerSecond?: number;
+    requestsPerMinute?: number;
+    requestsPerDay?: number;
+  };
+}
+```
+
+## Plugin Lifecycle
+
+<Steps>
+  <Step title="Install">
+    Install the plugin package via npm/pnpm or download from ClawHub:
+    ```bash
+    profclaw plugins install @profclaw/plugin-jira-search
+    ```
+  </Step>
+  <Step title="Register">
+    The plugin factory is registered with `pluginRegistry.register(id, factory)` on server startup.
+  </Step>
+  <Step title="Configure">
+    The user provides credentials and settings via the settings UI. The UI is auto-generated from the plugin's `PluginSettingsSchema`.
+  </Step>
+  <Step title="Load">
+    The `onLoad(config)` lifecycle hook is called with the saved configuration. Use this to validate credentials and initialize connections.
+  </Step>
+  <Step title="Execute">
+    Tools or search functions are called at runtime by the execution engine. Results are returned to the AI model.
+  </Step>
+  <Step title="Health check">
+    `healthCheck()` is polled periodically and surfaced in the settings dashboard.
+  </Step>
+  <Step title="Unload">
+    `onUnload()` is called on server shutdown or when the plugin is disabled. Use this to close connections and clean up resources.
+  </Step>
+</Steps>
+
+## Settings Schema
+
+Plugins declare their settings schema for automatic UI generation. The schema drives both the settings form and validation:
+
+```typescript
+export interface PluginSettingsSchema {
+  credentials: SettingsField[];  // Stored encrypted
+  settings: SettingsField[];     // Stored in plaintext
+}
+
+export interface SettingsField {
+  key: string;
+  type: 'text' | 'password' | 'number' | 'boolean' | 'select' | 'url';
+  label: string;
+  description?: string;
+  required?: boolean;
+  default?: unknown;
+  options?: Array<{ value: string; label: string }>;
+}
+```
+
+Fields with `type: 'password'` are encrypted at rest and never exposed in logs.
+
+## Plugin Sandbox
+
+By default, plugins from ClawHub run in a Node.js sandbox with restricted access:
+
+- No direct filesystem access outside the plugin's data directory
+- Network requests go through the SsrfGuard
+- CPU and memory limits enforced
+- Static code analysis on install
+
+<Warning>
+  Plugins you install from ClawHub or third parties run code on your machine. Review the source and check the ClawHub trust score before installing plugins from unknown authors.
+</Warning>
+
+Trust a plugin to run outside the sandbox (for performance-sensitive use cases):
+
+```bash
+profclaw plugins trust @profclaw/plugin-jira-search
+```
+
+## ClawHub
+
+ClawHub is profClaw's plugin and skill marketplace. Browse and install from the settings UI at **Settings > Plugins > Browse ClawHub**, or via CLI:
+
+```bash
+# Browse and install
+profclaw plugins search jira
+profclaw plugins install @profclaw/plugin-jira-search
+
+# Manage installed plugins
+profclaw plugins list
+profclaw plugins update @profclaw/plugin-jira-search
+profclaw plugins disable my-plugin
+profclaw plugins remove my-plugin
+```
+
+See [Publishing to ClawHub](/plugins/publishing) for details on submitting your own plugin.
+
+## Writing a Plugin
+
+A minimal tool plugin:
+
+```typescript
+import type { PluginFactory, ToolPlugin } from 'profclaw/sdk';
+
+const factory: PluginFactory<ToolPlugin> = {
+  metadata: {
+    id: 'my-lookup',
+    name: 'My Lookup',
+    description: 'Look up data from My API',
+    category: 'tool',
+    version: '1.0.0',
+  },
+  settingsSchema: {
+    credentials: [
+      { key: 'apiKey', type: 'password', label: 'API Key', required: true },
+    ],
+    settings: [],
+  },
+  create(config) {
+    return {
+      tools: [
+        {
+          name: 'my_lookup',
+          description: 'Look up an item by ID',
+          schema: z.object({ id: z.string() }),
+          securityLevel: 'safe',
+          async execute({ id }) {
+            const data = await fetchFromApi(config.apiKey, id);
+            return { result: data };
+          },
+        },
+      ],
+      async healthCheck() {
+        return { ok: true };
+      },
+    };
+  },
+};
+
+export default factory;
+```
+
+See [Plugin SDK Reference](/plugins/sdk) for the complete API.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Skills Overview" icon="book-open" href="/skills/overview">
+    Add AI behavior with plain Markdown - no code required.
+  </Card>
+  <Card title="Custom Tools" icon="wrench" href="/tools/custom-tools">
+    Add tools directly without packaging a full plugin.
+  </Card>
+  <Card title="Publishing to ClawHub" icon="upload" href="/plugins/publishing">
+    Publish your plugin for the community.
+  </Card>
+  <Card title="Plugin SDK" icon="code" href="/plugins/sdk">
+    Full TypeScript SDK reference for plugin development.
+  </Card>
+</CardGroup>

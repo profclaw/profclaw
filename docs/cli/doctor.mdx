@@ -1,0 +1,92 @@
+---
+title: "profclaw doctor"
+description: "Run system diagnostics to detect configuration issues, missing dependencies, and environment problems."
+---
+
+## Synopsis
+
+```bash
+profclaw doctor [flags]
+```
+
+## Description
+
+`doctor` runs a series of health checks against the local environment and the running profClaw server. Each check reports `pass`, `warn`, or `fail` along with a suggested fix command.
+
+Checks performed:
+
+| Check | What it tests |
+|---|---|
+| **Node.js** | Version is >= 22 |
+| **Config** | `config/settings.yml` exists |
+| **Port** | Configured port is available or in use |
+| **Redis** | `REDIS_URL` is reachable (optional for pico/mini) |
+| **Ollama** | Ollama API is reachable at `localhost:11434` |
+| **Server** | profClaw HTTP server responds at `/health` |
+| **Database** | Database is configured and accessible |
+| **AI Provider** | At least one healthy provider is configured |
+| **Memory** | Sufficient free system RAM |
+| **Disk** | Sufficient free disk space |
+| **Cloudflared** | `cloudflared` binary is installed (optional) |
+| **Tailscale** | `tailscale` binary is installed (optional) |
+
+## Flags
+
+<ParamField query="--json" type="boolean">
+  Output all check results as a JSON array instead of the colored table. Each result includes `name`, `status`, `message`, and optional `fix`.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash Run all checks
+profclaw doctor
+```
+
+```bash Output as JSON (for scripting)
+profclaw doctor --json
+```
+
+```bash Check and auto-fix common issues
+profclaw doctor && echo "All checks passed"
+```
+</CodeGroup>
+
+## Example Output
+
+```
+profClaw Doctor
+
+  ✓ Node.js       v22.11.0
+  ✓ Config        settings.yml found (+.env)
+  ✓ Port          Port 3000 available
+  ⚠ Redis         REDIS_URL not set (optional for pico/mini mode)
+    Fix: docker compose up redis -d
+  ⚠ Ollama        Not running (optional)
+    Fix: https://ollama.com/download
+  ✓ Server        Running and healthy
+  ✓ Database      Configured and accessible
+  ✓ AI Provider   2/2 healthy
+  ✓ Memory        14.2 GB free
+  ✓ Disk          120G free (42% used)
+  ⚠ Cloudflared   Not installed (optional)
+    Fix: brew install cloudflared
+  ⚠ Tailscale     Not installed (optional)
+    Fix: https://tailscale.com/download
+
+  10/12 passed, 4 warnings
+```
+
+## Exit Codes
+
+| Code | Meaning |
+|---|---|
+| `0` | All checks passed (warnings do not cause failure) |
+| `1` | One or more checks failed |
+
+## Related
+
+- [`profclaw onboard`](/cli/onboard) - Run the full setup wizard
+- [`profclaw status`](/cli/status) - Quick system status
+- [`profclaw serve`](/cli/serve) - Start the server
+- [`profclaw logs`](/cli/logs) - View server logs

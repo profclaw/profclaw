@@ -1,0 +1,163 @@
+---
+title: "Gateway API"
+description: "profClaw Gateway API - unified entry point for dispatching work to AI agents. Route tasks to agent adapters and trigger workflows with Bearer token auth."
+---
+
+The gateway is profClaw's unified entry point for dispatching work to AI agents. It accepts structured requests and routes them to the appropriate agent adapter, workflow, or task queue.
+
+Authentication uses Bearer token (`tokenAuthMiddleware` from `src/auth/api-tokens.ts`).
+
+## POST /api/gateway
+
+Submit a request to the gateway.
+
+```bash
+curl -X POST http://localhost:3000/api/gateway \
+  -H "Authorization: Bearer <api-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "task": {
+      "title": "Review PR #42",
+      "description": "Check for security issues and code quality",
+      "source": "api",
+      "priority": 2
+    },
+    "workflow": "code-review",
+    "options": {
+      "synchronous": false,
+      "notifyUrl": "https://your-service.com/callback"
+    }
+  }'
+```
+
+**Request body**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `task` | object | Yes | Task definition (see `CreateTaskSchema`) |
+| `workflow` | string | No | Named workflow type to execute |
+| `options.synchronous` | boolean | No | Wait for completion (default: `false`) |
+| `options.notifyUrl` | string | No | Webhook URL for completion notification |
+| `options.timeout` | number | No | Max wait time in ms (synchronous mode) |
+
+**Response `202`** (async)
+
+```json
+{
+  "requestId": "gw_01",
+  "taskId": "task_01",
+  "status": "queued",
+  "estimatedWait": 30000,
+  "statusUrl": "http://localhost:3000/api/gateway/gw_01/status"
+}
+```
+
+**Response `200`** (synchronous, `options.synchronous: true`)
+
+```json
+{
+  "requestId": "gw_01",
+  "taskId": "task_01",
+  "status": "completed",
+  "result": {
+    "output": "Code review complete. Found 2 issues...",
+    "duration": 45230,
+    "model": "claude-sonnet-4-6"
+  }
+}
+```
+
+---
+
+## GET /api/gateway/:requestId/status
+
+Poll the status of a gateway request.
+
+```bash
+curl http://localhost:3000/api/gateway/gw_01/status \
+  -H "Authorization: Bearer <api-token>"
+```
+
+**Response `200`**
+
+```json
+{
+  "requestId": "gw_01",
+  "taskId": "task_01",
+  "status": "in_progress",
+  "progress": 65,
+  "startedAt": "2026-03-12T10:00:00Z",
+  "updatedAt": "2026-03-12T10:00:30Z"
+}
+```
+
+---
+
+## Workflow Types
+
+| `workflow` | Description |
+|-----------|-------------|
+| `code-review` | Analyze code changes, check for issues |
+| `ticket-resolve` | Work a ticket end-to-end |
+| `test-generation` | Generate tests for specified code |
+| `refactor` | Apply a refactoring pattern |
+| `summarize` | Summarize a document or conversation |
+| `custom` | Free-form task, no workflow scaffolding |
+
+---
+
+## API Token Management
+
+API tokens are scoped to the gateway and integration webhooks. Generate tokens in the settings UI or via:
+
+```bash
+POST /api/tokens
+{ "name": "CI/CD pipeline", "scopes": ["gateway:write"] }
+```
+
+**Response `201`**
+
+```json
+{
+  "token": "pct_...",
+  "name": "CI/CD pipeline",
+  "createdAt": "2026-03-12T10:00:00Z"
+}
+```
+
+The token is shown once. Store it securely.
+
+---
+
+## Rate Limits
+
+Gateway requests are rate-limited per token:
+
+- Default: 60 requests / minute
+- Burst: 10 requests / second
+
+Configure via `GATEWAY_RATE_LIMIT_RPM` environment variable.
+
+---
+
+## Gateway Context
+
+The `GatewayContext` type (`src/gateway/types.ts`) carries metadata through the request pipeline:
+
+```typescript
+interface GatewayContext {
+  requestId: string;
+  tokenId: string;
+  workflow?: WorkflowType;
+  task: CreateTaskInput;
+  options: GatewayOptions;
+  receivedAt: Date;
+}
+```
+
+## Related
+
+- [Tasks API](/api-reference/tasks) - Direct task creation without workflow routing
+- [Agents API](/api-reference/agents) - View available agent adapters
+- [Chat Streaming](/api-reference/chat-stream) - SSE streaming for interactive execution
+- [Webhooks API](/api-reference/webhooks) - Configure callback URLs for task completion

@@ -1,0 +1,56 @@
+---
+title: "profclaw session"
+description: "profclaw session - list, inspect, and delete chat sessions. View conversation history and clean up old sessions stored by the profClaw server."
+---
+
+## Synopsis
+
+```bash
+profclaw session <subcommand> [flags]
+```
+
+## Description
+
+Manage chat sessions, view conversation history, and clean up old sessions. Each chat interaction creates a session that persists messages and tool call history.
+
+## Subcommands
+
+| Subcommand | Alias | Description |
+|-----------|-------|-------------|
+| `list` | `ls` | List chat sessions |
+| `show <id>` | | Show session details and message preview |
+| `kill <id>` | | Delete a chat session |
+| `clear` | | Delete all chat sessions |
+
+## Flags
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `-l, --limit <n>` | number | 20 | Max sessions to list |
+| `--yes` | boolean | | Skip confirmation |
+| `--json` | boolean | | Output as JSON |
+
+## Examples
+
+<CodeGroup>
+```bash List recent sessions
+profclaw session list
+```
+
+```bash Show session details
+profclaw session show sess_abc123
+```
+
+```bash Delete a session
+profclaw session kill sess_abc123
+```
+
+```bash Clear all sessions
+profclaw session clear --yes
+```
+</CodeGroup>
+
+## Related
+
+- [profclaw chat](/cli/chat)
+- [Agent Sessions API](/api-reference/agent-sessions)

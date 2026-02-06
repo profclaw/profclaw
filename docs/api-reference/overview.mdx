@@ -1,0 +1,116 @@
+---
+title: "API Overview"
+description: "profClaw REST API reference. Base URL, authentication modes (session cookie, access key, Bearer token), rate limits, error format, and pagination."
+---
+
+The profClaw API is a JSON REST API built with [Hono](https://hono.dev/). All endpoints are served on the same port as the UI (default `3000`).
+
+## Base URL
+
+```
+http://localhost:3000/api
+```
+
+For production deployments, replace `localhost:3000` with your server's hostname. All routes are prefixed with `/api`.
+
+## Authentication
+
+profClaw supports three authentication modes configured via `system.authMode` in settings:
+
+<Tabs>
+  <Tab title="Session Cookie">
+    After calling `POST /api/auth/login` or completing an OAuth flow, a `profclaw_session` cookie is set automatically. Include it with every request.
+
+    ```bash
+    curl http://localhost:3000/api/chat/completions \
+      -H "Content-Type: application/json" \
+      --cookie "profclaw_session=<token>" \
+      -d '{"messages": [{"role": "user", "content": "Hello"}]}'
+    ```
+  </Tab>
+  <Tab title="Access Key (local mode)">
+    In `local` auth mode, verify an access key to create a session:
+
+    ```bash
+    curl -X POST http://localhost:3000/api/auth/verify-access-key \
+      -H "Content-Type: application/json" \
+      -d '{"key": "your-access-key"}'
+    ```
+  </Tab>
+  <Tab title="API Token">
+    Gateway and some integration routes accept a Bearer token:
+
+    ```bash
+    curl http://localhost:3000/api/gateway \
+      -H "Authorization: Bearer <api-token>"
+    ```
+  </Tab>
+</Tabs>
+
+## Rate Limits
+
+| Endpoint | Limit |
+|---------|-------|
+| `POST /api/auth/login` | 10 requests / 60 seconds |
+| `POST /api/auth/signup` | 5 requests / 60 seconds |
+| `POST /api/auth/verify-access-key` | 10 requests / 60 seconds |
+| All other endpoints | No hard limit (configurable) |
+
+Rate limit responses return HTTP `429` with:
+
+```json
+{ "error": "Too many login attempts. Try again in a minute." }
+```
+
+## Error Format
+
+All errors follow a consistent shape:
+
+```json
+{
+  "error": "Human-readable error message",
+  "details": { }  // optional, present for validation errors
+}
+```
+
+Common HTTP status codes:
+
+| Code | Meaning |
+|------|---------|
+| `400` | Validation failed or bad request body |
+| `401` | Not authenticated or invalid session |
+| `403` | Authenticated but insufficient permissions |
+| `404` | Resource not found |
+| `429` | Rate limit exceeded |
+| `500` | Internal server error |
+| `501` | Feature not available in current mode/storage |
+| `503` | Service unavailable (queue or adapter down) |
+
+## Pagination
+
+List endpoints support both offset-based and cursor-based pagination:
+
+```bash
+# Offset-based (simple)
+GET /api/tasks?limit=50&offset=100
+
+# Cursor-based (efficient for large datasets)
+GET /api/tasks?limit=50&cursor=<base64url-cursor>
+```
+
+Responses include `nextCursor` when more results are available. Cursor values are opaque base64url-encoded strings encoding `{ createdAt, id }`.
+
+## Content Types
+
+All request and response bodies use `application/json`. Streaming endpoints use `text/event-stream` (SSE).
+
+## Versioning
+
+The API is currently unversioned. Breaking changes will be announced in the changelog and migration guides provided.
+
+## Related
+
+- [Authentication API](/api-reference/auth) - Sign up, log in, and manage sessions
+- [Chat API](/api-reference/chat) - Send messages and trigger agentic execution
+- [Tasks API](/api-reference/tasks) - Create and track agentic task lifecycle
+- [profclaw serve](/cli/serve) - Start the HTTP server that exposes this API

@@ -1,0 +1,126 @@
+---
+title: "Telegram"
+description: "Deploy profClaw as a Telegram bot. Supports webhook and long-polling modes, inline keyboards, and group chats."
+---
+
+profClaw's Telegram integration creates a bot that responds to messages in private chats, groups, and supergroups. Supports both webhook and long-polling connection modes.
+
+## Capabilities
+
+| Feature | Supported |
+|---------|-----------|
+| Private chats | Yes |
+| Group chats | Yes |
+| Supergroups | Yes |
+| Inline keyboards | Yes |
+| File/media messages | Yes |
+| Commands | Yes (`/command`) |
+| Webhook mode | Yes |
+| Long-polling mode | Yes |
+
+## Setup
+
+<Steps>
+  <Step title="Create a bot with BotFather">
+    Open Telegram and message [@BotFather](https://t.me/BotFather):
+
+    ```
+    /newbot
+    # Follow prompts to set name and username
+    # BotFather gives you a token: 1234567890:ABCdef...
+    ```
+  </Step>
+  <Step title="Configure profClaw">
+    ```bash
+    TELEGRAM_BOT_TOKEN=1234567890:ABCdef...
+    ```
+  </Step>
+  <Step title="Set webhook (optional)">
+    For webhook mode, also set:
+    ```bash
+    TELEGRAM_WEBHOOK_URL=https://your-domain.com/webhooks/telegram
+    TELEGRAM_WEBHOOK_SECRET=your-random-secret
+    ```
+
+    If no webhook URL is set, profClaw uses long-polling automatically.
+  </Step>
+  <Step title="Verify">
+    ```bash
+    profclaw doctor --provider telegram
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="TELEGRAM_BOT_TOKEN" type="string" required>
+  Bot token from BotFather. Format: `1234567890:ABCdef...`
+</ParamField>
+
+<ParamField path="TELEGRAM_WEBHOOK_URL" type="string">
+  Public webhook URL. If not set, long-polling is used instead.
+</ParamField>
+
+<ParamField path="TELEGRAM_WEBHOOK_SECRET" type="string">
+  Secret token for webhook verification. Recommended for webhook mode.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env (long-polling)">
+    ```bash
+    TELEGRAM_BOT_TOKEN=1234567890:ABCdef...
+    # No webhook URL = auto long-polling
+    ```
+  </Tab>
+  <Tab title=".env (webhook)">
+    ```bash
+    TELEGRAM_BOT_TOKEN=1234567890:ABCdef...
+    TELEGRAM_WEBHOOK_URL=https://profclaw.example.com/webhooks/telegram
+    TELEGRAM_WEBHOOK_SECRET=my-secret-token
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    chat:
+      telegram:
+        bot_token: "${TELEGRAM_BOT_TOKEN}"
+        webhook_url: "${TELEGRAM_WEBHOOK_URL}"
+        webhook_secret: "${TELEGRAM_WEBHOOK_SECRET}"
+    ```
+  </Tab>
+</Tabs>
+
+## Bot Commands
+
+Set up commands in BotFather for better UX:
+
+```
+/ask - Ask a question
+/run - Run a skill
+/status - Check status
+/help - Show help
+```
+
+## Usage in Groups
+
+Add the bot to a group and it responds when:
+- Directly mentioned: `@your_bot_name What is...`
+- Bot commands used: `/ask What is...`
+
+For private groups, ensure the bot has message read permissions.
+
+## Notes
+
+- Long-polling is simpler for development and doesn't require a public URL.
+- Webhook mode is recommended for production - lower latency and no missed messages.
+- Telegram's Bot API supports MarkdownV2 formatting for rich responses.
+- Group bots require explicit permission to read all messages (or use commands only).
+
+## Related
+
+- [Chat Providers Overview](/chat-providers/overview) - Compare all 27 supported channels
+- [WhatsApp](/chat-providers/whatsapp) - Business messaging via Meta's Cloud API
+- [Signal](/chat-providers/signal) - End-to-end encrypted messaging alternative
+- [profclaw channels](/cli/channels) - Enable and test the Telegram connection from the CLI

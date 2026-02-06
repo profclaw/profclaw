@@ -1,0 +1,116 @@
+---
+title: "profclaw sync"
+description: "Synchronize issues, tasks, and state across GitHub, Jira, and Linear integrations."
+---
+
+## Synopsis
+
+```bash
+profclaw sync <subcommand> [flags]
+```
+
+## Description
+
+`sync` orchestrates cross-platform synchronization between profClaw and connected integrations (GitHub, Jira, Linear). It pulls new tickets and issues into the profClaw task queue, pushes status updates back to the source, and keeps bi-directional state in sync.
+
+## Subcommands
+
+| Subcommand | Description |
+|---|---|
+| `all` | Sync all configured integrations |
+| `github [repo]` | Sync GitHub issues (all repos or a specific one) |
+| `jira [project]` | Sync Jira tickets (all projects or a specific one) |
+| `linear [team]` | Sync Linear issues (all teams or a specific one) |
+| `status` | Show last sync time and result for each integration |
+
+## `sync all`
+
+<ParamField query="--dry-run" type="boolean">
+  Show what would be synced without making changes.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output sync results as JSON.
+</ParamField>
+
+## `sync github [repo]` / `sync jira [project]` / `sync linear [team]`
+
+<ParamField query="--dry-run" type="boolean">
+  Preview changes without applying them.
+</ParamField>
+
+<ParamField query="--force" type="boolean">
+  Force a full resync even if items appear unchanged.
+</ParamField>
+
+<ParamField query="--limit" type="string" default="100">
+  Maximum items to sync per integration.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output as JSON.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash Sync all integrations
+profclaw sync all
+```
+
+```bash Preview what would be synced
+profclaw sync all --dry-run
+```
+
+```bash Sync GitHub only
+profclaw sync github
+```
+
+```bash Sync a specific GitHub repo
+profclaw sync github myorg/myrepo
+```
+
+```bash Sync Jira
+profclaw sync jira
+```
+
+```bash Sync a specific Linear team
+profclaw sync linear ENG
+```
+
+```bash Check last sync status
+profclaw sync status
+```
+
+```bash Force a full resync
+profclaw sync all --force
+```
+</CodeGroup>
+
+## Sync Configuration
+
+Configure sync behavior per integration in `config/settings.yml`:
+
+```yaml
+sync:
+  github:
+    enabled: true
+    label: "profclaw"        # Only sync issues with this label
+    autoCreateTasks: true    # Auto-create agent tasks for new issues
+  jira:
+    enabled: true
+    projects: ["ENG", "OPS"]
+    stateMapping:
+      "Todo": pending
+      "In Progress": in_progress
+  linear:
+    enabled: true
+    autoAssign: true
+```
+
+## Related
+
+- [`profclaw github`](/cli/github) - GitHub integration commands
+- [`profclaw jira`](/cli/jira) - Jira integration commands
+- [`profclaw linear`](/cli/linear) - Linear integration commands
+- [`profclaw task`](/cli/task) - View synced tasks

@@ -1,0 +1,88 @@
+---
+title: "Integrations Overview"
+description: "Connect profClaw to GitHub, Jira, Linear, Cloudflare, and Tailscale"
+---
+
+profClaw integrates with the tools your team already uses. Webhooks create tasks automatically, OAuth connections let the agent act on your behalf, and the sync engine keeps ticket state consistent across platforms.
+
+## Available Integrations
+
+<CardGroup cols={2}>
+  <Card title="GitHub" icon="github" href="/integrations/github">
+    Issue and PR webhooks, OAuth for repo access, automated code reviews, and AI task labels.
+  </Card>
+  <Card title="Jira" icon="atlassian" href="/integrations/jira">
+    OAuth 2.0 connection, bidirectional ticket sync, status field mapping, and sprint support.
+  </Card>
+  <Card title="Linear" icon="linear" href="/integrations/linear">
+    OAuth 2.0, issue sync, label and state mapping, and team-based project routing.
+  </Card>
+  <Card title="Cloudflare" icon="cloudflare" href="/integrations/cloudflare">
+    Workers deployment, D1 database, R2 storage, KV namespaces, and edge routing.
+  </Card>
+  <Card title="Tailscale" icon="network-wired" href="/integrations/tailscale">
+    Mesh VPN tunnels, secure device-to-device access, and zero-config private networking.
+  </Card>
+</CardGroup>
+
+## Comparison Table
+
+| Feature | GitHub | Jira | Linear |
+|---------|--------|------|--------|
+| OAuth | Yes | Yes (OAuth 2.0) | Yes (OAuth 2.0) |
+| Webhooks | Yes | Yes | Yes |
+| Bidirectional sync | Yes | Yes | Yes |
+| Auto task creation | Yes (label trigger) | Via webhook | Via webhook |
+| PR reviews | Yes | - | - |
+| Comment sync | Yes | Yes | Yes |
+| Priority mapping | Yes | Yes | Yes |
+| Status mapping | Yes | Yes | Yes |
+
+## How Integrations Work
+
+### Webhook-to-Task Pipeline
+
+When a webhook arrives at `/api/webhooks/github` (or Jira/Linear), profClaw:
+
+1. Verifies the signature (`X-Hub-Signature-256` for GitHub)
+2. Parses the event type (`issues.opened`, `pull_request.opened`, etc.)
+3. Checks configured label triggers (`ai-task`, `ai-review`)
+4. Creates a `Task` via `addTask()` and queues it for agent processing
+5. Posts a result comment back to the source issue or PR
+
+### Sync Engine
+
+The sync engine (`src/sync/`) handles bidirectional state updates:
+
+- **Push**: Local ticket changes propagate to the external platform
+- **Pull**: External changes update local tickets on a polling interval
+- **Bidirectional**: Both directions, with conflict resolution
+
+Conflict strategies: `local_wins`, `remote_wins`, `latest_wins`, `manual`
+
+### Environment Variables
+
+```bash
+# GitHub
+GITHUB_WEBHOOK_SECRET=your-secret
+GITHUB_AI_TASK_LABEL=ai-task
+GITHUB_AI_REVIEW_LABEL=ai-review
+
+# Jira
+JIRA_CLIENT_ID=your-client-id
+JIRA_CLIENT_SECRET=your-client-secret
+JIRA_REDIRECT_URI=https://your-host/api/auth/jira/callback
+
+# Linear
+LINEAR_CLIENT_ID=your-client-id
+LINEAR_CLIENT_SECRET=your-client-secret
+LINEAR_REDIRECT_URI=https://your-host/api/auth/linear/callback
+
+# Cloudflare
+CLOUDFLARE_API_TOKEN=your-token
+CLOUDFLARE_ACCOUNT_ID=your-account-id
+
+# Tailscale
+TAILSCALE_AUTH_KEY=your-auth-key
+TAILSCALE_TAILNET=your-tailnet
+```

@@ -1,0 +1,243 @@
+---
+title: "Creating Skills"
+description: "Write SKILL.md files to give the AI specialized instructions for any task domain."
+---
+
+## Skill File Format
+
+A skill is a single `SKILL.md` file with YAML frontmatter and Markdown instructions:
+
+```
+your-project/
+  skills/
+    my-skill/
+      SKILL.md
+```
+
+## Complete SKILL.md Example
+
+```markdown
+---
+name: api-reviewer
+description: Review REST API designs for consistency and best practices
+version: 1.0.0
+user-invocable: true
+metadata: >
+  {"profclaw": {
+    "emoji": "api",
+    "category": "development",
+    "priority": 75,
+    "triggerPatterns": [
+      "review this API",
+      "is this REST API good",
+      "check my endpoint design"
+    ]
+  }}
+---
+
+# API Reviewer
+
+You are an API design expert. When asked to review a REST API, analyze it for
+consistency, adherence to REST conventions, and potential usability issues.
+
+## What This Skill Does
+
+- Reviews REST endpoint designs for naming consistency
+- Checks HTTP method usage (GET/POST/PUT/PATCH/DELETE)
+- Validates status code choices
+- Identifies missing error responses
+- Suggests versioning improvements
+
+## How to Review
+
+### Step 1: Read the API Definition
+
+If given an OpenAPI spec file, read it:
+```
+read_file(path: "openapi.yml")
+```
+
+If pasted inline, work with the provided content.
+
+### Step 2: Evaluate Across These Dimensions
+
+**Naming Conventions**
+- Resources should be nouns, not verbs: `/users` not `/getUsers`
+- Use plural for collections: `/tickets` not `/ticket`
+- Consistent casing: kebab-case for multi-word paths
+
+**HTTP Methods**
+- GET: Read only, idempotent, no body
+- POST: Create, non-idempotent
+- PUT: Replace entire resource
+- PATCH: Partial update
+- DELETE: Remove resource
+
+**Status Codes**
+- 200 OK, 201 Created, 204 No Content
+- 400 Bad Request (client error), 401 Unauthorized, 403 Forbidden, 404 Not Found
+- 500 Internal Server Error (never expose stack traces)
+
+### Step 3: Output Format
+
+```
+## API Review: [endpoint or spec name]
+
+**Overall**: [Looks good / Needs minor fixes / Needs redesign]
+
+### Issues
+- [METHOD /path] **[category]**: Issue description. Suggestion: ...
+
+### Positives
+- What is well-designed
+```
+```
+
+## Frontmatter Reference
+
+<ParamField path="name" type="string" required>
+  Unique skill identifier in kebab-case. Must be unique across all loaded skills.
+</ParamField>
+
+<ParamField path="description" type="string" required>
+  One-sentence description shown in skill lists and the UI.
+</ParamField>
+
+<ParamField path="version" type="string" required>
+  Semver version string (e.g., `"1.0.0"`).
+</ParamField>
+
+<ParamField path="user-invocable" type="boolean" default="true">
+  Whether this skill appears as a slash command. Set to `false` for background/system skills.
+</ParamField>
+
+<ParamField path="disable-model-invocation" type="boolean" default="false">
+  Prevent the AI from auto-activating this skill based on trigger patterns.
+</ParamField>
+
+<ParamField path="command-dispatch" type="string">
+  Set to `"tool"` to route slash command invocation directly to a tool instead of injecting as instructions.
+</ParamField>
+
+<ParamField path="command-tool" type="string">
+  Tool name to dispatch to when `command-dispatch: tool`.
+</ParamField>
+
+<ParamField path="command-arg-mode" type="string">
+  How to pass slash command args to the tool: `"raw"` (as a string) or `"parsed"` (as structured params).
+</ParamField>
+
+## Metadata JSON Schema
+
+The `metadata` field is a JSON string (or YAML block scalar) with this structure:
+
+```json
+{
+  "profclaw": {
+    "emoji": "magnifying-glass",
+    "category": "development",
+    "priority": 85,
+    "triggerPatterns": [
+      "review my code",
+      "check this PR"
+    ]
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `emoji` | Lucide icon name for UI display |
+| `category` | Group in skill browser: `development`, `productivity`, `media`, `integrations`, `system` |
+| `priority` | Sort order in lists (0-100, higher = first) |
+| `triggerPatterns` | Phrases that cause auto-activation |
+
+## Writing Good Instructions
+
+### Be Specific About Tool Usage
+
+Instead of "look at the code", tell the AI exactly which tools to use:
+
+```markdown
+## How to Execute
+
+1. Read the file:
+   read_file(path: provided_path)
+
+2. Search for patterns:
+   grep(pattern: "TODO:", glob: "**/*.ts")
+```
+
+### Provide Output Format Templates
+
+Give the AI a concrete output structure to follow:
+
+```markdown
+## Output Format
+
+Always respond in this format:
+
+## Summary
+[1-2 sentences]
+
+## Issues Found
+- [severity] [file:line]: description
+
+## Recommendations
+1. First recommendation
+```
+
+### Include Example Interactions
+
+```markdown
+## Examples
+
+**User**: Review this function: `[pastes code]`
+**You**: *(reads code, analyzes it)* Structured feedback with file:line references.
+
+**User**: Is this secure?
+**You**: Focuses analysis on security: injection, auth, input validation.
+```
+
+## Command Dispatch Skill
+
+For simple slash commands that just run a tool, use command dispatch instead of instructions:
+
+```markdown
+---
+name: run-tests
+description: Run the test suite
+user-invocable: true
+command-dispatch: tool
+command-tool: test_run
+command-arg-mode: raw
+---
+
+Runs all tests using the configured test framework.
+```
+
+Now `/run-tests src/auth.test.ts` calls `test_run` with the file argument.
+
+## Testing Your Skill
+
+```bash
+# Load and test your skill
+profclaw skills load ./skills/my-skill/SKILL.md
+
+# Verify it appears in the list
+profclaw skills list
+
+# Test invocation
+profclaw chat --skill my-skill "test message"
+```
+
+## Related Docs
+
+<CardGroup cols={2}>
+  <Card title="Using Skills" icon="play" href="/skills/using-skills">
+    How to invoke and manage skills.
+  </Card>
+  <Card title="ClawHub" icon="store" href="/skills/clawhub">
+    Publish your skills to the community marketplace.
+  </Card>
+</CardGroup>

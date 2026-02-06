@@ -1,0 +1,60 @@
+---
+title: "profclaw setup"
+description: "profclaw setup - interactive first-time setup wizard for creating an admin account, configuring an AI provider, and setting registration mode."
+---
+
+## Synopsis
+
+```bash
+profclaw setup [flags]
+```
+
+## Description
+
+Interactive first-time setup wizard that creates an admin account, configures an AI provider, and sets the registration mode. Designed for initial deployment configuration.
+
+<Note>
+  For a more comprehensive onboarding experience that includes environment detection and deployment mode selection, use [`profclaw onboard`](/cli/onboard) instead.
+</Note>
+
+## Flags
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--non-interactive` | boolean | | Run without prompts (for CI/Docker) |
+| `--admin-email <email>` | string | | Admin email |
+| `--admin-password <password>` | string | | Admin password |
+| `--admin-name <name>` | string | | Admin display name |
+| `--ai-provider <provider>` | string | | AI provider: anthropic, openai, ollama, skip |
+| `--registration-mode <mode>` | string | | Registration mode: invite, open |
+
+## Interactive Mode
+
+```bash
+profclaw setup
+```
+
+Walks through:
+1. Admin account creation (email, password, display name)
+2. AI provider selection and API key configuration
+3. Registration mode (invite-only or open)
+
+## Non-Interactive Mode
+
+For automated deployments (Docker, CI):
+
+```bash
+profclaw setup \
+  --non-interactive \
+  --admin-email admin@example.com \
+  --admin-password SecurePass123! \
+  --admin-name "Admin" \
+  --ai-provider anthropic \
+  --registration-mode invite
+```
+
+## Related
+
+- [profclaw onboard](/cli/onboard)
+- [profclaw init](/cli/init)
+- [Installation Guide](/getting-started/installation)

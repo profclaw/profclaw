@@ -1,0 +1,122 @@
+---
+title: "Test Runner"
+description: "Auto-detect and run tests with structured output showing pass/fail counts and failure locations."
+---
+
+## Overview
+
+`test_run` auto-detects the test framework from your project configuration and runs tests with structured output. Instead of raw terminal output, it returns parsed results: pass/fail/skip counts, failure details with `file:line` locations, and optionally coverage data.
+
+Supported frameworks: **vitest**, **jest**, **pytest**, **go test**, **cargo test**, **mocha**, **jasmine**, and more.
+
+## Tool: `test_run`
+
+**Security level**: `moderate` | **Tier**: Standard
+
+<ParamField path="command" type="string">
+  Override the auto-detected test command. Leave blank to use auto-detection.
+</ParamField>
+
+<ParamField path="file" type="string">
+  Run tests only in a specific file.
+</ParamField>
+
+<ParamField path="grep" type="string">
+  Filter by test name pattern. Passes `--grep` to vitest/jest or `-k` to pytest.
+</ParamField>
+
+<ParamField path="coverage" type="boolean" default="false">
+  Enable code coverage reporting.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```json Run all tests
+{}
+```
+```json Run tests in one file
+{
+  "file": "src/queue/task-queue.test.ts"
+}
+```
+```json Run tests matching a pattern
+{
+  "grep": "auth"
+}
+```
+```json Run with coverage
+{
+  "coverage": true
+}
+```
+```json Override the command
+{
+  "command": "pnpm test --reporter=verbose"
+}
+```
+</CodeGroup>
+
+## Response Format
+
+```json
+{
+  "success": true,
+  "data": {
+    "framework": "vitest",
+    "passed": 42,
+    "failed": 2,
+    "skipped": 3,
+    "total": 47,
+    "durationMs": 3241,
+    "failures": [
+      {
+        "name": "queue > retries exhausted > should emit failed event",
+        "file": "src/queue/task-queue.test.ts",
+        "line": 88,
+        "message": "Expected 'failed' to equal 'error'"
+      }
+    ],
+    "coverage": null
+  }
+}
+```
+
+## Framework Auto-Detection
+
+The tool checks for the following config files in order:
+
+| Config File | Framework |
+|------------|-----------|
+| `vitest.config.ts` / `vitest.config.js` | vitest |
+| `jest.config.ts` / `jest.config.js` | jest |
+| `pytest.ini` / `pyproject.toml` | pytest |
+| `go.mod` | go test |
+| `Cargo.toml` | cargo test |
+| `package.json` with `"jest"` key | jest |
+| `package.json` with `"vitest"` key | vitest |
+
+## Timeouts
+
+Tests are limited to **2 minutes** (120,000ms) by default. Long-running integration test suites should use the `command` override to set a higher timeout:
+
+```json
+{
+  "command": "pnpm vitest run --testTimeout=300000"
+}
+```
+
+## Output Truncation
+
+Raw test output is capped at **200,000 characters**. For very large test suites, use the `file` or `grep` parameters to narrow down which tests to run.
+
+## Related Tools
+
+<CardGroup cols={2}>
+  <Card title="File Operations" icon="folder" href="/tools/file-operations">
+    Read test files to understand what they test before running.
+  </Card>
+  <Card title="Code Analysis" icon="magnifying-glass" href="/tools/code-analysis">
+    Lint and type-check in addition to running tests.
+  </Card>
+</CardGroup>
