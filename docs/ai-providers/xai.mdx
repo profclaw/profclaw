@@ -1,0 +1,93 @@
+---
+title: "xAI / Grok"
+description: "Use Grok-2 and Grok-3 via the xAI API. Large context, strong reasoning, and real-time X/Twitter knowledge."
+---
+
+xAI's Grok models have access to real-time data from X (Twitter) and provide large context windows with strong reasoning capabilities.
+
+## Supported Models
+
+| Model | ID | Context | Tools | Notes |
+|-------|----|---------|-------|-------|
+| Grok 2 | `grok-2` | 131K | Yes | Latest stable |
+| Grok 3 | `grok-3` | 131K | Yes | Most capable |
+| Grok 2 Mini | `grok-2-mini` | 131K | Yes | Faster/cheaper |
+
+## Setup
+
+<Steps>
+  <Step title="Get an API key">
+    Apply for API access at [x.ai](https://x.ai/api).
+  </Step>
+  <Step title="Set the environment variable">
+    ```bash
+    export XAI_API_KEY=xai-...
+    ```
+  </Step>
+  <Step title="Verify">
+    ```bash
+    profclaw doctor --provider xai
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="XAI_API_KEY" type="string" required>
+  Your xAI API key. Format: `xai-...`
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    XAI_API_KEY=xai-...
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    providers:
+      xai:
+        api_key: "${XAI_API_KEY}"
+    ```
+  </Tab>
+</Tabs>
+
+## Model Aliases
+
+| Alias | Model |
+|-------|-------|
+| `grok` | grok-2 |
+| `grok-3` | grok-3 |
+
+## Usage Examples
+
+<CodeGroup>
+  ```bash CLI
+  profclaw chat --model grok "What is trending in AI right now?"
+  profclaw chat --model grok-3 "Complex reasoning task"
+  ```
+
+  ```typescript SDK
+  import { chat } from 'profclaw';
+
+  const response = await chat("Analyze this technical decision", {
+    model: "grok",
+  });
+  ```
+</CodeGroup>
+
+## Notes
+
+- API endpoint: `https://api.x.ai/v1` (OpenAI-compatible)
+- Status: Beta
+- Grok has access to real-time X/Twitter data, making it useful for current events queries.
+- xAI access is invitation-based and may have waitlist requirements.
+
+## Related
+
+- [AI Providers Overview](/ai-providers/overview) - Compare all 37 supported providers
+- [Perplexity](/ai-providers/perplexity) - Another provider with real-time web search
+- [OpenRouter](/ai-providers/openrouter) - Access Grok via OpenRouter as an alternative
+- [profclaw provider](/cli/provider) - Add and test providers from the CLI

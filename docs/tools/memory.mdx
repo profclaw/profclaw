@@ -1,0 +1,145 @@
+---
+title: "Memory Tools"
+description: "Semantic search and retrieval over MEMORY.md, memory files, and chat history using hybrid vector + full-text search."
+---
+
+## Overview
+
+Memory tools let the agent recall past conversations, decisions, and preferences stored in memory files. The memory system indexes `MEMORY.md`, all files under `memory/*.md`, and recent chat history. Searches use a **hybrid approach** combining vector similarity (semantic) and full-text search (BM25) for best results.
+
+<Tip>
+  The `memory_search` tool description tells the AI it is a "mandatory recall step" - the model is instructed to search memory before answering questions about prior work, dates, people, or preferences.
+</Tip>
+
+## Tools
+
+### `memory_search`
+
+Semantically search memory files and chat history.
+
+**Security level**: `safe` | **Tier**: Standard
+
+<ParamField path="query" type="string" required>
+  Natural language search query. Describe what you are looking for, not just keywords.
+</ParamField>
+
+<ParamField path="maxResults" type="number" default="6">
+  Maximum results to return (1-20).
+</ParamField>
+
+<ParamField path="minScore" type="number" default="0.35">
+  Minimum relevance score threshold (0.0-1.0). Lower values return more results but may include irrelevant matches.
+</ParamField>
+
+<ParamField path="source" type="string" default="all">
+  Filter by source: `all`, `memory` (files only), `chat` (conversations only), `custom`.
+</ParamField>
+
+<CodeGroup>
+```json Search for prior decisions
+{
+  "query": "API authentication decisions",
+  "maxResults": 5
+}
+```
+```json Find user preferences
+{
+  "query": "user preferences for notifications and alerts"
+}
+```
+```json Recall recent work
+{
+  "query": "changes made to login flow last week",
+  "source": "chat"
+}
+```
+</CodeGroup>
+
+**Response format:**
+
+```json
+{
+  "query": "API authentication decisions",
+  "results": [
+    {
+      "path": "memory/architecture.md",
+      "lines": "42-56",
+      "text": "Decided to use JWT with 15-minute expiry...",
+      "score": 0.87,
+      "source": "memory"
+    }
+  ],
+  "totalFound": 3,
+  "method": "hybrid",
+  "stats": {
+    "totalFiles": 12,
+    "totalChunks": 847
+  }
+}
+```
+
+---
+
+### `memory_get`
+
+Read a specific section from a memory file by path and line range.
+
+**Security level**: `safe` | **Tier**: Standard
+
+<ParamField path="path" type="string" required>
+  Path to the memory file (e.g., `memory/decisions.md`).
+</ParamField>
+
+<ParamField path="lines" type="string">
+  Line range to read, in the format returned by `memory_search` (e.g., `"42-56"`).
+</ParamField>
+
+Use this after `memory_search` returns a match - read the full context around the matched snippet.
+
+---
+
+### `memory_stats`
+
+Show memory system statistics.
+
+**Security level**: `safe` | **Tier**: Standard
+
+Returns: total indexed files, total chunks, last indexed timestamp, and available memory sources.
+
+## Memory File Locations
+
+| Source | Path | Description |
+|--------|------|-------------|
+| Primary | `MEMORY.md` | Main memory file in project root |
+| Memory dir | `memory/*.md` | Additional memory files |
+| Chat | Internal DB | Indexed conversation history |
+| Custom | Configurable | Extra directories via `memory.extraPaths` |
+
+## Writing to Memory
+
+Memory tools only read - they do not write. To save information to memory, use `write_file` or `edit_file` to update `MEMORY.md` directly:
+
+```
+write_file(
+  path: "MEMORY.md",
+  content: "\n## Decision: Auth Strategy\nDecided on JWT with refresh tokens...",
+  append: true
+)
+```
+
+The memory watcher picks up file changes and re-indexes automatically (debounced at 2 seconds).
+
+## Memory Isolation
+
+Each conversation operates within an `IsolationContext` that restricts which memory paths are accessible. In multi-user setups, different users see different memory namespaces. Shared project memory is accessible to all sessions that share a `projectId`.
+
+## Related Tools
+
+<CardGroup cols={2}>
+  <Card title="File Operations" icon="folder" href="/tools/file-operations">
+    Read and write memory files directly.
+  </Card>
+  <Card title="Sessions" icon="window" href="/tools/sessions">
+    Share memory context across spawned sessions.
+  </Card>
+</CardGroup>

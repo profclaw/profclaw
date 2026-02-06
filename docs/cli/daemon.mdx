@@ -1,0 +1,107 @@
+---
+title: "profclaw daemon"
+description: "Install and manage profClaw as a persistent system service using launchd (macOS) or systemd (Linux)."
+---
+
+## Synopsis
+
+```bash
+profclaw daemon <subcommand> [flags]
+```
+
+## Description
+
+`daemon` registers profClaw as an OS-level service so it starts automatically on boot and restarts on failure. On macOS it creates a `launchd` plist at `~/Library/LaunchAgents/com.profclaw.agent.plist`. On Linux it creates a `systemd` user unit at `~/.config/systemd/user/profclaw.service`.
+
+Logs are written to `~/.profclaw/daemon.log` and `~/.profclaw/daemon-error.log` on macOS, and to the system journal on Linux.
+
+## Subcommands
+
+| Subcommand | Description |
+|---|---|
+| `install` | Register the service with launchd / systemd |
+| `uninstall` | Remove the service registration |
+| `start` | Start the service |
+| `stop` | Stop the service |
+| `restart` | Restart the service (also rotates logs) |
+| `status` | Show current service status, PID, and log sizes |
+| `logs` | Tail service logs |
+| `rotate` | Rotate log files when > 10 MB (macOS only) |
+
+## Examples
+
+<CodeGroup>
+```bash Install and start (macOS)
+profclaw daemon install
+profclaw daemon start
+```
+
+```bash Install and start (Linux)
+profclaw daemon install
+profclaw daemon start
+# Optionally enable start-on-boot
+systemctl --user enable profclaw
+```
+
+```bash Check service status
+profclaw daemon status
+```
+
+```bash Tail logs in real time
+profclaw daemon logs --follow
+```
+
+```bash Show last 100 lines of error log
+profclaw daemon logs --errors -n 100
+```
+
+```bash Restart and rotate logs
+profclaw daemon restart
+```
+
+```bash Remove service
+profclaw daemon stop
+profclaw daemon uninstall
+```
+</CodeGroup>
+
+## `daemon logs` Flags
+
+<ParamField query="-f, --follow" type="boolean">
+  Follow log output in real time. Press `Ctrl+C` to stop.
+</ParamField>
+
+<ParamField query="-n, --lines" type="string" default="50">
+  Number of lines to show. Maps to `tail -n` on macOS and `journalctl -n` on Linux.
+</ParamField>
+
+<ParamField query="--errors" type="boolean">
+  Show the error log only (`daemon-error.log` on macOS, journal priority `err` on Linux).
+</ParamField>
+
+## Crash Loop Protection
+
+The service is configured with restart limits to prevent runaway crash loops:
+
+| Platform | Behavior |
+|---|---|
+| macOS (launchd) | `ThrottleInterval=10s` between restart attempts |
+| Linux (systemd) | Max 5 restart attempts per 60 seconds (`RestartSec=5s`) |
+
+If the limit is hit, use `profclaw doctor` to identify the root cause, then manually start the service again.
+
+## Log Rotation
+
+On macOS, log files rotate automatically when they exceed 10 MB (one `.1` backup kept). On Linux, `journald` handles rotation automatically.
+
+```bash
+# Manually rotate macOS logs
+profclaw daemon rotate
+```
+
+## Related
+
+- [`profclaw serve`](/cli/serve) - Start the server in foreground mode
+- [`profclaw status`](/cli/status) - Quick system status
+- [`profclaw logs`](/cli/logs) - View server logs via the API
+- [`profclaw doctor`](/cli/doctor) - Diagnose issues

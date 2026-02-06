@@ -1,0 +1,10 @@
+# Test state files (contain conversation IDs)
+.test-state.json
+
+# Debug output
+.last-*.json
+*.log
+
+# Python cache
+__pycache__/
+*.pyc

@@ -1,0 +1,106 @@
+---
+title: "Zalo"
+description: "Connect profClaw to Zalo via the Zalo Official Account API. The leading messaging platform in Vietnam."
+---
+
+Zalo is Vietnam's most popular messaging app with over 70 million monthly users. profClaw supports the Zalo Official Account (OA) API for business bot interactions.
+
+## Capabilities
+
+| Feature | Supported |
+|---------|-----------|
+| 1:1 messages | Yes |
+| Group messages | Limited |
+| Rich text | Yes |
+| Image messages | Yes |
+| Button templates | Yes |
+| Webhook | Yes |
+
+## Setup
+
+<Steps>
+  <Step title="Create a Zalo Developer account">
+    Register at [developers.zalo.me](https://developers.zalo.me).
+  </Step>
+  <Step title="Create an Official Account App">
+    Create a new app and link it to a Zalo Official Account (OA). You need a verified business OA.
+  </Step>
+  <Step title="Get credentials">
+    - **App ID**
+    - **App Secret**
+    - **OA Access Token** (from OA Management)
+  </Step>
+  <Step title="Configure webhook">
+    In Zalo Developer Portal, set webhook URL:
+    `https://your-domain.com/webhooks/zalo`
+  </Step>
+  <Step title="Configure profClaw">
+    ```bash
+    ZALO_APP_ID=your-app-id
+    ZALO_APP_SECRET=your-app-secret
+    ZALO_OA_ACCESS_TOKEN=your-oa-access-token
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="ZALO_APP_ID" type="string" required>
+  Zalo Developer App ID.
+</ParamField>
+
+<ParamField path="ZALO_APP_SECRET" type="string" required>
+  Zalo Developer App Secret.
+</ParamField>
+
+<ParamField path="ZALO_OA_ACCESS_TOKEN" type="string" required>
+  Zalo Official Account access token.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    ZALO_APP_ID=1234567890
+    ZALO_APP_SECRET=abcdef...
+    ZALO_OA_ACCESS_TOKEN=your-oa-token
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    chat:
+      zalo:
+        app_id: "${ZALO_APP_ID}"
+        app_secret: "${ZALO_APP_SECRET}"
+        oa_access_token: "${ZALO_OA_ACCESS_TOKEN}"
+    ```
+  </Tab>
+</Tabs>
+
+## Zalo Personal (Beta)
+
+profClaw also includes experimental support for Zalo personal accounts via the `zalo-personal` provider. This uses unofficial APIs and may break with Zalo updates.
+
+```bash
+ZALO_PERSONAL_COOKIE=...
+```
+
+<Warning>
+  The `zalo-personal` provider uses unofficial APIs. Use the official OA API (`zalo`) for production.
+</Warning>
+
+## Notes
+
+- Status: Beta
+- Zalo requires a Vietnamese business entity for full OA verification.
+- OA access tokens expire and need periodic refresh.
+- Zalo messages support Vietnamese text natively.
+- The Zalo OA API has rate limits of 2000 messages/minute.
+
+## Related
+
+- [Chat Providers Overview](/chat-providers/overview) - Compare all 27 supported channels
+- [LINE](/chat-providers/line) - Dominant messaging platform in Japan and Taiwan
+- [Viber](/chat-providers/viber) - Popular messaging app in Southeast Asia and Eastern Europe
+- [profclaw channels](/cli/channels) - Enable and test the Zalo connection from the CLI

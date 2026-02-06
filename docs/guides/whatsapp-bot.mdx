@@ -1,0 +1,100 @@
+---
+title: "WhatsApp Bot"
+description: "Connect profClaw to WhatsApp Business for mobile AI access"
+---
+
+## Overview
+
+Connect profClaw to WhatsApp Business API to interact with your AI agent from your phone. Send text messages, images, and documents for AI processing.
+
+## Prerequisites
+
+- profClaw running (mini or pro mode)
+- Meta Business account
+- WhatsApp Business API access
+
+## Step 1: Meta Business Setup
+
+<Steps>
+  <Step title="Create Meta App">
+    Go to [developers.facebook.com](https://developers.facebook.com), create a new app, and select **Business** type.
+  </Step>
+  <Step title="Add WhatsApp Product">
+    In your app dashboard, add the **WhatsApp** product and complete the setup wizard.
+  </Step>
+  <Step title="Get Credentials">
+    From the WhatsApp settings, note:
+    - **Phone Number ID**
+    - **Access Token** (permanent token recommended)
+    - **Verify Token** (you create this)
+  </Step>
+  <Step title="Configure Webhook">
+    Set the webhook URL to:
+    ```
+    https://your-profclaw.com/api/chat/whatsapp/webhook
+    ```
+    Subscribe to `messages` events.
+  </Step>
+</Steps>
+
+## Step 2: Configure profClaw
+
+```bash
+export WHATSAPP_ACCESS_TOKEN=your-access-token
+export WHATSAPP_PHONE_NUMBER_ID=your-phone-number-id
+export WHATSAPP_VERIFY_TOKEN=your-verify-token
+```
+
+```yaml
+chat:
+  channels:
+    whatsapp:
+      enabled: true
+      accessToken: ${WHATSAPP_ACCESS_TOKEN}
+      phoneNumberId: ${WHATSAPP_PHONE_NUMBER_ID}
+      verifyToken: ${WHATSAPP_VERIFY_TOKEN}
+```
+
+## Step 3: Test
+
+Send a message to your WhatsApp Business number:
+
+```
+You: What's the weather like?
+profClaw: I can help with that! Let me search for current weather information...
+```
+
+## Features
+
+| Feature | Supported |
+|---------|-----------|
+| Text messages | Yes |
+| Image analysis | Yes (with vision-capable model) |
+| Document processing | Yes |
+| Voice messages | Planned |
+| Location sharing | Planned |
+| Group chats | Yes (pro mode) |
+
+## Message Format
+
+profClaw formats responses for WhatsApp's constraints:
+- Messages longer than 4096 characters are split
+- Code blocks use monospace formatting
+- Tables are converted to readable lists
+- Links are preserved as clickable URLs
+
+## Security
+
+<Warning>
+  WhatsApp messages are processed through Meta's servers. Do not send sensitive credentials or secrets via WhatsApp chat. Use the web UI or CLI for sensitive operations.
+</Warning>
+
+Restrict which phone numbers can interact:
+```yaml
+chat:
+  channels:
+    whatsapp:
+      allowedNumbers:
+        - "+1234567890"
+        - "+0987654321"
+```

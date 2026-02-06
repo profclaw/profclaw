@@ -1,0 +1,134 @@
+---
+title: "WhatsApp"
+description: "Connect profClaw to WhatsApp via the WhatsApp Business API (Meta Cloud API). Requires a Meta Business account and phone number."
+---
+
+profClaw integrates with WhatsApp through the official Meta WhatsApp Business Cloud API. This is the production-grade approach using a dedicated business phone number.
+
+## Capabilities
+
+| Feature | Supported |
+|---------|-----------|
+| 1:1 messaging | Yes |
+| Group messaging | No (API limitation) |
+| Media messages | Yes |
+| Interactive buttons | Yes (limited) |
+| Templates | Yes |
+| Webhooks | Yes |
+| Read receipts | Yes |
+
+## Requirements
+
+- Meta Business account
+- WhatsApp Business app verified
+- A phone number (not already on WhatsApp personal)
+- Business verification for scaling
+
+## Setup
+
+<Steps>
+  <Step title="Create a Meta App">
+    Go to [developers.facebook.com](https://developers.facebook.com) and create a new app. Select **Business** type.
+  </Step>
+  <Step title="Add WhatsApp Product">
+    Under your app, add the **WhatsApp** product. Go to **WhatsApp > Getting Started**.
+  </Step>
+  <Step title="Get your credentials">
+    Copy:
+    - **Phone Number ID** (not the phone number itself)
+    - **WhatsApp Business Account ID**
+    - **Access Token** (temporary or permanent)
+  </Step>
+  <Step title="Configure webhook">
+    Under **WhatsApp > Configuration**, set:
+    - Webhook URL: `https://your-domain.com/webhooks/whatsapp`
+    - Verify token: your custom string
+
+    Subscribe to `messages` and `messaging_handoffs` events.
+  </Step>
+  <Step title="Configure profClaw">
+    ```bash
+    WHATSAPP_PHONE_NUMBER_ID=1234567890
+    WHATSAPP_BUSINESS_ACCOUNT_ID=0987654321
+    WHATSAPP_ACCESS_TOKEN=EAABwzLixnjYBO...
+    WHATSAPP_WEBHOOK_VERIFY_TOKEN=my-verify-token
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="WHATSAPP_PHONE_NUMBER_ID" type="string" required>
+  Phone Number ID from Meta Developer portal (not the phone number itself).
+</ParamField>
+
+<ParamField path="WHATSAPP_BUSINESS_ACCOUNT_ID" type="string" required>
+  WhatsApp Business Account ID.
+</ParamField>
+
+<ParamField path="WHATSAPP_ACCESS_TOKEN" type="string" required>
+  Meta access token (system user or user token).
+</ParamField>
+
+<ParamField path="WHATSAPP_WEBHOOK_VERIFY_TOKEN" type="string" required>
+  Your custom verify token for webhook setup.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    WHATSAPP_PHONE_NUMBER_ID=1234567890
+    WHATSAPP_BUSINESS_ACCOUNT_ID=0987654321
+    WHATSAPP_ACCESS_TOKEN=EAABwzLixnjYBO...
+    WHATSAPP_WEBHOOK_VERIFY_TOKEN=my-custom-verify-token
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    chat:
+      whatsapp:
+        phone_number_id: "${WHATSAPP_PHONE_NUMBER_ID}"
+        business_account_id: "${WHATSAPP_BUSINESS_ACCOUNT_ID}"
+        access_token: "${WHATSAPP_ACCESS_TOKEN}"
+        webhook_verify_token: "${WHATSAPP_WEBHOOK_VERIFY_TOKEN}"
+    ```
+  </Tab>
+</Tabs>
+
+## Message Format
+
+profClaw sends responses as plain text messages. For interactive messages:
+
+```json
+{
+  "messaging_product": "whatsapp",
+  "to": "+1234567890",
+  "type": "interactive",
+  "interactive": {
+    "type": "button",
+    "body": { "text": "Please confirm:" },
+    "action": {
+      "buttons": [
+        { "type": "reply", "reply": { "id": "yes", "title": "Confirm" } }
+      ]
+    }
+  }
+}
+```
+
+## Notes
+
+- WhatsApp API requires a public webhook URL with HTTPS.
+- Messages to users require them to initiate contact first (24-hour messaging window).
+- Outside the 24-hour window, you must use pre-approved message templates.
+- Business verification required to message more than 250 unique users per day.
+- A permanent access token from a system user is recommended for production.
+
+## Related
+
+- [WhatsApp Bot Guide](/guides/whatsapp-bot) - Step-by-step setup with Meta developer portal
+- [Chat Providers Overview](/chat-providers/overview) - Compare all 27 supported channels
+- [Telegram](/chat-providers/telegram) - Simpler bot setup without business verification
+- [profclaw channels](/cli/channels) - Enable and test the WhatsApp connection from the CLI

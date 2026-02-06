@@ -1,0 +1,91 @@
+---
+title: "profclaw serve"
+description: "Start the profClaw HTTP API server with auto-restart on crash."
+---
+
+## Synopsis
+
+```bash
+profclaw serve [flags]
+```
+
+## Description
+
+`serve` starts the profClaw HTTP API server. It displays an ASCII banner, checks that the configured port is available, then spawns the server process. In production mode it monitors the child process and automatically restarts it on crash using exponential backoff (up to 5 restart attempts).
+
+The server exposes:
+- REST API at `http://localhost:<port>/api`
+- Health endpoint at `http://localhost:<port>/health`
+- Web UI at `http://localhost:<port>/`
+
+## Flags
+
+<ParamField query="-p, --port" type="string" default="3000">
+  Port to listen on. Must be available. If already in use, the command exits with instructions to free the port or use an alternate.
+</ParamField>
+
+<ParamField query="--no-cron" type="boolean">
+  Disable scheduled cron jobs. The server starts normally but no cron triggers will fire.
+</ParamField>
+
+<ParamField query="--dev" type="boolean">
+  Run in development mode with file watching via `tsx watch`. Auto-restarts on source changes. Disables the crash-restart loop.
+</ParamField>
+
+<ParamField query="--no-restart" type="boolean">
+  Disable automatic restart on crash. Used internally by the `daemon` subcommand - the OS service manager handles restarts.
+</ParamField>
+
+## Crash Recovery
+
+In production mode (`serve` without `--dev`), the process manager applies exponential backoff:
+
+| Attempt | Wait |
+|---|---|
+| 1 | 1s |
+| 2 | 2s |
+| 3 | 4s |
+| 4 | 8s |
+| 5 | 16s |
+
+After 5 consecutive crashes in quick succession the process exits. Fix the underlying issue and run `profclaw serve` again.
+
+## Examples
+
+<CodeGroup>
+```bash Start on default port 3000
+profclaw serve
+```
+
+```bash Start on a custom port
+profclaw serve -p 8080
+```
+
+```bash Development mode with watch
+profclaw serve --dev
+```
+
+```bash Disable cron jobs
+profclaw serve --no-cron
+```
+
+```bash Run as a managed daemon (systemd / launchd)
+profclaw daemon install
+profclaw daemon start
+```
+</CodeGroup>
+
+## Environment Variables
+
+| Variable | Description |
+|---|---|
+| `PORT` | Overrides the `--port` flag |
+| `ENABLE_CRON` | Set to `false` to disable cron (same as `--no-cron`) |
+| `PROFCLAW_MODE` | Deployment mode (`pico`, `mini`, `pro`) |
+
+## Related
+
+- [`profclaw daemon`](/cli/daemon) - Run as a system service (launchd/systemd)
+- [`profclaw status`](/cli/status) - Check server health
+- [`profclaw logs`](/cli/logs) - View server logs
+- [`profclaw doctor`](/cli/doctor) - Diagnose startup issues

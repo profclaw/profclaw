@@ -1,0 +1,28 @@
+# Auto detect text files and ensure LF line endings
+* text=auto eol=lf
+
+# Explicitly declare text files
+*.ts text
+*.tsx text
+*.js text
+*.json text
+*.md text
+*.yml text
+*.yaml text
+*.css text
+*.html text
+*.sh text eol=lf
+
+# Denote binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+
+# Lock files — generate diffs but don't merge
+pnpm-lock.yaml -diff linguist-generated=true

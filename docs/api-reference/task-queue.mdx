@@ -1,0 +1,157 @@
+---
+title: "Task Queue API"
+description: "profClaw Task Queue API - inspect queue depth, drain queues, manage dead-letter entries, and configure retry behavior for BullMQ and in-memory backends."
+---
+
+profClaw ships with two queue backends: **BullMQ** (Redis-backed, for `pro` mode) and an **in-memory queue** (for `pico`/`mini` mode). Both expose the same HTTP API.
+
+## Queue Architecture
+
+```
+Task Created
+    |
+    v
+[pending] ---> [queued] ---> [in_progress] ---> [completed]
+                                  |
+                                  v (on failure)
+                             [failed] ---> DLQ (after maxRetries)
+```
+
+- BullMQ queue name: `ai-tasks` (configurable via `queue.name` in `settings.yml`)
+- Notification queue: `ai-task-notifications`
+- Redis URL: `REDIS_URL` env var or `settings.yml`
+- Retry: exponential backoff, configurable attempts
+
+## GET /api/queue/status
+
+Get current queue depth and worker status.
+
+```bash
+curl http://localhost:3000/api/queue/status --cookie "profclaw_session=<token>"
+```
+
+**Response `200`**
+
+```json
+{
+  "mode": "bullmq",
+  "queues": {
+    "tasks": {
+      "pending": 5,
+      "queued": 2,
+      "inProgress": 1,
+      "completed": 142,
+      "failed": 3
+    }
+  },
+  "workers": {
+    "tasks": { "running": true, "concurrency": 10 },
+    "notifications": { "running": true, "concurrency": 5 }
+  },
+  "deadLetterQueue": {
+    "pending": 0,
+    "resolved": 12,
+    "discarded": 1,
+    "total": 13
+  }
+}
+```
+
+## GET /api/dlq
+
+List tasks in the dead letter queue.
+
+```bash
+curl "http://localhost:3000/api/dlq?limit=20" --cookie "profclaw_session=<token>"
+```
+
+**Response**
+
+```json
+{
+  "items": [
+    {
+      "id": "dlq_01",
+      "taskId": "task_05",
+      "title": "Failing task",
+      "attempts": 3,
+      "lastError": "Connection timeout",
+      "createdAt": "2026-03-12T08:00:00Z",
+      "status": "pending"
+    }
+  ],
+  "total": 1
+}
+```
+
+## POST /api/dlq/:id/retry
+
+Move a DLQ item back to the active queue for re-processing.
+
+```bash
+curl -X POST http://localhost:3000/api/dlq/dlq_01/retry
+```
+
+## POST /api/dlq/:id/discard
+
+Mark a DLQ item as discarded (won't be retried automatically).
+
+```bash
+curl -X POST http://localhost:3000/api/dlq/dlq_01/discard
+```
+
+## Queue Configuration
+
+Configure via `settings.yml`:
+
+```yaml
+queue:
+  name: ai-tasks
+  notificationName: ai-task-notifications
+  concurrency: 10
+  notificationConcurrency: 5
+  redis:
+    url: redis://localhost:6379
+  retry:
+    attempts: 3
+    backoff: 1000
+    type: exponential   # or "fixed"
+```
+
+Or via environment variables:
+
+```bash
+REDIS_URL=redis://localhost:6379
+POOL_MAX_CONCURRENT=50
+POOL_TIMEOUT_MS=300000
+```
+
+## In-Memory Queue
+
+When Redis is not available, profClaw falls back to an in-memory queue (`src/queue/memory-queue.ts`). The in-memory queue:
+
+- Supports the same `TaskStatus` lifecycle
+- Does not persist across restarts
+- Has no cursor-based pagination (offset only)
+- Suitable for `pico` and `mini` deployment modes
+
+## Failure Handler
+
+The `FailureHandler` (`src/queue/failure-handler.ts`) intercepts task failures and:
+
+1. Increments the retry counter
+2. Applies exponential backoff delay
+3. Re-queues the task if `attempts < maxRetries`
+4. Moves the task to the DLQ after `maxRetries` exhausted
+5. Sends an in-app notification for DLQ entries
+
+## Webhook Queue
+
+The webhook queue (`src/queue/webhook-queue.ts`) handles outbound webhook delivery with automatic retry on failure. Configure delivery endpoints via `POST /api/webhooks`.
+
+## Related
+
+- [Tasks API](/api-reference/tasks) - Create and manage tasks in the queue
+- [profclaw queue](/cli/queue) - Inspect queue status from the CLI
+- [Deployment Modes](/getting-started/deployment-modes) - When to use BullMQ vs in-memory
+- [Configuration Overview](/configuration/overview) - Queue settings in settings.yml

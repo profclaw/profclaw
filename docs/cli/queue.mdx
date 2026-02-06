@@ -1,0 +1,108 @@
+---
+title: "profclaw queue"
+description: "Inspect and manage the profClaw task queue - view pending jobs, drain the queue, and check queue health."
+---
+
+## Synopsis
+
+```bash
+profclaw queue <subcommand> [flags]
+```
+
+## Description
+
+`queue` provides visibility into profClaw's task execution queue. In `mini` mode, an in-memory queue is used. In `pro` mode, BullMQ with Redis is used for durability and distributed processing. Queue commands let you see what is waiting, pause processing, drain failed jobs, and check queue health metrics.
+
+## Subcommands
+
+| Subcommand | Description |
+|---|---|
+| `status` | Show queue health, counts by state, and throughput metrics |
+| `list [state]` | List jobs in a specific state |
+| `drain` | Remove all completed and failed jobs |
+| `pause` | Pause job processing |
+| `resume` | Resume paused job processing |
+| `retry-all` | Requeue all failed jobs |
+
+## `queue status`
+
+Shows queue state counts (waiting, active, completed, failed, delayed), current workers, and throughput.
+
+<ParamField query="--json" type="boolean">
+  Output as JSON.
+</ParamField>
+
+## `queue list [state]`
+
+<ParamField query="state" type="string" default="waiting">
+  Job state to list: `waiting`, `active`, `completed`, `failed`, `delayed`.
+</ParamField>
+
+<ParamField query="-l, --limit" type="string" default="20">
+  Maximum jobs to show.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output as JSON.
+</ParamField>
+
+## `queue drain`
+
+Removes stale completed and failed jobs to free memory (in-memory mode) or Redis storage (pro mode).
+
+<ParamField query="--failed-only" type="boolean">
+  Only remove failed jobs.
+</ParamField>
+
+<ParamField query="--completed-only" type="boolean">
+  Only remove completed jobs.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash Check queue health
+profclaw queue status
+```
+
+```bash List waiting jobs
+profclaw queue list waiting
+```
+
+```bash List failed jobs
+profclaw queue list failed
+```
+
+```bash Retry all failed jobs
+profclaw queue retry-all
+```
+
+```bash Drain old completed jobs
+profclaw queue drain --completed-only
+```
+
+```bash Pause the queue (maintenance)
+profclaw queue pause
+```
+
+```bash Resume processing
+profclaw queue resume
+```
+
+```bash Export queue status as JSON
+profclaw queue status --json
+```
+</CodeGroup>
+
+## Queue Modes
+
+| Mode | Backend | Persistence | Workers |
+|---|---|---|---|
+| `pico` / `mini` | In-memory | None (lost on restart) | Single process |
+| `pro` | BullMQ + Redis | Durable | Multiple workers |
+
+## Related
+
+- [`profclaw task`](/cli/task) - View and manage individual tasks
+- [`profclaw status`](/cli/status) - System overview
+- [Deployment Modes](/getting-started/deployment-modes) - Queue configuration per mode

@@ -1,0 +1,141 @@
+---
+title: "Health API"
+description: "profClaw Health API - liveness probe, readiness probe, and detailed per-component diagnostics for providers, queue, and storage. Docker and Kubernetes ready."
+---
+
+profClaw exposes two health endpoints: a simple liveness probe and a detailed diagnostic endpoint with per-component status.
+
+## GET /api/health
+
+Simple health check for load balancers and container orchestrators.
+
+```bash
+curl http://localhost:3000/api/health
+```
+
+**Response `200`**
+
+```json
+{
+  "status": "ok",
+  "timestamp": "2026-03-12T10:30:00Z"
+}
+```
+
+Always returns `200` if the server is running, regardless of internal component health.
+
+---
+
+## GET /api/health/detailed
+
+Full diagnostic health check including queue depth, adapter status, circuit breakers, and system metrics.
+
+```bash
+curl http://localhost:3000/api/health/detailed
+```
+
+**Response `200`** (healthy)
+
+```json
+{
+  "status": "healthy",
+  "version": "0.2.0",
+  "timestamp": "2026-03-12T10:30:00Z",
+  "uptime": 86400,
+  "components": {
+    "queue": {
+      "status": "healthy",
+      "message": "Queue operating normally",
+      "details": {
+        "pending": 5,
+        "queued": 2,
+        "inProgress": 1,
+        "failed": 0,
+        "totalActive": 8
+      },
+      "lastChecked": "2026-03-12T10:30:00Z"
+    },
+    "adapters": {
+      "status": "healthy",
+      "message": "All 2 adapters healthy",
+      "adapters": [
+        { "type": "claude-code", "name": "Claude Code", "healthy": true, "latencyMs": 230 }
+      ],
+      "lastChecked": "2026-03-12T10:30:00Z"
+    },
+    "circuitBreakers": {
+      "status": "healthy",
+      "message": "All circuit breakers closed",
+      "breakers": [
+        { "name": "github-api", "state": "CLOSED", "failures": 0, "successes": 142 }
+      ],
+      "lastChecked": "2026-03-12T10:30:00Z"
+    },
+    "deadLetterQueue": {
+      "status": "healthy",
+      "message": "DLQ empty",
+      "details": { "pending": 0, "resolved": 12, "discarded": 1, "total": 13 },
+      "lastChecked": "2026-03-12T10:30:00Z"
+    }
+  },
+  "system": {
+    "platform": "darwin",
+    "nodeVersion": "v22.0.0",
+    "memory": { "used": 128, "total": 512, "percentage": 25 },
+    "cpu": { "loadAverage": [0.5, 0.4, 0.3] }
+  }
+}
+```
+
+### Health status values
+
+| Status | HTTP Code | Meaning |
+|--------|-----------|---------|
+| `healthy` | `200` | All components operating normally |
+| `degraded` | `200` | Some components degraded but service still running |
+| `unhealthy` | `503` | Critical failure, service may not function correctly |
+
+### Queue health thresholds
+
+| Total active tasks | Status |
+|-------------------|--------|
+| 0-100 | healthy |
+| 101-500 | degraded - "High queue depth detected" |
+| 501+ | unhealthy - "Critical queue depth" |
+
+### DLQ health thresholds
+
+| DLQ pending | Status |
+|-------------|--------|
+| 0-9 | healthy |
+| 10-49 | degraded - "review recommended" |
+| 50+ | unhealthy - "immediate attention required" |
+
+---
+
+## GET /api/health/ready
+
+Readiness probe - returns `200` only when the server is fully initialized and ready to serve requests.
+
+```bash
+curl http://localhost:3000/api/health/ready
+```
+
+Use this for Kubernetes `readinessProbe` and similar container checks.
+
+---
+
+## Metrics
+
+```bash
+GET /api/health/metrics
+```
+
+Returns a `MetricsSummary` with request rates, error rates, and p95 latencies per endpoint. Used by the health detailed endpoint and available for external monitoring tools.
+
+## Related
+
+- [Task Queue API](/api-reference/task-queue) - Inspect queue depth that affects health status
+- [Agents API](/api-reference/agents) - Per-adapter health checks included in detailed health
+- [profclaw doctor](/cli/doctor) - Run system diagnostics from the CLI
+- [Monitoring Guide](/guides/monitoring) - Set up health check dashboards and alerts

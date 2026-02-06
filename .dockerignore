@@ -1,0 +1,52 @@
+# Dependencies
+node_modules
+ui/node_modules
+
+# Build outputs
+dist
+ui/dist
+
+# Development files
+*.log
+*.local
+.env*
+!.env.example
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Git
+.git
+.gitignore
+
+# Docker
+docker-compose*.yml
+Dockerfile*
+docker/
+
+# Test files
+*.test.ts
+*.spec.ts
+coverage
+.nyc_output
+
+# Documentation
+*.md
+docs/
+
+# SQLite databases (will use volume)
+*.db
+*.db-journal
+data/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Misc
+.turbo
+.cache
+tmp/

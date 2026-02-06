@@ -1,0 +1,142 @@
+---
+title: "Security Configuration"
+description: "Configure security modes, guards, and audit policies"
+---
+
+## Security Modes
+
+Set the security mode to control how profClaw handles potentially dangerous operations:
+
+```bash
+export SECURITY_MODE=standard
+```
+
+| Feature | Permissive | Standard | Strict |
+|---------|-----------|----------|--------|
+| File read | Auto-allow | Auto-allow | Prompt |
+| File write | Auto-allow | Prompt | Prompt |
+| File delete | Auto-allow | Prompt | Deny |
+| Shell commands | Auto-allow | Prompt | Deny |
+| Network requests | Auto-allow | Auto-allow | Prompt |
+| Git operations | Auto-allow | Auto-allow | Prompt |
+| Package install | Auto-allow | Prompt | Deny |
+
+<Warning>
+  **Permissive mode** is for development only. Never use it in production or with untrusted inputs.
+</Warning>
+
+## Command Guards
+
+Guards are rules that restrict specific commands or patterns:
+
+```yaml
+# .profclaw/settings.yml
+security:
+  guards:
+    - pattern: "rm -rf /"
+      action: deny
+      reason: "Dangerous recursive delete"
+    - pattern: "DROP TABLE"
+      action: deny
+      reason: "SQL table drop blocked"
+    - pattern: "curl.*|.*sh"
+      action: prompt
+      reason: "Pipe to shell detected"
+    - path: "/etc/*"
+      action: deny
+      reason: "System file access blocked"
+    - path: "~/.ssh/*"
+      action: deny
+      reason: "SSH key access blocked"
+```
+
+## Path Restrictions
+
+Limit which directories profClaw can access:
+
+```yaml
+security:
+  allowedPaths:
+    - "./src"
+    - "./tests"
+    - "./docs"
+  deniedPaths:
+    - "./.env"
+    - "./.env.local"
+    - "./secrets"
+    - "~/.ssh"
+```
+
+## Audit Logging
+
+Every tool execution and security decision is logged:
+
+```yaml
+security:
+  auditLog:
+    enabled: true
+    retentionDays: 90
+    includeToolResults: false  # Set true for full audit trail
+    exportFormat: json         # json | csv
+```
+
+View audit logs:
+```bash
+profclaw audit list
+profclaw audit list --since 24h
+profclaw audit export --format json --output audit.json
+```
+
+## Device Pairing
+
+Control how devices authenticate with your profClaw instance:
+
+```yaml
+security:
+  devicePairing:
+    enabled: true
+    maxDevices: 10
+    expirySeconds: 300
+    requireApproval: true  # Manual approval for new devices
+```
+
+Generate a pairing code:
+```bash
+profclaw device pair
+```
+
+## Network Policies
+
+Control outbound network access:
+
+```yaml
+security:
+  network:
+    allowedDomains:
+      - "api.anthropic.com"
+      - "api.openai.com"
+      - "github.com"
+      - "*.githubusercontent.com"
+    blockedDomains:
+      - "*.malware.com"
+    maxRequestsPerMinute: 60
+```
+
+## Plugin Security
+
+Plugins run in a sandboxed environment by default:
+
+```yaml
+security:
+  plugins:
+    sandbox: true
+    allowedPermissions:
+      - "read_file"
+      - "write_file"
+    deniedPermissions:
+      - "shell_exec"
+      - "network_unrestricted"
+    reviewRequired: true  # Require manual review before enabling
+```
+
+See [Plugin Security](/security/plugins) for details.

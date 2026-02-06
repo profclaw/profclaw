@@ -1,0 +1,182 @@
+---
+title: "Authentication API"
+description: "profClaw Authentication API - sign up, log in, OAuth flows for GitHub and Jira, session management, access keys, and user profile endpoints."
+---
+
+## POST /api/auth/signup
+
+Create a new account with email and password.
+
+**Rate limit**: 5 requests / 60 seconds
+
+```bash
+curl -X POST http://localhost:3000/api/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "SecurePassword1",
+    "name": "Alice",
+    "inviteCode": "abc123"
+  }'
+```
+
+**Request body**
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `email` | string | Yes | Valid email, max 255 chars |
+| `password` | string | Yes | Min 8 chars, must contain letter and number |
+| `name` | string | Yes | Max 100 chars |
+| `inviteCode` | string | No | Required when `registrationMode` is `invite` |
+
+**Response `200`**
+
+```json
+{
+  "user": { "id": "usr_01", "email": "user@example.com", "name": "Alice", "role": "user" },
+  "message": "Account created successfully"
+}
+```
+
+Sets `profclaw_session` cookie (httpOnly, 30-day expiry).
+
+---
+
+## POST /api/auth/login
+
+Sign in with email and password.
+
+**Rate limit**: 10 requests / 60 seconds
+
+```bash
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com", "password": "SecurePassword1"}'
+```
+
+**Response `200`**
+
+```json
+{
+  "user": { "id": "usr_01", "email": "user@example.com", "name": "Alice" },
+  "message": "Logged in successfully"
+}
+```
+
+---
+
+## POST /api/auth/logout
+
+Invalidate the current session.
+
+```bash
+curl -X POST http://localhost:3000/api/auth/logout --cookie "profclaw_session=<token>"
+```
+
+**Response `200`**: `{ "message": "Logged out successfully" }`
+
+---
+
+## GET /api/auth/me
+
+Get the current authenticated user.
+
+```bash
+curl http://localhost:3000/api/auth/me --cookie "profclaw_session=<token>"
+```
+
+**Response `200`**
+
+```json
+{
+  "authenticated": true,
+  "authMode": "cloud",
+  "user": {
+    "id": "usr_01",
+    "email": "user@example.com",
+    "name": "Alice",
+    "role": "user",
+    "connectedAccounts": ["github"],
+    "hasGitHubToken": true
+  }
+}
+```
+
+**Response `401`** (unauthenticated):
+
+```json
+{ "authenticated": false, "authMode": "local" }
+```
+
+---
+
+## PATCH /api/auth/me
+
+Update the current user's profile.
+
+```bash
+curl -X PATCH http://localhost:3000/api/auth/me \
+  -H "Content-Type: application/json" \
+  --cookie "profclaw_session=<token>" \
+  -d '{"name": "Alice B.", "timezone": "America/New_York"}'
+```
+
+**Request body** (all fields optional): `name`, `avatarUrl`, `bio`, `timezone`, `locale`, `onboardingCompleted`
+
+---
+
+## GitHub OAuth
+
+```
+GET /api/auth/github           # Redirect to GitHub
+GET /api/auth/github/callback  # OAuth callback (sets session cookie)
+GET /api/auth/github/url       # Get authorization URL for SPA
+POST /api/auth/github/token    # Exchange code for session (SPA)
+```
+
+---
+
+## Jira / Linear OAuth
+
+```
+GET /api/auth/jira             # Redirect to Jira
+GET /api/auth/jira/callback    # Jira OAuth callback
+GET /api/auth/linear           # Redirect to Linear
+GET /api/auth/linear/callback  # Linear OAuth callback
+```
+
+---
+
+## POST /api/auth/verify-access-key
+
+Verify an access key in `local` auth mode to create a session.
+
+```bash
+curl -X POST http://localhost:3000/api/auth/verify-access-key \
+  -H "Content-Type: application/json" \
+  -d '{"key": "your-access-key"}'
+```
+
+**Response `200`**: `{ "success": true, "message": "Access verified" }`
+
+---
+
+## PUT /api/auth/access-key
+
+Set or clear the access key (admin only, local mode only).
+
+```bash
+curl -X PUT http://localhost:3000/api/auth/access-key \
+  -H "Content-Type: application/json" \
+  --cookie "profclaw_session=<admin-token>" \
+  -d '{"key": "new-access-key"}'
+```
+
+Pass `"key": null` to remove the access key requirement.
+
+## Related
+
+- [API Overview](/api-reference/overview) - Base URL, authentication modes, and error format
+- [Devices API](/api-reference/devices) - Passwordless device pairing flow
+- [Security Overview](/security/overview) - Auth modes and permission system
+- [profclaw auth](/cli/auth) - Manage users and invite codes from the CLI

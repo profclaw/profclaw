@@ -1,0 +1,200 @@
+---
+title: "Custom Tools"
+description: "Register your own tools via the plugin SDK or settings configuration."
+---
+
+## Overview
+
+profClaw's tool system is fully extensible. You can register custom tools that the AI can call just like built-in tools. Custom tools go through the same schema validation, security checks, and tier routing as built-in tools.
+
+There are two ways to add custom tools:
+
+1. **Plugin tools** - Packaged in a plugin with a `package.json` and full `ToolDefinition`
+2. **Skill-based tools** - Lightweight command dispatch defined in a `SKILL.md` file
+
+## Plugin Tool (Full SDK)
+
+Create a plugin with a tool definition:
+
+```typescript
+// my-plugin/src/tools/weather.ts
+import { z } from 'zod';
+import type { ToolDefinition, ToolResult, ToolExecutionContext } from 'profclaw/sdk';
+
+const WeatherParamsSchema = z.object({
+  city: z.string().describe('City name'),
+  units: z.enum(['celsius', 'fahrenheit']).optional().default('celsius'),
+});
+
+export const weatherTool: ToolDefinition = {
+  name: 'get_weather',
+  description: 'Get current weather for a city.',
+  category: 'custom',
+  securityLevel: 'safe',
+  parameters: WeatherParamsSchema,
+
+  async execute(
+    context: ToolExecutionContext,
+    params: z.infer<typeof WeatherParamsSchema>
+  ): Promise<ToolResult> {
+    const response = await fetch(
+      `https://api.openweathermap.org/data/2.5/weather?q=${params.city}`
+    );
+    const data = await response.json();
+    return {
+      success: true,
+      output: `${params.city}: ${data.main.temp}°, ${data.weather[0].description}`,
+    };
+  },
+};
+```
+
+Register it in your plugin's `index.ts`:
+
+```typescript
+import type { PluginContext } from 'profclaw/sdk';
+import { weatherTool } from './tools/weather.js';
+
+export function activate(ctx: PluginContext): void {
+  ctx.tools.register(weatherTool);
+}
+```
+
+## Tool Definition Structure
+
+<ParamField path="name" type="string" required>
+  Unique tool name. Use `snake_case`. Must not conflict with built-in tool names.
+</ParamField>
+
+<ParamField path="description" type="string" required>
+  Description shown to the AI model. Be specific about when to use this tool and what it returns.
+</ParamField>
+
+<ParamField path="category" type="string" required>
+  Category: `execution`, `filesystem`, `web`, `data`, `system`, `profclaw`, `memory`, `browser`, `custom`.
+</ParamField>
+
+<ParamField path="securityLevel" type="string" required>
+  Security level: `safe`, `moderate`, `dangerous`. Affects approval requirements.
+</ParamField>
+
+<ParamField path="parameters" type="ZodSchema" required>
+  Zod schema for parameter validation. Fields with `.describe()` become parameter descriptions for the AI.
+</ParamField>
+
+<ParamField path="execute" type="function" required>
+  Async function `(context, params) => Promise<ToolResult>`. Receives a `ToolExecutionContext` with workdir, security policy, and session manager.
+</ParamField>
+
+<ParamField path="tier" type="string" default="full">
+  Which model tier receives this tool: `essential`, `standard`, `full`.
+</ParamField>
+
+<ParamField path="isAvailable" type="function">
+  Optional availability check. Return `{ available: false, reason: "..." }` to hide the tool when its dependencies aren't configured.
+</ParamField>
+
+<ParamField path="requiresApproval" type="boolean">
+  Force approval requests regardless of security mode.
+</ParamField>
+
+<ParamField path="rateLimit" type="object">
+  Rate limit config: `{ maxCalls: 10, windowMs: 60000 }`.
+</ParamField>
+
+## ToolResult Format
+
+Your `execute` function must return a `ToolResult`:
+
+```typescript
+// Success
+return {
+  success: true,
+  data: { /* structured data for the model */ },
+  output: "Human-readable summary shown to the model",
+};
+
+// Error
+return {
+  success: false,
+  error: {
+    code: 'FETCH_ERROR',
+    message: 'Could not connect to weather API',
+    retryable: true,
+  },
+};
+```
+
+## ToolExecutionContext
+
+The `context` parameter gives you access to:
+
+```typescript
+interface ToolExecutionContext {
+  toolCallId: string;      // Unique ID for this call
+  conversationId: string;  // Current conversation
+  userId?: string;         // Authenticated user if any
+  workdir: string;         // Working directory
+  env: Record<string, string>; // Allowed environment vars
+  securityPolicy: SecurityPolicy; // Active security policy
+  signal?: AbortSignal;    // Cancellation signal
+  sessionManager: SessionManager; // Session CRUD
+}
+```
+
+## Skill-Based Command Dispatch
+
+For simpler cases, you can define a command in a `SKILL.md` file that dispatches to an existing tool:
+
+```yaml
+---
+name: my-command
+description: My custom slash command
+command-dispatch: tool
+command-tool: exec
+command-arg-mode: raw
+---
+
+Run my custom script with the provided arguments.
+```
+
+When a user types `/my-command arg1 arg2`, it calls `exec` with the raw args as the command.
+
+## Tool Tier Assignment
+
+Custom tools default to the `full` tier. To make your tool available to smaller models, set a lower tier:
+
+```typescript
+export const myTool: ToolDefinition = {
+  name: 'my_simple_tool',
+  tier: 'standard', // Available to 14B+ models
+  // ...
+};
+```
+
+## Testing Custom Tools
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { weatherTool } from './tools/weather.js';
+
+describe('get_weather', () => {
+  it('returns weather for a valid city', async () => {
+    const ctx = createMockContext({ workdir: '/tmp' });
+    const result = await weatherTool.execute(ctx, { city: 'London' });
+    expect(result.success).toBe(true);
+    expect(result.output).toContain('London');
+  });
+});
+```
+
+## Related Docs
+
+<CardGroup cols={2}>
+  <Card title="Plugin SDK" icon="code" href="/plugins/sdk">
+    Full plugin development guide.
+  </Card>
+  <Card title="Creating Skills" icon="book" href="/skills/creating-skills">
+    Lighter-weight skill-based commands.
+  </Card>
+</CardGroup>

@@ -1,0 +1,172 @@
+---
+title: "Tasks API"
+description: "profClaw Tasks API - create, list, filter by status, cancel, and retry agentic tasks. Track task lifecycle from pending through completion or failure."
+---
+
+Tasks are the core work unit in profClaw. They are created from webhooks, the API, or the UI, queued for agent execution, and tracked through their lifecycle.
+
+## Task Status
+
+```
+pending -> queued -> in_progress -> completed | failed | cancelled
+```
+
+## GET /api/tasks
+
+List tasks with optional status filter and pagination.
+
+```bash
+curl "http://localhost:3000/api/tasks?status=pending&limit=20" \
+  --cookie "profclaw_session=<token>"
+```
+
+**Query parameters**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `status` | string | Filter by status |
+| `limit` | number | Max results (default 50) |
+| `offset` | number | Offset for pagination |
+| `cursor` | string | Cursor for cursor-based pagination (preferred) |
+| `fields` | string | Comma-separated sparse fieldset |
+| `full` | boolean | Return full objects (disables sparse fieldset) |
+
+**Response `200`**
+
+```json
+{
+  "tasks": [
+    {
+      "id": "task_01",
+      "title": "Fix login bug",
+      "status": "pending",
+      "priority": 2,
+      "source": "github",
+      "sourceId": "42",
+      "sourceUrl": "https://github.com/org/repo/issues/42",
+      "labels": ["bug"],
+      "assignedAgent": "claude-code",
+      "createdAt": "2026-03-12T10:00:00Z"
+    }
+  ],
+  "total": 142,
+  "count": 20,
+  "limit": 20,
+  "nextCursor": "eyJjcmVhdGVkQXQiOjE3MDAwMDAwMDAsImlkIjoiMDEifQ"
+}
+```
+
+---
+
+## POST /api/tasks
+
+Create a new task.
+
+```bash
+curl -X POST http://localhost:3000/api/tasks \
+  -H "Content-Type: application/json" \
+  --cookie "profclaw_session=<token>" \
+  -d '{
+    "title": "Add dark mode",
+    "description": "Implement dark mode for the settings page",
+    "prompt": "Add a dark mode toggle to the settings page using Tailwind CSS",
+    "priority": 3,
+    "source": "api",
+    "labels": ["ui", "feature"]
+  }'
+```
+
+**Request body** (validated with `CreateTaskSchema`)
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| `title` | string | Yes | |
+| `description` | string | No | |
+| `prompt` | string | No | Detailed instructions for the agent |
+| `priority` | number | No | 1 (critical) - 4 (low) |
+| `source` | string | No | `github` \| `jira` \| `linear` \| `api` \| `cron` |
+| `sourceId` | string | No | External ID |
+| `sourceUrl` | string | No | Link back to source |
+| `repository` | string | No | `owner/repo` |
+| `branch` | string | No | Git branch |
+| `labels` | string[] | No | |
+| `assignedAgent` | string | No | Force a specific adapter |
+
+**Response `201`**: `{ "message": "Task created", "task": {...} }`
+
+---
+
+## GET /api/tasks/:id
+
+Fetch a single task by ID.
+
+---
+
+## POST /api/tasks/:id/cancel
+
+Cancel a pending or in-progress task.
+
+```bash
+curl -X POST http://localhost:3000/api/tasks/task_01/cancel
+```
+
+**Response `200`**: `{ "message": "Task cancelled", "task": {...} }`
+
+---
+
+## POST /api/tasks/:id/retry
+
+Retry a failed or completed task. Creates a new task with the same parameters.
+
+```bash
+curl -X POST http://localhost:3000/api/tasks/task_01/retry
+```
+
+**Response `200`**: `{ "message": "Task queued for retry", "task": {...}, "originalTaskId": "task_01" }`
+
+---
+
+## GET /api/tasks/:id/events
+
+Retrieve the audit event log for a task (requires `storage.getTaskEvents`).
+
+---
+
+## Advanced Filtering
+
+```
+GET /api/tasks/filter?status=failed,completed&priority=1,2&source=github&q=login
+```
+
+Supported params: `status`, `priority`, `source`, `agent`, `labels`, `createdAfter`, `createdBefore`, `completedAfter`, `completedBefore`, `repository`, `q`, `sortBy`, `sortOrder`
+
+---
+
+## Analytics
+
+```
+GET /api/tasks/analytics
+```
+
+Returns aggregated statistics: counts by status, average durations, failure rates, and source breakdown.
+
+---
+
+## Export / Import
+
+```bash
+# Export all tasks as JSON
+GET /api/tasks/export
+
+# Import from a previous export
+POST /api/tasks/import
+Content-Type: application/json
+{ "version": "1.0", "tasks": [...] }
+```
+
+## Related
+
+- [Task Queue API](/api-reference/task-queue) - Inspect queue depth and manage dead-letter entries
+- [Agent Sessions API](/api-reference/agent-sessions) - Monitor task execution sessions
+- [profclaw task](/cli/task) - Create and manage tasks from the CLI
+- [Webhooks API](/api-reference/webhooks) - Receive tasks from GitHub, Jira, and Linear

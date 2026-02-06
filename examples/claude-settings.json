@@ -1,0 +1,26 @@
+{
+  "$schema": "https://claude.ai/schemas/settings.json",
+  "description": "Example Claude Code settings with profClaw hooks integration",
+
+  "hooks": {
+    "PostToolUse": {
+      "command": "curl -s -X POST http://localhost:3000/api/hook/tool-use -H 'Content-Type: application/json' -d \"$CLAUDE_HOOK_PAYLOAD\""
+    },
+    "Stop": {
+      "command": "curl -s -X POST http://localhost:3000/api/hook/session-end -H 'Content-Type: application/json' -d \"$CLAUDE_HOOK_PAYLOAD\""
+    },
+    "UserPromptSubmit": {
+      "command": "curl -s -X POST http://localhost:3000/api/hook/prompt-submit -H 'Content-Type: application/json' -d \"$CLAUDE_HOOK_PAYLOAD\""
+    }
+  },
+
+  "mcpServers": {
+    "profclaw": {
+      "command": "node",
+      "args": ["/path/to/profclaw/dist/mcp/server.js"],
+      "env": {
+        "PROFCLAW_API_URL": "http://localhost:3000"
+      }
+    }
+  }
+}

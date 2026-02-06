@@ -1,0 +1,178 @@
+---
+title: "Slack"
+description: "Deploy profClaw as a Slack bot. Supports Socket Mode for zero-port-forwarding setup, Block Kit messages, and slash commands."
+---
+
+profClaw's Slack integration supports both Socket Mode (recommended, no public URL needed) and HTTP webhook mode. It handles slash commands, direct messages, app mentions, and interactive components.
+
+## Capabilities
+
+| Feature | Supported |
+|---------|-----------|
+| Direct messages | Yes |
+| Channel messages | Yes (on mention) |
+| Slash commands | Yes |
+| Block Kit messages | Yes |
+| Interactive buttons/menus | Yes |
+| Message reactions | Yes |
+| Message threads | Yes |
+| File sharing | Yes |
+| Socket Mode | Yes |
+| OAuth app installation | Yes |
+
+## Setup
+
+<Tabs>
+  <Tab title="Socket Mode (Recommended)">
+    <Steps>
+      <Step title="Create a Slack App">
+        Go to [api.slack.com/apps](https://api.slack.com/apps) and create a new app from scratch.
+      </Step>
+      <Step title="Enable Socket Mode">
+        Under **Settings > Socket Mode**, enable Socket Mode and generate an App-Level Token with `connections:write` scope.
+      </Step>
+      <Step title="Add Bot Token Scopes">
+        Under **OAuth & Permissions > Bot Token Scopes**, add:
+        - `app_mentions:read`
+        - `chat:write`
+        - `commands`
+        - `im:history`
+        - `im:read`
+        - `im:write`
+        - `reactions:write`
+      </Step>
+      <Step title="Enable Events">
+        Under **Event Subscriptions**, enable and subscribe to:
+        - `app_mention`
+        - `message.im`
+      </Step>
+      <Step title="Install and configure">
+        Install the app to your workspace, then set:
+        ```bash
+        SLACK_BOT_TOKEN=xoxb-...
+        SLACK_APP_TOKEN=xapp-...
+        SLACK_MODE=socket
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+  <Tab title="HTTP Mode">
+    <Steps>
+      <Step title="Create a Slack App">
+        Create a new Slack app at [api.slack.com/apps](https://api.slack.com/apps).
+      </Step>
+      <Step title="Set Request URLs">
+        Under **Event Subscriptions**, set the Request URL to:
+        `https://your-domain.com/webhooks/slack/events`
+      </Step>
+      <Step title="Configure">
+        ```bash
+        SLACK_BOT_TOKEN=xoxb-...
+        SLACK_SIGNING_SECRET=...
+        SLACK_MODE=http
+        ```
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## Environment Variables
+
+<ParamField path="SLACK_BOT_TOKEN" type="string" required>
+  Bot OAuth token. Format: `xoxb-...`
+</ParamField>
+
+<ParamField path="SLACK_APP_TOKEN" type="string">
+  App-level token for Socket Mode. Format: `xapp-...` Required when `SLACK_MODE=socket`.
+</ParamField>
+
+<ParamField path="SLACK_SIGNING_SECRET" type="string">
+  Signing secret for webhook verification. Required when `SLACK_MODE=http`.
+</ParamField>
+
+<ParamField path="SLACK_MODE" type="string">
+  Connection mode: `socket` or `http`. Defaults to `http`.
+</ParamField>
+
+<ParamField path="SLACK_WEBHOOK_URL" type="string">
+  Incoming webhook URL for simple outbound messages (optional).
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env (Socket Mode)">
+    ```bash
+    SLACK_BOT_TOKEN=xoxb-1234567890-...
+    SLACK_APP_TOKEN=xapp-1-...
+    SLACK_MODE=socket
+    ```
+  </Tab>
+  <Tab title=".env (HTTP Mode)">
+    ```bash
+    SLACK_BOT_TOKEN=xoxb-1234567890-...
+    SLACK_SIGNING_SECRET=abc123...
+    SLACK_MODE=http
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    chat:
+      slack:
+        mode: socket
+        bot_token: "${SLACK_BOT_TOKEN}"
+        app_token: "${SLACK_APP_TOKEN}"
+    ```
+  </Tab>
+</Tabs>
+
+## Slash Commands
+
+Register slash commands in your Slack app and profClaw will handle them:
+
+```
+/ask [question]        - Ask the AI a question
+/run [skill] [args]    - Run a profClaw skill
+/status                - Check agent status
+```
+
+Custom slash commands can be registered via the CLI:
+
+```bash
+profclaw slack commands add /deploy "Deploy to production" "run deploy"
+```
+
+## Block Kit Messages
+
+profClaw sends structured Block Kit messages for rich responses:
+
+```json
+{
+  "blocks": [
+    {
+      "type": "section",
+      "text": { "type": "mrkdwn", "text": "Here's what I found:" }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        { "type": "button", "text": { "type": "plain_text", "text": "Approve" }, "action_id": "approve" }
+      ]
+    }
+  ]
+}
+```
+
+## Notes
+
+- Socket Mode is strongly recommended for development and behind-firewall deployments.
+- In Socket Mode, profClaw connects outbound to Slack's servers - no inbound ports needed.
+- The bot responds to `@mention` in channels and to all DMs by default.
+- Multiple Slack workspaces are supported via multi-account configuration.
+
+## Related
+
+- [Slack Bot Setup Guide](/guides/slack-bot) - Step-by-step walkthrough with screenshots
+- [Chat Providers Overview](/chat-providers/overview) - Compare all 27 supported channels
+- [Notifications Tool](/tools/notifications) - Send proactive messages to Slack channels from agents
+- [profclaw channels](/cli/channels) - Enable and test the Slack connection from the CLI

@@ -1,0 +1,124 @@
+---
+title: "IRC"
+description: "Connect profClaw to IRC networks. Classic IRC protocol with TLS support, NickServ auth, and multi-channel support."
+---
+
+profClaw can join IRC networks as a bot, responding to direct messages and channel mentions. Supports TLS connections and NickServ authentication.
+
+## Capabilities
+
+| Feature | Supported |
+|---------|-----------|
+| Direct messages | Yes |
+| Channel messages | Yes (on mention) |
+| TLS connections | Yes |
+| NickServ auth | Yes |
+| Multi-channel | Yes |
+| CTCP | No |
+| DCC | No |
+
+## Setup
+
+<Steps>
+  <Step title="Choose a network">
+    Pick an IRC network (Libera.Chat, OFTC, Freenode successor, etc.).
+  </Step>
+  <Step title="Choose a nickname">
+    Pick a unique bot nickname. Register it with NickServ if the network supports it:
+
+    ```
+    /msg NickServ REGISTER password email@example.com
+    ```
+  </Step>
+  <Step title="Configure profClaw">
+    ```bash
+    IRC_SERVER=irc.libera.chat
+    IRC_PORT=6697
+    IRC_NICK=profclaw-bot
+    IRC_PASSWORD=nickserv-password
+    IRC_CHANNELS=#your-channel,#another-channel
+    IRC_USE_TLS=true
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="IRC_SERVER" type="string" required>
+  IRC server hostname (e.g., `irc.libera.chat`).
+</ParamField>
+
+<ParamField path="IRC_PORT" type="number">
+  IRC server port. Defaults to `6667`. Use `6697` for TLS.
+</ParamField>
+
+<ParamField path="IRC_NICK" type="string" required>
+  Bot nickname.
+</ParamField>
+
+<ParamField path="IRC_PASSWORD" type="string">
+  NickServ or server password.
+</ParamField>
+
+<ParamField path="IRC_CHANNELS" type="string" required>
+  Comma-separated list of channels to join (e.g., `#general,#dev`).
+</ParamField>
+
+<ParamField path="IRC_USE_TLS" type="boolean">
+  Enable TLS. Defaults to `true`.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    IRC_SERVER=irc.libera.chat
+    IRC_PORT=6697
+    IRC_NICK=profclaw
+    IRC_PASSWORD=my-nickserv-password
+    IRC_CHANNELS=#dev,#ai-bots
+    IRC_USE_TLS=true
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    chat:
+      irc:
+        server: "${IRC_SERVER}"
+        port: 6697
+        nick: "${IRC_NICK}"
+        password: "${IRC_PASSWORD}"
+        channels:
+          - "#dev"
+          - "#ai-bots"
+        use_tls: true
+    ```
+  </Tab>
+</Tabs>
+
+## Bot Trigger
+
+In channels, the bot responds when mentioned:
+
+```
+<user> profclaw: what is the weather in London?
+<profclaw> According to current data, London is 12°C and cloudy.
+```
+
+In private messages, all messages are processed.
+
+## Notes
+
+- Status: Beta
+- IRC is connectionless - profClaw maintains a persistent TCP connection.
+- If the connection drops, profClaw automatically reconnects.
+- TLS port 6697 is strongly recommended over plaintext 6667.
+- NickServ registration prevents nick squatting on public networks.
+
+## Related
+
+- [Chat Providers Overview](/chat-providers/overview) - Compare all 27 supported channels
+- [Matrix](/chat-providers/matrix) - Modern federated messaging as an IRC alternative
+- [Rocket.Chat](/chat-providers/rocket-chat) - Self-hosted modern chat for developer communities
+- [profclaw channels](/cli/channels) - Enable and test the IRC connection from the CLI

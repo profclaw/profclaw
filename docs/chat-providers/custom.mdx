@@ -1,0 +1,202 @@
+---
+title: "Custom Chat Providers"
+description: "Build your own chat provider for profClaw. Implement the ChatProvider interface to integrate any messaging platform."
+---
+
+profClaw's provider system is fully extensible. You can create a custom provider to integrate any messaging platform that isn't built-in.
+
+## Overview
+
+Every chat provider in profClaw implements the same `ChatProvider` interface. Custom providers have the same capabilities as built-in ones:
+- Inbound message handling
+- Outbound message sending
+- Status and health checks
+- Multi-account support
+
+## Interface
+
+A chat provider consists of four adapters:
+
+```typescript
+interface ChatProvider {
+  meta: ChatProviderMeta;
+  capabilities: ChatProviderCapabilities;
+
+  // Adapters
+  outbound: OutboundAdapter;     // Send messages
+  inbound?: InboundAdapter;      // Receive messages
+  auth?: AuthAdapter;            // OAuth flows
+  status: StatusAdapter;         // Health checks
+}
+```
+
+## Building a Provider
+
+<Steps>
+  <Step title="Create the provider file">
+    ```typescript
+    // src/chat/providers/my-platform/index.ts
+    import type {
+      ChatProvider,
+      ChatProviderMeta,
+      ChatProviderCapabilities,
+    } from '../types.js';
+
+    const meta: ChatProviderMeta = {
+      id: 'my-platform' as ChatProviderId,
+      name: 'My Platform',
+      description: 'Integration with My Platform messaging',
+      icon: '💬',
+      order: 100,
+    };
+
+    const capabilities: ChatProviderCapabilities = {
+      chatTypes: ['direct', 'group'],
+      send: true,
+      receive: true,
+      slashCommands: false,
+      interactiveComponents: false,
+      reactions: false,
+      edit: false,
+      delete: false,
+      threads: false,
+      media: true,
+      richBlocks: false,
+      oauth: false,
+      webhooks: true,
+      realtime: false,
+    };
+
+    export const myPlatformProvider: ChatProvider = {
+      meta,
+      capabilities,
+      outbound: { /* see below */ },
+      inbound: { /* see below */ },
+      status: { /* see below */ },
+    };
+    ```
+  </Step>
+  <Step title="Implement the outbound adapter">
+    ```typescript
+    const outbound: OutboundAdapter = {
+      async send(message: OutgoingMessage, account: ChatAccountConfig): Promise<SendResult> {
+        const config = account as MyPlatformAccountConfig;
+
+        const response = await fetch(`${config.apiUrl}/messages`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${config.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to: message.channelId,
+            text: message.text,
+          }),
+        });
+
+        if (!response.ok) {
+          return { success: false, error: `API error: ${response.status}` };
+        }
+
+        const data = await response.json();
+        return { success: true, messageId: data.id };
+      },
+    };
+    ```
+  </Step>
+  <Step title="Implement the inbound adapter">
+    ```typescript
+    const inbound: InboundAdapter = {
+      // Called when a webhook is received
+      async handleWebhook(
+        req: Request,
+        account: ChatAccountConfig
+      ): Promise<IncomingMessage[]> {
+        const body = await req.json();
+
+        return body.messages.map((msg: unknown) => ({
+          id: msg.id,
+          provider: 'my-platform' as ChatProviderId,
+          accountId: account.id,
+          channelId: msg.channelId,
+          senderId: msg.userId,
+          senderName: msg.userName,
+          text: msg.text,
+          timestamp: new Date(msg.timestamp).toISOString(),
+          raw: msg,
+        }));
+      },
+    };
+    ```
+  </Step>
+  <Step title="Register the provider">
+    ```typescript
+    // In your server setup or plugin
+    import { getChatRegistry } from '../chat/providers/registry.js';
+    import { myPlatformProvider } from './chat/providers/my-platform/index.js';
+
+    getChatRegistry().register(myPlatformProvider);
+    ```
+  </Step>
+</Steps>
+
+## Account Configuration
+
+Define a typed config for your provider's credentials:
+
+```typescript
+interface MyPlatformAccountConfig extends ChatAccountConfigBase {
+  provider: 'my-platform';
+  apiUrl?: string;
+  apiKey?: string;
+  webhookSecret?: string;
+}
+```
+
+## Webhook Registration
+
+Register your provider's webhook route with Hono:
+
+```typescript
+app.post('/webhooks/my-platform', async (c) => {
+  const body = await c.req.json();
+  const registry = getChatRegistry();
+  const provider = registry.get('my-platform');
+
+  const messages = await provider.inbound?.handleWebhook(c.req.raw, account);
+  // Process messages...
+
+  return c.json({ ok: true });
+});
+```
+
+## Plugin Distribution
+
+Wrap your custom provider as a profClaw plugin for easy distribution:
+
+```typescript
+// plugin.ts
+import type { ProfClawPlugin } from 'profclaw/sdk';
+
+export const plugin: ProfClawPlugin = {
+  name: 'my-platform',
+  version: '1.0.0',
+  setup(ctx) {
+    ctx.registerChatProvider(myPlatformProvider);
+  },
+};
+```
+
+## Notes
+
+- Custom providers have the same capabilities as built-in providers.
+- The `id` field must be unique across all registered providers.
+- Account configuration is stored in profClaw's settings and can include multiple accounts.
+- For distributing providers to others, use the Plugin SDK and publish to ClawHub.
+
+## Related
+
+- [Chat Providers Overview](/chat-providers/overview) - Compare all 27 built-in supported channels
+- [Plugins Overview](/plugins/overview) - Package and publish your custom provider as a plugin
+- [Plugin SDK](/plugins/sdk) - TypeScript SDK for building profClaw plugins
+- [profclaw channels](/cli/channels) - Enable and test chat provider connections from the CLI

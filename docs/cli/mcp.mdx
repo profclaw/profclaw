@@ -1,0 +1,127 @@
+---
+title: "profclaw mcp"
+description: "Manage MCP (Model Context Protocol) server connections and expose profClaw as an MCP server."
+---
+
+## Synopsis
+
+```bash
+profclaw mcp <subcommand> [flags]
+```
+
+## Description
+
+`mcp` manages connections to external MCP (Model Context Protocol) servers and can run profClaw itself as an MCP server. MCP servers expose tools that agents can call during execution. profClaw can connect to multiple MCP servers simultaneously, making all their tools available to agents.
+
+## Subcommands
+
+| Subcommand | Alias | Description |
+|---|---|---|
+| `status` | - | Show connection status for all configured MCP servers |
+| `list-tools` | `tools` | List all tools from connected MCP servers |
+| `connect <name>` | - | Connect to a configured MCP server |
+| `disconnect <name>` | - | Disconnect from an MCP server |
+| `serve` | - | Start profClaw as a standalone MCP server (stdio mode) |
+
+## `mcp status`
+
+<ParamField query="--json" type="boolean">
+  Output as JSON with server name, transport, connection status, and tool count.
+</ParamField>
+
+## `mcp list-tools`
+
+Lists all tools currently available from connected MCP servers, grouped by server.
+
+<ParamField query="--json" type="boolean">
+  Output as JSON with tool name, server, and description.
+</ParamField>
+
+## `mcp connect <name>`
+
+<ParamField query="name" type="string" required>
+  Name of the MCP server as defined in your profClaw config.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output connection result as JSON.
+</ParamField>
+
+## `mcp disconnect <name>`
+
+<ParamField query="name" type="string" required>
+  Name of the MCP server to disconnect.
+</ParamField>
+
+## `mcp serve`
+
+Starts profClaw as a standalone MCP server over stdio. Use this to connect profClaw's tools to Claude Desktop, Cursor, or any other MCP-compatible client. Requires a production build (`pnpm build`).
+
+## Examples
+
+<CodeGroup>
+```bash Show all MCP server connections
+profclaw mcp status
+```
+
+```bash List tools from all connected servers
+profclaw mcp list-tools
+```
+
+```bash Connect to a configured server
+profclaw mcp connect filesystem
+profclaw mcp connect github
+```
+
+```bash Disconnect from a server
+profclaw mcp disconnect filesystem
+```
+
+```bash Run profClaw as an MCP server (for Claude Desktop)
+profclaw mcp serve
+```
+
+```bash Check status as JSON
+profclaw mcp status --json | jq '.servers[] | select(.connected)'
+```
+</CodeGroup>
+
+## MCP Server Configuration
+
+Configure MCP servers in `config/settings.yml`:
+
+```yaml
+mcp:
+  servers:
+    - name: filesystem
+      transport: stdio
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+    - name: github
+      transport: stdio
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-github"]
+      env:
+        GITHUB_TOKEN: "${GITHUB_TOKEN}"
+```
+
+## Claude Desktop Integration
+
+To use profClaw tools in Claude Desktop, add to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "profclaw": {
+      "command": "profclaw",
+      "args": ["mcp", "serve"]
+    }
+  }
+}
+```
+
+## Related
+
+- [`profclaw tools`](/cli/tools) - Built-in tools (no MCP server needed)
+- [`profclaw plugins`](/cli/plugins) - Plugins can also provide tools
+- [MCP Integration Guide](/guides/mcp) - Setting up MCP connections

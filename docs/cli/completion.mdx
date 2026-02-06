@@ -1,0 +1,52 @@
+---
+title: "profclaw completion"
+description: "profclaw completion - generate shell tab-completion scripts for bash, zsh, and fish. Install once and autocomplete every profClaw command and flag."
+---
+
+## Synopsis
+
+```bash
+profclaw completion <shell>
+```
+
+## Description
+
+Generate shell completion scripts for tab-completion of profClaw commands, subcommands, and flags.
+
+## Subcommands
+
+| Subcommand | Description |
+|-----------|-------------|
+| `bash` | Generate bash completion script |
+| `zsh` | Generate zsh completion script |
+| `fish` | Generate fish completion script |
+
+## Setup
+
+<Tabs>
+  <Tab title="Bash">
+    ```bash
+    # Add to ~/.bashrc
+    eval "$(profclaw completion bash)"
+    ```
+  </Tab>
+  <Tab title="Zsh">
+    ```bash
+    # Add to ~/.zshrc
+    eval "$(profclaw completion zsh)"
+    ```
+  </Tab>
+  <Tab title="Fish">
+    ```bash
+    profclaw completion fish | source
+
+    # Or persist it
+    profclaw completion fish > ~/.config/fish/completions/profclaw.fish
+    ```
+  </Tab>
+</Tabs>
+
+## Related
+
+- [CLI Overview](/cli/overview)
+- [Installation](/getting-started/installation)

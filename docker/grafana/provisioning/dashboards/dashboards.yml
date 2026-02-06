@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: 'profClaw Dashboards'
+    orgId: 1
+    folder: 'profClaw'
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/json

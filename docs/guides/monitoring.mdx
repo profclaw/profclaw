@@ -1,0 +1,152 @@
+---
+title: "Monitoring"
+description: "Monitor profClaw health, performance, and costs"
+---
+
+## Overview
+
+Monitor your profClaw instance with built-in health endpoints, cost tracking, and log management. Integrate with external monitoring tools for production alerting.
+
+## Health Endpoints
+
+profClaw exposes health and readiness endpoints:
+
+```bash
+# Basic health check
+curl http://localhost:3000/api/health
+# Returns: { "status": "ok", "version": "2.x.x", "mode": "mini", "uptime": 3600 }
+
+# Readiness check (includes dependency checks)
+curl http://localhost:3000/api/ready
+# Returns: { "status": "ready", "checks": { "database": "ok", "redis": "ok", "providers": "ok" } }
+```
+
+## CLI Monitoring
+
+```bash
+# System status overview
+profclaw status
+
+# Run diagnostic checks
+profclaw doctor
+
+# View active sessions
+profclaw agent sessions
+
+# Queue status
+profclaw queue status
+```
+
+## Cost Tracking
+
+Track AI provider token usage and costs:
+
+```bash
+# Today's costs
+profclaw cost
+
+# Cost breakdown by provider
+profclaw cost --breakdown
+
+# Cost for a date range
+profclaw cost --since 2026-03-01 --until 2026-03-12
+
+# Export as JSON
+profclaw cost --json
+```
+
+Sample output:
+```
+profClaw Cost Report - Today
+──────────────────────────────
+Provider        Tokens (in/out)    Cost
+Anthropic       125,430 / 42,100   $0.89
+OpenAI          45,200 / 15,600    $0.23
+Ollama          89,000 / 31,200    $0.00 (local)
+──────────────────────────────
+Total                              $1.12
+```
+
+## Log Management
+
+```bash
+# View live logs
+profclaw logs --follow
+
+# Filter by level
+profclaw logs --level error
+
+# Filter by time
+profclaw logs --since 1h
+
+# Filter by component
+profclaw logs --component chat
+profclaw logs --component security
+profclaw logs --component queue
+```
+
+## Audit Log
+
+For security and compliance monitoring:
+
+```bash
+# View recent audit events
+profclaw audit list
+
+# Filter by event type
+profclaw audit list --type tool_execution
+profclaw audit list --type security_decision
+
+# Export for compliance
+profclaw audit export --format json --since 2026-03-01
+```
+
+## External Monitoring Integration
+
+### Uptime Monitoring
+
+Point any uptime monitor (UptimeRobot, Pingdom, etc.) at:
+```
+https://your-profclaw.com/api/health
+```
+
+Expected response: HTTP 200 with `{"status":"ok"}`
+
+### Prometheus (Advanced)
+
+profClaw can expose Prometheus-compatible metrics:
+
+```yaml
+monitoring:
+  prometheus:
+    enabled: true
+    port: 9090
+    path: /metrics
+```
+
+Available metrics:
+- `profclaw_requests_total` - Total HTTP requests
+- `profclaw_tool_executions_total` - Tool executions by tool name
+- `profclaw_active_sessions` - Current active agent sessions
+- `profclaw_queue_depth` - Current queue depth
+- `profclaw_provider_tokens_total` - Token usage by provider
+- `profclaw_provider_cost_total` - Cost by provider
+
+### Alerting Rules
+
+Example Prometheus alert rules:
+
+```yaml
+groups:
+  - name: profclaw
+    rules:
+      - alert: ProfClawDown
+        expr: up{job="profclaw"} == 0
+        for: 1m
+      - alert: HighErrorRate
+        expr: rate(profclaw_requests_total{status="5xx"}[5m]) > 0.1
+        for: 5m
+      - alert: QueueBacklog
+        expr: profclaw_queue_depth > 100
+        for: 10m
+```

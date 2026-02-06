@@ -1,0 +1,106 @@
+---
+title: "DeepSeek"
+description: "Use DeepSeek Chat, DeepSeek Coder, and DeepSeek R1 (reasoning) via the DeepSeek API. Highly competitive pricing."
+---
+
+DeepSeek offers some of the best price-to-performance ratios available. DeepSeek R1 is a state-of-the-art reasoning model competitive with o1. DeepSeek Coder excels at programming tasks.
+
+## Supported Models
+
+| Model | ID | Context | Tools | Notes |
+|-------|----|---------|-------|-------|
+| DeepSeek Chat | `deepseek-chat` | 64K | Yes | General purpose |
+| DeepSeek Coder | `deepseek-coder` | 128K | Yes | Code-optimized |
+| DeepSeek R1 | `deepseek-reasoner` | 64K | No | Chain-of-thought reasoning |
+
+## Setup
+
+<Steps>
+  <Step title="Get an API key">
+    Sign up at [platform.deepseek.com](https://platform.deepseek.com).
+  </Step>
+  <Step title="Set the environment variable">
+    ```bash
+    export DEEPSEEK_API_KEY=sk-...
+    ```
+  </Step>
+  <Step title="Verify">
+    ```bash
+    profclaw doctor --provider deepseek
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="DEEPSEEK_API_KEY" type="string" required>
+  Your DeepSeek API key.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    DEEPSEEK_API_KEY=sk-...
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    providers:
+      deepseek:
+        api_key: "${DEEPSEEK_API_KEY}"
+    ```
+  </Tab>
+</Tabs>
+
+## Model Aliases
+
+| Alias | Model |
+|-------|-------|
+| `deepseek` | deepseek-chat |
+| `deepseek-coder` | deepseek-coder |
+| `deepseek-r1` | deepseek-reasoner |
+| `deepseek-local` | deepseek-r1:7b (via Ollama) |
+
+## Usage Examples
+
+<CodeGroup>
+  ```bash CLI
+  # General chat
+  profclaw chat --model deepseek "Explain microservices"
+
+  # Code generation
+  profclaw chat --model deepseek-coder "Write a Redis client in TypeScript"
+
+  # Reasoning
+  profclaw chat --model deepseek-r1 "Prove that sqrt(2) is irrational"
+
+  # Local (via Ollama)
+  profclaw chat --model deepseek-local "Quick local query"
+  ```
+
+  ```typescript SDK
+  import { chat } from 'profclaw';
+
+  const code = await chat("Implement a LRU cache in Go", {
+    model: "deepseek-coder",
+    temperature: 0.1,
+  });
+  ```
+</CodeGroup>
+
+## Notes
+
+- API endpoint: `https://api.deepseek.com/v1` (OpenAI-compatible)
+- Status: Beta
+- DeepSeek R1 uses extended chain-of-thought reasoning similar to OpenAI o1.
+- `deepseek-reasoner` (R1) does not support tool calling.
+- For local/offline use, run `ollama pull deepseek-r1:7b` and use the `deepseek-local` alias.
+
+## Related
+
+- [AI Providers Overview](/ai-providers/overview) - Compare all 37 supported providers
+- [Ollama](/ai-providers/ollama) - Run DeepSeek models locally via Ollama
+- [OpenAI](/ai-providers/openai) - o1 and o3 reasoning models for comparison
+- [profclaw provider](/cli/provider) - Add and test providers from the CLI

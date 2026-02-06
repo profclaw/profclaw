@@ -1,0 +1,94 @@
+---
+title: "Agent Sessions API"
+description: "profClaw Agent Sessions API - start, monitor, cancel, and inspect autonomous execution sessions. View tool call history, token usage, and session state."
+---
+
+Agent sessions represent a single autonomous execution run - from receiving a task to completing it. Sessions are created implicitly when agentic chat is started, but you can also inspect and manage them directly.
+
+## Session Lifecycle
+
+```
+created -> queued -> running -> completed | failed | cancelled
+```
+
+A session maps to a `Task` in the queue, an agentic SSE stream in the chat API, and an audit log of all tool calls made during execution.
+
+## Starting a Session
+
+The primary way to start an agentic session is through the chat API:
+
+```bash
+curl -X POST http://localhost:3000/api/chat/conversations/conv_01/messages/agentic \
+  -H "Content-Type: application/json" \
+  --cookie "profclaw_session=<token>" \
+  -d '{
+    "content": "Add unit tests for the auth module",
+    "model": "claude-sonnet-4-6",
+    "effort": "high",
+    "maxSteps": 50
+  }'
+```
+
+This returns an SSE stream. See [Chat Stream](/api-reference/chat-stream) for the full event reference.
+
+## Session Configuration
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `effort` | string | `medium` | `low` \| `medium` \| `high` \| `max` - controls step budget |
+| `maxSteps` | number | Varies | Hard cap on autonomous steps (1-200) |
+| `maxBudget` | number | None | Token budget for the session |
+| `showThinking` | boolean | `true` | Stream reasoning blocks |
+| `securityMode` | string | `full` | Tool permission mode for agentic runs |
+
+Agentic mode always uses `securityMode: full` - all tools are pre-approved. For interactive approval, use the `with-tools` endpoint instead.
+
+## Session Timeout
+
+Sessions have a hard timeout of **3 minutes**. When reached, an `error` SSE event is sent with `code: "TIMEOUT"` and the stream closes. Long-running tasks should be broken into smaller steps.
+
+## Viewing Session History
+
+Each agentic session saves tool calls and the final summary as a conversation message. Retrieve them via:
+
+```bash
+GET /api/chat/conversations/:id
+```
+
+The `assistantMessage` in the response includes `toolCalls` with each tool call, its arguments, result, and `status: "success" | "error"`.
+
+## Memory Session Integration
+
+Agentic sessions optionally link to a memory session for context persistence:
+
+```bash
+POST /api/memory/sessions
+```
+
+```json
+{
+  "name": "auth-refactor session",
+  "conversationId": "conv_01"
+}
+```
+
+Call `POST /api/memory/warm` before starting an agentic session to pre-load relevant memory into context.
+
+## Execution Engine
+
+Under the hood, `streamAgenticChat()` from `src/chat/index.ts` drives the agentic loop:
+
+1. Builds system prompt with `agentMode: true` (appends `AGENT_MODE_SUFFIX`)
+2. Calls the AI model with all available tools
+3. Executes each tool call via the `ChatToolHandler`
+4. Repeats until the model stops calling tools or `maxSteps` is reached
+5. Emits typed SSE events at each step for real-time UI updates
+
+The tool handler uses `securityMode: full` in agentic mode, meaning all tools execute without approval prompts. This matches the behavior of autonomous agent runners like Claude Code.
+
+## Related
+
+- [Chat Streaming](/api-reference/chat-stream) - SSE event format for session progress
+- [Chat API](/api-reference/chat) - Start agentic execution via conversations
+- [Memory API](/api-reference/memory) - Pre-load context for sessions
+- [Security Overview](/security/overview) - Security modes and tool permission controls
