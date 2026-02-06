@@ -1,0 +1,116 @@
+---
+title: "profclaw auth"
+description: "Authentication and user management - invite codes, password reset, user listing, and registration mode."
+---
+
+## Synopsis
+
+```bash
+profclaw auth <subcommand> [flags]
+```
+
+## Description
+
+`auth` commands connect directly to the database (no server required) for administrative user management. Use them to manage accounts, generate invite codes for new users, and control registration mode.
+
+<Warning>
+These commands write directly to the database. The profClaw server does not need to be running, but you must be in the same directory as the profClaw installation (or have the correct database path configured).
+</Warning>
+
+## Subcommands
+
+| Subcommand | Description |
+|---|---|
+| `invite` | Generate one or more invite codes |
+| `reset-password <email>` | Reset a user's password and generate new recovery codes |
+| `list-users` | List all registered users |
+| `list-invites` | List all invite codes and their status |
+| `set-mode <mode>` | Set registration mode to `open` or `invite` |
+
+## `auth invite`
+
+Generate invite codes for new users to use during registration.
+
+<ParamField query="-n, --count" type="string" default="1">
+  Number of codes to generate (max 50).
+</ParamField>
+
+<ParamField query="--expires" type="string">
+  Expiration duration. Format: `7d`, `24h`, `30m`. Codes without an expiry never expire.
+</ParamField>
+
+<ParamField query="--label" type="string">
+  Human-readable label for tracking (e.g., `"For Alice"`, `"Team onboarding"`).
+</ParamField>
+
+## `auth reset-password <email>`
+
+Generates a random temporary password, invalidates all existing sessions for the user, and prints new recovery codes. The user must change their password after the next login.
+
+## `auth list-users`
+
+<ParamField query="--status" type="string">
+  Filter by user status. One of `active` or `suspended`.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output as JSON.
+</ParamField>
+
+## `auth list-invites`
+
+<ParamField query="--unused" type="boolean">
+  Show only codes that have not been used yet.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output as JSON.
+</ParamField>
+
+## `auth set-mode <mode>`
+
+<ParamField query="mode" type="string" required>
+  Registration mode. `open` allows anyone to register. `invite` requires a valid invite code.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash Generate a single invite code
+profclaw auth invite
+```
+
+```bash Generate 5 codes expiring in 7 days
+profclaw auth invite -n 5 --expires 7d --label "Team onboarding"
+```
+
+```bash Reset a user's password
+profclaw auth reset-password alice@example.com
+```
+
+```bash List all users
+profclaw auth list-users
+```
+
+```bash List active users only
+profclaw auth list-users --status active
+```
+
+```bash Show unused invite codes
+profclaw auth list-invites --unused
+```
+
+```bash Require invite codes for registration
+profclaw auth set-mode invite
+```
+
+```bash Allow open registration
+profclaw auth set-mode open
+```
+</CodeGroup>
+
+## Related
+
+- [`profclaw config login`](/cli/config) - Configure API token authentication
+- [`profclaw device`](/cli/device) - Manage paired devices
+- [`profclaw security`](/cli/security) - Security policies and approvals

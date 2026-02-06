@@ -1,0 +1,110 @@
+---
+title: "WeChat"
+description: "Connect profClaw to WeChat via the WeChat Official Account API. Required for reaching users in China."
+---
+
+WeChat is China's dominant super-app. profClaw integrates via the WeChat Official Account (OA) platform for business messaging and automated responses.
+
+## Capabilities
+
+| Feature | Supported |
+|---------|-----------|
+| 1:1 messages | Yes |
+| Passive response | Yes |
+| Text messages | Yes |
+| Rich media | Yes |
+| Menu buttons | Yes |
+| Template messages | Yes |
+| Webhook | Yes |
+
+## Requirements
+
+- WeChat Official Account (Subscription or Service Account)
+- Business verification for advanced features
+- Server with public HTTPS URL
+
+## Setup
+
+<Steps>
+  <Step title="Register a WeChat Official Account">
+    Apply at [mp.weixin.qq.com](https://mp.weixin.qq.com). Service Accounts have more API access than Subscription Accounts.
+  </Step>
+  <Step title="Enable developer mode">
+    Go to **Settings > Official Account Settings > Features > Developer** and enable the developer mode.
+  </Step>
+  <Step title="Configure server settings">
+    Set:
+    - **Server URL**: `https://your-domain.com/webhooks/wechat`
+    - **Token**: your custom token
+    - **EncodingAESKey**: generate or use the random one provided
+    - **Message encryption**: Recommended (EncodingAESKey required)
+  </Step>
+  <Step title="Get App credentials">
+    Under **Development > Basic Configuration**, copy **AppID** and **AppSecret**.
+  </Step>
+  <Step title="Configure profClaw">
+    ```bash
+    WECHAT_APP_ID=wx1234567890abcdef
+    WECHAT_APP_SECRET=your-app-secret
+    WECHAT_TOKEN=your-verify-token
+    WECHAT_ENCODING_AES_KEY=your-encoding-aes-key
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="WECHAT_APP_ID" type="string" required>
+  WeChat Official Account AppID.
+</ParamField>
+
+<ParamField path="WECHAT_APP_SECRET" type="string" required>
+  WeChat Official Account AppSecret.
+</ParamField>
+
+<ParamField path="WECHAT_TOKEN" type="string" required>
+  Server token for webhook verification.
+</ParamField>
+
+<ParamField path="WECHAT_ENCODING_AES_KEY" type="string">
+  43-character AES key for encrypted message mode.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    WECHAT_APP_ID=wx1234567890abcdef
+    WECHAT_APP_SECRET=abc123...
+    WECHAT_TOKEN=my-verify-token
+    WECHAT_ENCODING_AES_KEY=yourRandomAESKey43Chars...
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    chat:
+      wechat:
+        app_id: "${WECHAT_APP_ID}"
+        app_secret: "${WECHAT_APP_SECRET}"
+        token: "${WECHAT_TOKEN}"
+        encoding_aes_key: "${WECHAT_ENCODING_AES_KEY}"
+    ```
+  </Tab>
+</Tabs>
+
+## Notes
+
+- Status: Beta
+- WeChat's API operates in a passive response model - it sends you a message and you must reply within 5 seconds.
+- For asynchronous (slow) responses, use customer service messages (requires Service Account).
+- WeChat server IPs must be whitelisted in the developer settings.
+- Template messages for proactive outreach require prior user consent and WeChat approval.
+- Server must be accessible from WeChat's IP ranges (China-based).
+
+## Related
+
+- [Chat Providers Overview](/chat-providers/overview) - Compare all 27 supported channels
+- [Zalo](/chat-providers/zalo) - Leading messaging platform in Vietnam
+- [LINE](/chat-providers/line) - Dominant messaging platform in Japan and Taiwan
+- [profclaw channels](/cli/channels) - Enable and test the WeChat connection from the CLI

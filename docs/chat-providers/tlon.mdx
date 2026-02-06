@@ -1,0 +1,109 @@
+---
+title: "Tlon / Urbit"
+description: "Connect profClaw to the Urbit network via Tlon. Experimental support for decentralized, peer-to-peer messaging."
+---
+
+profClaw includes experimental support for the Urbit network via Tlon. Urbit is a decentralized OS and network where each user controls their own server (a ship). Tlon is the primary messaging client for Urbit.
+
+## Overview
+
+Urbit messaging works differently from traditional chat platforms:
+- Each user runs their own "ship" (server node)
+- Identity is based on cryptographic keys, not accounts
+- Messages are peer-to-peer
+- No central server or account required
+
+## Capabilities
+
+| Feature | Supported |
+|---------|-----------|
+| Direct messages (DMs) | Yes |
+| Group chats (Channels) | Yes |
+| Encrypted transit | Yes (Urbit built-in) |
+| Long-form posts | Yes |
+| Notebooks | No |
+| Collections | No |
+
+## Requirements
+
+- A running Urbit ship (comet, planet, or star)
+- Urbit HTTP API accessible
+- Tlon installed on the ship
+
+## Setup
+
+<Steps>
+  <Step title="Set up an Urbit ship">
+    Follow [urbit.org/getting-started](https://urbit.org/getting-started) to boot a ship. A comet (free, temporary identity) works for testing.
+
+    ```bash
+    # Boot a comet
+    urbit -c mycomet
+    ```
+  </Step>
+  <Step title="Get your ship's URL and code">
+    Once running, note your ship's HTTP port (usually 8080) and access code:
+
+    ```
+    # In the Urbit dojo:
+    +code
+    ```
+  </Step>
+  <Step title="Configure profClaw">
+    ```bash
+    TLON_SHIP_URL=http://localhost:8080
+    TLON_ACCESS_CODE=sampel-palnet-sampel-palnet
+    TLON_SHIP_NAME=~sampel-palnet
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="TLON_SHIP_URL" type="string" required>
+  HTTP URL of your Urbit ship (e.g., `http://localhost:8080`).
+</ParamField>
+
+<ParamField path="TLON_ACCESS_CODE" type="string" required>
+  Ship access code from `+code` in the dojo.
+</ParamField>
+
+<ParamField path="TLON_SHIP_NAME" type="string" required>
+  Your ship's Urbit name (e.g., `~sampel-palnet`).
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    TLON_SHIP_URL=http://localhost:8080
+    TLON_ACCESS_CODE=sampel-palnet-sampel-palnet
+    TLON_SHIP_NAME=~sampel-palnet
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    chat:
+      tlon:
+        ship_url: "${TLON_SHIP_URL}"
+        access_code: "${TLON_ACCESS_CODE}"
+        ship_name: "${TLON_SHIP_NAME}"
+    ```
+  </Tab>
+</Tabs>
+
+## Notes
+
+- Status: Experimental
+- Urbit/Tlon has a small but dedicated community. Best for privacy-focused deployments.
+- Ship names come in the form `~sampel-palnet` (planets) or `~sampel-palnet-sampel-palnet` (comets).
+- Comets are free to boot but are anonymous. Planets are NFT-style identities.
+- The Tlon provider uses Urbit's Eyre HTTP API for subscription-based message delivery.
+
+## Related
+
+- [Chat Providers Overview](/chat-providers/overview) - Compare all 27 supported channels
+- [Matrix](/chat-providers/matrix) - Another decentralized federated messaging protocol
+- [Signal](/chat-providers/signal) - End-to-end encrypted private messaging
+- [Custom Chat Providers](/chat-providers/custom) - Build your own provider integration

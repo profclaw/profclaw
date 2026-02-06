@@ -1,0 +1,209 @@
+---
+title: "profClaw Ops Tools"
+description: "profClaw Ops tools - let agents create and manage tickets and projects from within a chat session. Built-in task board operations without leaving the conversation."
+---
+
+## Overview
+
+profClaw Ops tools let the agent read and write profClaw's own data: tickets, projects. This means you can ask the agent "create a ticket for this bug" or "what tickets are open in the backend project?" and it will interact with your task board directly.
+
+These tools are **config-gated** - they check for an initialized database at startup and mark themselves unavailable if the storage layer is not initialized.
+
+## Tools
+
+### `create_ticket`
+
+Create a new ticket in a project.
+
+**Security level**: `moderate` | **Tier**: Standard
+
+<ParamField path="projectKey" type="string" required>
+  Project key prefix (e.g., `"PC"` for profClaw, `"BE"` for backend).
+</ParamField>
+
+<ParamField path="title" type="string" required>
+  Ticket title - a concise description of the work.
+</ParamField>
+
+<ParamField path="description" type="string">
+  Detailed description with context, acceptance criteria, or steps to reproduce.
+</ParamField>
+
+<ParamField path="type" type="string" default="task">
+  Ticket type: `task`, `bug`, `story`, `epic`, `subtask`, `feature`, `improvement`.
+</ParamField>
+
+<ParamField path="priority" type="string" default="medium">
+  Priority: `critical`, `high`, `medium`, `low`, `none`.
+</ParamField>
+
+<ParamField path="labels" type="array">
+  String array of labels/tags to apply.
+</ParamField>
+
+<ParamField path="storyPoints" type="number">
+  Story points estimate for sprint planning.
+</ParamField>
+
+<CodeGroup>
+```json Create a bug ticket
+{
+  "projectKey": "PC",
+  "title": "Memory search returns stale results after file edit",
+  "description": "After editing MEMORY.md, search results still show old content for ~30s",
+  "type": "bug",
+  "priority": "high",
+  "labels": ["memory", "performance"]
+}
+```
+```json Create a feature ticket
+{
+  "projectKey": "PC",
+  "title": "Add Matrix channel provider",
+  "type": "feature",
+  "priority": "medium",
+  "storyPoints": 8
+}
+```
+</CodeGroup>
+
+---
+
+### `list_tickets`
+
+List tickets with optional filtering.
+
+**Security level**: `safe` | **Tier**: Standard
+
+<ParamField path="projectKey" type="string">
+  Filter by project key.
+</ParamField>
+
+<ParamField path="status" type="string">
+  Filter by status: `open`, `in_progress`, `review`, `done`, `cancelled`.
+</ParamField>
+
+<ParamField path="priority" type="string">
+  Filter by priority.
+</ParamField>
+
+<ParamField path="assignee" type="string">
+  Filter by assignee ID.
+</ParamField>
+
+<ParamField path="label" type="string">
+  Filter by label.
+</ParamField>
+
+<ParamField path="limit" type="number" default="20">
+  Maximum tickets to return.
+</ParamField>
+
+---
+
+### `get_ticket`
+
+Get full details for a single ticket.
+
+**Security level**: `safe` | **Tier**: Standard
+
+<ParamField path="ticketId" type="string" required>
+  Ticket ID (e.g., `"PC-42"`).
+</ParamField>
+
+---
+
+### `update_ticket`
+
+Update fields on an existing ticket.
+
+**Security level**: `moderate` | **Tier**: Standard
+
+<ParamField path="ticketId" type="string" required>
+  Ticket ID to update.
+</ParamField>
+
+<ParamField path="status" type="string">
+  New status value.
+</ParamField>
+
+<ParamField path="priority" type="string">
+  New priority.
+</ParamField>
+
+<ParamField path="title" type="string">
+  Updated title.
+</ParamField>
+
+<ParamField path="description" type="string">
+  Updated description.
+</ParamField>
+
+<ParamField path="assigneeId" type="string">
+  Assign to a user by ID.
+</ParamField>
+
+<ParamField path="labels" type="array">
+  Replace all labels with this new array.
+</ParamField>
+
+---
+
+### `create_project`
+
+Create a new project.
+
+**Security level**: `moderate` | **Tier**: Standard
+
+<ParamField path="name" type="string" required>
+  Project name.
+</ParamField>
+
+<ParamField path="key" type="string" required>
+  2-10 character key prefix used in ticket IDs (e.g., `"PC"`). Must be unique.
+</ParamField>
+
+<ParamField path="description" type="string">
+  Project description.
+</ParamField>
+
+<ParamField path="icon" type="string">
+  Emoji icon for the project (e.g., `"rocket"`).
+</ParamField>
+
+<ParamField path="color" type="string">
+  Hex color code (e.g., `"#6366f1"`).
+</ParamField>
+
+---
+
+### `list_projects`
+
+List all projects.
+
+**Security level**: `safe` | **Tier**: Standard
+
+Returns all projects with their key, name, description, and ticket counts.
+
+## Example Workflow
+
+Ask profClaw in chat:
+
+> "We found a bug in the auth flow - tokens aren't being refreshed. Create a critical bug ticket in the PC project."
+
+The agent will call `create_ticket` with the details extracted from your message and return the ticket ID.
+
+> "What bugs are currently open in PC with high or critical priority?"
+
+The agent will call `list_tickets` with the appropriate filters.
+
+## Related Tools
+
+<CardGroup cols={2}>
+  <Card title="Sessions" icon="window" href="/tools/sessions">
+    Spawn sessions linked to specific tickets for focused work.
+  </Card>
+  <Card title="Cron Tools" icon="clock" href="/tools/cron-tools">
+    Schedule recurring ticket creation or status checks.
+  </Card>
+</CardGroup>

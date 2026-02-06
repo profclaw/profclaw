@@ -1,0 +1,160 @@
+---
+title: "Azure OpenAI"
+description: "Use GPT-4o and other OpenAI models via Azure OpenAI Service. Enterprise SLAs, private networking, and data residency."
+---
+
+Azure OpenAI Service provides access to OpenAI's models through Microsoft's Azure infrastructure. It offers enterprise features including private networking, compliance certifications, and data residency guarantees.
+
+## Overview
+
+Azure OpenAI differs from the standard OpenAI API:
+- Models are deployed to your own Azure resource
+- Access via your Azure resource endpoint, not `api.openai.com`
+- Models are referenced by deployment names you define
+- Supports both standard resource mode and Azure AI Foundry (custom base URL)
+
+## Supported Models
+
+Any OpenAI model available in Azure can be deployed. Common deployments:
+
+| Deployment | Model | Notes |
+|-----------|-------|-------|
+| `gpt-4o` | GPT-4o | Most common |
+| `gpt-4o-mini` | GPT-4o Mini | Cost-efficient |
+| `o1` | o1 | Reasoning |
+| `gpt-4-turbo` | GPT-4 Turbo | Legacy |
+
+All Azure-deployed models support native tool calling - profClaw assumes tool support for all Azure models.
+
+## Setup
+
+<Steps>
+  <Step title="Create an Azure OpenAI resource">
+    In the Azure Portal, create an Azure OpenAI resource and deploy a model.
+  </Step>
+  <Step title="Get your credentials">
+    From your Azure OpenAI resource, copy:
+    - API key (under **Keys and Endpoint**)
+    - Endpoint URL or Resource Name
+    - Deployment name
+  </Step>
+  <Step title="Set environment variables">
+    **Option A - Resource Name mode (standard):**
+    ```bash
+    AZURE_OPENAI_API_KEY=your-key
+    AZURE_OPENAI_RESOURCE_NAME=your-resource-name
+    AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4o
+    ```
+
+    **Option B - Base URL mode (AI Foundry / custom endpoint):**
+    ```bash
+    AZURE_OPENAI_API_KEY=your-key
+    AZURE_OPENAI_BASE_URL=https://your-resource.openai.azure.com
+    AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4o
+    ```
+  </Step>
+  <Step title="Verify">
+    ```bash
+    profclaw doctor --provider azure
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="AZURE_OPENAI_API_KEY" type="string" required>
+  Your Azure OpenAI API key.
+</ParamField>
+
+<ParamField path="AZURE_OPENAI_RESOURCE_NAME" type="string">
+  Your Azure OpenAI resource name (e.g., `my-openai-resource`). Used in standard mode.
+</ParamField>
+
+<ParamField path="AZURE_OPENAI_BASE_URL" type="string">
+  Full endpoint URL (e.g., `https://my-resource.openai.azure.com`). Used in AI Foundry / custom endpoint mode. Takes precedence over `AZURE_OPENAI_RESOURCE_NAME`.
+</ParamField>
+
+<ParamField path="AZURE_OPENAI_ENDPOINT" type="string">
+  Alias for `AZURE_OPENAI_BASE_URL`.
+</ParamField>
+
+<ParamField path="AZURE_OPENAI_DEPLOYMENT_NAME" type="string">
+  Default deployment name to use when no model is specified.
+</ParamField>
+
+<ParamField path="AZURE_OPENAI_API_VERSION" type="string">
+  API version to use. Defaults to `2024-10-21`.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title="Resource Name mode">
+    ```bash
+    AZURE_OPENAI_API_KEY=abc123
+    AZURE_OPENAI_RESOURCE_NAME=my-openai
+    AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4o
+    AZURE_OPENAI_API_VERSION=2024-10-21
+    ```
+  </Tab>
+  <Tab title="Base URL mode">
+    ```bash
+    AZURE_OPENAI_API_KEY=abc123
+    AZURE_OPENAI_BASE_URL=https://my-openai.openai.azure.com
+    AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4o
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    providers:
+      azure:
+        api_key: "${AZURE_OPENAI_API_KEY}"
+        resource_name: "${AZURE_OPENAI_RESOURCE_NAME}"
+        deployment_name: "${AZURE_OPENAI_DEPLOYMENT_NAME}"
+        api_version: "2024-10-21"
+    ```
+  </Tab>
+</Tabs>
+
+## Model Aliases
+
+| Alias | Resolves To |
+|-------|-------------|
+| `azure` | Your configured deployment |
+| `azure-gpt` | Your configured deployment |
+
+When using the `azure` or `azure-gpt` alias, profClaw uses the deployment name from `AZURE_OPENAI_DEPLOYMENT_NAME`.
+
+## Usage Examples
+
+<CodeGroup>
+  ```bash CLI
+  # Uses your configured deployment
+  profclaw chat --model azure "Review this architecture"
+
+  # Specific deployment by name
+  profclaw chat --model azure/gpt-4o "Explain this code"
+  ```
+
+  ```typescript SDK
+  import { chat } from 'profclaw';
+
+  const response = await chat("Analyze this data", {
+    model: "azure",
+  });
+  ```
+</CodeGroup>
+
+## Notes
+
+- Azure is ranked 3rd in auto-selection priority after Anthropic and OpenAI.
+- All Azure GPT-4+ deployments support native tool calling.
+- For private network setups, configure a custom base URL pointing to your private endpoint.
+- API version `2024-10-21` is the minimum supported for function calling with structured outputs.
+
+## Related
+
+- [AI Providers Overview](/ai-providers/overview) - Compare all 37 supported providers
+- [OpenAI](/ai-providers/openai) - Direct OpenAI API without Azure infrastructure
+- [Amazon Bedrock](/ai-providers/amazon-bedrock) - AWS-native alternative for enterprise deployments
+- [profclaw provider](/cli/provider) - Add and test providers from the CLI

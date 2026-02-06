@@ -1,0 +1,78 @@
+---
+title: "profclaw ticket"
+description: "profclaw ticket - create, update, assign, and transition AI-native tickets. Link tickets to GitHub, Jira, and Linear and assign them to AI agents."
+---
+
+## Synopsis
+
+```bash
+profclaw ticket <subcommand> [flags]
+# Alias: profclaw tkt
+```
+
+## Description
+
+Manage AI-native tickets for tracking work, bugs, and features. Tickets can be linked to external platforms (GitHub, Jira, Linear) and assigned to AI agents for automated processing.
+
+## Subcommands
+
+| Subcommand | Alias | Description |
+|-----------|-------|-------------|
+| `list` | `ls` | List all tickets |
+| `show <id>` | `get` | Show ticket details |
+| `create <title>` | | Create a new ticket |
+| `update <id>` | | Update a ticket |
+| `transition <id> <status>` | `move` | Change ticket status |
+| `assign <id> <agent>` | | Assign ticket to an AI agent |
+| `comment <id> <content>` | | Add a comment to a ticket |
+| `link <id> <platform> <external-id>` | | Link ticket to external platform |
+| `delete <id>` | `rm` | Delete a ticket |
+| `status` | | Show ticket status overview |
+
+## Flags
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `-s, --status <status>` | string | | Filter by status |
+| `-t, --type <type>` | string | `task` | Ticket type |
+| `-p, --priority <priority>` | string | `medium` | Priority level |
+| `-d, --description <desc>` | string | | Ticket description |
+| `-a, --agent <agent>` | string | | Assigned AI agent |
+| `-l, --labels <labels>` | string | | Comma-separated labels |
+| `--parent <id>` | string | | Parent ticket ID |
+| `-f, --force` | boolean | | Force delete without confirmation |
+| `--json` | boolean | | Output as JSON |
+
+## Examples
+
+<CodeGroup>
+```bash Create a ticket
+profclaw ticket create "Fix login timeout" \
+  -d "Users report 5s timeout on login" \
+  -p high -t bug
+```
+
+```bash Assign to an agent
+profclaw ticket assign TKT-42 code-reviewer
+```
+
+```bash Link to GitHub issue
+profclaw ticket link TKT-42 github 123 \
+  -u "https://github.com/org/repo/issues/123"
+```
+
+```bash Transition status
+profclaw ticket move TKT-42 in_progress
+```
+
+```bash List high-priority bugs
+profclaw tkt ls -t bug -p high
+```
+</CodeGroup>
+
+## Related
+
+- [Task Management](/cli/task)
+- [GitHub Integration](/integrations/github)
+- [Jira Integration](/integrations/jira)
+- [Linear Integration](/integrations/linear)

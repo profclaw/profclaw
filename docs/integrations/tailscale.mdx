@@ -1,0 +1,92 @@
+---
+title: "Tailscale Integration"
+description: "Use Tailscale to securely connect profClaw devices without port forwarding"
+---
+
+Tailscale creates a mesh VPN between your profClaw instances, agents, and devices. No firewall rules or open ports are needed. Every node authenticates with a Tailscale auth key and gets a stable private IP on your tailnet.
+
+## Use Cases
+
+- **Multi-device sync**: Two profClaw instances sync their state over Tailscale without exposing ports to the internet
+- **Private webhook delivery**: Receive GitHub/Jira webhooks to a home server via a Tailscale Funnel or a cloudflared alternative
+- **Agent-to-agent calls**: Sub-agents spawned on different machines communicate over the tailnet
+- **Remote CLI access**: Run `profclaw` CLI commands against a remote server over `ssh`
+
+## Setup
+
+### 1. Install Tailscale
+
+```bash
+# macOS
+brew install tailscale
+
+# Linux
+curl -fsSL https://tailscale.com/install.sh | sh
+
+# Docker
+docker pull tailscale/tailscale
+```
+
+### 2. Configure environment variables
+
+```bash
+TAILSCALE_AUTH_KEY=tskey-auth-...
+TAILSCALE_TAILNET=your-tailnet-name.ts.net
+TAILSCALE_HOSTNAME=profclaw-server   # optional, defaults to hostname
+```
+
+Generate an auth key at [login.tailscale.com/admin/settings/keys](https://login.tailscale.com/admin/settings/keys). Use **reusable, ephemeral** keys for containerized deployments.
+
+### 3. Start Tailscale
+
+```bash
+tailscale up --authkey="${TAILSCALE_AUTH_KEY}" --hostname=profclaw-server
+```
+
+### 4. Verify connectivity
+
+```bash
+tailscale status
+tailscale ping profclaw-server
+```
+
+## profClaw Tailscale Module
+
+The `tailscale.ts` integration (`src/integrations/tailscale.ts`) wraps the Tailscale local API for:
+
+- Querying device status and assigned IP addresses
+- Checking peer connectivity before sync operations
+- Registering the current node on startup
+
+## Tunnel Configuration
+
+For receiving webhooks from GitHub or Jira on a private instance, use **Tailscale Funnel**:
+
+```bash
+# Expose profClaw port 3000 via Tailscale Funnel
+tailscale funnel 3000
+```
+
+This gives you a public HTTPS URL (`https://profclaw-server.tailnet-xyz.ts.net`) without opening any inbound firewall rules.
+
+## Security Model
+
+- All traffic between tailnet nodes is encrypted with WireGuard
+- Device authentication uses the Tailscale identity provider (Google, GitHub, OIDC, or SAML)
+- ACLs on the Tailscale admin panel control which nodes can reach the profClaw API port
+- The profClaw device identity system (`src/auth/device-identity.ts`) uses Ed25519 key pairs that complement Tailscale's node identity
+
+## Multi-Device Sync over Tailscale
+
+When two profClaw instances are on the same tailnet, configure the sync engine to use Tailscale private IPs:
+
+```yaml
+# config/settings.yml
+sync:
+  peers:
+    - name: profclaw-home
+      url: http://100.64.0.2:3000  # Tailscale IP
+      authToken: "${PEER_AUTH_TOKEN}"
+```
+
+Sync traffic stays within the encrypted tailnet mesh - no TLS certificates required for intra-tailnet communication.

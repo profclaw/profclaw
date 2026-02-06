@@ -1,0 +1,114 @@
+---
+title: "profclaw chat"
+description: "Start an interactive AI chat session or send a single message from the terminal."
+---
+
+## Synopsis
+
+```bash
+profclaw chat [message] [flags]
+profclaw chat <subcommand> [flags]
+```
+
+## Description
+
+`chat` connects to the profClaw API and starts a conversation with the AI. When called without a message it enters an interactive REPL with session persistence. When called with a message it runs in single-shot mode and exits.
+
+Two execution modes are available:
+
+- **Chat mode** (default) - conversational, no tools
+- **Agentic mode** (`--agentic`) - full tool access, multi-step execution
+
+## Flags
+
+<ParamField query="message" type="string">
+  Message to send. When provided, runs in single-shot mode and exits after the response. Omit to start an interactive session.
+</ParamField>
+
+<ParamField query="-m, --model" type="string">
+  AI model to use (e.g., `sonnet`, `opus`, `gpt-4o`, `gemini-2-flash`). Defaults to the server's configured default model.
+</ParamField>
+
+<ParamField query="-t, --tools" type="boolean">
+  Enable tool calling for this session. The AI can use configured tools but will ask for approval on sensitive operations.
+</ParamField>
+
+<ParamField query="-a, --agentic" type="boolean">
+  Enable agentic mode with all tools and full execution permissions. Implies `--tools`.
+</ParamField>
+
+<ParamField query="-s, --session" type="string">
+  Resume an existing conversation by session ID. Use `profclaw chat sessions` to list recent sessions.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output the response as JSON (single-shot mode only).
+</ParamField>
+
+## Subcommands
+
+| Subcommand | Alias | Description |
+|---|---|---|
+| `quick <message>` | - | Quick single-shot chat without creating a conversation |
+| `agent <message>` | `run` | Run in agentic mode with all tools |
+| `sessions` | `ls` | List recent chat sessions |
+
+## REPL Commands
+
+When in interactive mode, type `/` commands to control the session:
+
+| Command | Description |
+|---|---|
+| `/exit`, `/quit`, `/q` | Exit the chat |
+| `/clear` | Clear the terminal screen |
+| `/help`, `/?` | Show available commands |
+| `/session` | Show the current session ID |
+| `/model <name>` | Switch to a different model mid-session |
+| `/tools` | Toggle tool calling on/off |
+| `/agentic` | Toggle agentic mode on/off |
+
+## Examples
+
+<CodeGroup>
+```bash Interactive chat session
+profclaw chat
+```
+
+```bash Single-shot message
+profclaw chat "What is the capital of France?"
+```
+
+```bash Use a specific model
+profclaw chat -m opus "Explain quantum entanglement"
+```
+
+```bash Agentic mode (tools enabled)
+profclaw chat -a "List all running Docker containers and show their memory usage"
+```
+
+```bash Run a single agentic task
+profclaw chat agent "Find all TODO comments in the src/ directory"
+# or
+profclaw chat run "Find all TODO comments in the src/ directory"
+```
+
+```bash Quick single-shot (no session created)
+profclaw chat quick "Current time?"
+```
+
+```bash Resume a previous session
+profclaw chat sessions                     # list sessions
+profclaw chat -s abc12345                  # resume by session ID
+```
+
+```bash JSON output for scripting
+profclaw chat --json "List the top 5 planets by size"
+```
+</CodeGroup>
+
+## Related
+
+- [`profclaw agent`](/cli/agent) - Manage AI agents
+- [`profclaw task`](/cli/task) - Create and track agentic tasks
+- [`profclaw tui`](/cli/tui) - Terminal dashboard
+- [`profclaw summary`](/cli/summary) - Browse completed work summaries

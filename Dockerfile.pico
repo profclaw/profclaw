@@ -1,0 +1,57 @@
+# ====================
+# Dockerfile.pico -- Minimal profClaw image
+# No Chromium, no UI build, no Redis dependency
+# Target: ~30-50MB, runs on $10 boards
+# ====================
+
+# Stage 1: Base
+FROM node:22-alpine AS base
+RUN corepack enable && corepack prepare pnpm@latest --activate
+WORKDIR /app
+
+# Stage 2: Dependencies (backend only, production)
+FROM base AS deps
+COPY package.json pnpm-lock.yaml* ./
+RUN pnpm install --frozen-lockfile --prod
+
+# Stage 3: Build Backend
+FROM base AS build
+COPY package.json pnpm-lock.yaml* ./
+RUN pnpm install --frozen-lockfile
+COPY . .
+RUN ./node_modules/.bin/tsc --project tsconfig.json
+
+# Stage 4: Production (minimal)
+FROM node:22-alpine AS production
+
+# Only git for agent sandbox -- no Chromium, no dev tools
+RUN apk add --no-cache git curl ca-certificates && rm -rf /var/cache/apk/*
+
+RUN addgroup -g 1001 -S profclaw && \
+    adduser -S profclaw -u 1001 -G profclaw
+
+WORKDIR /app
+
+# Copy only backend artifacts (no UI)
+COPY --from=build /app/dist ./dist
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=build /app/package.json ./
+COPY --from=build /app/config ./config
+COPY --from=build /app/skills ./skills
+
+# Data dir and CLI
+RUN mkdir -p /app/data && \
+    ln -sf /app/dist/cli/index.js /usr/local/bin/profclaw && \
+    chmod +x /app/dist/cli/index.js 2>/dev/null || true && \
+    chown -R profclaw:profclaw /app
+
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV PROFCLAW_MODE=pico
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:${PORT}/health || exit 1
+
+USER profclaw
+EXPOSE 3000
+CMD ["node", "dist/server.js"]

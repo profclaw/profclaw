@@ -1,0 +1,97 @@
+---
+title: "Mistral AI"
+description: "Use Mistral Large, Mistral Medium, and Codestral via the Mistral AI API. Strong coding and European data residency options."
+---
+
+Mistral AI provides high-quality models with European data residency. Codestral is particularly well-suited for code generation tasks.
+
+## Supported Models
+
+| Model | ID | Context | Tools | Notes |
+|-------|----|---------|-------|-------|
+| Mistral Large | `mistral-large-latest` | 128K | Yes | Best capability |
+| Mistral Medium | `mistral-medium-latest` | 32K | Yes | Balanced |
+| Codestral | `codestral-latest` | 32K | Yes | Code-optimized |
+| Mistral Small | `mistral-small-latest` | 32K | Yes | Cost-efficient |
+
+## Setup
+
+<Steps>
+  <Step title="Get an API key">
+    Sign up at [console.mistral.ai](https://console.mistral.ai).
+  </Step>
+  <Step title="Set the environment variable">
+    ```bash
+    export MISTRAL_API_KEY=...
+    ```
+  </Step>
+  <Step title="Verify">
+    ```bash
+    profclaw doctor --provider mistral
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="MISTRAL_API_KEY" type="string" required>
+  Your Mistral AI API key.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    MISTRAL_API_KEY=...
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    providers:
+      mistral:
+        api_key: "${MISTRAL_API_KEY}"
+    ```
+  </Tab>
+</Tabs>
+
+## Model Aliases
+
+| Alias | Model |
+|-------|-------|
+| `mistral` | mistral-large-latest |
+| `mistral-medium` | mistral-medium-latest |
+| `codestral` | codestral-latest |
+| `mistral-local` | mistral:7b (via Ollama) |
+
+## Usage Examples
+
+<CodeGroup>
+  ```bash CLI
+  profclaw chat --model mistral "Review this API design"
+  profclaw chat --model codestral "Generate unit tests for this function"
+  ```
+
+  ```typescript SDK
+  import { chat } from 'profclaw';
+
+  const code = await chat("Write a binary search in TypeScript", {
+    model: "codestral",
+    temperature: 0.1,
+  });
+  ```
+</CodeGroup>
+
+## Notes
+
+- API endpoint: `https://api.mistral.ai/v1` (OpenAI-compatible)
+- Mistral offers EU data residency - useful for GDPR-sensitive workloads.
+- `codestral-latest` is optimized for code completion and generation.
+- The local `mistral-local` alias runs via Ollama at no API cost.
+
+## Related
+
+- [AI Providers Overview](/ai-providers/overview) - Compare all 37 supported providers
+- [Ollama](/ai-providers/ollama) - Run Mistral models locally at no API cost
+- [Cohere](/ai-providers/cohere) - Another European-headquartered provider option
+- [profclaw provider](/cli/provider) - Add and test providers from the CLI

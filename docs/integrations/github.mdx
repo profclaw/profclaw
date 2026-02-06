@@ -1,0 +1,95 @@
+---
+title: "GitHub Integration"
+description: "Connect profClaw to GitHub for issue automation, PR reviews, and code task dispatch"
+---
+
+The GitHub integration lets profClaw receive webhook events, create tasks from issues and pull requests, post AI-generated comments, and perform OAuth-authenticated repo operations.
+
+## How It Works
+
+profClaw listens at `/api/webhooks/github`. On each inbound event it verifies the `X-Hub-Signature-256` HMAC signature, then routes based on the event type.
+
+### Supported Events
+
+| Event | Action | Trigger |
+|-------|--------|---------|
+| `issues.opened` | Creates a task | Always (if label matches) |
+| `issues.labeled` | Creates a task | Label = `ai-task` |
+| `issue_comment.created` | Creates a task | Contains `@profclaw` mention |
+| `pull_request.opened` | Creates review task | Always |
+| `pull_request.review_requested` | Creates review task | Always |
+| `ping` | Handshake reply | Webhook setup |
+
+The label that triggers task creation defaults to `ai-task` and can be overridden with `GITHUB_AI_TASK_LABEL`. Review tasks use `ai-review` (`GITHUB_AI_REVIEW_LABEL`).
+
+## Setup
+
+### 1. Configure environment variables
+
+```bash
+GITHUB_WEBHOOK_SECRET=your-32-char-secret
+GITHUB_AI_TASK_LABEL=ai-task
+GITHUB_AI_REVIEW_LABEL=ai-review
+
+# For OAuth (repo read/write, PR comments)
+GITHUB_CLIENT_ID=your-oauth-app-client-id
+GITHUB_CLIENT_SECRET=your-oauth-app-client-secret
+GITHUB_REDIRECT_URI=https://your-host/api/auth/github/callback
+```
+
+### 2. Create the GitHub webhook
+
+In your repo settings: **Settings > Webhooks > Add webhook**
+
+- **Payload URL**: `https://your-host/api/webhooks/github`
+- **Content type**: `application/json`
+- **Secret**: same as `GITHUB_WEBHOOK_SECRET`
+- **Events**: Issues, Issue comments, Pull requests, Pull request reviews
+
+### 3. OAuth connection (optional)
+
+OAuth lets the agent comment on issues and create PRs. Redirect users to:
+
+```
+GET /api/auth/github
+```
+
+The callback at `/api/auth/github/callback` exchanges the code for a session. For SPA flows use `GET /api/auth/github/url` to retrieve the authorization URL without a redirect.
+
+## Signature Verification
+
+```typescript
+// src/integrations/github.ts
+export function verifyGitHubSignature(
+  payload: string,
+  signature: string | undefined
+): boolean
+```
+
+All incoming webhooks are verified with `createHmac('sha256', WEBHOOK_SECRET)`. Requests that fail verification return `403`. Set `GITHUB_WEBHOOK_SECRET` to a strong random value.
+
+## Task Creation from Issues
+
+When profClaw receives `issues.labeled` with the `ai-task` label, it creates a task with:
+
+```json
+{
+  "title": "GitHub Issue #42: Fix the login bug",
+  "source": "github",
+  "sourceId": "42",
+  "sourceUrl": "https://github.com/org/repo/issues/42",
+  "repository": "org/repo",
+  "labels": ["ai-task", "bug"],
+  "priority": 2
+}
+```
+
+Priority is inferred from GitHub labels: `critical` > `high` > `medium` > `low`.
+
+## PR Review Automation
+
+On `pull_request.opened`, profClaw creates a review task. The agent reads the diff, checks for common issues, and posts a review comment. The result is posted back via the GitHub API using the authenticated user's token.
+
+## Ticket Sync
+
+The `GitHubTicketSync` class (`src/integrations/github-ticket-sync.ts`) provides bidirectional sync for projects using GitHub Issues as a ticket tracker. It maps GitHub issue states to profClaw `TicketStatus` values and keeps labels in sync.

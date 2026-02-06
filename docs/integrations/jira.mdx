@@ -1,0 +1,98 @@
+---
+title: "Jira Integration"
+description: "Connect profClaw to Jira Cloud via OAuth 2.0 for bidirectional ticket sync"
+---
+
+The Jira integration uses OAuth 2.0 (3-legged) to authenticate with Jira Cloud. Once connected, profClaw can create issues, update status, sync comments, and receive webhook notifications.
+
+## Setup
+
+### 1. Create an OAuth 2.0 app in Atlassian
+
+1. Go to [developer.atlassian.com](https://developer.atlassian.com/console/myapps/)
+2. Create a new app, select **OAuth 2.0 (3LO)**
+3. Add the callback URL: `https://your-host/api/auth/jira/callback`
+4. Enable scopes: `read:jira-work`, `write:jira-work`, `offline_access`
+
+### 2. Configure environment variables
+
+```bash
+JIRA_CLIENT_ID=your-client-id
+JIRA_CLIENT_SECRET=your-client-secret
+JIRA_REDIRECT_URI=https://your-host/api/auth/jira/callback
+```
+
+### 3. Connect via OAuth
+
+Redirect the user to start the OAuth flow:
+
+```
+GET /api/auth/jira
+```
+
+After authorization, the callback at `/api/auth/jira/callback` exchanges the code for tokens and stores them. Refresh tokens are used automatically when the access token expires.
+
+## Webhook Events
+
+Register a Jira webhook to receive real-time events:
+
+- **URL**: `https://your-host/api/webhooks/jira`
+- **Events**: `jira:issue_created`, `jira:issue_updated`, `comment_created`
+
+Incoming events are verified and routed to create or update local tasks.
+
+## Status Mapping
+
+Jira statuses map to profClaw `TicketStatus` values via the sync adapter:
+
+| Jira Status | profClaw Status |
+|------------|-----------------|
+| To Do | `open` |
+| In Progress | `in_progress` |
+| In Review | `in_review` |
+| Done | `closed` |
+| Cancelled | `cancelled` |
+
+Mapping is bidirectional. When a profClaw ticket changes status, the corresponding Jira issue updates via the Jira REST API.
+
+## Priority Mapping
+
+| Jira Priority | profClaw Priority |
+|--------------|-------------------|
+| Highest | `critical` (1) |
+| High | `high` (2) |
+| Medium | `medium` (3) |
+| Low | `low` (4) |
+| Lowest | `low` (4) |
+
+## Bidirectional Sync
+
+The sync engine polls Jira for updates every 60 seconds (configurable via `syncIntervalMs`). Conflicts use the `latest_wins` strategy by default.
+
+```typescript
+// src/sync/types.ts
+export type ConflictStrategy = 'local_wins' | 'remote_wins' | 'latest_wins' | 'manual';
+```
+
+To enable Jira sync, configure the platform in your settings:
+
+```yaml
+# config/settings.yml
+sync:
+  platforms:
+    jira:
+      accessToken: "${JIRA_ACCESS_TOKEN}"
+      workspaceId: "your-site-id.atlassian.net"
+      projectId: "PROJ"
+```
+
+## Jira Client
+
+The `JiraClient` class (`src/integrations/jira-client.ts`) wraps the Jira REST API v3:
+
+- `createIssue(fields)` - Create a new Jira issue
+- `updateIssue(issueKey, fields)` - Update fields on an existing issue
+- `transitionIssue(issueKey, transitionId)` - Change issue status
+- `addComment(issueKey, body)` - Add a comment
+- `getIssue(issueKey)` - Fetch a single issue
+- `searchIssues(jql, options)` - JQL search with pagination

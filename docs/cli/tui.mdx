@@ -1,0 +1,84 @@
+---
+title: "profclaw tui"
+description: "Display a live terminal dashboard showing system status, AI providers, recent sessions, and tasks."
+---
+
+## Synopsis
+
+```bash
+profclaw tui [flags]
+```
+
+## Description
+
+`tui` renders a static or auto-refreshing dashboard in the terminal. It fetches data from four API endpoints in parallel and displays them in a clean, color-coded layout:
+
+- **System** - version, deployment mode, uptime, health status
+- **AI Providers** - configured providers with health and latency
+- **Recent Sessions** - last 5 chat conversations
+- **Recent Tasks** - last 5 tasks with status indicators
+
+Requires the profClaw server to be running. If the server is unreachable, the system panel shows a connection error while other panels display what data is available.
+
+## Flags
+
+<ParamField query="--watch" type="boolean">
+  Refresh the dashboard automatically at the configured interval. Press `Ctrl+C` to stop.
+</ParamField>
+
+<ParamField query="--interval" type="string" default="5">
+  Refresh interval in seconds when `--watch` is active.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash Show dashboard once
+profclaw tui
+```
+
+```bash Live dashboard (refreshes every 5 seconds)
+profclaw tui --watch
+```
+
+```bash Live dashboard with custom refresh rate
+profclaw tui --watch --interval 10
+```
+</CodeGroup>
+
+## Example Output
+
+```
+  profClaw Dashboard
+  --------------------------------------------------
+
+  System
+    Version:  2.0.0
+    Mode:     mini
+    Uptime:   2d 14h 30m
+    Status:   ● healthy
+
+  AI Providers
+  Provider    Status   Latency
+  anthropic   ● ok     142ms
+  openai      ● ok     210ms
+
+  Recent Sessions
+  ID        Title                    Updated
+  a1b2c3d4  Code review assistant    5 minutes ago
+  e5f6g7h8  Docker setup             2 hours ago
+
+  Recent Tasks
+  ID        Title                    Status       Updated
+  i9j0k1l2  Review PR #45            completed    1 hour ago
+  m3n4o5p6  Analyze dependencies     in_progress  just now
+
+  Run `profclaw --help` for all commands
+```
+
+## Related
+
+- [`profclaw status`](/cli/status) - Compact one-line system status
+- [`profclaw logs`](/cli/logs) - View server logs
+- [`profclaw chat`](/cli/chat) - Start an interactive chat session
+- [`profclaw task`](/cli/task) - Manage tasks

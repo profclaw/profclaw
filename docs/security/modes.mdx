@@ -1,0 +1,192 @@
+---
+title: "Security Modes"
+description: "Five security modes from complete lockdown to unrestricted execution. Configure globally or per channel."
+---
+
+## The Five Modes
+
+profClaw's security mode determines how tool calls are validated before execution. The mode can be set globally, per channel, per user, or per conversation.
+
+<Tabs>
+  <Tab title="deny">
+    **No tool execution allowed.**
+
+    All tool calls are blocked regardless of which tool or who is calling. The AI can still respond conversationally but cannot execute any actions.
+
+    Use for: Read-only channels, demo environments, untrusted public chats.
+
+    ```yaml
+    security:
+      mode: deny
+    ```
+  </Tab>
+  <Tab title="sandbox">
+    **All execution runs in an isolated Docker container.**
+
+    Tools run inside a Docker container with limited filesystem mounts, no network access by default, and resource limits. The container is destroyed after each tool call.
+
+    Use for: Code execution environments, untrusted user inputs, CI/CD pipelines.
+
+    ```yaml
+    security:
+      mode: sandbox
+      sandboxConfig:
+        image: "node:22-alpine"
+        networkMode: "none"
+        memoryLimit: "512m"
+        cpuLimit: "0.5"
+        mounts:
+          - hostPath: "{{ workdir }}"
+            containerPath: "/workspace"
+            readonly: false
+    ```
+  </Tab>
+  <Tab title="allowlist">
+    **Only explicitly listed commands and paths are permitted.**
+
+    All tool calls are checked against a pre-approved allowlist. Anything not on the list is blocked.
+
+    Use for: Production deployments where only known operations should run.
+
+    ```yaml
+    security:
+      mode: allowlist
+      allowlist:
+        - pattern: "read_file"
+          type: command
+          description: "Allow reading files"
+        - pattern: "src/**"
+          type: path
+          description: "Allow access to src directory"
+        - pattern: "https://api.github.com/**"
+          type: url
+          description: "Allow GitHub API calls"
+    ```
+  </Tab>
+  <Tab title="ask">
+    **Moderate and dangerous operations require user approval.**
+
+    `safe` tools run immediately. `moderate` and `dangerous` tools send an approval request to the user and wait for confirmation before executing.
+
+    Use for: Personal deployments, sensitive environments where you want oversight.
+
+    ```yaml
+    security:
+      mode: ask
+      askTimeout: 60000   # 60 seconds to approve, then auto-deny
+    ```
+
+    Approval decisions:
+    - **Allow once** - Run this specific call
+    - **Allow always** - Add to allowlist for future calls
+    - **Deny** - Block this call
+  </Tab>
+  <Tab title="full">
+    **No restrictions. All tools run immediately.**
+
+    No approval prompts, no allowlist checks. The AI can execute any tool without confirmation.
+
+    Use for: Local development only. Do not use in production or with untrusted models.
+
+    ```yaml
+    security:
+      mode: full
+    ```
+
+    <Warning>
+      `full` mode is dangerous. Only use on trusted local machines with trusted AI models. Never use with public-facing deployments.
+    </Warning>
+  </Tab>
+</Tabs>
+
+## Mode Comparison
+
+| Feature | deny | sandbox | allowlist | ask | full |
+|---------|------|---------|-----------|-----|------|
+| Tool execution | Never | In container | Pre-approved only | With approval | Always |
+| Approval prompts | - | - | - | For moderate/dangerous | Never |
+| Filesystem access | None | Container only | Listed paths | Guarded | Guarded |
+| Network access | None | Container only | Listed URLs | SSRF-guarded | SSRF-guarded |
+| Best for | Public | Execution | Production | Personal | Dev only |
+
+## Per-Channel Mode Override
+
+Set different modes for different channels:
+
+```yaml
+security:
+  mode: ask                 # global default
+
+channels:
+  slack:
+    security:
+      mode: allowlist       # stricter for Slack
+
+  webchat:
+    security:
+      mode: full            # permissive for local webchat
+
+  telegram:
+    security:
+      mode: deny            # block all tools on Telegram
+```
+
+## Per-User Policies
+
+Apply different modes based on the authenticated user:
+
+```yaml
+security:
+  execPolicies:
+    - id: admin-policy
+      name: "Admin users"
+      match:
+        users: ["user-id-123", "user-id-456"]
+      action: allow
+      priority: 100
+      enabled: true
+
+    - id: guest-policy
+      name: "Guest users"
+      match:
+        users: ["*"]
+      action: ask
+      priority: 1
+      enabled: true
+```
+
+## Granular Exec Policies
+
+Policies can match on tools, commands, paths, users, and channels with priority ordering:
+
+```yaml
+security:
+  execPolicies:
+    - id: no-write-from-slack
+      match:
+        tools: ["write_file", "edit_file"]
+        channels: ["C01234"]         # Slack channel ID
+      action: deny
+      priority: 90
+      enabled: true
+
+    - id: git-requires-approval
+      match:
+        tools: ["git_commit", "git_remote"]
+      action: ask
+      priority: 80
+      enabled: true
+```
+
+Higher `priority` values are evaluated first.
+
+## Related Docs
+
+<CardGroup cols={2}>
+  <Card title="Guards" icon="lock" href="/security/guards">
+    FsGuard and SsrfGuard apply within all modes except deny.
+  </Card>
+  <Card title="Audit" icon="scroll" href="/security/audit">
+    All mode decisions are recorded in the audit log.
+  </Card>
+</CardGroup>

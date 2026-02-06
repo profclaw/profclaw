@@ -1,0 +1,154 @@
+---
+title: "ClawHub"
+description: "Community skill marketplace. Browse, install, and publish profClaw skills."
+---
+
+## What is ClawHub?
+
+ClawHub is the community marketplace for profClaw skills. Find pre-built skills for tools and workflows you use, or publish your own skills for others to use.
+
+<Note>
+  ClawHub is planned for the profClaw v2.1 release. The `profclaw skills install` command is available now and will connect to ClawHub when it launches.
+</Note>
+
+## Installing Skills
+
+### From ClawHub
+
+```bash
+# Install a skill by name
+profclaw skills install trello
+profclaw skills install github-issues
+profclaw skills install linear-tasks
+
+# Install from a specific publisher
+profclaw skills install @community/weather
+profclaw skills install @yourname/my-custom-skill
+```
+
+Skills are installed to `~/.profclaw/skills/` and available immediately.
+
+### From a URL
+
+```bash
+profclaw skills install https://github.com/user/profclaw-skills/tree/main/my-skill
+```
+
+### From a Local Path
+
+```bash
+profclaw skills install ./path/to/my-skill/
+```
+
+## Browsing ClawHub
+
+```bash
+# Search for skills
+profclaw skills search "jira"
+profclaw skills search "productivity"
+
+# Browse by category
+profclaw skills browse --category development
+profclaw skills browse --category media
+```
+
+## Skill Categories
+
+<CardGroup cols={3}>
+  <Card title="Development" icon="code">
+    Code review, git workflow, debugging, testing, Docker, CI/CD
+  </Card>
+  <Card title="Productivity" icon="check">
+    Task management, notes, calendar, email, reminders
+  </Card>
+  <Card title="Integrations" icon="plug">
+    Jira, Linear, Trello, GitHub, Notion, Obsidian
+  </Card>
+  <Card title="Media" icon="image">
+    Image generation, TTS, video, transcription
+  </Card>
+  <Card title="System" icon="server">
+    System admin, Docker, monitoring, shell helpers
+  </Card>
+  <Card title="Personal" icon="user">
+    Smart home, music, weather, travel
+  </Card>
+</CardGroup>
+
+## Publishing a Skill
+
+### Step 1: Prepare your skill
+
+Ensure your `SKILL.md` has complete frontmatter:
+
+```markdown
+---
+name: my-skill
+description: What this skill does in one sentence
+version: 1.0.0
+user-invocable: true
+metadata: >
+  {"profclaw": {
+    "emoji": "star",
+    "category": "productivity",
+    "priority": 70,
+    "triggerPatterns": ["help me with X"]
+  }}
+---
+```
+
+### Step 2: Create a repository
+
+Structure your skill repository:
+
+```
+my-profclaw-skill/
+  SKILL.md          # Main skill file
+  README.md         # Documentation
+  examples/         # Example conversations (optional)
+  tests/            # Test cases (optional)
+```
+
+### Step 3: Publish
+
+```bash
+profclaw skills publish ./my-skill/
+```
+
+You will be prompted to log in to ClawHub and confirm publishing.
+
+### Step 4: Share
+
+Your skill becomes available at:
+
+```
+profclaw skills install @yourusername/my-skill
+```
+
+## Skill Quality Guidelines
+
+ClawHub skills are reviewed for:
+
+- **Clarity** - Instructions must be clear and specific
+- **Safety** - No instructions that encourage dangerous tool usage
+- **Focus** - Each skill should do one thing well
+- **Examples** - At least 2-3 example interactions
+
+## Verified Skills
+
+Skills marked with a verified badge have been reviewed by the profClaw team for quality and safety. Prioritize verified skills for production use.
+
+## Offline Use
+
+Installed skills work fully offline - they are cached locally at `~/.profclaw/skills/`. No internet connection is required to use installed skills.
+
+## Related Docs
+
+<CardGroup cols={2}>
+  <Card title="Creating Skills" icon="pen" href="/skills/creating-skills">
+    Write your own skills before publishing.
+  </Card>
+  <Card title="Built-in Skills" icon="box" href="/skills/built-in">
+    50 skills included with every profClaw installation.
+  </Card>
+</CardGroup>

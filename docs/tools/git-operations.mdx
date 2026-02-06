@@ -1,0 +1,250 @@
+---
+title: "Git Operations"
+description: "Status, diff, log, commit, branch, stash, and remote operations. Requires git to be installed."
+---
+
+## Overview
+
+Git tools let the agent inspect and modify version control state. All tools check for git availability at startup and report a helpful error if git is not installed. Operations run in the conversation's `workdir`, or a custom path you specify.
+
+<Note>
+  Git tools are config-gated: they check for `git` binary availability at startup and mark themselves unavailable if git is not found. This prevents confusing errors when profClaw runs in containers without git.
+</Note>
+
+## Tools
+
+### `git_status`
+
+Show working tree status.
+
+**Security level**: `safe` | **Tier**: Essential
+
+<ParamField path="path" type="string">
+  Repository path. Defaults to workdir.
+</ParamField>
+
+<ParamField path="short" type="boolean">
+  Show short format output.
+</ParamField>
+
+```json
+{ "path": "/home/user/my-project" }
+```
+
+---
+
+### `git_diff`
+
+Show changes between commits, working tree, and staging area.
+
+**Security level**: `safe` | **Tier**: Standard
+
+<ParamField path="path" type="string">
+  Repository path.
+</ParamField>
+
+<ParamField path="file" type="string">
+  Diff a specific file only.
+</ParamField>
+
+<ParamField path="staged" type="boolean">
+  Show staged (cached) changes.
+</ParamField>
+
+<ParamField path="commit" type="string">
+  Compare against a specific commit hash or ref.
+</ParamField>
+
+<CodeGroup>
+```json Show unstaged changes
+{ "staged": false }
+```
+```json Show staged changes for one file
+{
+  "file": "src/server.ts",
+  "staged": true
+}
+```
+```json Diff against a commit
+{
+  "commit": "HEAD~3"
+}
+```
+</CodeGroup>
+
+---
+
+### `git_log`
+
+Show commit history.
+
+**Security level**: `safe` | **Tier**: Standard
+
+<ParamField path="path" type="string">
+  Repository path.
+</ParamField>
+
+<ParamField path="count" type="number" default="10">
+  Number of commits to show.
+</ParamField>
+
+<ParamField path="oneline" type="boolean" default="true">
+  Show one-line format (hash + subject).
+</ParamField>
+
+<ParamField path="author" type="string">
+  Filter commits by author name or email.
+</ParamField>
+
+<ParamField path="since" type="string">
+  Show commits since a date (e.g., `"2 weeks ago"`, `"2026-01-01"`).
+</ParamField>
+
+---
+
+### `git_commit`
+
+Stage and commit changes.
+
+**Security level**: `moderate` | **Tier**: Standard
+
+<ParamField path="message" type="string" required>
+  Commit message.
+</ParamField>
+
+<ParamField path="path" type="string">
+  Repository path.
+</ParamField>
+
+<ParamField path="all" type="boolean">
+  Stage all modified tracked files (`git commit -a`).
+</ParamField>
+
+<ParamField path="amend" type="boolean">
+  Amend the previous commit.
+</ParamField>
+
+<CodeGroup>
+```json Commit staged files
+{
+  "message": "feat: add exponential backoff to retry logic"
+}
+```
+```json Stage all and commit
+{
+  "message": "fix: correct null check in queue handler",
+  "all": true
+}
+```
+</CodeGroup>
+
+<Warning>
+  Amending commits that have already been pushed to a shared branch will require a force push, which is dangerous. Use with caution.
+</Warning>
+
+---
+
+### `git_branch`
+
+List, create, delete, or checkout branches.
+
+**Security level**: `moderate` | **Tier**: Standard
+
+<ParamField path="path" type="string">
+  Repository path.
+</ParamField>
+
+<ParamField path="list" type="boolean">
+  List all local branches.
+</ParamField>
+
+<ParamField path="create" type="string">
+  Create a new branch with this name.
+</ParamField>
+
+<ParamField path="delete" type="string">
+  Delete a branch by name.
+</ParamField>
+
+<ParamField path="checkout" type="string">
+  Switch to a branch by name.
+</ParamField>
+
+<CodeGroup>
+```json List branches
+{ "list": true }
+```
+```json Create and checkout a feature branch
+{
+  "create": "feat/webhook-retry",
+  "checkout": "feat/webhook-retry"
+}
+```
+</CodeGroup>
+
+---
+
+### `git_stash`
+
+Manage the git stash.
+
+**Security level**: `moderate` | **Tier**: Full
+
+<ParamField path="action" type="string" required>
+  Action to perform: `push`, `pop`, `list`, `show`, `drop`, `clear`.
+</ParamField>
+
+<ParamField path="message" type="string">
+  Stash description (for `push` action).
+</ParamField>
+
+<ParamField path="index" type="number">
+  Stash index for `pop`, `show`, or `drop`.
+</ParamField>
+
+<ParamField path="path" type="string">
+  Repository path.
+</ParamField>
+
+---
+
+### `git_remote`
+
+Fetch, pull, or push to a remote.
+
+**Security level**: `moderate` | **Tier**: Full
+
+<ParamField path="action" type="string" required>
+  Remote action: `fetch`, `pull`, `push`.
+</ParamField>
+
+<ParamField path="remote" type="string" default="origin">
+  Remote name.
+</ParamField>
+
+<ParamField path="branch" type="string">
+  Branch name.
+</ParamField>
+
+<ParamField path="force" type="boolean">
+  Force push. Use with extreme caution - never against protected branches.
+</ParamField>
+
+## Safety Rules
+
+The git tools follow these safety rules automatically:
+
+- `git_remote` with `force: true` will warn before executing
+- The `git_commit` tool never commits `.env`, `*.key`, or `*.pem` files
+- Branch deletions require an explicit `delete` parameter - no accidental deletes
+
+## Related Tools
+
+<CardGroup cols={2}>
+  <Card title="File Operations" icon="folder" href="/tools/file-operations">
+    Edit files before staging and committing.
+  </Card>
+  <Card title="Test Runner" icon="flask" href="/tools/test-runner">
+    Run tests before committing changes.
+  </Card>
+</CardGroup>

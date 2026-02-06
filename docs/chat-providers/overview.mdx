@@ -1,0 +1,195 @@
+---
+title: "Chat Providers Overview"
+description: "Connect your AI agent to 27 chat channels. Covers Slack, Discord, Telegram, WhatsApp, Teams, Matrix, and more - with multi-account support and webhook setup."
+---
+
+profClaw's chat provider system provides a unified abstraction across all messaging platforms. One agent, every channel.
+
+## Supported Channels
+
+| Provider | Type | Status | Key Capability |
+|----------|------|--------|----------------|
+| [WebChat](/chat-providers/webchat) | Built-in | Stable | Zero-setup browser widget |
+| [Slack](/chat-providers/slack) | Work | Stable | Socket Mode, Block Kit, slash commands |
+| [Discord](/chat-providers/discord) | Community | Stable | Slash commands, components |
+| [Telegram](/chat-providers/telegram) | Messaging | Stable | Webhooks, inline buttons |
+| [WhatsApp](/chat-providers/whatsapp) | Messaging | Stable | WhatsApp Business API |
+| [Matrix](/chat-providers/matrix) | Open Protocol | Stable | E2EE, federated |
+| [Microsoft Teams](/chat-providers/microsoft-teams) | Work | Stable | Adaptive Cards, Bot Framework |
+| [Rocket.Chat](/chat-providers/rocket-chat) | Self-hosted | Beta | Open-source Slack alternative |
+| [IRC](/chat-providers/irc) | Legacy | Beta | Classic IRC protocol |
+| [Signal](/chat-providers/signal) | Secure | Beta | E2EE, signald bridge |
+| [LINE](/chat-providers/line) | Asia | Beta | LINE Messaging API |
+| [Zalo](/chat-providers/zalo) | Vietnam | Beta | Zalo OA API |
+| [Viber](/chat-providers/viber) | Messaging | Beta | Viber Bot API |
+| [Facebook Messenger](/chat-providers/messenger) | Social | Beta | Meta Messenger Platform |
+| [WeChat](/chat-providers/wechat) | China | Beta | WeChat Official Account |
+| [Tlon/Urbit](/chat-providers/tlon) | Decentralized | Experimental | Urbit network |
+| [Custom](/chat-providers/custom) | DIY | Stable | Build your own provider |
+| Google Chat | Work | Beta | Google Workspace |
+| Mattermost | Self-hosted | Beta | Open-source Teams alternative |
+| DingTalk | China | Beta | Alibaba DingTalk |
+| WeCom | China | Beta | Tencent WeCom |
+| Feishu/Lark | Work | Beta | ByteDance enterprise |
+| QQ | Social | Beta | Tencent QQ |
+| Nostr | Decentralized | Experimental | Nostr protocol |
+| Twitch | Streaming | Beta | Twitch chat integration |
+| Nextcloud Talk | Self-hosted | Beta | Nextcloud messaging |
+| Synology Chat | Self-hosted | Beta | Synology NAS chat |
+
+<Note>
+  WebChat is enabled by default with no credentials required. It is always available at `http://localhost:3000`. All other providers require credential setup.
+</Note>
+
+## Capabilities Comparison
+
+| Feature | WebChat | Slack | Discord | Telegram | WhatsApp | Teams |
+|---------|---------|-------|---------|----------|----------|-------|
+| Direct Messages | Yes | Yes | Yes | Yes | Yes | Yes |
+| Group/Channel | No | Yes | Yes | Yes | No | Yes |
+| Slash Commands | No | Yes | Yes | No | No | Yes |
+| Buttons/Menus | No | Yes | Yes | Yes | Limited | Yes |
+| File Uploads | No | Yes | Yes | Yes | Yes | Yes |
+| Reactions | No | Yes | Yes | No | No | No |
+| Threads | No | Yes | Yes | No | No | Yes |
+| Rich Blocks | No | Yes | No | No | No | Yes |
+| E2E Encryption | No | No | No | No | Yes | No |
+| OAuth Install | No | Yes | Yes | No | No | Yes |
+
+## Multi-Account Support
+
+profClaw supports multiple accounts per provider. Each account is independently configured and can be assigned to different channels or teams:
+
+```yaml
+# settings.yml
+chat:
+  slack:
+    accounts:
+      - id: work
+        bot_token: xoxb-work-...
+        is_default: true
+      - id: community
+        bot_token: xoxb-community-...
+```
+
+## Architecture
+
+All providers implement the same interface, allowing the execution engine and security layer to treat all channels uniformly:
+
+- **Inbound**: Receive messages via webhooks or long-polling
+- **Outbound**: Send messages and structured responses
+- **Status**: Health checks and connection monitoring
+- **Auth**: OAuth flows or manual token configuration
+
+```
+User Message
+    |
+    v
+[Chat Provider]  ----incoming----> [Message Handler]
+                                         |
+                                    [AI Executor]
+                                    [Tool Pipeline]
+                                         |
+[Chat Provider]  <---outbound-----  [Response]
+```
+
+## Webhook Setup
+
+Most providers require a public HTTPS webhook URL to deliver events. Use `profclaw serve` to start the server, then expose it with a tunnel during development or configure your domain for production.
+
+<Tabs>
+  <Tab title="Development (tunnel)">
+    Use a tunnel tool to expose your local server:
+
+    ```bash
+    # Using cloudflared (recommended, free, no account needed for quick tunnels)
+    brew install cloudflared
+    cloudflared tunnel --url http://localhost:3000
+
+    # Or using ngrok
+    ngrok http 3000
+    ```
+
+    Use the generated HTTPS URL as your webhook base URL in the provider's developer portal.
+  </Tab>
+  <Tab title="Production">
+    Set your domain as the webhook base URL:
+
+    ```bash
+    WEBHOOK_BASE_URL=https://profclaw.yourdomain.com
+    ```
+
+    profClaw appends provider-specific paths automatically. For example, the Slack webhook becomes:
+    `https://profclaw.yourdomain.com/api/webhooks/slack`
+  </Tab>
+</Tabs>
+
+<Warning>
+  All webhook endpoints validate request signatures from the provider. Never disable signature verification in production.
+</Warning>
+
+## Configuration Pattern
+
+All providers follow the same environment variable pattern - enable a provider by setting its credentials:
+
+```bash
+# Slack
+SLACK_BOT_TOKEN=xoxb-...
+SLACK_APP_TOKEN=xapp-...
+SLACK_SIGNING_SECRET=...
+
+# Discord
+DISCORD_BOT_TOKEN=...
+
+# Telegram
+TELEGRAM_BOT_TOKEN=...
+```
+
+Providers with no credentials set are simply not loaded. There is no need to explicitly disable them.
+
+## Security Considerations
+
+Chat providers inherit the global [security mode](/security/overview). Restrict which channels or users the agent responds to:
+
+```yaml
+chat:
+  channels:
+    slack:
+      allowedChannels:
+        - C0123456789  # #engineering
+        - C9876543210  # #devops
+      allowedUsers:
+        - U012345678   # Specific user IDs only
+```
+
+## Health Check
+
+```bash
+profclaw doctor --chat
+```
+
+Shows connection status for all configured chat providers, including last event received and any authentication errors.
+
+## Popular Guides
+
+<CardGroup cols={2}>
+  <Card title="Slack Bot Setup" icon="slack" href="/guides/slack-bot">
+    Step-by-step guide to creating a Slack app and connecting profClaw.
+  </Card>
+  <Card title="WhatsApp Bot" icon="whatsapp" href="/guides/whatsapp-bot">
+    Connect profClaw to WhatsApp Business API.
+  </Card>
+  <Card title="Self-Hosted Deployment" icon="server" href="/guides/self-hosted">
+    Configure public webhooks for production deployments.
+  </Card>
+  <Card title="Custom Provider" icon="wrench" href="/chat-providers/custom">
+    Implement your own chat provider using the provider SDK.
+  </Card>
+</CardGroup>
+
+## Related
+
+- [profclaw channels](/cli/channels) - Enable, disable, and test chat providers from the CLI
+- [Security Overview](/security/overview) - Restrict which channels and users the agent responds to
+- [profclaw tunnel](/cli/tunnel) - Expose your local server for webhook delivery
+- [Configuration Overview](/configuration/overview) - settings.yml reference for channel configuration

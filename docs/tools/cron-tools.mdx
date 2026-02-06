@@ -1,0 +1,196 @@
+---
+title: "Cron Tools"
+description: "Schedule HTTP webhooks, tool calls, and shell scripts to run automatically on a cron schedule."
+---
+
+## Overview
+
+Cron tools let the agent create and manage scheduled jobs. You can schedule HTTP calls (webhooks), execute any profClaw tool automatically, or run shell commands on a cron expression or interval.
+
+All cron tools are in the **Full tier** - they require capable models to correctly reason about cron expressions and job lifecycles.
+
+## Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `cron_create` | Create a new scheduled job |
+| `cron_list` | List all scheduled jobs |
+| `cron_trigger` | Manually trigger a job now |
+| `cron_pause` | Pause or resume a job |
+| `cron_archive` | Archive (soft-delete) a job |
+| `cron_delete` | Permanently delete a job |
+| `cron_history` | View run history for a job |
+
+## Tool: `cron_create`
+
+Create a new scheduled job.
+
+**Security level**: `moderate` | **Tier**: Full
+
+<ParamField path="name" type="string" required>
+  Human-readable name for the job (max 100 characters).
+</ParamField>
+
+<ParamField path="description" type="string">
+  Optional description of what the job does.
+</ParamField>
+
+<ParamField path="cron" type="string">
+  Cron expression (e.g., `"*/5 * * * *"` for every 5 minutes). Either `cron` or `interval` is required.
+</ParamField>
+
+<ParamField path="interval" type="number">
+  Interval in milliseconds (minimum 1000ms = 1 second). Alternative to `cron`.
+</ParamField>
+
+<ParamField path="type" type="string" default="http">
+  Job type: `http`, `tool`, or `script`.
+</ParamField>
+
+### HTTP Job Parameters
+
+<ParamField path="url" type="string">
+  Webhook URL to call.
+</ParamField>
+
+<ParamField path="method" type="string" default="GET">
+  HTTP method: `GET`, `POST`, `PUT`, `DELETE`.
+</ParamField>
+
+<ParamField path="headers" type="object">
+  Request headers.
+</ParamField>
+
+<ParamField path="body" type="any">
+  Request body (JSON-encoded automatically).
+</ParamField>
+
+### Tool Job Parameters
+
+<ParamField path="tool" type="string">
+  Name of the profClaw tool to execute.
+</ParamField>
+
+<ParamField path="toolParams" type="object">
+  Parameters to pass to the tool.
+</ParamField>
+
+### Script Job Parameters
+
+<ParamField path="command" type="string">
+  Shell command to run.
+</ParamField>
+
+<ParamField path="args" type="array">
+  Command arguments array.
+</ParamField>
+
+<ParamField path="workdir" type="string">
+  Working directory for the script.
+</ParamField>
+
+### Limits
+
+<ParamField path="maxRuns" type="number">
+  Stop the job after this many successful runs.
+</ParamField>
+
+<ParamField path="maxFailures" type="number">
+  Pause the job after this many consecutive failures.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```json Daily health check webhook
+{
+  "name": "Daily health check",
+  "description": "POST to our monitoring endpoint every day at 9am",
+  "cron": "0 9 * * *",
+  "type": "http",
+  "url": "https://monitoring.example.com/ping",
+  "method": "POST",
+  "body": { "service": "profclaw", "check": "daily" }
+}
+```
+```json Run memory search every hour
+{
+  "name": "Hourly memory index",
+  "cron": "0 * * * *",
+  "type": "tool",
+  "tool": "memory_stats"
+}
+```
+```json Run a script every 5 minutes
+{
+  "name": "Database cleanup",
+  "interval": 300000,
+  "type": "script",
+  "command": "node",
+  "args": ["scripts/cleanup.js"],
+  "workdir": "/app"
+}
+```
+</CodeGroup>
+
+## Common Cron Expressions
+
+| Expression | Meaning |
+|-----------|---------|
+| `*/5 * * * *` | Every 5 minutes |
+| `0 * * * *` | Every hour |
+| `0 9 * * *` | Daily at 9:00 AM |
+| `0 9 * * 1-5` | Weekdays at 9:00 AM |
+| `0 0 * * 0` | Weekly on Sunday midnight |
+| `0 0 1 * *` | Monthly on the 1st |
+
+## Tool: `cron_list`
+
+List all scheduled jobs with status.
+
+Returns job IDs, names, schedules, current status (active/paused/archived), last run time, and next scheduled run.
+
+## Tool: `cron_trigger`
+
+Manually trigger a job outside its schedule.
+
+<ParamField path="jobId" type="string" required>
+  Job ID to trigger.
+</ParamField>
+
+## Tool: `cron_pause`
+
+Pause or resume a job.
+
+<ParamField path="jobId" type="string" required>
+  Job ID.
+</ParamField>
+
+<ParamField path="pause" type="boolean" required>
+  `true` to pause, `false` to resume.
+</ParamField>
+
+## Tool: `cron_history`
+
+View the run history for a job.
+
+<ParamField path="jobId" type="string" required>
+  Job ID.
+</ParamField>
+
+<ParamField path="limit" type="number" default="20">
+  Maximum history entries.
+</ParamField>
+
+Returns: run timestamps, duration, status (success/failure), and any error messages.
+
+## Related Tools
+
+<CardGroup cols={2}>
+  <Card title="profClaw Ops" icon="ticket" href="/tools/profclaw-ops">
+    Schedule recurring ticket creation or status updates.
+  </Card>
+  <Card title="Web Fetch" icon="globe" href="/tools/web-fetch">
+    HTTP jobs use the same SSRF protections as web_fetch.
+  </Card>
+</CardGroup>
