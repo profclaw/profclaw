@@ -1,0 +1,190 @@
+---
+title: "Browser Tools"
+description: "Puppeteer-based browser automation: navigate, click, type, screenshot, and more."
+---
+
+## Overview
+
+Browser tools give the agent a full Chromium browser it can control programmatically. This is useful for pages that require JavaScript to render, login flows, form submission, and visual verification via screenshots.
+
+Browser tools are in the **Full tier** - they are only sent to frontier models (Claude, GPT-4o, Gemini) that can reliably reason about page state and UI interactions.
+
+<Note>
+  Browser tools require Puppeteer to be installed. Run `pnpm install` to install all optional dependencies, including Puppeteer.
+</Note>
+
+## Available Tools
+
+| Tool | Description | Security |
+|------|-------------|---------|
+| `browser_navigate` | Navigate to a URL | `moderate` |
+| `browser_snapshot` | Get the current page accessibility tree | `safe` |
+| `browser_click` | Click an element by CSS selector | `moderate` |
+| `browser_type` | Type text into an input field | `moderate` |
+| `browser_search` | Search the web using browser navigation | `moderate` |
+| `browser_screenshot` | Take a screenshot of the current page | `safe` |
+| `browser_pages` | List all open browser tabs/pages | `safe` |
+| `browser_close` | Close a page or the entire browser | `moderate` |
+
+## Tool Details
+
+### `browser_navigate`
+
+Navigate to a URL. Opens a new browser page if none is active.
+
+<ParamField path="url" type="string" required>
+  Full URL to navigate to. Must be `http://` or `https://`.
+</ParamField>
+
+<ParamField path="waitUntil" type="string" default="networkidle2">
+  Wait condition: `load`, `domcontentloaded`, `networkidle0`, `networkidle2`.
+</ParamField>
+
+<ParamField path="timeout" type="number" default="30000">
+  Navigation timeout in milliseconds.
+</ParamField>
+
+---
+
+### `browser_snapshot`
+
+Get the current page's accessibility tree as structured text. More token-efficient than a screenshot for text-heavy pages.
+
+<ParamField path="includeHidden" type="boolean" default="false">
+  Include hidden elements in the snapshot.
+</ParamField>
+
+---
+
+### `browser_click`
+
+Click an element on the page.
+
+<ParamField path="selector" type="string" required>
+  CSS selector for the element to click. Use `aria/Button Name` for accessible selectors.
+</ParamField>
+
+<ParamField path="button" type="string" default="left">
+  Mouse button: `left`, `right`, `middle`.
+</ParamField>
+
+<ParamField path="clickCount" type="number" default="1">
+  Number of clicks (use 2 for double-click).
+</ParamField>
+
+---
+
+### `browser_type`
+
+Type text into an input or textarea.
+
+<ParamField path="selector" type="string" required>
+  CSS selector for the input element.
+</ParamField>
+
+<ParamField path="text" type="string" required>
+  Text to type.
+</ParamField>
+
+<ParamField path="clear" type="boolean" default="false">
+  Clear existing content before typing.
+</ParamField>
+
+<ParamField path="delay" type="number" default="0">
+  Delay between keystrokes in milliseconds (simulates human typing).
+</ParamField>
+
+---
+
+### `browser_screenshot`
+
+Capture the current page as a PNG image.
+
+<ParamField path="fullPage" type="boolean" default="false">
+  Capture the full scrollable page, not just the viewport.
+</ParamField>
+
+<ParamField path="selector" type="string">
+  Capture only a specific element instead of the whole page.
+</ParamField>
+
+<ParamField path="quality" type="number" default="80">
+  JPEG quality (1-100). Only applies when format is `jpeg`.
+</ParamField>
+
+---
+
+### `browser_pages`
+
+List all currently open browser pages/tabs.
+
+Returns page IDs, URLs, and titles. Use page IDs to target operations at specific tabs.
+
+---
+
+### `browser_close`
+
+Close a specific page or all browser pages.
+
+<ParamField path="pageId" type="string">
+  ID of the specific page to close. Omit to close all pages.
+</ParamField>
+
+## Typical Workflow
+
+<Steps>
+  <Step title="Navigate to the page">
+    ```json
+    { "url": "https://app.example.com/login" }
+    ```
+  </Step>
+  <Step title="Take a snapshot to see the page structure">
+    ```json
+    { "includeHidden": false }
+    ```
+  </Step>
+  <Step title="Fill in the login form">
+    ```json
+    { "selector": "#email", "text": "user@example.com", "clear": true }
+    ```
+    ```json
+    { "selector": "#password", "text": "mypassword", "clear": true }
+    ```
+  </Step>
+  <Step title="Click the submit button">
+    ```json
+    { "selector": "button[type='submit']" }
+    ```
+  </Step>
+  <Step title="Screenshot to verify the result">
+    ```json
+    { "fullPage": false }
+    ```
+  </Step>
+</Steps>
+
+## Safe vs Full Browser Tools
+
+By default, only "safe" browser tools (`browser_snapshot`, `browser_screenshot`, `browser_pages`) are included for non-frontier models. The full automation set requires a frontier model to reason about page state accurately.
+
+```yaml
+# settings.yml - override for specific presets
+presets:
+  browser-agent:
+    tools:
+      promote:
+        - browser_navigate
+        - browser_click
+        - browser_type
+```
+
+## Related Tools
+
+<CardGroup cols={2}>
+  <Card title="Web Fetch" icon="globe" href="/tools/web-fetch">
+    Faster for APIs and static pages that do not need JavaScript.
+  </Card>
+  <Card title="Web Search" icon="magnifying-glass" href="/tools/web-search">
+    Search without opening a full browser session.
+  </Card>
+</CardGroup>

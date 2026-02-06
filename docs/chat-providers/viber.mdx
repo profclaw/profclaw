@@ -1,0 +1,96 @@
+---
+title: "Viber"
+description: "Connect profClaw to Viber via the Viber Bot API. Popular in Eastern Europe and Southeast Asia."
+---
+
+Viber is a messaging app with strong presence in Eastern Europe, the Middle East, and Southeast Asia. profClaw connects via Viber's Bot API for business interactions.
+
+## Capabilities
+
+| Feature | Supported |
+|---------|-----------|
+| 1:1 messages | Yes |
+| Group messages | Yes |
+| Rich media | Yes |
+| Keyboard buttons | Yes |
+| File attachments | Yes |
+| Webhook | Yes |
+
+## Setup
+
+<Steps>
+  <Step title="Create a Viber Bot">
+    Go to [partners.viber.com](https://partners.viber.com) and create a bot account.
+    You'll receive an **Authentication Token**.
+  </Step>
+  <Step title="Set webhook">
+    Viber requires a webhook to receive messages. Set it via the API:
+
+    ```bash
+    curl -X POST https://chatapi.viber.com/pa/set_webhook \
+      -H "X-Viber-Auth-Token: your-token" \
+      -d '{"url": "https://your-domain.com/webhooks/viber"}'
+    ```
+  </Step>
+  <Step title="Configure profClaw">
+    ```bash
+    VIBER_AUTH_TOKEN=your-authentication-token
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="VIBER_AUTH_TOKEN" type="string" required>
+  Viber Bot authentication token from partners.viber.com.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    VIBER_AUTH_TOKEN=4a8e6b5c-...
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    chat:
+      viber:
+        auth_token: "${VIBER_AUTH_TOKEN}"
+    ```
+  </Tab>
+</Tabs>
+
+## Message Format
+
+profClaw sends Viber text messages with optional keyboard buttons:
+
+```json
+{
+  "receiver": "user-id",
+  "type": "text",
+  "text": "How can I help you?",
+  "keyboard": {
+    "Type": "keyboard",
+    "Buttons": [
+      { "ActionType": "reply", "ActionBody": "help", "Text": "Help" }
+    ]
+  }
+}
+```
+
+## Notes
+
+- Status: Beta
+- Viber requires a public HTTPS webhook URL.
+- The webhook must be set programmatically via the API (not a dashboard).
+- Viber bots can only message users who have subscribed or messaged the bot first.
+- Message broadcasting requires Viber partner approval for large audiences.
+
+## Related
+
+- [Chat Providers Overview](/chat-providers/overview) - Compare all 27 supported channels
+- [LINE](/chat-providers/line) - Dominant messaging platform in Japan and Taiwan
+- [Messenger](/chat-providers/messenger) - Facebook Messenger for Western audiences
+- [profclaw channels](/cli/channels) - Enable and test the Viber connection from the CLI

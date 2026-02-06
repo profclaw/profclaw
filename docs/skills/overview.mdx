@@ -1,0 +1,151 @@
+---
+title: "Skills Overview"
+description: "Skills are plain Markdown instruction sets that specialize the AI for specific tasks. 50 built-in skills, community ClawHub skills, and custom SKILL.md files."
+---
+
+## What Are Skills?
+
+A skill is a `SKILL.md` file that gives the AI a focused set of instructions, context, and behaviors for a particular task domain. When a skill is active, the AI's system prompt is extended with that skill's instructions - making it an expert in that specific area.
+
+Examples:
+- The `code-review` skill makes the AI a thorough code reviewer with a specific feedback format
+- The `git-workflow` skill teaches branching conventions and safe commit practices
+- The `web-research` skill instructs structured information gathering with citations
+
+Skills are **plain Markdown** with a YAML frontmatter header. No code required - anyone can write one.
+
+## Skill Architecture
+
+Skills are loaded from multiple sources in priority order. Later sources override earlier ones by skill name:
+
+```
+Loading Priority (lowest to highest):
+1. Extra directories    (config.load.extraDirs)
+2. Built-in skills      (50 bundled with profClaw)
+3. Managed skills       (~/.profclaw/skills/)
+4. Workspace skills     (<project>/skills/)
+```
+
+Your workspace `skills/` directory always wins, allowing you to override any built-in skill for a specific project.
+
+## Skill File Format
+
+```markdown
+---
+name: code-review
+description: Analyze diffs, suggest improvements, and review PRs
+version: 1.0.0
+metadata: {"profclaw": {"emoji": "magnifying-glass", "category": "development", "priority": 85}}
+---
+
+# Code Review
+
+You are a thorough code reviewer...
+
+## What This Skill Does
+...
+```
+
+The YAML frontmatter defines the skill's identity and behavior flags. The Markdown body is injected as system instructions when the skill is active.
+
+## Frontmatter Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Unique skill identifier (kebab-case) |
+| `description` | string | Short description shown in the UI |
+| `version` | string | Semver version |
+| `user-invocable` | boolean | Show as a slash command users can invoke |
+| `disable-model-invocation` | boolean | Prevent the AI from auto-activating this skill |
+| `command-dispatch` | `"tool"` | Route slash command directly to a specific tool |
+| `command-tool` | string | Tool name for `command-dispatch` mode |
+| `command-arg-mode` | `"raw"` or `"parsed"` | How arguments are passed to the tool |
+| `metadata` | JSON string | Extended metadata: category, emoji, trigger patterns |
+
+## How Skills Are Activated
+
+<Tabs>
+  <Tab title="Slash Commands">
+    User-invocable skills respond to `/skill-name` commands. Arguments after the command name are passed through:
+
+    ```
+    /code-review
+    /git-workflow commit my changes
+    /web-research latest Hono middleware docs
+    /summarize src/chat/
+    ```
+  </Tab>
+  <Tab title="AI Auto-Activation">
+    Skills with `triggerPatterns` in their metadata are auto-activated when the AI detects a matching intent in the user's message:
+
+    - "review my code" activates `code-review`
+    - "commit my changes" activates `git-workflow`
+    - "search for..." activates `web-research`
+
+    Disable auto-activation for a specific skill with `disable-model-invocation: true` in frontmatter.
+  </Tab>
+  <Tab title="Preset Assignment">
+    Skills can be assigned to a preset (persona) so they are always active for a specific channel or use case:
+
+    ```yaml
+    # settings.yml
+    presets:
+      code-assistant:
+        skills:
+          - code-review
+          - git-workflow
+          - debug-helper
+    ```
+  </Tab>
+</Tabs>
+
+## Skill Sources
+
+<CardGroup cols={2}>
+  <Card title="Built-in Skills" icon="box" href="/skills/built-in">
+    50 pre-installed skills covering development, productivity, and media workflows.
+  </Card>
+  <Card title="ClawHub" icon="store" href="/skills/clawhub">
+    Community skill marketplace. Browse and install with `profclaw skills install`.
+  </Card>
+  <Card title="Creating Skills" icon="pen" href="/skills/creating-skills">
+    Write your own SKILL.md files for custom behavior. No code required.
+  </Card>
+  <Card title="Using Skills" icon="play" href="/skills/using-skills">
+    How to invoke, list, manage, and configure skills.
+  </Card>
+</CardGroup>
+
+## Managing Skills via CLI
+
+```bash
+# List all available skills
+profclaw skills list
+
+# Search for skills on ClawHub
+profclaw skills search code-review
+
+# Install a skill from ClawHub
+profclaw skills install @profclaw/skill-debug-helper
+
+# Show skill details
+profclaw skills show git-workflow
+
+# Disable a built-in skill
+profclaw skills disable web-research
+```
+
+## Skills vs Tools vs Plugins
+
+Understanding when to use each extension mechanism:
+
+| | Skills | Tools | Plugins |
+|-|--------|-------|---------|
+| **Format** | SKILL.md (Markdown) | TypeScript code | npm package |
+| **Purpose** | AI instructions and behavior | Executable functions | System extensions |
+| **Complexity** | Simple - text only | Medium - typed functions | Full - npm package |
+| **Requires code** | No | Yes | Yes |
+| **Can call tools** | Yes (by instruction) | N/A | Yes |
+| **Can add tools** | No | Yes (via plugin) | Yes |
+
+Skills are the easiest and fastest way to extend profClaw behavior. Use [Plugins](/plugins/overview) when you need to add executable tools or system-level integrations.

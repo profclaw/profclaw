@@ -1,0 +1,110 @@
+---
+title: "Backup and Restore"
+description: "Protect your profClaw data with backups and disaster recovery"
+---
+
+## Overview
+
+profClaw stores configuration, memory, audit logs, and task history locally. Regular backups ensure you can recover from hardware failures, corruption, or accidental deletion.
+
+## What Gets Backed Up
+
+| Data | Location | Included |
+|------|----------|----------|
+| Configuration | `.profclaw/settings.yml` | Yes |
+| SQLite database | `.profclaw/profclaw.db` | Yes |
+| Memory entries | `.profclaw/memory/` | Yes |
+| Audit logs | `.profclaw/audit/` | Yes |
+| Plugin data | `.profclaw/plugins/` | Yes |
+| Encryption keys | `.profclaw/keys/` | Yes |
+| Skills | `skills/` | Yes |
+| Environment vars | `.env` | No (manual) |
+| Redis data | External | No (separate backup) |
+
+## Manual Backup
+
+```bash
+# Create a backup
+profclaw backup create
+
+# Create with custom output path
+profclaw backup create --output ./backups/
+
+# Create with timestamp
+profclaw backup create --output ./backups/profclaw-$(date +%Y%m%d).tar.gz
+```
+
+## Automatic Backups
+
+Enable scheduled backups:
+
+```yaml
+backup:
+  enabled: true
+  interval: 86400000   # Every 24 hours (ms)
+  retention: 7         # Keep last 7 backups
+  path: .profclaw/backups
+```
+
+Or via environment variables:
+```bash
+export BACKUP_ENABLED=true
+export BACKUP_INTERVAL=86400000
+export BACKUP_RETENTION=7
+```
+
+## Restore
+
+```bash
+# List available backups
+profclaw backup list
+
+# Restore from latest
+profclaw backup restore --latest
+
+# Restore from specific file
+profclaw backup restore --file ./backups/profclaw-20260312.tar.gz
+```
+
+<Warning>
+  Restoring a backup replaces your current data. The current state is automatically saved as a pre-restore backup before the restore operation begins.
+</Warning>
+
+## Docker Backup
+
+For Docker deployments, back up the data volume:
+
+```bash
+# Backup
+docker run --rm \
+  -v profclaw-data:/data \
+  -v $(pwd)/backups:/backup \
+  alpine tar czf /backup/profclaw-$(date +%Y%m%d).tar.gz /data
+
+# Restore
+docker run --rm \
+  -v profclaw-data:/data \
+  -v $(pwd)/backups:/backup \
+  alpine sh -c "rm -rf /data/* && tar xzf /backup/profclaw-20260312.tar.gz -C /"
+```
+
+## Redis Backup (Pro Mode)
+
+If using Redis for the job queue:
+
+```bash
+# Trigger Redis RDB snapshot
+redis-cli BGSAVE
+
+# Copy the dump file
+cp /var/lib/redis/dump.rdb ./backups/redis-$(date +%Y%m%d).rdb
+```
+
+## Disaster Recovery Checklist
+
+1. Stop profClaw: `profclaw daemon stop` or `systemctl stop profclaw`
+2. Restore backup: `profclaw backup restore --file backup.tar.gz`
+3. Verify config: `profclaw doctor`
+4. Restore Redis (if pro mode): Copy RDB file to Redis data directory
+5. Start profClaw: `profclaw serve`
+6. Verify: `profclaw status`

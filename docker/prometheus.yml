@@ -1,0 +1,22 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # profClaw Task Manager
+  - job_name: 'profclaw'
+    static_configs:
+      - targets: ['profclaw:3000']
+    metrics_path: '/api/metrics'
+    scrape_interval: 30s
+
+  # Redis Exporter (if added)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    scrape_interval: 30s
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

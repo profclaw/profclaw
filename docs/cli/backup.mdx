@@ -1,0 +1,117 @@
+---
+title: "profclaw backup"
+description: "Back up and restore profClaw data - database, configuration, skills, and memory index."
+---
+
+## Synopsis
+
+```bash
+profclaw backup <subcommand> [flags]
+```
+
+## Description
+
+`backup` creates and restores snapshots of profClaw's persistent data. A backup includes the SQLite database, configuration files, skills directory, and optionally the memory index. Backups are stored as compressed archives and can be restored to the same or a different machine.
+
+## Subcommands
+
+| Subcommand | Description |
+|---|---|
+| `create` | Create a new backup |
+| `list` | List available backups |
+| `restore <file>` | Restore from a backup file |
+| `delete <file>` | Delete a backup file |
+| `schedule` | Configure automatic backup schedule |
+
+## `backup create`
+
+<ParamField query="-o, --output" type="string" default="~/.profclaw/backups/">
+  Directory or file path for the backup archive. Defaults to `~/.profclaw/backups/profclaw-YYYY-MM-DD.tar.gz`.
+</ParamField>
+
+<ParamField query="--no-memory" type="boolean">
+  Exclude the memory index from the backup (reduces size significantly).
+</ParamField>
+
+<ParamField query="--no-config" type="boolean">
+  Exclude configuration files (back up data only).
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output backup result as JSON.
+</ParamField>
+
+## `backup restore <file>`
+
+<ParamField query="file" type="string" required>
+  Path to the backup archive to restore.
+</ParamField>
+
+<ParamField query="--dry-run" type="boolean">
+  List what would be restored without making changes.
+</ParamField>
+
+<ParamField query="--yes" type="boolean">
+  Skip the confirmation prompt.
+</ParamField>
+
+<Warning>
+Restore overwrites the current database and configuration. Stop the server before restoring to avoid data corruption.
+</Warning>
+
+## `backup schedule`
+
+<ParamField query="--interval" type="string">
+  Schedule interval: `daily`, `weekly`, or a cron expression.
+</ParamField>
+
+<ParamField query="--keep" type="string" default="7">
+  Number of backups to retain. Older backups are automatically deleted.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash Create a backup
+profclaw backup create
+```
+
+```bash Backup to a specific location
+profclaw backup create --output /mnt/backups/profclaw-$(date +%Y%m%d).tar.gz
+```
+
+```bash Backup without the memory index
+profclaw backup create --no-memory
+```
+
+```bash List available backups
+profclaw backup list
+```
+
+```bash Restore from a backup
+profclaw serve stop         # Stop the server first
+profclaw backup restore ~/.profclaw/backups/profclaw-2026-03-01.tar.gz
+profclaw serve              # Restart
+```
+
+```bash Schedule daily automated backups
+profclaw backup schedule --interval daily --keep 14
+```
+</CodeGroup>
+
+## What is Backed Up
+
+| Component | Included by default |
+|---|---|
+| SQLite database (`data/profclaw.db`) | Yes |
+| Configuration (`config/`) | Yes |
+| Skills (`skills/`) | Yes |
+| `.env` file | No (contains secrets) |
+| Memory index | Yes (use `--no-memory` to skip) |
+| Log files | No |
+
+## Related
+
+- [`profclaw reset`](/cli/reset) - Reset configuration without backup
+- [`profclaw status`](/cli/status) - Verify system health after restore
+- [Docker Deployment](/guides/docker-deployment) - Persistent volume backup strategies

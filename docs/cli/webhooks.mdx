@@ -1,0 +1,58 @@
+---
+title: "profclaw webhooks"
+description: "profclaw webhooks - create, delete, test, and inspect outbound webhook endpoints. Monitor delivery history and configure signing secrets for event delivery."
+---
+
+## Synopsis
+
+```bash
+profclaw webhooks <subcommand> [flags]
+```
+
+## Description
+
+Manage webhook endpoints that receive event deliveries from profClaw. Create, test, and monitor webhooks for integrating with external services.
+
+## Subcommands
+
+| Subcommand | Alias | Description |
+|-----------|-------|-------------|
+| `list` | `ls` | List configured webhooks |
+| `create <url>` | | Create a new webhook |
+| `delete <id>` | | Delete a webhook |
+| `test <id>` | | Send a test delivery to a webhook |
+| `history <id>` | | Show delivery history for a webhook |
+
+## Flags
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--secret <secret>` | string | | Webhook signing secret (create) |
+| `-l, --limit <n>` | number | 20 | Max entries for history |
+| `--yes` | boolean | | Skip confirmation (delete) |
+| `--json` | boolean | | Output as JSON |
+
+## Examples
+
+<CodeGroup>
+```bash List webhooks
+profclaw webhooks list
+```
+
+```bash Create a webhook
+profclaw webhooks create https://example.com/hook --secret my-secret
+```
+
+```bash Test a webhook
+profclaw webhooks test wh_abc123
+```
+
+```bash View delivery history
+profclaw webhooks history wh_abc123 --limit 50
+```
+</CodeGroup>
+
+## Related
+
+- [Webhooks API](/api-reference/webhooks)
+- [Integrations Overview](/integrations/overview)

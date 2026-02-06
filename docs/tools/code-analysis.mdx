@@ -1,0 +1,172 @@
+---
+title: "Code Analysis"
+description: "Static analysis, linting, type checking, and image analysis tools."
+---
+
+## Overview
+
+Code analysis tools help the agent verify code quality after making changes. Rather than relying solely on reading code, the agent can run the actual type checker or linter and get machine-precise feedback.
+
+## Tools
+
+### `exec` (for Analysis Tasks)
+
+The `exec` tool is used for running analysis commands. It is in the Essential tier and works with any model.
+
+**Security level**: `dangerous` | **Tier**: Essential
+
+<ParamField path="command" type="string" required>
+  Shell command to run (e.g., `"pnpm tsc --noEmit"`, `"pnpm lint"`).
+</ParamField>
+
+<ParamField path="workdir" type="string">
+  Working directory. Defaults to the conversation workdir.
+</ParamField>
+
+<ParamField path="timeout" type="number" default="300000">
+  Timeout in milliseconds (default 5 minutes).
+</ParamField>
+
+<ParamField path="background" type="boolean" default="false">
+  Run in the background and return immediately. Check with `session_status`.
+</ParamField>
+
+<CodeGroup>
+```json TypeScript type check
+{
+  "command": "pnpm tsc --noEmit"
+}
+```
+```json ESLint check
+{
+  "command": "pnpm eslint src/ --max-warnings 0"
+}
+```
+```json Run both in sequence
+{
+  "command": "pnpm tsc --noEmit && pnpm lint"
+}
+```
+</CodeGroup>
+
+---
+
+### `image_analyze`
+
+Analyze an image file and describe its contents. Useful for screenshots, diagrams, or design files.
+
+**Security level**: `safe` | **Tier**: Standard
+
+<ParamField path="path" type="string" required>
+  Path to the image file (PNG, JPG, GIF, WebP).
+</ParamField>
+
+<ParamField path="prompt" type="string">
+  Specific question to ask about the image (e.g., "What errors are visible?", "Describe the UI layout").
+</ParamField>
+
+```json
+{
+  "path": "screenshots/error-state.png",
+  "prompt": "What error messages are visible and what might cause them?"
+}
+```
+
+---
+
+### `link_understand`
+
+Analyze a URL and extract structured understanding of its content without fetching the full HTML.
+
+**Security level**: `safe` | **Tier**: Standard
+
+<ParamField path="url" type="string" required>
+  URL to analyze.
+</ParamField>
+
+<ParamField path="focus" type="string">
+  Aspect to focus on: `"summary"`, `"code"`, `"api"`, `"docs"`.
+</ParamField>
+
+---
+
+### `which`
+
+Find the path to a binary (equivalent to `which` command).
+
+**Security level**: `safe` | **Tier**: Standard
+
+<ParamField path="command" type="string" required>
+  Command name to look up.
+</ParamField>
+
+Returns the full path to the binary, or an error if not found.
+
+---
+
+### `env`
+
+Read environment variable values.
+
+**Security level**: `safe` | **Tier**: Standard
+
+<ParamField path="key" type="string">
+  Specific environment variable to read. Omit to list all (filtered for safety).
+</ParamField>
+
+<Note>
+  Secret-looking variables (containing `KEY`, `SECRET`, `TOKEN`, `PASSWORD`) are automatically masked in the output.
+</Note>
+
+---
+
+### `system_info`
+
+Get system information: OS, CPU, memory, Node version, disk space.
+
+**Security level**: `safe` | **Tier**: Standard
+
+---
+
+### `process_list`
+
+List running processes.
+
+**Security level**: `safe` | **Tier**: Standard
+
+<ParamField path="filter" type="string">
+  Filter processes by name.
+</ParamField>
+
+## Recommended Analysis Workflow
+
+<Steps>
+  <Step title="Make your changes">
+    Use `edit_file` or `write_file` to apply code changes.
+  </Step>
+  <Step title="Type check">
+    ```json
+    { "command": "pnpm tsc --noEmit 2>&1 | head -50" }
+    ```
+    Pipe through `head` to limit output for large projects.
+  </Step>
+  <Step title="Lint">
+    ```json
+    { "command": "pnpm lint --quiet" }
+    ```
+  </Step>
+  <Step title="Run affected tests">
+    Use `test_run` with the `file` parameter to run tests for the changed module.
+  </Step>
+</Steps>
+
+## Related Tools
+
+<CardGroup cols={2}>
+  <Card title="Test Runner" icon="flask" href="/tools/test-runner">
+    Run automated tests after type checking passes.
+  </Card>
+  <Card title="File Operations" icon="folder" href="/tools/file-operations">
+    Read source files to understand the code before analyzing.
+  </Card>
+</CardGroup>

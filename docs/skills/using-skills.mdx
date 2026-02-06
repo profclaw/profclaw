@@ -1,0 +1,174 @@
+---
+title: "Using Skills"
+description: "How to invoke skills via slash commands, auto-activation, and preset assignment."
+---
+
+## Invoking Skills
+
+### Slash Commands
+
+Type a `/` followed by the skill name in any chat:
+
+```
+/code-review
+/git-workflow
+/web-research BullMQ job retry patterns
+/debug-helper
+```
+
+Arguments after the skill name are passed as the initial message to that skill's context.
+
+### Natural Language
+
+Skills with trigger patterns auto-activate when the AI detects matching intent. You do not need to use a slash command:
+
+| You say | Activates |
+|---------|-----------|
+| "review this code" | `code-review` |
+| "commit my changes" | `git-workflow` |
+| "search for..." | `web-research` |
+| "help me debug this" | `debug-helper` |
+| "create a ticket for..." | `profclaw-tickets` |
+
+### From the CLI
+
+```bash
+# Start a session with a specific skill
+profclaw chat --skill code-review
+
+# Run a one-shot skill command
+profclaw run --skill git-workflow "commit all staged changes with message: fix queue null check"
+```
+
+## Managing Skills
+
+### List Installed Skills
+
+```bash
+profclaw skills list
+```
+
+Shows all loaded skills with their source (built-in, managed, workspace), version, and category.
+
+### Install from ClawHub
+
+```bash
+profclaw skills install trello
+profclaw skills install github-issues
+profclaw skills install @community/weather
+```
+
+### Update Skills
+
+```bash
+profclaw skills update           # Update all managed skills
+profclaw skills update trello    # Update specific skill
+```
+
+### Disable a Skill
+
+```bash
+profclaw skills disable code-review
+```
+
+Or in `settings.yml`:
+
+```yaml
+skills:
+  disabled:
+    - code-review
+    - web-research
+```
+
+## Skill Configuration
+
+Some skills accept configuration in `settings.yml`:
+
+```yaml
+skills:
+  config:
+    git-workflow:
+      defaultBranch: main
+      requireTicketId: true
+    web-research:
+      maxResults: 5
+      preferredProvider: brave
+```
+
+## Skill Precedence
+
+When multiple sources define a skill with the same name, the higher-priority source wins:
+
+```
+workspace/skills/ > ~/.profclaw/skills/ > built-in > extra dirs
+```
+
+To override a built-in skill, create a file at `skills/code-review/SKILL.md` in your project root.
+
+## Checking Active Skills
+
+In a chat conversation, you can ask:
+
+> "What skills are currently active?"
+
+Or check from the CLI:
+
+```bash
+profclaw skills status
+```
+
+## Preset-Based Skill Loading
+
+Assign a bundle of skills to a persona (preset):
+
+```yaml
+# settings.yml
+presets:
+  backend-dev:
+    name: "Backend Developer"
+    model: claude-sonnet-4-6
+    skills:
+      - code-review
+      - git-workflow
+      - debug-helper
+      - api-tester
+      - docker-ops
+
+  content-creator:
+    name: "Content Creator"
+    model: claude-sonnet-4-6
+    skills:
+      - web-research
+      - summarize
+      - blogwatcher
+```
+
+Switch presets with `/preset backend-dev`.
+
+## Skill Metadata
+
+View detailed skill metadata:
+
+```bash
+profclaw skills info code-review
+```
+
+Output:
+```
+code-review v1.0.0
+  Category: development
+  Source:   built-in
+  Triggers: "review this", "review my code", "check this code"
+  Command:  /code-review
+```
+
+## Related Docs
+
+<CardGroup cols={2}>
+  <Card title="Built-in Skills" icon="box" href="/skills/built-in">
+    Browse all 50 pre-installed skills.
+  </Card>
+  <Card title="Creating Skills" icon="pen" href="/skills/creating-skills">
+    Write your own skills.
+  </Card>
+</CardGroup>

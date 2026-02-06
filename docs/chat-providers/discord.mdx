@@ -1,0 +1,131 @@
+---
+title: "Discord"
+description: "Deploy profClaw as a Discord bot. Supports slash commands, interactive components, guild and DM support."
+---
+
+profClaw's Discord integration registers as a bot on your server and responds to slash commands, direct messages, and @mentions.
+
+## Capabilities
+
+| Feature | Supported |
+|---------|-----------|
+| Direct messages | Yes |
+| Server channels | Yes (on mention/command) |
+| Slash commands | Yes |
+| Interactive buttons | Yes |
+| File attachments | Yes |
+| Threads | Yes |
+| Reactions | Yes |
+| OAuth app install | Yes |
+
+## Setup
+
+<Steps>
+  <Step title="Create a Discord Application">
+    Go to [discord.com/developers](https://discord.com/developers/applications) and create a new application.
+  </Step>
+  <Step title="Create a Bot">
+    Under **Bot**, click **Add Bot**. Copy the bot token.
+
+    Enable these Privileged Gateway Intents:
+    - **Message Content Intent** (required to read messages)
+    - **Server Members Intent** (optional, for member lookup)
+  </Step>
+  <Step title="Register Slash Commands">
+    Under **OAuth2 > URL Generator**, select scopes:
+    - `bot`
+    - `applications.commands`
+
+    Select bot permissions:
+    - Send Messages
+    - Read Message History
+    - Use Slash Commands
+    - Add Reactions
+  </Step>
+  <Step title="Invite the bot">
+    Use the generated OAuth2 URL to invite the bot to your server.
+  </Step>
+  <Step title="Configure profClaw">
+    ```bash
+    DISCORD_BOT_TOKEN=...
+    DISCORD_APPLICATION_ID=...
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="DISCORD_BOT_TOKEN" type="string" required>
+  Your Discord bot token from the Developer Portal.
+</ParamField>
+
+<ParamField path="DISCORD_APPLICATION_ID" type="string" required>
+  Your Discord application ID.
+</ParamField>
+
+<ParamField path="DISCORD_PUBLIC_KEY" type="string">
+  Application public key for webhook verification (required for HTTP interaction mode).
+</ParamField>
+
+<ParamField path="DISCORD_GUILD_ID" type="string">
+  Restrict to a single guild/server. Leave empty for multi-server support.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    DISCORD_BOT_TOKEN=MTI...
+    DISCORD_APPLICATION_ID=1234567890
+    # Optional: single-server mode
+    DISCORD_GUILD_ID=9876543210
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    chat:
+      discord:
+        bot_token: "${DISCORD_BOT_TOKEN}"
+        application_id: "${DISCORD_APPLICATION_ID}"
+        guild_id: "${DISCORD_GUILD_ID}"
+    ```
+  </Tab>
+</Tabs>
+
+## Slash Commands
+
+profClaw registers these slash commands automatically:
+
+```
+/ask [question]     - Ask a question
+/run [skill]        - Run a skill
+/status             - Agent status
+```
+
+## Usage Examples
+
+```
+# In any channel
+@profclaw Review the last 5 commits
+
+# Slash command
+/ask What is the status of deployment #42?
+
+# DM the bot directly
+Any message in DMs is treated as a question
+```
+
+## Notes
+
+- Bot connects via Discord's Gateway (WebSocket) for real-time events - no public webhook URL needed.
+- For large servers, use `DISCORD_GUILD_ID` to scope the bot to one server for faster slash command registration.
+- Global slash command registration can take up to 1 hour to propagate; guild-scoped commands are instant.
+- Multi-server support works without additional configuration.
+
+## Related
+
+- [Chat Providers Overview](/chat-providers/overview) - Compare all 27 supported channels
+- [Slack](/chat-providers/slack) - Workspace messaging with Socket Mode
+- [Notifications Tool](/tools/notifications) - Send proactive messages to Discord channels from agents
+- [profclaw channels](/cli/channels) - Enable and test the Discord connection from the CLI

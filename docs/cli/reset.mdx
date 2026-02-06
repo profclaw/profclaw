@@ -1,0 +1,91 @@
+---
+title: "profclaw reset"
+description: "Reset profClaw configuration, database, or the complete installation to factory defaults."
+---
+
+## Synopsis
+
+```bash
+profclaw reset [flags]
+```
+
+## Description
+
+`reset` removes profClaw's persistent state. Use it to start fresh after a failed setup, before reinstalling, or to wipe data from a development environment. It can selectively reset CLI config, server settings, the database, the memory index, or everything at once.
+
+<Warning>
+`reset` is destructive and cannot be undone. Run `profclaw backup create` before resetting if you need to preserve data.
+</Warning>
+
+## Flags
+
+<ParamField query="--config" type="boolean">
+  Reset CLI config (`~/.profclaw/config.json`) to defaults. API URL reverts to `http://localhost:3000`.
+</ParamField>
+
+<ParamField query="--settings" type="boolean">
+  Reset server settings (`config/settings.yml`) to defaults.
+</ParamField>
+
+<ParamField query="--db" type="boolean">
+  Delete the SQLite database (`data/profclaw.db`). All users, tasks, conversations, and sessions are lost.
+</ParamField>
+
+<ParamField query="--memory" type="boolean">
+  Clear the memory index. Files on disk are not deleted, but the index must be rebuilt with `profclaw memory sync`.
+</ParamField>
+
+<ParamField query="--all" type="boolean">
+  Reset everything: config, settings, database, and memory index.
+</ParamField>
+
+<ParamField query="--yes" type="boolean">
+  Skip all confirmation prompts. Required for non-interactive use.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash Reset CLI config only
+profclaw reset --config
+```
+
+```bash Reset server settings to defaults
+profclaw reset --settings
+```
+
+```bash Delete the database (fresh start)
+profclaw reset --db
+```
+
+```bash Full reset (wipe everything)
+profclaw reset --all
+```
+
+```bash Full reset without prompts (CI / reinstall scripts)
+profclaw reset --all --yes
+```
+
+```bash Recommended before a full reinstall
+profclaw backup create
+profclaw reset --all --yes
+profclaw onboard
+```
+</CodeGroup>
+
+## After Resetting
+
+If you reset the database or all data, you must run `onboard` or `setup` again to create the admin account and configure providers:
+
+```bash
+profclaw onboard
+# or
+profclaw serve &
+profclaw setup   # web-based setup wizard
+```
+
+## Related
+
+- [`profclaw backup`](/cli/backup) - Back up before resetting
+- [`profclaw onboard`](/cli/onboard) - Re-run after a full reset
+- [`profclaw config reset`](/cli/config) - Reset CLI config via the config command

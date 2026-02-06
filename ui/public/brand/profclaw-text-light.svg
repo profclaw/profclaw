@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="260" height="54" viewBox="0 0 260 54">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@800&amp;display=swap');
+  </style>
+  <defs>
+    <linearGradient id="profGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f43f5e"/>
+      <stop offset="60%" stop-color="#e11d48"/>
+      <stop offset="100%" stop-color="#be123c"/>
+    </linearGradient>
+    <filter id="shadow" x="-2%" y="-2%" width="104%" height="112%">
+      <feDropShadow dx="0" dy="1" stdDeviation="0.8" flood-color="#000" flood-opacity=".08"/>
+    </filter>
+  </defs>
+  <text x="0" y="40" font-family="'Plus Jakarta Sans', system-ui, sans-serif" font-weight="800" font-size="44" letter-spacing="-2" filter="url(#shadow)">
+    <tspan fill="url(#profGrad)">prof</tspan><tspan fill="#1a1a2e">Claw</tspan>
+  </text>
+</svg>

@@ -1,0 +1,60 @@
+---
+title: "profclaw channels"
+description: "profclaw channels - enable, disable, configure, and test messaging channels. Manage Slack, Discord, Telegram, and other chat provider connections."
+---
+
+## Synopsis
+
+```bash
+profclaw channels <subcommand> [flags]
+```
+
+## Description
+
+Manage messaging channel providers. Enable, disable, configure, and test chat channel connections like Slack, Discord, Telegram, and others.
+
+## Subcommands
+
+| Subcommand | Alias | Description |
+|-----------|-------|-------------|
+| `list` | `ls` | List all messaging channels |
+| `enable <provider>` | | Enable a messaging channel |
+| `disable <provider>` | | Disable a messaging channel |
+| `config <provider>` | | Show channel configuration |
+| `test <provider>` | | Test a channel connection |
+
+## Flags
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--json` | boolean | Output as JSON |
+
+## Examples
+
+<CodeGroup>
+```bash List all channels
+profclaw channels list
+```
+
+```bash Enable Slack
+profclaw channels enable slack
+```
+
+```bash Test Discord connection
+profclaw channels test discord
+```
+
+```bash View Telegram config
+profclaw channels config telegram
+```
+
+```bash Disable a channel
+profclaw channels disable irc
+```
+</CodeGroup>
+
+## Related
+
+- [Chat Providers Overview](/chat-providers/overview)
+- [Slack Setup](/chat-providers/slack)
+- [Discord Setup](/chat-providers/discord)

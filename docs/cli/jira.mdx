@@ -1,0 +1,112 @@
+---
+title: "profclaw jira"
+description: "Manage Jira integration - connect projects, sync tickets, and configure automation triggers."
+---
+
+## Synopsis
+
+```bash
+profclaw jira <subcommand> [flags]
+```
+
+## Description
+
+`jira` manages the profClaw Jira integration. Once configured, profClaw can watch for new tickets, respond to status changes, and assign agent tasks to work on Jira issues. The integration uses the Jira Cloud REST API with OAuth 2.0 or API token authentication.
+
+## Subcommands
+
+| Subcommand | Description |
+|---|---|
+| `status` | Show Jira connection and project status |
+| `connect` | Configure Jira credentials and project |
+| `disconnect` | Remove the Jira integration |
+| `projects` | List connected Jira projects |
+| `sync <project>` | Manually sync issues from a project |
+| `issues` | List synced Jira issues |
+
+## `jira connect`
+
+<ParamField query="--url" type="string">
+  Jira Cloud URL (e.g., `https://myorg.atlassian.net`).
+</ParamField>
+
+<ParamField query="--email" type="string">
+  Atlassian account email used for API token auth.
+</ParamField>
+
+<ParamField query="--token" type="string">
+  Jira API token. Generate at `id.atlassian.com/manage-profile/security/api-tokens`.
+</ParamField>
+
+<ParamField query="--project" type="string">
+  Jira project key to connect (e.g., `ENG`, `PLATFORM`).
+</ParamField>
+
+## `jira sync <project>`
+
+<ParamField query="project" type="string" required>
+  Jira project key to sync.
+</ParamField>
+
+<ParamField query="--status" type="string">
+  Filter by issue status (e.g., `"To Do"`, `"In Progress"`).
+</ParamField>
+
+<ParamField query="--label" type="string">
+  Filter by Jira label.
+</ParamField>
+
+<ParamField query="--limit" type="string" default="50">
+  Maximum issues to sync.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash Check Jira integration status
+profclaw jira status
+```
+
+```bash Connect to Jira
+profclaw jira connect \
+  --url https://myorg.atlassian.net \
+  --email admin@myorg.com \
+  --token ATATT... \
+  --project ENG
+```
+
+```bash List connected projects
+profclaw jira projects
+```
+
+```bash Sync issues from a project
+profclaw jira sync ENG
+```
+
+```bash Sync only "To Do" issues
+profclaw jira sync ENG --status "To Do"
+```
+
+```bash List synced issues
+profclaw jira issues
+```
+
+```bash Disconnect Jira
+profclaw jira disconnect
+```
+</CodeGroup>
+
+## Environment Variables
+
+```bash
+JIRA_URL=https://myorg.atlassian.net
+JIRA_EMAIL=admin@myorg.com
+JIRA_API_TOKEN=ATATT...
+```
+
+## Related
+
+- [`profclaw github`](/cli/github) - GitHub integration
+- [`profclaw linear`](/cli/linear) - Linear integration
+- [`profclaw sync`](/cli/sync) - Cross-platform sync
+- [Jira Integration Guide](/integrations/jira) - OAuth setup and field mapping

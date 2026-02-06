@@ -1,0 +1,88 @@
+---
+title: "SambaNova"
+description: "High-throughput inference on SambaNova's Reconfigurable Dataflow Units (RDUs). Fast open-source model hosting."
+---
+
+SambaNova provides enterprise-grade inference on their custom RDU hardware. They host Llama and other open-source models with high throughput and competitive pricing.
+
+## Supported Models
+
+SambaNova hosts various open-source models. Common options:
+
+| Model | Notes |
+|-------|-------|
+| Meta-Llama-3.1-70B-Instruct | General purpose |
+| Meta-Llama-3.1-405B-Instruct | Largest open model |
+| Llama-3.2-90B-Vision-Instruct | Multimodal |
+
+Check the [SambaNova model catalog](https://cloud.sambanova.ai/models) for the current list.
+
+## Setup
+
+<Steps>
+  <Step title="Get an API key">
+    Sign up at [cloud.sambanova.ai](https://cloud.sambanova.ai).
+  </Step>
+  <Step title="Set the environment variable">
+    ```bash
+    export SAMBANOVA_API_KEY=...
+    ```
+  </Step>
+  <Step title="Configure in profClaw">
+    SambaNova uses an OpenAI-compatible endpoint. Configure it as a custom OpenAI provider:
+
+    ```bash
+    OPENAI_API_KEY=your-sambanova-key
+    OPENAI_BASE_URL=https://api.sambanova.ai/v1
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="SAMBANOVA_API_KEY" type="string" required>
+  Your SambaNova Cloud API key. Configure via the `OPENAI_API_KEY` + `OPENAI_BASE_URL` pattern.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env (via OpenAI-compatible)">
+    ```bash
+    # Use the openai provider with SambaNova's endpoint
+    OPENAI_API_KEY=your-sambanova-api-key
+    OPENAI_BASE_URL=https://api.sambanova.ai/v1
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    providers:
+      openai:
+        api_key: "${SAMBANOVA_API_KEY}"
+        base_url: "https://api.sambanova.ai/v1"
+    ```
+  </Tab>
+</Tabs>
+
+## Usage Examples
+
+<CodeGroup>
+  ```bash CLI
+  # After configuring via OPENAI_BASE_URL
+  profclaw chat --model Meta-Llama-3.1-70B-Instruct "Explain this architecture"
+  profclaw chat --model Meta-Llama-3.1-405B-Instruct "Complex analysis task"
+  ```
+</CodeGroup>
+
+## Notes
+
+- SambaNova's API is OpenAI-compatible. Configure it using the `openai` provider with a custom base URL.
+- Best suited for enterprise batch inference and high-throughput workloads.
+- Contact SambaNova for dedicated instance pricing.
+
+## Related
+
+- [AI Providers Overview](/ai-providers/overview) - Compare all 37 supported providers
+- [Cerebras](/ai-providers/cerebras) - Wafer-scale inference for ultra-fast token speeds
+- [Groq](/ai-providers/groq) - LPU-based inference at competitive speeds
+- [profclaw provider](/cli/provider) - Add and test providers from the CLI

@@ -1,0 +1,127 @@
+---
+title: "Signal"
+description: "Connect profClaw to Signal via the signald bridge. End-to-end encrypted messaging for maximum privacy."
+---
+
+profClaw connects to Signal via [signald](https://signald.org), an unofficial Signal daemon that exposes a local UNIX socket API. All messages are end-to-end encrypted by Signal's protocol.
+
+## Capabilities
+
+| Feature | Supported |
+|---------|-----------|
+| Direct messages | Yes |
+| Group messages | Yes |
+| End-to-end encryption | Yes (Signal protocol) |
+| Media messages | Yes |
+| Voice/video calls | No |
+| Phone number allowlist | Yes |
+
+## Requirements
+
+- A dedicated phone number for the bot
+- [signald](https://signald.org) running on the same machine as profClaw
+
+## Setup
+
+<Steps>
+  <Step title="Install signald">
+    ```bash
+    # Ubuntu/Debian
+    apt install signald
+
+    # Or run via Docker
+    docker run -v /var/run/signald:/var/run/signald signald/signald
+    ```
+  </Step>
+  <Step title="Register a phone number">
+    ```bash
+    signaldctl account register +1234567890
+    # Receive SMS verification code
+    signaldctl account verify +1234567890 CODE
+    ```
+  </Step>
+  <Step title="Configure profClaw">
+    ```bash
+    SIGNAL_SOCKET_PATH=/var/run/signald/signald.sock
+    SIGNAL_PHONE_NUMBER=+1234567890
+    # Optional: restrict to specific numbers
+    SIGNAL_ALLOWED_NUMBERS=+0987654321,+1122334455
+    ```
+  </Step>
+  <Step title="Verify">
+    ```bash
+    profclaw doctor --provider signal
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="SIGNAL_SOCKET_PATH" type="string" required>
+  Path to the signald UNIX socket. Default: `/var/run/signald/signald.sock`
+</ParamField>
+
+<ParamField path="SIGNAL_PHONE_NUMBER" type="string" required>
+  Bot phone number in E.164 format (e.g., `+12125551234`).
+</ParamField>
+
+<ParamField path="SIGNAL_ALLOWED_NUMBERS" type="string">
+  Comma-separated allowlist of phone numbers that can interact with the bot.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    SIGNAL_SOCKET_PATH=/var/run/signald/signald.sock
+    SIGNAL_PHONE_NUMBER=+12125551234
+    SIGNAL_ALLOWED_NUMBERS=+19876543210
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    chat:
+      signal:
+        socket_path: "${SIGNAL_SOCKET_PATH}"
+        phone_number: "${SIGNAL_PHONE_NUMBER}"
+        allowed_numbers:
+          - "+19876543210"
+    ```
+  </Tab>
+  <Tab title="Docker Compose">
+    ```yaml
+    services:
+      profclaw:
+        image: profclaw/profclaw:latest
+        volumes:
+          - signald_socket:/var/run/signald
+        environment:
+          SIGNAL_SOCKET_PATH: /var/run/signald/signald.sock
+          SIGNAL_PHONE_NUMBER: "+12125551234"
+      signald:
+        image: signald/signald:latest
+        volumes:
+          - signald_socket:/var/run/signald
+          - signald_data:/signald
+    volumes:
+      signald_socket:
+      signald_data:
+    ```
+  </Tab>
+</Tabs>
+
+## Notes
+
+- Status: Beta
+- signald is an unofficial Signal client - it may break when Signal updates its protocol.
+- The `SIGNAL_ALLOWED_NUMBERS` allowlist is strongly recommended for security.
+- Signal requires a real phone number capable of receiving SMS.
+- signald stores Signal keys locally - keep `signald_data` secure.
+
+## Related
+
+- [Chat Providers Overview](/chat-providers/overview) - Compare all 27 supported channels
+- [Matrix](/chat-providers/matrix) - Federated E2EE messaging with official protocol support
+- [Telegram](/chat-providers/telegram) - Simpler bot setup without the signald dependency
+- [Security Overview](/security/overview) - Protecting your profClaw deployment

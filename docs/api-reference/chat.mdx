@@ -1,0 +1,171 @@
+---
+title: "Chat API"
+description: "profClaw Chat API - send messages, manage multi-turn conversations, list providers and models, and trigger agentic execution with tool support."
+---
+
+The chat API provides endpoints for single-turn completions, multi-turn conversations, tool-enabled chat, and agentic (autonomous) execution.
+
+## POST /api/chat/completions
+
+Single-turn chat completion. Supports streaming.
+
+```bash
+curl -X POST http://localhost:3000/api/chat/completions \
+  -H "Content-Type: application/json" \
+  --cookie "profclaw_session=<token>" \
+  -d '{
+    "messages": [{"role": "user", "content": "Explain async/await in TypeScript"}],
+    "model": "claude-sonnet-4-6",
+    "temperature": 0.7
+  }'
+```
+
+**Request body**
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `messages` | `Array<{role, content}>` | `user`, `assistant`, or `system` |
+| `model` | string | Optional, uses default provider if omitted |
+| `systemPrompt` | string | Optional override |
+| `temperature` | number | 0-2 |
+| `maxTokens` | number | Positive integer |
+| `stream` | boolean | Enable SSE streaming |
+| `conversationId` | string | Link to a conversation |
+| `taskId` | string | Inject task context |
+| `ticketId` | string | Inject ticket context |
+
+**Response `200`**
+
+```json
+{
+  "id": "resp_abc123",
+  "provider": "anthropic",
+  "model": "claude-sonnet-4-6",
+  "message": { "role": "assistant", "content": "Async/await is..." },
+  "finishReason": "stop",
+  "usage": { "promptTokens": 42, "completionTokens": 150, "totalTokens": 192 },
+  "duration": 1234
+}
+```
+
+---
+
+## POST /api/chat/quick
+
+Simplified single-prompt endpoint.
+
+```bash
+curl -X POST http://localhost:3000/api/chat/quick \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "What is 2+2?"}'
+```
+
+---
+
+## POST /api/chat/smart
+
+Context-aware chat that automatically injects task or ticket context.
+
+```bash
+curl -X POST http://localhost:3000/api/chat/smart \
+  -d '{"messages": [...], "taskId": "task_01", "presetId": "profclaw-assistant"}'
+```
+
+---
+
+## Conversation Management
+
+### GET /api/chat/conversations
+
+List conversations with optional filters.
+
+```
+GET /api/chat/conversations?limit=20&offset=0&taskId=task_01
+```
+
+### POST /api/chat/conversations
+
+Create a conversation.
+
+```json
+{ "title": "Bug fix session", "presetId": "code-review", "taskId": "task_01" }
+```
+
+### GET /api/chat/conversations/:id
+
+Get a conversation with its message history.
+
+### DELETE /api/chat/conversations/:id
+
+Delete a conversation and all its messages.
+
+### POST /api/chat/conversations/:id/messages
+
+Send a message in a conversation (full context + history).
+
+```json
+{ "content": "What should I fix first?", "model": "gpt-4o" }
+```
+
+**Response** includes `userMessage`, `assistantMessage`, `usage`, and optional `compaction` info.
+
+### POST /api/chat/conversations/:id/messages/with-tools
+
+Send a message with native tool calling enabled (up to 5 tool roundtrips).
+
+```json
+{
+  "content": "Read the README and summarize it",
+  "enableTools": true,
+  "securityMode": "ask"
+}
+```
+
+Security modes: `deny` | `sandbox` | `allowlist` | `ask` | `full`
+
+### POST /api/chat/conversations/:id/messages/agentic
+
+Run agentic (autonomous) execution via SSE. See [Chat Stream](/api-reference/chat-stream) for the event format.
+
+---
+
+## Models and Providers
+
+```
+GET /api/chat/models                       # All models across providers
+GET /api/chat/models?provider=anthropic    # Models for one provider
+GET /api/chat/providers                    # Provider status + health
+GET /api/chat/providers/:type/models       # Dynamic model discovery (Ollama, OpenRouter)
+POST /api/chat/providers/:type/configure   # Configure a provider
+POST /api/chat/providers/:type/health      # Check provider health
+POST /api/chat/providers/default           # Set default provider
+```
+
+### Provider types
+
+`anthropic` | `openai` | `azure` | `google` | `ollama` | `openrouter` | `groq` | `xai` | `mistral` | `cohere` | `perplexity` | `deepseek` | `together` | `cerebras` | `fireworks`
+
+---
+
+## Tool Approval
+
+```
+POST /api/chat/tools/approve
+```
+
+```json
+{
+  "conversationId": "conv_01",
+  "approvalId": "approval_01",
+  "decision": "allow-once"
+}
+```
+
+Decisions: `allow-once` | `allow-always` | `deny`
+
+## Related
+
+- [Chat Streaming](/api-reference/chat-stream) - SSE event format for agentic execution
+- [Agent Sessions API](/api-reference/agent-sessions) - Monitor and cancel execution sessions
+- [Tools Overview](/tools/overview) - Tools the agent can call during execution
+- [AI Providers Overview](/ai-providers/overview) - Configure providers and models

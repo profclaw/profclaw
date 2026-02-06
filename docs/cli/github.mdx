@@ -1,0 +1,107 @@
+---
+title: "profclaw github"
+description: "Manage GitHub integration - connect repositories, sync issues, and configure webhook triggers."
+---
+
+## Synopsis
+
+```bash
+profclaw github <subcommand> [flags]
+```
+
+## Description
+
+`github` manages profClaw's GitHub integration. Once connected, profClaw can listen for GitHub webhooks (issues, pull requests, comments, pushes) and automatically dispatch agent tasks in response. It can also read repository context for agents working on code.
+
+## Subcommands
+
+| Subcommand | Description |
+|---|---|
+| `status` | Show GitHub connection status and configured repositories |
+| `connect` | Add a GitHub token and configure webhook |
+| `disconnect` | Remove the GitHub integration |
+| `repos` | List connected repositories |
+| `sync <repo>` | Manually sync open issues from a repository |
+| `webhook` | Show webhook configuration for a repository |
+
+## `github connect`
+
+<ParamField query="--token" type="string">
+  GitHub personal access token or GitHub App token. Requires `repo` and `read:org` scopes for private repos.
+</ParamField>
+
+<ParamField query="--repo" type="string">
+  Repository to connect in `owner/repo` format.
+</ParamField>
+
+## `github sync <repo>`
+
+<ParamField query="repo" type="string" required>
+  Repository in `owner/repo` format.
+</ParamField>
+
+<ParamField query="--label" type="string">
+  Only sync issues with this label (e.g., `profclaw`, `ai-task`).
+</ParamField>
+
+<ParamField query="--limit" type="string" default="50">
+  Maximum issues to sync.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash Check GitHub integration status
+profclaw github status
+```
+
+```bash Connect with a GitHub token
+profclaw github connect --token ghp_... --repo myorg/myrepo
+```
+
+```bash List connected repositories
+profclaw github repos
+```
+
+```bash Sync issues from a repository
+profclaw github sync myorg/myrepo
+```
+
+```bash Sync issues with a specific label
+profclaw github sync myorg/myrepo --label profclaw
+```
+
+```bash Show webhook URL for a repository
+profclaw github webhook myorg/myrepo
+```
+
+```bash Disconnect GitHub integration
+profclaw github disconnect
+```
+</CodeGroup>
+
+## Webhook Events
+
+When a webhook is configured, profClaw responds to:
+
+| Event | Action |
+|---|---|
+| `issues.opened` | Create an agent task for the new issue |
+| `issues.labeled` | Trigger when a specific label is applied |
+| `pull_request.opened` | Trigger code review workflow |
+| `issue_comment.created` | Respond to `@profclaw` mentions |
+| `push` | Trigger on-push workflows |
+
+## Environment Variables
+
+```bash
+GITHUB_TOKEN=ghp_...     # Personal access token
+GITHUB_WEBHOOK_SECRET=   # Webhook HMAC secret for verification
+```
+
+## Related
+
+- [`profclaw jira`](/cli/jira) - Jira integration
+- [`profclaw linear`](/cli/linear) - Linear integration
+- [`profclaw sync`](/cli/sync) - Cross-platform sync operations
+- [GitHub Integration Guide](/integrations/github) - Full setup instructions

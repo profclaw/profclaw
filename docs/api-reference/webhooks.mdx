@@ -1,0 +1,150 @@
+---
+title: "Webhooks API"
+description: "profClaw Webhooks API - register outbound endpoints, inspect inbound delivery from GitHub and Jira, view delivery history, and test webhook signatures."
+---
+
+profClaw handles webhooks in two directions: **inbound** (from GitHub, Jira, Linear to create tasks) and **outbound** (from profClaw to notify your systems when tasks complete).
+
+## Inbound Webhooks
+
+Register these URLs in your external service dashboards:
+
+| Service | URL | Signature Header |
+|---------|-----|-----------------|
+| GitHub | `POST /api/webhooks/github` | `X-Hub-Signature-256` |
+| Jira | `POST /api/webhooks/jira` | `X-Hub-Signature` |
+| Linear | `POST /api/webhooks/linear` | `Linear-Signature` |
+
+All inbound webhooks are signature-verified. Set `GITHUB_WEBHOOK_SECRET`, `JIRA_WEBHOOK_SECRET`, or `LINEAR_WEBHOOK_SECRET` as appropriate.
+
+### Verification failure
+
+Requests that fail signature verification return:
+
+```json
+HTTP 403
+{ "error": "Invalid webhook signature" }
+```
+
+---
+
+## Outbound Webhook Registration
+
+### GET /api/webhooks
+
+List registered outbound webhook endpoints.
+
+```bash
+curl http://localhost:3000/api/webhooks --cookie "profclaw_session=<token>"
+```
+
+**Response `200`**
+
+```json
+{
+  "webhooks": [
+    {
+      "id": "wh_01",
+      "url": "https://your-service.com/webhook",
+      "events": ["task.completed", "task.failed"],
+      "active": true,
+      "secret": "wh_sec_*****",
+      "createdAt": "2026-03-01T00:00:00Z",
+      "lastDelivery": "2026-03-12T10:00:00Z",
+      "deliveryCount": 42,
+      "failureCount": 0
+    }
+  ]
+}
+```
+
+### POST /api/webhooks
+
+Register a new outbound webhook.
+
+```bash
+curl -X POST http://localhost:3000/api/webhooks \
+  -H "Content-Type: application/json" \
+  --cookie "profclaw_session=<token>" \
+  -d '{
+    "url": "https://your-service.com/webhook",
+    "events": ["task.completed", "task.failed"],
+    "secret": "optional-signing-secret"
+  }'
+```
+
+### DELETE /api/webhooks/:id
+
+Remove a webhook registration.
+
+---
+
+## Outbound Event Types
+
+| Event | Payload Fields |
+|-------|---------------|
+| `task.created` | `id`, `title`, `status`, `source` |
+| `task.completed` | `id`, `title`, `result`, `duration` |
+| `task.failed` | `id`, `title`, `error`, `attempts` |
+| `task.cancelled` | `id`, `title` |
+| `agent.started` | `taskId`, `agentType` |
+| `agent.finished` | `taskId`, `agentType`, `output` |
+
+### Delivery Format
+
+```json
+{
+  "id": "delivery_01",
+  "event": "task.completed",
+  "timestamp": "2026-03-12T10:30:00Z",
+  "payload": {
+    "id": "task_01",
+    "title": "Fix login bug",
+    "result": "Fixed the session cookie bug in auth-service.ts",
+    "duration": 45230
+  }
+}
+```
+
+Outbound webhooks are signed with `X-ProfClaw-Signature: sha256=<hmac>` when a secret is provided.
+
+---
+
+## Retry Policy
+
+Failed deliveries are retried with exponential backoff:
+
+| Attempt | Delay |
+|---------|-------|
+| 1 | 30 seconds |
+| 2 | 5 minutes |
+| 3 | 30 minutes |
+| 4 | 2 hours |
+| 5 | 12 hours |
+
+After 5 failed attempts, the webhook is marked as `failing` and deliveries pause. Re-activate with `PATCH /api/webhooks/:id` setting `active: true`.
+
+---
+
+## Delivery Log
+
+```bash
+GET /api/webhooks/:id/deliveries?limit=20
+```
+
+Returns recent delivery attempts with status codes and response bodies.
+
+### Redeliver
+
+```bash
+POST /api/webhooks/:id/deliveries/:deliveryId/redeliver
+```
+
+Manually trigger redelivery of a specific event.
+
+## Related
+
+- [profclaw webhooks](/cli/webhooks) - Manage webhook endpoints from the CLI
+- [Tasks API](/api-reference/tasks) - Tasks trigger outbound webhook events
+- [Integrations Overview](/integrations/overview) - Configure inbound GitHub, Jira, and Linear webhooks
+- [Security API](/api-reference/security-api) - Audit log of inbound webhook processing

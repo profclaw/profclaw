@@ -1,0 +1,62 @@
+---
+title: "profclaw tunnel"
+description: "profclaw tunnel - start and stop Cloudflare and Tailscale tunnels to expose your local profClaw instance for remote access without port forwarding."
+---
+
+## Synopsis
+
+```bash
+profclaw tunnel <subcommand> [flags]
+```
+
+## Description
+
+Manage network tunnels for exposing your local profClaw instance to the internet. Supports Cloudflare Quick Tunnels and Tailscale mesh networking.
+
+## Subcommands
+
+| Subcommand | Description |
+|-----------|-------------|
+| `status` | Show tunnel status (default) |
+| `start` | Start a Cloudflare quick tunnel |
+| `stop` | Stop the active Cloudflare tunnel |
+| `tailscale` | Show detailed Tailscale status |
+
+## Flags
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--port <n>` | number | 3000 | Local port to tunnel |
+| `--json` | boolean | | Output as JSON |
+
+## Examples
+
+<CodeGroup>
+```bash Start a Cloudflare tunnel
+profclaw tunnel start
+# Output: Tunnel active at https://random-name.trycloudflare.com
+```
+
+```bash Start on custom port
+profclaw tunnel start --port 4000
+```
+
+```bash Check tunnel status
+profclaw tunnel status
+```
+
+```bash Check Tailscale status
+profclaw tunnel tailscale
+```
+</CodeGroup>
+
+## Prerequisites
+
+- **Cloudflare**: `cloudflared` must be installed (`brew install cloudflared`)
+- **Tailscale**: `tailscale` must be installed and authenticated
+
+## Related
+
+- [Cloudflare Integration](/integrations/cloudflare)
+- [Tailscale Integration](/integrations/tailscale)
+- [Self-Hosted Guide](/guides/self-hosted)

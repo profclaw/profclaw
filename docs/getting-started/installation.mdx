@@ -1,0 +1,162 @@
+---
+title: "Installation"
+description: "Install profClaw on macOS, Linux, Windows, or via Docker. Covers system requirements, all install methods, and post-install setup."
+---
+
+## System Requirements
+
+| Requirement | Minimum | Recommended |
+|-------------|---------|-------------|
+| Node.js | 22+ | 22 LTS |
+| RAM | 512MB (pico) | 2GB+ (mini/pro) |
+| Disk | 500MB | 2GB+ |
+| Redis | Optional | Required for pro mode |
+
+<Note>
+  Node.js 22 or later is required. Check your version with `node --version`. Install or upgrade via [nodejs.org](https://nodejs.org) or a version manager like `nvm`.
+</Note>
+
+## Install Methods
+
+<Tabs>
+  <Tab title="npm">
+    ```bash
+    npm install -g profclaw
+    ```
+
+    Verify the installation:
+    ```bash
+    profclaw version
+    ```
+  </Tab>
+  <Tab title="pnpm">
+    ```bash
+    pnpm add -g profclaw
+    ```
+
+    Verify the installation:
+    ```bash
+    profclaw version
+    ```
+  </Tab>
+  <Tab title="Docker">
+    Pull the latest image:
+    ```bash
+    docker pull profclaw/profclaw:latest
+    ```
+
+    Run with default settings:
+    ```bash
+    docker run -d \
+      --name profclaw \
+      -p 3000:3000 \
+      -v profclaw-data:/data \
+      profclaw/profclaw:latest
+    ```
+
+    Or use Docker Compose for a full stack with Redis:
+    ```yaml
+    services:
+      profclaw:
+        image: profclaw/profclaw:latest
+        ports:
+          - "3000:3000"
+        volumes:
+          - profclaw-data:/data
+        environment:
+          - PROFCLAW_MODE=mini
+          - PORT=3000
+    volumes:
+      profclaw-data:
+    ```
+
+    See the [Docker Deployment guide](/guides/docker-deployment) for a production-ready setup with Redis, Nginx, and health checks.
+  </Tab>
+  <Tab title="Docker (Pico)">
+    Optimized image for resource-constrained environments (Raspberry Pi, edge devices):
+    ```bash
+    docker pull profclaw/profclaw:pico
+    ```
+
+    ```bash
+    docker run -d \
+      --name profclaw \
+      -p 3000:3000 \
+      --memory=512m \
+      profclaw/profclaw:pico
+    ```
+  </Tab>
+  <Tab title="From Source">
+    Clone and build from source for development or contributions:
+    ```bash
+    git clone https://github.com/profclaw/profclaw.git
+    cd profclaw
+    pnpm install
+    pnpm build
+    pnpm dev
+    ```
+
+    The dev server starts with hot reload at `http://localhost:3000`.
+  </Tab>
+</Tabs>
+
+## Post-Install Setup
+
+After installation, run the interactive setup wizard:
+
+```bash
+profclaw init
+profclaw onboard
+```
+
+This will:
+1. Create a `.profclaw/` configuration directory
+2. Detect your environment (Docker, VPS, local machine)
+3. Recommend a [deployment mode](/getting-started/deployment-modes) (pico/mini/pro)
+4. Set up your first AI provider
+5. Configure optional chat channels
+
+See [Onboarding](/getting-started/onboard) for a step-by-step walkthrough of the wizard.
+
+## Verify the Installation
+
+Run the health check to confirm everything is configured correctly:
+
+```bash
+profclaw doctor
+```
+
+Expected output:
+```
+profClaw Doctor v2.x.x
+--------------------------
+✓ Node.js 22.x detected
+✓ Configuration valid
+✓ AI Provider: Anthropic connected
+✓ Chat: Webchat ready on :3000
+✓ Security: Standard mode active
+✓ Storage: SQLite initialized
+--------------------------
+All checks passed!
+```
+
+<Tip>
+  If any checks fail, the `doctor` command prints the specific issue and a remediation hint. Common issues: missing API keys, port conflicts, or an outdated Node.js version.
+</Tip>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Onboarding Wizard" icon="wand-magic-sparkles" href="/getting-started/onboard">
+    Step-by-step walkthrough of the interactive setup wizard.
+  </Card>
+  <Card title="First Run" icon="play" href="/getting-started/first-run">
+    Start the server and send your first message to the agent.
+  </Card>
+  <Card title="Deployment Modes" icon="server" href="/getting-started/deployment-modes">
+    Compare pico, mini, and pro modes to pick the right one for your hardware.
+  </Card>
+  <Card title="Docker Deployment" icon="docker" href="/guides/docker-deployment">
+    Production-ready Docker setup with Redis and persistent storage.
+  </Card>
+</CardGroup>

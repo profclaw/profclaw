@@ -1,0 +1,195 @@
+---
+title: "Sessions"
+description: "Spawn, coordinate, and communicate between multi-agent sessions."
+---
+
+## Overview
+
+Session tools enable multi-agent orchestration. One agent can spawn a child session, send it a task, and check back on its progress - enabling parallel workstreams and specialized sub-agents.
+
+profClaw has two sets of session tools:
+- **Sessions tools** (`sessions_*`) - manage conversation sessions as persistent chat threads
+- **Session spawn tools** (`spawn_session`, `send_message`, etc.) - hierarchical agent-to-agent communication
+
+## Sessions Tools
+
+### `sessions_spawn`
+
+Spawn a new chat session with an optional initial task.
+
+**Security level**: `moderate` | **Tier**: Full
+
+<ParamField path="title" type="string">
+  Title for the new session. Auto-generated from the task if not provided.
+</ParamField>
+
+<ParamField path="task" type="string">
+  Initial task or message to send to the new session.
+</ParamField>
+
+<ParamField path="presetId" type="string" default="profclaw-assistant">
+  Skill preset for the session: `profclaw-assistant`, `code-assistant`, `git-workflow`, etc.
+</ParamField>
+
+<ParamField path="projectId" type="string">
+  Link this session to a project.
+</ParamField>
+
+<ParamField path="ticketId" type="string">
+  Link this session to a specific ticket for focused work.
+</ParamField>
+
+<ParamField path="mode" type="string" default="chat">
+  Session mode: `chat` (conversational) or `agentic` (autonomous execution).
+</ParamField>
+
+<ParamField path="metadata" type="object">
+  Additional key-value metadata to attach to the session.
+</ParamField>
+
+```json
+{
+  "title": "Refactor auth module",
+  "task": "Analyze src/auth/ and suggest a refactoring plan to split it into smaller modules",
+  "presetId": "code-assistant",
+  "mode": "agentic",
+  "ticketId": "PC-88"
+}
+```
+
+---
+
+### `sessions_list`
+
+List active or recent sessions.
+
+**Security level**: `safe` | **Tier**: Full
+
+<ParamField path="status" type="string">
+  Filter by status: `active`, `idle`, `completed`.
+</ParamField>
+
+<ParamField path="projectId" type="string">
+  Filter by project.
+</ParamField>
+
+<ParamField path="limit" type="number" default="20">
+  Maximum sessions to return.
+</ParamField>
+
+---
+
+### `sessions_send`
+
+Send a message to an existing session.
+
+**Security level**: `moderate` | **Tier**: Full
+
+<ParamField path="sessionId" type="string" required>
+  Target session ID.
+</ParamField>
+
+<ParamField path="message" type="string" required>
+  Message to send.
+</ParamField>
+
+---
+
+### `session_status`
+
+Get the current status and model of an active session.
+
+**Security level**: `safe` | **Tier**: Full
+
+<ParamField path="sessionId" type="string">
+  Session ID. Defaults to the current session.
+</ParamField>
+
+## Hierarchical Agent Tools
+
+These tools are used by an orchestrator agent to spawn and coordinate worker agents.
+
+### `spawn_session`
+
+Spawn a dedicated worker agent session.
+
+<ParamField path="name" type="string" required>
+  Name for the worker session.
+</ParamField>
+
+<ParamField path="instructions" type="string" required>
+  System-level instructions for the worker.
+</ParamField>
+
+<ParamField path="model" type="string">
+  Override the AI model for this worker (useful for routing cheap tasks to smaller models).
+</ParamField>
+
+---
+
+### `send_message`
+
+Send a message to a spawned worker and await a response.
+
+<ParamField path="sessionId" type="string" required>
+  Worker session ID returned by `spawn_session`.
+</ParamField>
+
+<ParamField path="message" type="string" required>
+  Task or message to send.
+</ParamField>
+
+<ParamField path="timeout" type="number" default="300000">
+  Maximum time to wait for a response in milliseconds.
+</ParamField>
+
+---
+
+### `receive_messages`
+
+Poll for new messages from a worker session without blocking.
+
+---
+
+### `list_sessions`
+
+List all spawned worker sessions from the current conversation.
+
+## Multi-Agent Patterns
+
+<Tabs>
+  <Tab title="Parallel Research">
+    Spawn multiple agents to research different topics simultaneously, then synthesize:
+
+    ```
+    1. spawn_session("researcher-1") - "Research Hono middleware patterns"
+    2. spawn_session("researcher-2") - "Research BullMQ queue patterns"
+    3. send_message("researcher-1", "find best practices")
+    4. send_message("researcher-2", "find best practices")
+    5. receive_messages from both
+    6. Synthesize results
+    ```
+  </Tab>
+  <Tab title="Code + Review Pipeline">
+    Separate code generation from review:
+
+    ```
+    1. spawn_session("coder") - "You write TypeScript"
+    2. spawn_session("reviewer") - "You review TypeScript code"
+    3. send_message("coder", "implement auth middleware")
+    4. send_message("reviewer", result from coder)
+    5. Apply reviewer feedback
+    ```
+  </Tab>
+</Tabs>
+
+## Related Tools
+
+<CardGroup cols={2}>
+  <Card title="profClaw Ops" icon="ticket" href="/tools/profclaw-ops">
+    Link sessions to tickets for focused work.
+  </Card>
+  <Card title="Memory" icon="brain" href="/tools/memory">
+    Share knowledge across sessions via memory files.
+  </Card>
+</CardGroup>

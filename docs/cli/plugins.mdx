@@ -1,0 +1,151 @@
+---
+title: "profclaw plugin"
+description: "Install, uninstall, list, create, and search profClaw plugins from npm and ClawHub."
+---
+
+## Synopsis
+
+```bash
+profclaw plugin <subcommand> [flags]
+```
+
+## Description
+
+`plugin` manages the profClaw plugin ecosystem. Plugins extend profClaw with new tools, chat channels, integrations, and skills. They can be installed from npm (packages named `profclaw-plugin-*`) or from ClawHub (the community skill registry). You can also scaffold new plugins from templates.
+
+## Subcommands
+
+| Subcommand | Description |
+|---|---|
+| `list` | List installed plugins from all sources |
+| `install <package>` | Install a plugin from npm |
+| `uninstall <package>` | Uninstall a plugin |
+| `search [query]` | Search npm and ClawHub for plugins |
+| `create <name>` | Scaffold a new plugin project |
+
+## `plugin list`
+
+Shows plugins from three sources: loaded plugin directories, marketplace-tracked installs, and ClawHub skills.
+
+<ParamField query="--clawhub" type="boolean">
+  Also show ClawHub-installed skills in the output.
+</ParamField>
+
+## `plugin install <package>`
+
+Installs a plugin from npm. The package name is resolved automatically: `github` becomes `profclaw-plugin-github`.
+
+<ParamField query="package" type="string" required>
+  Package name. Can be short form (`github`) or full form (`profclaw-plugin-github`).
+</ParamField>
+
+<ParamField query="-v, --version" type="string">
+  Specific version to install (e.g., `1.2.3`). Defaults to latest.
+</ParamField>
+
+## `plugin uninstall <package>`
+
+<ParamField query="package" type="string" required>
+  Package name to uninstall (short or full form).
+</ParamField>
+
+## `plugin search [query]`
+
+Searches both npm and ClawHub for plugins matching the query. Returns package names, descriptions, and categories.
+
+<ParamField query="query" type="string">
+  Search terms. Omit to browse all available plugins.
+</ParamField>
+
+<ParamField query="--npm-only" type="boolean">
+  Search npm packages only.
+</ParamField>
+
+<ParamField query="--clawhub-only" type="boolean">
+  Search ClawHub only.
+</ParamField>
+
+## `plugin create <name>`
+
+Scaffolds a new plugin project with the correct structure, `package.json`, and example code.
+
+<ParamField query="name" type="string" required>
+  Plugin name (without the `profclaw-plugin-` prefix). Creates `profclaw-plugin-<name>/`.
+</ParamField>
+
+<ParamField query="-t, --type" type="string" default="tool">
+  Plugin type: `tool`, `channel`, `integration`, or `skill`.
+</ParamField>
+
+<ParamField query="-d, --description" type="string">
+  Plugin description for `package.json`.
+</ParamField>
+
+<ParamField query="-a, --author" type="string">
+  Author name for `package.json`.
+</ParamField>
+
+<ParamField query="-o, --output" type="string">
+  Output directory. Defaults to `./profclaw-plugin-<name>/`.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash Search for plugins
+profclaw plugin search
+profclaw plugin search github
+profclaw plugin search --clawhub-only
+```
+
+```bash Install a plugin (short name)
+profclaw plugin install github
+```
+
+```bash Install a specific version
+profclaw plugin install github --version 1.2.0
+```
+
+```bash List installed plugins
+profclaw plugin list
+profclaw plugin list --clawhub
+```
+
+```bash Uninstall a plugin
+profclaw plugin uninstall github
+```
+
+```bash Scaffold a new tool plugin
+profclaw plugin create my-tool --type tool --description "My custom tool"
+```
+
+```bash Scaffold a channel integration
+profclaw plugin create slack-extended --type channel --author "myorg"
+```
+</CodeGroup>
+
+## Plugin Types
+
+| Type | Description |
+|---|---|
+| `tool` | Adds new tools to the agent execution registry |
+| `channel` | Adds a new chat channel provider (e.g., a messaging platform) |
+| `integration` | Connects to an external service (ticketing, CI/CD, etc.) |
+| `skill` | Adds pre-built AI skill definitions |
+
+## Plugin Directories
+
+Plugins are loaded from:
+
+```
+~/.profclaw/plugins/    # User-installed plugins
+./plugins/              # Project-local plugins
+node_modules/profclaw-plugin-*/  # npm-installed plugins
+```
+
+## Related
+
+- [`profclaw skill`](/cli/skills) - Manage skills (some provided by plugins)
+- [`profclaw tools`](/cli/tools) - Built-in tools
+- [`profclaw mcp`](/cli/mcp) - MCP server integrations
+- [Plugin Development Guide](/plugins) - Building and publishing plugins

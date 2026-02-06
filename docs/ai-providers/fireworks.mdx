@@ -1,0 +1,95 @@
+---
+title: "Fireworks AI"
+description: "Fast open-source model inference via Fireworks AI. Llama, Mixtral, and more at competitive speeds and pricing."
+---
+
+Fireworks AI specializes in fast inference for open-source models with serverless and dedicated deployment options.
+
+## Supported Models
+
+| Model | ID | Context | Notes |
+|-------|----|---------|-------|
+| Llama 3.1 70B | `accounts/fireworks/models/llama-v3p1-70b-instruct` | 128K | Default |
+| Llama 3.1 8B | `accounts/fireworks/models/llama-v3p1-8b-instruct` | 128K | Fast/cheap |
+| Mixtral 8x22B | `accounts/fireworks/models/mixtral-8x22b-instruct` | 65K | Large MoE |
+| DeepSeek R1 | `accounts/fireworks/models/deepseek-r1` | 64K | Reasoning |
+
+## Setup
+
+<Steps>
+  <Step title="Get an API key">
+    Sign up at [fireworks.ai](https://fireworks.ai). Free trial credits available.
+  </Step>
+  <Step title="Set the environment variable">
+    ```bash
+    export FIREWORKS_API_KEY=fw_...
+    ```
+  </Step>
+  <Step title="Verify">
+    ```bash
+    profclaw doctor --provider fireworks
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="FIREWORKS_API_KEY" type="string" required>
+  Your Fireworks AI API key. Format: `fw_...`
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    FIREWORKS_API_KEY=fw_...
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    providers:
+      fireworks:
+        api_key: "${FIREWORKS_API_KEY}"
+    ```
+  </Tab>
+</Tabs>
+
+## Model Aliases
+
+| Alias | Model |
+|-------|-------|
+| `fireworks` | accounts/fireworks/models/llama-v3p1-70b-instruct |
+
+## Usage Examples
+
+<CodeGroup>
+  ```bash CLI
+  profclaw chat --model fireworks "Analyze this log file"
+
+  # Full model ID
+  profclaw chat --model fireworks/accounts/fireworks/models/llama-v3p1-8b-instruct "Quick summary"
+  ```
+
+  ```typescript SDK
+  import { chat } from 'profclaw';
+
+  const response = await chat("Explain this error", {
+    model: "fireworks",
+  });
+  ```
+</CodeGroup>
+
+## Notes
+
+- API endpoint: `https://api.fireworks.ai/inference/v1` (OpenAI-compatible)
+- Status: Beta
+- Fireworks supports fine-tuned model deployment and dedicated instances.
+- Model IDs use the `accounts/fireworks/models/` prefix format.
+
+## Related
+
+- [AI Providers Overview](/ai-providers/overview) - Compare all 37 supported providers
+- [Together AI](/ai-providers/together) - Similar open-source model hosting option
+- [Groq](/ai-providers/groq) - Ultra-fast LPU inference for low-latency workloads
+- [profclaw provider](/cli/provider) - Add and test providers from the CLI

@@ -1,0 +1,121 @@
+---
+title: "Matrix"
+description: "Connect profClaw to Matrix/Element. Federated, open-source messaging with optional end-to-end encryption."
+---
+
+Matrix is an open-source, federated communication protocol. profClaw connects as a Matrix bot user, joining rooms and responding to messages across any Matrix homeserver.
+
+## Capabilities
+
+| Feature | Supported |
+|---------|-----------|
+| Direct messages | Yes |
+| Room messages | Yes |
+| End-to-end encryption | Optional |
+| File uploads | Yes |
+| Reactions | Yes |
+| Federation | Yes (any homeserver) |
+| Room allowlist | Yes |
+
+## Setup
+
+<Steps>
+  <Step title="Register a Matrix account">
+    Create a bot account on your Matrix homeserver (or matrix.org). Use a dedicated account, not your personal one.
+  </Step>
+  <Step title="Get an access token">
+    Log in and retrieve the access token:
+
+    ```bash
+    curl -X POST https://matrix.org/_matrix/client/r0/login \
+      -H "Content-Type: application/json" \
+      -d '{"type":"m.login.password","user":"profclaw-bot","password":"your-password"}'
+    # Copy the access_token from the response
+    ```
+  </Step>
+  <Step title="Get your User ID">
+    User ID format: `@profclaw-bot:matrix.org`
+  </Step>
+  <Step title="Configure profClaw">
+    ```bash
+    MATRIX_HOMESERVER_URL=https://matrix.org
+    MATRIX_ACCESS_TOKEN=syt_...
+    MATRIX_USER_ID=@profclaw-bot:matrix.org
+    ```
+  </Step>
+  <Step title="Invite the bot to rooms">
+    In Element or any Matrix client, invite `@profclaw-bot:matrix.org` to your room.
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="MATRIX_HOMESERVER_URL" type="string" required>
+  Your Matrix homeserver URL (e.g., `https://matrix.org` or `https://your-homeserver.com`).
+</ParamField>
+
+<ParamField path="MATRIX_ACCESS_TOKEN" type="string" required>
+  Bot user access token. Format: `syt_...`
+</ParamField>
+
+<ParamField path="MATRIX_USER_ID" type="string" required>
+  Bot user ID. Format: `@username:homeserver.com`
+</ParamField>
+
+<ParamField path="MATRIX_DEVICE_ID" type="string">
+  Device ID for E2EE sessions. Auto-generated if not set.
+</ParamField>
+
+<ParamField path="MATRIX_ENABLE_ENCRYPTION" type="boolean">
+  Enable end-to-end encryption. Defaults to `false`. Requires additional setup.
+</ParamField>
+
+<ParamField path="MATRIX_ALLOWED_ROOM_IDS" type="string">
+  Comma-separated list of room IDs the bot will respond in. Leave empty to allow all rooms.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    MATRIX_HOMESERVER_URL=https://matrix.org
+    MATRIX_ACCESS_TOKEN=syt_cHJvZmNsYXc_...
+    MATRIX_USER_ID=@profclaw:matrix.org
+    # Optional: restrict to specific rooms
+    MATRIX_ALLOWED_ROOM_IDS=!roomid1:matrix.org,!roomid2:matrix.org
+    ```
+  </Tab>
+  <Tab title="Self-hosted homeserver">
+    ```bash
+    MATRIX_HOMESERVER_URL=https://matrix.yourdomain.com
+    MATRIX_ACCESS_TOKEN=syt_...
+    MATRIX_USER_ID=@profclaw:yourdomain.com
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    chat:
+      matrix:
+        homeserver_url: "${MATRIX_HOMESERVER_URL}"
+        access_token: "${MATRIX_ACCESS_TOKEN}"
+        user_id: "${MATRIX_USER_ID}"
+        enable_encryption: false
+    ```
+  </Tab>
+</Tabs>
+
+## Notes
+
+- Matrix uses long-polling (`/sync`) by default - no public webhook URL required.
+- E2EE requires the bot's device to exchange keys with room members. Enable only if needed.
+- The bot joins rooms automatically when invited.
+- For Synapse homeservers, you can register the bot with admin-level access using the registration token.
+- Works with any Matrix client: Element, FluffyChat, Nheko, etc.
+
+## Related
+
+- [Chat Providers Overview](/chat-providers/overview) - Compare all 27 supported channels
+- [Rocket.Chat](/chat-providers/rocket-chat) - Another self-hosted open-source messaging option
+- [Signal](/chat-providers/signal) - End-to-end encrypted messaging via signald bridge
+- [profclaw channels](/cli/channels) - Enable and test the Matrix connection from the CLI

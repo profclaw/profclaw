@@ -1,0 +1,146 @@
+# Windsurf/Codeium Rules for profClaw
+
+## Project: AI Task Queue Orchestrator
+- Runtime: Node.js 22+ ES modules
+- Language: TypeScript 5.x strict
+- Framework: Hono + BullMQ + Redis
+
+---
+
+## VALIDATION-FIRST APPROACH
+
+You CAN create new code. VALIDATE your approach first:
+
+### Validation Workflow
+
+```
+┌─────────────────────────────────────────┐
+│  1. RESEARCH  → Docs, Context7, online  │
+│  2. VALIDATE  → Matches project style?  │
+│  3. IMPLEMENT → Write the code          │
+│  4. VERIFY    → Build & tests pass      │
+└─────────────────────────────────────────┘
+```
+
+### Use Context7 for Library Validation
+
+```
+"BullMQ worker concurrency use context7"
+"Hono CORS middleware use context7"
+"Vitest mocking patterns use context7"
+```
+
+### When Creating Something New
+
+- Research best practices online
+- Check existing code for patterns
+- Document reasoning in PR
+
+---
+
+## Code Patterns
+
+### Imports
+```typescript
+// External
+import { Queue, Worker } from 'bullmq';
+import { Hono } from 'hono';
+
+// Internal (always .js extension)
+import { processTask } from './queue/task-queue.js';
+
+// Types (use import type)
+import type { Task, TaskResult } from './types/task.js';
+```
+
+### Error Handling
+```typescript
+try {
+  const result = await operation();
+} catch (error) {
+  console.error(`[Context] Failed:`, error);
+  return {
+    success: false,
+    error: {
+      code: 'ERROR_CODE',
+      message: error instanceof Error ? error.message : 'Unknown',
+    },
+  };
+}
+```
+
+### New Adapter Pattern
+```typescript
+export class MyAdapter implements AgentAdapter {
+  readonly type = 'my-adapter';
+  readonly name = 'My Adapter';
+  readonly capabilities: AgentCapability[] = []; // Use EXISTING capabilities
+
+  async healthCheck(): Promise<AgentHealth> { }
+  async executeTask(task: Task): Promise<TaskResult> { }
+}
+```
+
+---
+
+## Boundaries
+
+### CAN Modify
+- `src/**/*.ts`
+- `src/**/*.test.ts`
+- `README.md` (if asked)
+
+### CANNOT Modify (without approval)
+- `package.json`
+- `tsconfig.json`
+- `.env*`
+- `*.lock`
+- `.github/**`
+
+### CANNOT Add
+- New npm dependencies
+- New dev dependencies
+- External API calls not in existing code
+
+---
+
+## Available Dependencies
+
+```
+hono         - HTTP framework
+bullmq       - Task queue
+ioredis      - Redis client
+zod          - Validation
+vitest       - Testing
+crypto       - Node.js built-in
+```
+
+---
+
+## Existing Types (src/types/)
+
+```typescript
+// Task types
+Task, TaskResult, CreateTaskInput, TaskStatus, TaskPriority, TaskSource
+
+// Agent types
+AgentAdapter, AgentConfig, AgentHealth, AgentCapability
+
+// Use these, don't create new ones unless necessary
+```
+
+---
+
+## Validation Before PR
+
+```bash
+pnpm build    # Must pass
+pnpm test     # Must pass
+pnpm lint     # Must pass
+```
+
+---
+
+## See Also
+
+- `AGENTS.md` - Detailed AI agent workflow

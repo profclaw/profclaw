@@ -1,0 +1,173 @@
+---
+title: "Devices API"
+description: "profClaw Devices API - Ed25519 device identity, pairing codes, QR-based pairing flow, and multi-device trust management for passwordless access."
+---
+
+The devices API manages the Ed25519-based device identity system and the pairing code flow for authorizing new devices without a username/password.
+
+## Device Identity
+
+Each profClaw instance generates a unique Ed25519 key pair on first run (`src/auth/device-identity.ts`). The public key serves as the device's identity for attestations and pairing.
+
+### GET /api/devices/identity
+
+Get the current device's public identity.
+
+```bash
+curl http://localhost:3000/api/devices/identity
+```
+
+**Response `200`**
+
+```json
+{
+  "deviceId": "dev_01a2b3c4",
+  "publicKey": "base64-encoded-ed25519-public-key",
+  "fingerprint": "sha256:abc123..."
+}
+```
+
+### POST /api/devices/attest
+
+Create a signed attestation for the current device.
+
+```bash
+curl -X POST http://localhost:3000/api/devices/attest \
+  -d '{"data": {"purpose": "pairing"}}'
+```
+
+**Response `200`**
+
+```json
+{
+  "attestation": {
+    "deviceId": "dev_01",
+    "publicKey": "...",
+    "attestation": {
+      "timestamp": "2026-03-12T10:00:00Z",
+      "nonce": "random-nonce",
+      "data": { "purpose": "pairing" },
+      "signature": "base64-signature"
+    }
+  }
+}
+```
+
+### POST /api/devices/verify
+
+Verify an attestation from another device.
+
+```bash
+curl -X POST http://localhost:3000/api/devices/verify \
+  -d '{
+    "attestation": { "deviceId": "...", "publicKey": "...", "attestation": {...} },
+    "maxAgeMs": 60000
+  }'
+```
+
+---
+
+## Pairing Codes
+
+Pairing codes let a new device (phone, second computer) connect to profClaw without password entry.
+
+### POST /api/devices/pairing/request
+
+Request a pairing code from the new device side.
+
+```bash
+curl -X POST http://localhost:3000/api/devices/pairing/request \
+  -d '{"requesterId": "mobile-app-id", "meta": {"platform": "ios"}}'
+```
+
+**Response `200`**
+
+```json
+{
+  "requestId": "pair_01",
+  "code": "ABC-123-XYZ",
+  "formatted": "ABC 123 XYZ",
+  "expiresAt": "2026-03-12T10:10:00Z"
+}
+```
+
+Codes expire after 10 minutes.
+
+### POST /api/devices/pairing/approve
+
+Approve a pending pairing request (from the already-trusted device).
+
+```bash
+curl -X POST http://localhost:3000/api/devices/pairing/approve \
+  -d '{"code": "ABC-123-XYZ", "approvedBy": "usr_01"}'
+```
+
+### POST /api/devices/pairing/reject
+
+Reject a pairing request.
+
+### GET /api/devices/pairing/status/:requestId
+
+Check if a pairing request has been approved.
+
+```bash
+curl http://localhost:3000/api/devices/pairing/status/pair_01
+```
+
+**Response `200`**
+
+```json
+{
+  "status": "approved",
+  "token": "session-token-for-new-device",
+  "approvedAt": "2026-03-12T10:01:00Z"
+}
+```
+
+### GET /api/devices/pairing/pending
+
+List all pending pairing requests (admin only).
+
+---
+
+## QR Pairing
+
+For mobile/desktop onboarding without typing codes:
+
+### GET /api/devices/pairing/qr
+
+Generate a QR code for the pairing flow.
+
+```bash
+curl http://localhost:3000/api/devices/pairing/qr
+```
+
+**Response `200`**
+
+```json
+{
+  "qrSvg": "<svg>...</svg>",
+  "pairingUrl": "profclaw://pair?code=ABC-123-XYZ&host=my-server.local",
+  "requestId": "pair_01",
+  "expiresAt": "2026-03-12T10:10:00Z"
+}
+```
+
+Display the SVG to the user and poll `GET /api/devices/pairing/status/:requestId` until `approved`.
+
+---
+
+## Cleanup
+
+```bash
+POST /api/devices/pairing/cleanup
+```
+
+Remove expired pairing requests. Run periodically or call after your own cleanup schedule.
+
+## Related
+
+- [Authentication API](/api-reference/auth) - Session and OAuth-based authentication
+- [Security Device Pairing](/security/device-pairing) - How device pairing works and security model
+- [profclaw device](/cli/device) - Manage paired devices from the CLI
+- [Security Overview](/security/overview) - Auth modes and trust management

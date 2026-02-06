@@ -1,0 +1,186 @@
+---
+title: "Audit Logging"
+description: "Immutable audit trail of all tool calls, approvals, security events, and compliance reporting."
+---
+
+## Overview
+
+The audit log records every security-relevant event in profClaw: tool calls, approval decisions, security guard blocks, authentication events, and configuration changes. Logs are append-only and cannot be modified after writing.
+
+## What Gets Logged
+
+| Event Type | Logged Fields |
+|-----------|---------------|
+| Tool call | Tool name, params (sanitized), user, channel, result, duration |
+| Tool blocked | Tool name, reason, security mode, risk level |
+| Approval request | Tool name, approver, decision (allow-once/allow-always/deny) |
+| Prompt guard hit | Risk level, score, pattern matched, input length |
+| SSRF guard block | URL (host only), reason, resolved IP |
+| FsGuard block | Path (normalized), operation, reason |
+| Auth event | Login, logout, token refresh, failed auth |
+| Config change | Field changed, old/new value (sensitive values masked) |
+| Plugin load | Plugin name, version, permissions requested |
+| Skill scan | Skill name, findings, risk level |
+
+## Log Format
+
+Each audit entry is a structured JSON line:
+
+```json
+{
+  "timestamp": "2026-03-12T09:15:32.445Z",
+  "eventType": "tool_call",
+  "level": "INFO",
+  "risk": "LOW",
+  "conversationId": "conv_abc123",
+  "userId": "user_xyz",
+  "channelProvider": "slack",
+  "channelId": "C01234567",
+  "tool": {
+    "name": "read_file",
+    "params": { "path": "src/index.ts" },
+    "result": "success",
+    "durationMs": 12
+  }
+}
+```
+
+Sensitive values in params (tokens, passwords, keys) are automatically masked: `"apiKey": "***"`.
+
+## Viewing Audit Logs
+
+### CLI
+
+```bash
+# View recent events
+profclaw audit log --last 100
+
+# Filter by event type
+profclaw audit log --type tool_call --last 50
+
+# Filter by risk level
+profclaw audit log --risk HIGH,CRITICAL
+
+# Filter by user
+profclaw audit log --user user_xyz
+
+# Search for specific tool
+profclaw audit log --tool exec
+```
+
+### Via API
+
+```http
+GET /api/audit/events?limit=50&type=tool_call&risk=HIGH
+Authorization: Bearer <token>
+```
+
+### Log Files
+
+Audit logs are written to:
+- **SQLite** (default): stored in profClaw's database
+- **File**: `~/.profclaw/audit.jsonl` (enable with `auditLog.file: true`)
+- **Syslog**: Forward to external syslog server (enterprise)
+
+## Configuration
+
+```yaml
+security:
+  auditLog:
+    enabled: true
+    retention: 90           # Days to retain events
+    file: false             # Also write to JSONL file
+    filePath: "~/.profclaw/audit.jsonl"
+    maskFields:
+      - "apiKey"
+      - "token"
+      - "password"
+      - "secret"
+    syslog:
+      enabled: false
+      host: "logs.company.com"
+      port: 514
+      protocol: "udp"
+```
+
+## Compliance Reports
+
+Generate compliance reports from the audit log:
+
+```bash
+# Summary report (last 30 days)
+profclaw audit report --days 30
+
+# Tool usage breakdown
+profclaw audit report --type tool-usage
+
+# Security events only
+profclaw audit report --type security
+
+# Export as CSV
+profclaw audit report --format csv --output audit-report.csv
+```
+
+Sample report output:
+```
+Audit Report: 2026-02-10 to 2026-03-12
+Period: 30 days
+
+Tool Calls: 2,847 total
+  - read_file:     1,203 (42%)
+  - web_fetch:       412 (14%)
+  - exec:            298 (10%)
+  - edit_file:       201  (7%)
+
+Security Events: 23 total
+  - Prompt guard warnings:  8
+  - FsGuard blocks:         6
+  - Approval denials:       5
+  - SSRF blocks:            4
+
+Risk Distribution:
+  LOW:      2,831 (99.4%)
+  MEDIUM:       9  (0.3%)
+  HIGH:         4  (0.1%)
+  CRITICAL:     0  (0.0%)
+```
+
+## Alerting
+
+Configure alerts for high-risk events:
+
+```yaml
+security:
+  auditLog:
+    alerts:
+      - event: tool_blocked
+        risk: HIGH
+        notify: slack          # Send to Slack channel
+        channel: "#security"
+
+      - event: prompt_guard
+        risk: CRITICAL
+        notify: email
+        to: "admin@example.com"
+```
+
+## Log Retention
+
+Audit logs are retained for 90 days by default. After retention expires, entries are permanently deleted. Adjust retention for compliance requirements:
+
+```yaml
+security:
+  auditLog:
+    retention: 365    # 1 year for compliance
+```
+
+## Related Docs
+
+<CardGroup cols={2}>
+  <Card title="Guards" icon="lock" href="/security/guards">
+    Guard decisions that generate audit events.
+  </Card>
+  <Card title="Security Modes" icon="shield" href="/security/modes">
+    Mode decisions are audit-logged.
+  </Card>
+</CardGroup>

@@ -1,0 +1,101 @@
+---
+title: "profclaw cost"
+description: "View AI token usage, cost analytics, and budget status across models and agents."
+---
+
+## Synopsis
+
+```bash
+profclaw cost <subcommand> [flags]
+```
+
+## Description
+
+`cost` provides visibility into AI API spending. It reads usage data from the profClaw server, which tracks token consumption per task, model, and agent. Use it to monitor budgets, identify expensive operations, and spot cost anomalies.
+
+## Subcommands
+
+| Subcommand | Alias | Description |
+|---|---|---|
+| `summary` | `sum` | Aggregate cost and token totals with a 7-day daily breakdown |
+| `budget` | - | Show budget utilization with a progress bar |
+| `analytics` | `stats` | Detailed breakdown by model, agent, and day |
+
+## `cost summary`
+
+Shows total cost, total tokens, task count, and the last 7 days of daily usage.
+
+<ParamField query="--json" type="boolean">
+  Output as JSON.
+</ParamField>
+
+## `cost budget`
+
+Displays current daily spend against the configured daily budget limit. The progress bar changes color at 50% (yellow) and 80% (red). Shows a warning when the budget is exceeded.
+
+<ParamField query="--json" type="boolean">
+  Output as JSON with raw budget config and usage data.
+</ParamField>
+
+## `cost analytics`
+
+Provides breakdowns by model and by agent, plus a 7-day daily table. Use this to identify which models or agents are driving costs.
+
+<ParamField query="--json" type="boolean">
+  Output as JSON.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash View cost summary
+profclaw cost summary
+```
+
+```bash Check budget utilization
+profclaw cost budget
+```
+
+```bash Detailed analytics by model and agent
+profclaw cost analytics
+```
+
+```bash Export analytics as JSON
+profclaw cost analytics --json | jq '.byModel'
+```
+</CodeGroup>
+
+## Example Output
+
+```
+## Cost Summary
+
+Total Cost:   $1.2340
+Total Tokens: 1,234,567
+Task Count:   89
+
+### Daily Breakdown
+Date         Cost     Tokens
+2026-03-12   $0.18    145,200
+2026-03-11   $0.24    198,400
+2026-03-10   $0.09    72,100
+...
+```
+
+## Budget Configuration
+
+Set daily and monthly cost limits in `config/settings.yml` or via environment variables:
+
+```yaml
+# config/settings.yml
+costs:
+  dailyLimit: 5.00      # USD
+  monthlyLimit: 100.00  # USD
+  alerts: [50, 80, 95]  # Alert at these percentages
+```
+
+## Related
+
+- [`profclaw status`](/cli/status) - System overview including provider health
+- [`profclaw summary`](/cli/summary) - Browse agent work summaries
+- [`profclaw agent`](/cli/agent) - Agent stats including task counts

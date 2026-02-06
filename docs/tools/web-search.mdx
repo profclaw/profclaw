@@ -1,0 +1,138 @@
+---
+title: "Web Search"
+description: "Search the web using Brave, Serper, SearXNG, or Tavily. Requires API key configuration."
+---
+
+## Overview
+
+`web_search` lets the agent query a search engine and get back a ranked list of results with titles, URLs, and snippets. This is useful for current events, recent documentation, or researching topics the model may not know about.
+
+The tool is **config-gated** - it checks for a configured search provider at startup and marks itself unavailable if none is found. This prevents the model from attempting searches that will always fail.
+
+## Supported Providers
+
+<Tabs>
+  <Tab title="Brave Search">
+    Privacy-focused search engine with a dedicated API.
+
+    ```yaml
+    # settings.yml
+    integrations:
+      webSearch:
+        provider: brave
+        apiKey: "BSA-xxxxxxxxxxxx"
+    ```
+
+    Get your key at [brave.com/search/api](https://brave.com/search/api/).
+  </Tab>
+  <Tab title="Serper">
+    Google search results via the Serper API.
+
+    ```yaml
+    integrations:
+      webSearch:
+        provider: serper
+        apiKey: "your-serper-key"
+    ```
+
+    Get your key at [serper.dev](https://serper.dev/).
+  </Tab>
+  <Tab title="SearXNG">
+    Self-hosted meta-search engine. No API key required.
+
+    ```yaml
+    integrations:
+      webSearch:
+        provider: searxng
+        baseUrl: "https://your-searxng-instance.com"
+    ```
+  </Tab>
+  <Tab title="Tavily">
+    AI-optimized search API with clean result extraction.
+
+    ```yaml
+    integrations:
+      webSearch:
+        provider: tavily
+        apiKey: "tvly-xxxxxxxxxxxx"
+    ```
+
+    Get your key at [tavily.com](https://tavily.com/).
+  </Tab>
+</Tabs>
+
+## Tool: `web_search`
+
+**Security level**: `safe` | **Tier**: Standard
+
+<ParamField path="query" type="string" required>
+  The search query. Be specific - use terms like "site:docs.example.com" to scope searches.
+</ParamField>
+
+<ParamField path="count" type="number" default="10">
+  Number of results to return. Range: 1-20.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```json General search
+{
+  "query": "Hono middleware error handling TypeScript 2026",
+  "count": 5
+}
+```
+```json Search documentation
+{
+  "query": "site:docs.anthropic.com tool use streaming",
+  "count": 10
+}
+```
+```json Research a topic
+{
+  "query": "BullMQ job progress tracking patterns",
+  "count": 8
+}
+```
+</CodeGroup>
+
+## Response Format
+
+```json
+{
+  "success": true,
+  "data": {
+    "query": "Hono middleware error handling",
+    "provider": "brave",
+    "results": [
+      {
+        "title": "Error Handling - Hono",
+        "url": "https://hono.dev/guides/error-handling",
+        "snippet": "Hono has built-in error handling middleware..."
+      }
+    ],
+    "totalResults": 5
+  }
+}
+```
+
+## Checking Availability
+
+You can check the current search configuration from the CLI:
+
+```bash
+profclaw config show --section integrations.webSearch
+```
+
+Or from within a conversation, the model can check availability programmatically before attempting a search.
+
+## Related Tools
+
+<CardGroup cols={2}>
+  <Card title="Web Fetch" icon="globe" href="/tools/web-fetch">
+    Fetch a specific URL once you have found it via search.
+  </Card>
+  <Card title="Browser Tools" icon="browser" href="/tools/browser-tools">
+    Browse pages that require JavaScript execution.
+  </Card>
+</CardGroup>

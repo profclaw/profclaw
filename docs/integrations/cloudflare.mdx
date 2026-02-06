@@ -1,0 +1,107 @@
+---
+title: "Cloudflare Integration"
+description: "Deploy profClaw to Cloudflare Workers and use D1, R2, and KV for storage"
+---
+
+profClaw can run on Cloudflare's edge infrastructure. Workers host the Hono API, D1 provides SQLite-compatible database storage, R2 handles file storage, and KV stores session and configuration data.
+
+## Supported Services
+
+| Service | profClaw Use Case |
+|---------|-------------------|
+| Workers | Host the Hono API server |
+| D1 (SQLite) | Task, conversation, and memory storage |
+| R2 (Object Storage) | File attachments, backup exports |
+| KV | Session tokens, rate limit counters, feature flags |
+| Tunnels | Expose local profClaw to webhooks (via `cloudflared`) |
+
+## Setup
+
+### 1. Install Wrangler
+
+```bash
+pnpm add -g wrangler
+wrangler login
+```
+
+### 2. Configure environment variables
+
+```bash
+CLOUDFLARE_API_TOKEN=your-api-token
+CLOUDFLARE_ACCOUNT_ID=your-account-id
+```
+
+The API token needs permissions: `Workers Scripts:Edit`, `D1:Edit`, `R2:Edit`, `KV:Edit`.
+
+### 3. Create resources
+
+```bash
+# Create D1 database
+wrangler d1 create profclaw-db
+
+# Create R2 bucket
+wrangler r2 bucket create profclaw-files
+
+# Create KV namespace
+wrangler kv:namespace create profclaw-sessions
+```
+
+### 4. Configure wrangler.toml
+
+```toml
+name = "profclaw"
+main = "dist/server.js"
+compatibility_date = "2024-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "profclaw-db"
+database_id = "your-database-id"
+
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "profclaw-files"
+
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "your-kv-namespace-id"
+```
+
+## Cloudflare Tunnels
+
+Use `cloudflared` to expose your local profClaw instance for webhook development:
+
+```bash
+# Install cloudflared
+brew install cloudflare/cloudflare/cloudflared
+
+# Authenticate
+cloudflared tunnel login
+
+# Create tunnel
+cloudflared tunnel create profclaw
+
+# Route traffic
+cloudflared tunnel route dns profclaw profclaw.yourdomain.com
+
+# Run tunnel
+cloudflared tunnel run profclaw
+```
+
+The `cloudflare-tunnel.ts` module (`src/integrations/cloudflare-tunnel.ts`) provides a programmatic interface for managing tunnel status and health checks.
+
+## D1 Storage Adapter
+
+profClaw's storage layer abstracts over D1 and LibSQL. When `CLOUDFLARE_D1_DATABASE_ID` is set, the D1 adapter is used automatically. The schema is compatible between local SQLite (via libsql) and Cloudflare D1.
+
+## R2 File Storage
+
+Files uploaded via the chat or backup routes are stored in R2 when the `R2_BUCKET` binding is configured. The bucket serves as the target for:
+
+- Conversation attachments
+- Backup exports (`.json` archives)
+- Skill packages
+
+## KV Rate Limiting
+
+When Redis is not available (pico/mini mode), KV namespaces can be used for rate limit counters and session token storage. This allows profClaw to run fully serverless on Cloudflare without a Redis dependency.

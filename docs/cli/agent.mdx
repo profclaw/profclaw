@@ -1,0 +1,97 @@
+---
+title: "profclaw agent"
+description: "List and inspect AI agents configured in profClaw."
+---
+
+## Synopsis
+
+```bash
+profclaw agent <subcommand> [flags]
+```
+
+## Description
+
+`agent` commands let you inspect the AI agents that are registered and running in profClaw. Agents are responsible for processing tasks and chat sessions. Each agent has a type (e.g., `claude`, `openai`, `ollama`), a name, and health/performance statistics.
+
+## Subcommands
+
+| Subcommand | Alias | Description |
+|---|---|---|
+| `list` | `ls` | List all configured agents with health and stats |
+| `status` | `health` | Show full health status of all agents |
+| `types` | - | List available agent type identifiers |
+
+## `agent list`
+
+Lists all configured agents in a table showing type, name, health status, completed tasks, and failed tasks.
+
+<ParamField query="--json" type="boolean">
+  Output as JSON array.
+</ParamField>
+
+## `agent status`
+
+Fetches the `/health` endpoint and displays version, overall status, and per-agent health with last-check timestamps.
+
+<ParamField query="--json" type="boolean">
+  Output as JSON.
+</ParamField>
+
+## `agent types`
+
+Lists the agent type identifiers available in this profClaw installation (e.g., `claude`, `openai`, `gemini`, `ollama`).
+
+<ParamField query="--json" type="boolean">
+  Output as JSON array of strings.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash List all agents
+profclaw agent list
+```
+
+```bash List agents as JSON
+profclaw agent list --json
+```
+
+```bash Check agent health
+profclaw agent status
+```
+
+```bash Show available agent types
+profclaw agent types
+```
+</CodeGroup>
+
+## Example Output
+
+```
+Type      Name             Status      Completed  Failed
+claude    Claude Agent     ● Healthy   142        3
+openai    GPT-4o Agent     ● Healthy   87         1
+ollama    Llama3 Agent     ● Unhealthy 0          5
+```
+
+## Agent Configuration
+
+Agents are configured in `config/agents.yml`. See the [configuration reference](/configuration) for available options.
+
+```yaml
+# config/agents.yml
+agents:
+  - type: claude
+    name: Claude Agent
+    model: claude-sonnet-4-6
+  - type: openai
+    name: GPT-4o Agent
+    model: gpt-4o
+```
+
+## Related
+
+- [`profclaw task`](/cli/task) - Create and track tasks run by agents
+- [`profclaw chat`](/cli/chat) - Chat directly with an agent
+- [`profclaw status`](/cli/status) - System-wide health overview
+- [AI Providers](/ai-providers) - Configure provider credentials
