@@ -1,0 +1,67 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Environment files
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Claude Code / AI tooling (private)
+.claude/
+CLAUDE.md
+AGENTS.md
+MEMORY.md
+PLAN.md
+
+# Database files
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+data/
+
+# Internal docs (not for OSS)
+docs/
+!docs/INSTALLATION.md
+docs-local/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Test coverage
+coverage/
+playwright-report/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Lock files (use pnpm-lock.yaml only)
+package-lock.json
+yarn.lock
+
+# Cache
+.eslintcache
+.cache/
+*.turbo/

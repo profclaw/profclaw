@@ -1,0 +1,46 @@
+# Model Pricing Configuration
+# Rates are per 1,000,000 tokens in USD
+
+pricing:
+  # Anthropic Models
+  claude-3-5-sonnet:
+    provider: anthropic
+    inputRate: 3.00
+    outputRate: 15.00
+  claude-3-opus:
+    provider: anthropic
+    inputRate: 15.00
+    outputRate: 75.00
+  claude-3-haiku:
+    provider: anthropic
+    inputRate: 0.25
+    outputRate: 1.25
+
+  # OpenAI Models
+  gpt-4o:
+    provider: openai
+    inputRate: 5.00
+    outputRate: 15.00
+  gpt-4-turbo:
+    provider: openai
+    inputRate: 10.00
+    outputRate: 30.00
+  gpt-3.5-turbo:
+    provider: openai
+    inputRate: 0.50
+    outputRate: 1.50
+
+  # Google Models
+  gemini-1.5-pro:
+    provider: google
+    inputRate: 3.50
+    outputRate: 10.50
+  gemini-1.5-flash:
+    provider: google
+    inputRate: 0.35
+    outputRate: 1.05
+
+defaultPricing:
+  provider: other
+  inputRate: 5.00
+  outputRate: 15.00

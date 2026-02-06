@@ -1,0 +1,168 @@
+# General System Settings
+
+# Storage configuration
+# tier: 'local' for persistent SQLite, 'memory' for in-memory (lost on restart)
+storage:
+  tier: local
+  dbPath: ./data/glinr.db
+
+server:
+  port: 3000
+  cors:
+    origin: "http://localhost:5173"
+  enableCron: true
+
+# Agent auto-discovery
+# When enabled, the system will auto-detect available agents (e.g., claude CLI)
+# Set to false to only use agents explicitly defined in agents.yml
+agents:
+  autoDiscover: false
+
+queue:
+  name: ai-tasks
+  notificationName: ai-task-notifications
+  concurrency: 2
+  notificationConcurrency: 5
+  redis:
+    url: redis://localhost:6379
+  retry:
+    attempts: 3
+    backoff: 5000 # ms
+    type: exponential
+
+integrations:
+  github:
+    enabled: true
+    webhookPath: /webhooks/github
+  jira:
+    enabled: true
+    webhookPath: /webhooks/jira
+  linear:
+    enabled: true
+    webhookPath: /webhooks/linear
+    aiTaskLabel: ai-task
+    aiReviewLabel: ai-review
+
+ai:
+  providers:
+    openai:
+      apiKey: "${OPENAI_API_KEY}"
+      embeddingModel: text-embedding-3-small
+    ollama:
+      baseUrl: http://localhost:11434
+      summaryModel: llama3.2:3b
+      embeddingModel: mxbai-embed-large
+  defaultEmbeddingProvider: openai
+  defaultSummaryProvider: ollama  # 'ollama' for local, 'openai' for cloud, 'auto' for fallback
+
+# =========================================================================
+# SYNC ENGINE CONFIGURATION (Phase 16 - AI-Native Tickets)
+# =========================================================================
+sync:
+  # Global sync settings
+  enabled: false  # Set to true to enable sync
+  intervalMs: 60000  # Sync interval (1 minute)
+  maxRetries: 3
+  retryDelayMs: 1000
+  enableWebhooks: true
+
+  # Conflict resolution strategy
+  # Options: 'local_wins' | 'remote_wins' | 'latest_wins' | 'manual'
+  conflictStrategy: latest_wins
+
+  # Platform configurations
+  # Each platform can be enabled/disabled independently
+  platforms:
+    linear:
+      enabled: false
+      apiKey: "${LINEAR_API_KEY}"
+      teamId: "${LINEAR_TEAM_ID}"  # Optional: specific team, or uses first team
+      syncDirection: bidirectional  # push | pull | bidirectional
+      webhookSecret: "${LINEAR_WEBHOOK_SECRET}"
+
+    github:
+      enabled: false
+      accessToken: "${GITHUB_TOKEN}"
+      owner: "${GITHUB_OWNER}"  # Repository owner
+      repo: "${GITHUB_REPO}"    # Repository name
+      syncDirection: bidirectional
+      webhookSecret: "${GITHUB_WEBHOOK_SECRET}"
+      # Labels to sync (empty = all issues)
+      syncLabels: []
+
+    jira:
+      enabled: false
+      baseUrl: "${JIRA_BASE_URL}"  # e.g., https://yourcompany.atlassian.net
+      email: "${JIRA_EMAIL}"
+      apiToken: "${JIRA_API_TOKEN}"
+      projectKey: "${JIRA_PROJECT_KEY}"
+      syncDirection: bidirectional
+
+    plane:
+      enabled: false
+      baseUrl: "${PLANE_BASE_URL}"
+      apiKey: "${PLANE_API_KEY}"
+      workspaceId: "${PLANE_WORKSPACE_ID}"
+      projectId: "${PLANE_PROJECT_ID}"
+      syncDirection: bidirectional
+
+# =========================================================================
+# SESSION SPAWN CONFIGURATION (Phase 23 - Parallel Agent Sessions)
+# =========================================================================
+# Enables spawning child sessions for parallel work within a conversation.
+# Child sessions can work autonomously on subtasks while parent continues.
+sessionSpawn:
+  # Enable/disable session spawn feature
+  enabled: true
+
+  # Maximum depth of session hierarchy (0 = root only, 3 = up to 3 levels deep)
+  # Environment override: SESSION_SPAWN_MAX_DEPTH
+  maxDepth: ${SESSION_SPAWN_MAX_DEPTH:-3}
+
+  # Maximum children a single session can spawn
+  # Environment override: SESSION_SPAWN_MAX_CHILDREN
+  maxChildrenPerSession: ${SESSION_SPAWN_MAX_CHILDREN:-5}
+
+  # Default token budget for child sessions (root sessions get 5x this)
+  # Environment override: SESSION_SPAWN_DEFAULT_BUDGET
+  defaultBudget: ${SESSION_SPAWN_DEFAULT_BUDGET:-20000}
+
+  # Default max steps (tool calls) for child sessions (root sessions get 5x this)
+  # Environment override: SESSION_SPAWN_DEFAULT_STEPS
+  defaultSteps: ${SESSION_SPAWN_DEFAULT_STEPS:-20}
+
+  # Root session multiplier (root gets N times the child defaults)
+  rootMultiplier: ${SESSION_SPAWN_ROOT_MULTIPLIER:-5}
+
+  # Default message priority (1-10, 10 = highest)
+  defaultMessagePriority: ${SESSION_SPAWN_MESSAGE_PRIORITY:-5}
+
+  # Maximum message priority allowed
+  maxMessagePriority: 10
+
+  # Auto-cleanup settings for old sessions
+  cleanup:
+    # Enable automatic cleanup of old sessions
+    enabled: true
+    # Cleanup interval in milliseconds (default: 1 hour)
+    intervalMs: ${SESSION_SPAWN_CLEANUP_INTERVAL:-3600000}
+    # Delete completed sessions older than this (default: 24 hours)
+    maxAgeMs: ${SESSION_SPAWN_MAX_AGE:-86400000}
+
+# =========================================================================
+# STATUS MAPPING (optional)
+# =========================================================================
+# Status mapping overrides (optional)
+# Use this to customize how GLINR statuses map to external platforms
+statusMapping:
+  # GLINR status -> external platform status
+  # Format: glinr_status: { platform: external_status }
+  # Uncomment and modify as needed:
+  # backlog:
+  #   linear: Backlog
+  #   github: open
+  #   jira: To Do
+  # in_progress:
+  #   linear: In Progress
+  #   github: open
+  #   jira: In Progress

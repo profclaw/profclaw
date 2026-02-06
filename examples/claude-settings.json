@@ -1,0 +1,26 @@
+{
+  "$schema": "https://claude.ai/schemas/settings.json",
+  "description": "Example Claude Code settings with GLINR hooks integration",
+
+  "hooks": {
+    "PostToolUse": {
+      "command": "curl -s -X POST http://localhost:3000/api/hook/tool-use -H 'Content-Type: application/json' -d \"$CLAUDE_HOOK_PAYLOAD\""
+    },
+    "Stop": {
+      "command": "curl -s -X POST http://localhost:3000/api/hook/session-end -H 'Content-Type: application/json' -d \"$CLAUDE_HOOK_PAYLOAD\""
+    },
+    "UserPromptSubmit": {
+      "command": "curl -s -X POST http://localhost:3000/api/hook/prompt-submit -H 'Content-Type: application/json' -d \"$CLAUDE_HOOK_PAYLOAD\""
+    }
+  },
+
+  "mcpServers": {
+    "glinr": {
+      "command": "node",
+      "args": ["/path/to/glinr-task-manager/dist/mcp/server.js"],
+      "env": {
+        "GLINR_API_URL": "http://localhost:3000"
+      }
+    }
+  }
+}

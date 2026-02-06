@@ -1,0 +1,85 @@
+# Cursor AI Rules for GLINR Task Manager
+
+## Project Context
+Task queue orchestrator for AI agents. TypeScript + Hono + BullMQ + Redis.
+
+## CRITICAL: Validate Your Approach
+
+You CAN create new code. VALIDATE first:
+
+1. New APIs → Research via Context7 or official docs
+2. New files → Follow existing directory conventions
+3. New deps → Propose in PR description
+4. New types → Check src/types/ first, create if needed
+
+## Validation Workflow
+
+```
+RESEARCH → VALIDATE → IMPLEMENT → VERIFY
+```
+
+Use Context7 for library docs:
+```
+"BullMQ job.moveToDelayed use context7"
+"Hono middleware patterns use context7"
+"Zod schema inference use context7"
+```
+
+Search online for best practices when needed.
+
+## Code Style
+
+- TypeScript strict mode
+- ES modules with `.js` extensions in imports
+- Use `type` imports: `import type { Task } from './types.js'`
+- Explicit return types on exported functions
+- Error handling with typed responses
+
+## File Structure
+
+```
+src/
+├── adapters/      # AI agent adapters (OpenClaw, Claude)
+├── cron/          # Scheduled jobs
+├── integrations/  # External services (GitHub, Jira)
+├── queue/         # BullMQ task queue
+├── types/         # TypeScript types
+└── server.ts      # Hono HTTP server
+```
+
+## Allowed Dependencies (already installed)
+
+- hono (HTTP framework)
+- bullmq (queue)
+- ioredis (Redis)
+- zod (validation)
+- vitest (testing)
+
+DO NOT add new dependencies without approval.
+
+## Files You Cannot Modify
+
+- package.json (ask first)
+- tsconfig.json
+- .env files
+- lock files
+- .github/ workflows
+
+## Commit Convention
+
+```
+<type>: <description>
+
+Types: feat, fix, perf, refactor, docs, test, chore
+```
+
+## When Uncertain
+
+- ASK for clarification
+- STATE assumptions in comments
+- DO LESS correctly rather than MORE incorrectly
+
+## Read More
+
+- CLAUDE.md - Full project conventions
+- AGENTS.md - Detailed workflow for AI agents

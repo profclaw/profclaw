@@ -1,0 +1,15 @@
+# Budget Configuration
+
+budget:
+  dailyLimit: 50.00
+  monthlyLimit: 500.00
+  
+alerts:
+  thresholds:
+    - 50
+    - 80
+    - 90
+    - 100
+  channels:
+    - log
+    # Future: slack, email

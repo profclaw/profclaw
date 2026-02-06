@@ -1,0 +1,147 @@
+{
+  "name": "glinr-task-manager",
+  "version": "1.0.0",
+  "description": "AI-native task orchestration platform — manage projects, tickets, and workflows through natural language",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./cli": {
+      "import": "./dist/cli/index.js"
+    },
+    "./cli-entry": "./glinr.mjs",
+    "./mcp": {
+      "import": "./dist/mcp/server.js"
+    }
+  },
+  "bin": {
+    "glinr": "glinr.mjs",
+    "glinr-mcp": "./dist/mcp/server.js"
+  },
+  "files": [
+    "glinr.mjs",
+    "dist/**/*.js",
+    "dist/**/*.json",
+    "config/**",
+    "skills/**",
+    "docker-compose.yml",
+    "Dockerfile",
+    ".env.example",
+    "README.md",
+    "LICENSE",
+    "CONTRIBUTING.md"
+  ],
+  "scripts": {
+    "dev": "pnpm kill:ports && concurrently -n api,ui -c blue,magenta \"pnpm dev:api\" \"pnpm dev:ui\"",
+    "dev:api": "tsx watch src/server.ts",
+    "dev:ui": "pnpm --dir ui dev",
+    "kill:ports": "lsof -ti :3000 | xargs kill -9 2>/dev/null || true; lsof -ti :5173 | xargs kill -9 2>/dev/null || true",
+    "build": "tsc && pnpm --dir ui build",
+    "prepublishOnly": "pnpm build",
+    "start": "node dist/server.js",
+    "glinr": "node glinr.mjs",
+    "mcp": "node dist/mcp/server.js",
+    "mcp:dev": "tsx src/mcp/server.ts",
+    "cli": "tsx src/cli/index.ts",
+    "cli:dev": "tsx watch src/cli/index.ts",
+    "db:migrate": "drizzle-kit migrate",
+    "db:generate": "drizzle-kit generate",
+    "db:studio": "drizzle-kit studio",
+    "test": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui",
+    "lint": "eslint src/",
+    "ui": "pnpm --dir ui dev"
+  },
+  "keywords": [
+    "ai-agent",
+    "task-manager",
+    "project-management",
+    "mcp",
+    "model-context-protocol",
+    "agentic",
+    "claude",
+    "openai",
+    "ollama",
+    "automation",
+    "github-integration",
+    "jira-integration",
+    "linear-integration",
+    "slack-bot",
+    "discord-bot",
+    "telegram-bot"
+  ],
+  "author": "GLINCKER <dev@glincker.com>",
+  "license": "AGPL-3.0",
+  "homepage": "https://glinr.dev",
+  "bugs": {
+    "url": "https://github.com/GLINCKER/glinr-task-manager/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GLINCKER/glinr-task-manager.git"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.35",
+    "@ai-sdk/azure": "^3.0.26",
+    "@ai-sdk/google": "^3.0.20",
+    "@ai-sdk/openai": "^3.0.25",
+    "@hono/node-server": "^1.13.8",
+    "@hono/zod-validator": "^0.4.3",
+    "@libsql/client": "^0.17.0",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "ai": "^6.0.68",
+    "ai-sdk-ollama": "^3.3.0",
+    "bullmq": "^5.34.8",
+    "chalk": "^5.4.1",
+    "chokidar": "^5.0.0",
+    "cli-table3": "^0.6.5",
+    "commander": "^13.1.0",
+    "dockerode": "^4.0.9",
+    "drizzle-orm": "^0.39.1",
+    "figlet": "^1.8.0",
+    "glob": "^13.0.1",
+    "hono": "^4.6.16",
+    "ioredis": "^5.4.2",
+    "js-yaml": "^4.1.1",
+    "minimatch": "^10.1.2",
+    "node-pty": "^1.1.0",
+    "openai": "^6.17.0",
+    "ora": "^8.1.1",
+    "playwright-core": "^1.58.1",
+    "postgres": "^3.4.5",
+    "proper-lockfile": "^4.1.2",
+    "sqlite-vec": "0.1.7-alpha.2",
+    "sqlite3": "^5.1.7",
+    "zod": "^3.24.1",
+    "zod-to-json-schema": "^3.25.1"
+  },
+  "devDependencies": {
+    "@types/dockerode": "^4.0.1",
+    "@types/figlet": "^1.7.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.10.7",
+    "@types/proper-lockfile": "^4.1.4",
+    "@types/sqlite3": "^5.1.0",
+    "@vitest/coverage-v8": "^4.0.18",
+    "@vitest/ui": "^4.0.18",
+    "concurrently": "^9.1.2",
+    "drizzle-kit": "^0.30.2",
+    "eslint": "^9.18.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.54.0",
+    "vitest": "^4.0.18"
+  }
+}

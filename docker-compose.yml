@@ -1,0 +1,181 @@
+# Profiles:
+#   (default)   glinr + redis
+#   ai          + ollama (free local AI)
+#   tools       + redis-commander
+#   monitoring  + prometheus + grafana
+
+services:
+  # ===================
+  # GLINR Task Manager
+  # ===================
+  glinr:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: glinr-task-manager
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      # Core
+      - NODE_ENV=production
+      - PORT=3000
+      # Redis
+      - REDIS_URL=redis://redis:6379
+      - GLINR_REQUIRE_REDIS=true
+      # Database
+      - DATABASE_URL=file:/app/data/glinr.db
+      # OpenClaw
+      - OPENCLAW_BASE_URL=${OPENCLAW_BASE_URL:-http://host.docker.internal:18789}
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}
+      - OPENCLAW_WORKING_DIR=/workspace
+      # GitHub
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET}
+      - GITHUB_AI_TASK_LABEL=${GITHUB_AI_TASK_LABEL:-ai-task}
+      # Task Queue
+      - TASK_CONCURRENCY=${TASK_CONCURRENCY:-2}
+      # AI Providers (optional)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      # Ollama (free local AI)
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+      # Tool Execution
+      - POOL_MAX_CONCURRENT=${POOL_MAX_CONCURRENT:-50}
+      - POOL_TIMEOUT_MS=${POOL_TIMEOUT_MS:-300000}
+    volumes:
+      - glinr-data:/app/data
+      - workspace:/workspace
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - glinr-network
+
+  # ===================
+  # Redis (Task Queue)
+  # ===================
+  redis:
+    image: redis:7-alpine
+    container_name: glinr-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - glinr-network
+
+  # ===================
+  # Ollama (Free Local AI)
+  # ===================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: glinr-ollama
+    volumes:
+      - ollama-data:/root/.ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    profiles:
+      - ai
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - glinr-network
+
+  # ===================
+  # Redis Commander (Dev Tools)
+  # ===================
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: glinr-redis-ui
+    environment:
+      - REDIS_HOSTS=glinr:redis:6379
+    ports:
+      - "${REDIS_COMMANDER_PORT:-8081}:8081"
+    depends_on:
+      redis:
+        condition: service_healthy
+    profiles:
+      - tools
+    networks:
+      - glinr-network
+
+  # ===================
+  # Prometheus (Metrics)
+  # ===================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: glinr-prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+    profiles:
+      - monitoring
+    networks:
+      - glinr-network
+
+  # ===================
+  # Grafana (Dashboards)
+  # ===================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: glinr-grafana
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    profiles:
+      - monitoring
+    networks:
+      - glinr-network
+
+volumes:
+  glinr-data:
+    driver: local
+  redis-data:
+    driver: local
+  workspace:
+    driver: local
+  ollama-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+networks:
+  glinr-network:
+    driver: bridge
