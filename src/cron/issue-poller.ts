@@ -5,7 +5,7 @@
  * Configurable via POLL_INTERVAL_ISSUES env var (default: 2 minutes).
  */
 
-import { addTask, getTask } from '../queue/task-queue.js';
+import { addTask, getTask } from '../queue/index.js';
 import { createContextualLogger } from '../utils/logger.js';
 import type { CreateTaskInput } from '../types/task.js';
 
@@ -42,7 +42,7 @@ async function fetchOpenIssues(owner: string, repo: string): Promise<GitHubIssue
         headers: {
           Authorization: `Bearer ${GITHUB_TOKEN}`,
           Accept: 'application/vnd.github+json',
-          'User-Agent': 'glinr-task-manager',
+          'User-Agent': 'profclaw',
         },
       }
     );
@@ -110,7 +110,7 @@ ${issue.body || 'No description provided.'}
 
 Closes #${issue.number}
 
-Co-Authored-By: Glinr <bot@glincker.com>"
+Co-Authored-By: profClaw <bot@profclaw.dev>"
 8. Push: git push -u origin HEAD
 9. Create PR: gh pr create --title "<title>" --body "Closes #${issue.number}"
 

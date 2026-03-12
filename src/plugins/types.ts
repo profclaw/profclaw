@@ -1,5 +1,5 @@
 /**
- * GLINR Plugin System Types
+ * profClaw Plugin System Types
  *
  * Extensible plugin architecture for chat tools, search providers,
  * and other integrations.

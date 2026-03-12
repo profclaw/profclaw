@@ -409,7 +409,7 @@ export function getDefaultChatTools(): NativeToolDefinition[] {
     'memory_search',
     'memory_get',
     'memory_stats',
-    // GLINR ops tools (internal ticket/project management)
+    // profClaw ops tools (internal ticket/project management)
     'create_ticket',
     'create_project',
     'list_tickets',

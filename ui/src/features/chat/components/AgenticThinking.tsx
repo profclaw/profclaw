@@ -78,7 +78,7 @@ export function AgenticThinking({ events, isActive, className }: AgenticThinking
   const [summary, setSummary] = useState<string | null>(null);
   const [totalTokens, setTotalTokens] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const devMode = typeof window !== 'undefined' && localStorage.getItem('glinr-dev-mode') === 'true';
+  const devMode = typeof window !== 'undefined' && localStorage.getItem('profclaw-dev-mode') === 'true';
 
   // Process events into structured state
   useEffect(() => {

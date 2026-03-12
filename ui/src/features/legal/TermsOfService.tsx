@@ -23,7 +23,7 @@ export function TermsOfService() {
             className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span className="text-sm">Back to GLINR</span>
+            <span className="text-sm">Back to profClaw</span>
           </Link>
           {externalUrl && (
             <a
@@ -59,7 +59,7 @@ export function TermsOfService() {
               1. Acceptance of Terms
             </h2>
             <p className="text-muted-foreground leading-relaxed">
-              By accessing or using GLINR ("the Service"), you agree to be bound
+              By accessing or using profClaw ("the Service"), you agree to be bound
               by these Terms of Service. If you do not agree to these terms,
               please do not use the Service.
             </p>
@@ -70,7 +70,7 @@ export function TermsOfService() {
               2. Description of Service
             </h2>
             <p className="text-muted-foreground leading-relaxed">
-              GLINR is an AI-native task management and agent orchestration
+              profClaw is an AI-native task management and agent orchestration
               platform. It allows users to create, track, and manage tasks that
               can be executed by various AI agents, with bi-directional sync to
               external project management tools.
@@ -105,7 +105,7 @@ export function TermsOfService() {
             <p className="text-muted-foreground leading-relaxed">
               When you provide API keys for AI providers (Anthropic, OpenAI,
               Google, etc.), you are responsible for compliance with those
-              providers' terms of service and for any costs incurred. GLINR is
+              providers' terms of service and for any costs incurred. profClaw is
               not responsible for charges from third-party AI providers.
             </p>
           </section>
@@ -131,7 +131,7 @@ export function TermsOfService() {
               6. Tool Execution & Security
             </h2>
             <p className="text-muted-foreground leading-relaxed">
-              GLINR provides tool execution capabilities for AI agents. By
+              profClaw provides tool execution capabilities for AI agents. By
               enabling tools, you acknowledge that AI-generated commands will be
               executed on your behalf. Always review tool executions, especially
               those modifying files or systems.
@@ -143,9 +143,9 @@ export function TermsOfService() {
               7. Intellectual Property
             </h2>
             <p className="text-muted-foreground leading-relaxed">
-              You retain ownership of all content you create within GLINR.
+              You retain ownership of all content you create within profClaw.
               AI-generated content is subject to the terms of the underlying AI
-              provider. GLINR's software and branding remain our property.
+              provider. profClaw's software and branding remain our property.
             </p>
           </section>
 
@@ -154,7 +154,7 @@ export function TermsOfService() {
               8. Limitation of Liability
             </h2>
             <p className="text-muted-foreground leading-relaxed">
-              GLINR is provided "as is" without warranties. We are not liable
+              profClaw is provided "as is" without warranties. We are not liable
               for any damages arising from your use of the Service, including
               but not limited to AI-generated outputs, tool execution results,
               or integration failures.
@@ -174,10 +174,10 @@ export function TermsOfService() {
             <p className="text-muted-foreground leading-relaxed">
               For questions about these Terms, contact us at:{" "}
               <a
-                href="mailto:support@glincker.com"
+                href="mailto:support@profclaw.dev"
                 className="text-primary hover:underline"
               >
-                support@glincker.com
+                support@profclaw.dev
               </a>
             </p>
           </section>

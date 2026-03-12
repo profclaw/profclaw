@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { initTokenTracker, getUsageSummary, resetUsage } from '../token-tracker.js';
-import * as taskQueue from '../../queue/task-queue.js';
+import * as queueFacade from '../../queue/index.js';
 
-// Mock the queue event emitter
-vi.mock('../../queue/task-queue.js', async (importOriginal) => {
+// Mock the queue facade
+vi.mock('../../queue/index.js', async (importOriginal) => {
   const actual = await importOriginal() as any;
   let callback: any;
   return {
@@ -25,7 +25,7 @@ describe('Token Tracker', () => {
 
   it('should initialize and subscribe to events', () => {
     initTokenTracker();
-    expect(taskQueue.onTaskEvent).toHaveBeenCalled();
+    expect(queueFacade.onTaskEvent).toHaveBeenCalled();
   });
 
   it('should track usage when a task is completed', () => {
@@ -47,7 +47,7 @@ describe('Token Tracker', () => {
     };
 
     // Trigger the event through the mock
-    (taskQueue as any)._triggerEvent({
+    (queueFacade as any)._triggerEvent({
       type: 'completed',
       task: mockTask,
       result: mockResult,
@@ -68,14 +68,14 @@ describe('Token Tracker', () => {
     initTokenTracker();
 
     // Task 1: Sonnet
-    (taskQueue as any)._triggerEvent({
+    (queueFacade as any)._triggerEvent({
       type: 'completed',
       task: { metadata: { model: 'claude-3-5-sonnet' } },
       result: { tokensUsed: { input: 1000, output: 500, total: 1500 } },
     });
 
     // Task 2: GPT-4o
-    (taskQueue as any)._triggerEvent({
+    (queueFacade as any)._triggerEvent({
       type: 'completed',
       task: { metadata: { model: 'gpt-4o' } },
       result: { tokensUsed: { input: 1000, output: 500, total: 1500 } },

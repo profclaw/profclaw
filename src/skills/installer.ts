@@ -236,7 +236,7 @@ async function installViaDownload(
     return { success: false, message: 'No download URL specified' };
   }
 
-  const targetDir = spec.targetDir || join(homedir(), '.glinr', 'tools', spec.id || 'download');
+  const targetDir = spec.targetDir || join(homedir(), '.profclaw', 'tools', spec.id || 'download');
 
   try {
     await mkdir(targetDir, { recursive: true });

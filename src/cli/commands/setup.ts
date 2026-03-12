@@ -1,12 +1,12 @@
 /**
  * CLI Setup Wizard
  *
- * Interactive first-time setup for GLINR Task Manager.
+ * Interactive first-time setup for profClaw.
  * Configures AI provider, admin account, registration mode, and GitHub OAuth.
  *
  * Usage:
- *   glinr setup                     # Interactive wizard
- *   glinr setup --non-interactive   # CI/Docker automation
+ *   profclaw setup                     # Interactive wizard
+ *   profclaw setup --non-interactive   # CI/Docker automation
  */
 
 import { Command } from 'commander';
@@ -33,7 +33,7 @@ import { success, error, info, warn, spinner } from '../utils/output.js';
 // ---------------------------------------------------------------------------
 
 function showBanner(): void {
-  const banner = figlet.textSync('GLINR', {
+  const banner = figlet.textSync('profClaw', {
     font: 'Standard',
     horizontalLayout: 'default',
   });
@@ -129,7 +129,7 @@ async function checkAdminExists(db: ReturnType<typeof getDb>): Promise<boolean> 
 }
 
 /**
- * Check if the GLINR server is running locally (for API-based admin creation).
+ * Check if the profClaw server is running locally (for API-based admin creation).
  * When the CLI runs inside Docker alongside the server, using the API ensures
  * both processes see the same DB state (avoids LibSQL cross-process issues).
  */
@@ -291,7 +291,7 @@ async function stepAiProvider(
   } else {
     warn(`Ollama not reachable at ${ollamaUrl}`);
     info('Start Ollama: docker compose --profile ai up -d');
-    info('Then re-run: glinr setup');
+    info('Then re-run: profclaw setup');
     await saveProviderConfig({ type: 'ollama', apiKey: ollamaUrl, enabled: true });
   }
   return 'ollama';

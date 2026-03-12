@@ -77,7 +77,7 @@ export const cronCreateTool: ToolDefinition<CronCreateParams, CronCreateResult> 
 
 Supports three job types:
 - **http**: Call a webhook URL on schedule
-- **tool**: Execute a GLINR tool on schedule
+- **tool**: Execute a profClaw tool on schedule
 - **script**: Run a shell command on schedule
 
 Cron expressions use standard 5-field format:

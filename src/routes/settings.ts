@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import {
   getSettings,
   updateSettings,
@@ -9,6 +10,27 @@ import {
 } from '../settings/index.js';
 
 const settings = new Hono();
+
+async function parseJsonBody(c: Context): Promise<
+  { ok: true; body: Record<string, unknown> } | { ok: false; response: Response }
+> {
+  try {
+    const body = await c.req.json();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return {
+        ok: false,
+        response: c.json({ error: 'Request body must be a JSON object' }, 400),
+      };
+    }
+
+    return { ok: true, body: body as Record<string, unknown> };
+  } catch {
+    return {
+      ok: false,
+      response: c.json({ error: 'Invalid JSON body' }, 400),
+    };
+  }
+}
 
 // Get current settings (secrets masked)
 settings.get('/', async (c) => {
@@ -30,8 +52,12 @@ settings.get('/', async (c) => {
 // Update settings (partial update)
 settings.patch('/', async (c) => {
   try {
-    const body = await c.req.json();
-    const parsed = UpdateSettingsSchema.safeParse(body);
+    const parsedBody = await parseJsonBody(c);
+    if (!parsedBody.ok) {
+      return parsedBody.response;
+    }
+
+    const parsed = UpdateSettingsSchema.safeParse(parsedBody.body);
 
     if (!parsed.success) {
       return c.json(
@@ -102,8 +128,12 @@ settings.get('/plugins/health', async (c) => {
 settings.post('/plugins/:id/toggle', async (c) => {
   try {
     const id = c.req.param('id');
-    const body = await c.req.json();
-    const enabled = Boolean(body.enabled);
+    const parsedBody = await parseJsonBody(c);
+    if (!parsedBody.ok) {
+      return parsedBody.response;
+    }
+
+    const enabled = Boolean(parsedBody.body.enabled);
 
     const result = await togglePlugin(id, enabled);
 

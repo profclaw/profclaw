@@ -1,6 +1,6 @@
 {
   "$schema": "https://claude.ai/schemas/settings.json",
-  "description": "Example Claude Code settings with GLINR hooks integration",
+  "description": "Example Claude Code settings with profClaw hooks integration",
 
   "hooks": {
     "PostToolUse": {
@@ -15,11 +15,11 @@
   },
 
   "mcpServers": {
-    "glinr": {
+    "profclaw": {
       "command": "node",
-      "args": ["/path/to/glinr-task-manager/dist/mcp/server.js"],
+      "args": ["/path/to/profclaw/dist/mcp/server.js"],
       "env": {
-        "GLINR_API_URL": "http://localhost:3000"
+        "PROFCLAW_API_URL": "http://localhost:3000"
       }
     }
   }

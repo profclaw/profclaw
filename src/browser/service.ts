@@ -1,7 +1,7 @@
 /**
  * Browser Service
  *
- * Core Playwright browser management for GLINR.
+ * Core Playwright browser management for profClaw.
  * Handles browser lifecycle, page management, and element interaction.
  */
 

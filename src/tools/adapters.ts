@@ -26,7 +26,7 @@ import type {
 // MCP Adapter
 // =============================================================================
 
-const MCP_PREFIX = 'glinr__';
+const MCP_PREFIX = 'profclaw__';
 
 /**
  * Convert tool definition to MCP schema
@@ -122,6 +122,7 @@ export function toChatTool(tool: ToolDefinition): ChatToolDefinition {
     category: tool.category as ChatToolDefinition['category'],
     securityLevel: tool.securityLevel,
     allowedHosts: ['sandbox', 'gateway', 'local'],
+    isAvailable: tool.isAvailable,
     parameters: tool.parameters,
     examples: tool.examples?.map((e) => ({
       description: e.description,

@@ -71,7 +71,7 @@ export function BoardCard({ ticket, isDragging: externalIsDragging }: BoardCardP
 
   const TypeIcon = typeConfig[ticket.type]?.icon || Circle;
   const typeColor = typeConfig[ticket.type]?.color || 'text-gray-400';
-  const projectKey = ticket.projectKey || 'GLINR';
+  const projectKey = ticket.projectKey || 'PROFCLAW';
 
   return (
     <div

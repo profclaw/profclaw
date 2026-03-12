@@ -127,7 +127,7 @@ const SKILL_ICON_MAP: Record<string, LucideIcon> = {
   "mobile-developer": Smartphone,
   "find-skills": Search,
   "skill-creator": Wrench,
-  "glinr-agents": Bot,
+  "profclaw-agents": Bot,
   "subagent-driven-development": Bot,
   "graphql-operations": Globe,
   "api-conventions": FileCode,
@@ -608,7 +608,7 @@ export function SkillsSection() {
         <Info className="h-4 w-4 shrink-0 mt-0.5 opacity-50" />
         <p className="leading-relaxed">
           Skills are loaded from <code className="rounded bg-white/[0.06] px-1 py-px">skills/</code> (bundled),{" "}
-          <code className="rounded bg-white/[0.06] px-1 py-px">~/.glinr/skills/</code> (managed), and project{" "}
+          <code className="rounded bg-white/[0.06] px-1 py-px">~/.profclaw/skills/</code> (managed), and project{" "}
           <code className="rounded bg-white/[0.06] px-1 py-px">skills/</code> (workspace). Each skill is a folder with a{" "}
           <code className="rounded bg-white/[0.06] px-1 py-px">SKILL.md</code> file.
         </p>

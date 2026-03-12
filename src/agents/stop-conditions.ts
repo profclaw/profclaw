@@ -327,7 +327,7 @@ export function custom(
 // =============================================================================
 
 /**
- * Default stop conditions for GLINR agents.
+ * Default stop conditions for profClaw agents.
  * These provide safety limits while allowing task completion.
  */
 export const defaultStopConditions: StopCondition[] = [

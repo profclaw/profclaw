@@ -265,7 +265,7 @@ This task has been moved to the dead letter queue for manual review. Please:
 3. Re-trigger the task or assign to a human developer
 
 ---
-*Posted by [GLINR Task Manager](https://github.com/GLINCKER/glinr-task-manager)*`;
+*Posted by [profClaw Task Manager](https://github.com/profclaw/profclaw)*`;
 
   try {
     await fetch(
@@ -275,7 +275,7 @@ This task has been moved to the dead letter queue for manual review. Please:
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
-          'User-Agent': 'glinr-task-manager',
+          'User-Agent': 'profclaw',
         },
         body: JSON.stringify({ body }),
       }

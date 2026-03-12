@@ -1,5 +1,5 @@
 /**
- * GLINR Gateway Module
+ * profClaw Gateway Module
  *
  * Unified interface for routing and executing tasks across multiple AI agents.
  * Similar to OpenClaw's gateway pattern but enhanced with:

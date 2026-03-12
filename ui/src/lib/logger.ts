@@ -1,5 +1,5 @@
 /**
- * GLINR UI Structured Logger
+ * profClaw UI Structured Logger
  *
  * Provides consistent logging across the frontend with:
  * - Log levels (DEBUG, INFO, WARN, ERROR)
@@ -38,7 +38,7 @@ export class Logger {
           if (levelParam && LOG_LEVEL_PRIORITY[levelParam] !== undefined) {
             this.level = levelParam;
           } else {
-            const storedLevel = localStorage.getItem('glinr_log_level')?.toUpperCase() as LogLevel;
+            const storedLevel = localStorage.getItem('profclaw_log_level')?.toUpperCase() as LogLevel;
             if (storedLevel && LOG_LEVEL_PRIORITY[storedLevel] !== undefined) {
               this.level = storedLevel;
             }

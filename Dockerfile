@@ -65,8 +65,8 @@ ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 # Create non-root user for security
-RUN addgroup -g 1001 -S glinr && \
-    adduser -S glinr -u 1001 -G glinr
+RUN addgroup -g 1001 -S profclaw && \
+    adduser -S profclaw -u 1001 -G profclaw
 
 WORKDIR /app
 
@@ -78,25 +78,29 @@ COPY --from=build-backend /app/package.json ./
 # Copy runtime config (settings.yml for storage tier, queue, etc.)
 COPY --from=build-backend /app/config ./config
 
+# Copy skills
+COPY --from=build-backend /app/skills ./skills
+
 # Copy UI build artifacts
 COPY --from=build-ui /app/ui/dist ./ui/dist
 
 # Create data directory for SQLite and link CLI binary
 RUN mkdir -p /app/data && \
-    ln -sf /app/dist/cli/index.js /usr/local/bin/glinr && \
+    ln -sf /app/dist/cli/index.js /usr/local/bin/profclaw && \
     chmod +x /app/dist/cli/index.js 2>/dev/null || true && \
-    chown -R glinr:glinr /app
+    chown -R profclaw:profclaw /app
 
 # Production environment
 ENV NODE_ENV=production
 ENV PORT=3000
+ENV PROFCLAW_MODE=pro
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:${PORT}/health || exit 1
 
 # Switch to non-root user
-USER glinr
+USER profclaw
 
 EXPOSE 3000
 

@@ -230,7 +230,7 @@ export const taskArchives = sqliteTable("task_archives", {
  */
 export const tickets = sqliteTable("tickets", {
   id: text("id").primaryKey(),
-  sequence: integer("sequence").notNull(), // Human-readable: GLINR-123
+  sequence: integer("sequence").notNull(), // Human-readable: PC-123
   workspaceId: text("workspace_id"),
   projectId: text("project_id").references(() => projects.id), // For multi-project support
 
@@ -418,11 +418,11 @@ export const ticketComments = sqliteTable("ticket_comments", {
   // Author info
   authorType: text("author_type").notNull().default("human"), // human, ai
   authorName: text("author_name").notNull(),
-  authorPlatform: text("author_platform").notNull(), // glinr, github, linear, jira
+  authorPlatform: text("author_platform").notNull(), // profclaw, github, linear, jira
   authorAvatarUrl: text("author_avatar_url"),
 
   // Source tracking
-  source: text("source").notNull().default("glinr"), // glinr, github, linear, jira, plane
+  source: text("source").notNull().default("profclaw"), // profclaw, github, linear, jira, plane
   externalId: text("external_id"), // ID in source system
 
   // AI response features
@@ -452,7 +452,7 @@ export const ticketHistory = sqliteTable("ticket_history", {
   // Who made the change
   changedByType: text("changed_by_type").notNull().default("human"), // human, ai
   changedByName: text("changed_by_name").notNull(),
-  changedByPlatform: text("changed_by_platform").notNull().default("glinr"),
+  changedByPlatform: text("changed_by_platform").notNull().default("profclaw"),
 
   timestamp: integer("timestamp", { mode: "timestamp" })
     .notNull()
@@ -460,7 +460,7 @@ export const ticketHistory = sqliteTable("ticket_history", {
 });
 
 /**
- * Ticket Sequence Counter - For generating GLINR-123 style IDs
+ * Ticket Sequence Counter - For generating PC-123 style IDs
  */
 export const ticketSequence = sqliteTable("ticket_sequence", {
   workspaceId: text("workspace_id").primaryKey().default("default"),
@@ -480,7 +480,7 @@ export const projects = sqliteTable("projects", {
   workspaceId: text("workspace_id").default("default"),
 
   // Identity
-  key: text("key").notNull().unique(), // "GLINR", "MOBILE", "API" - ticket prefix
+  key: text("key").notNull().unique(), // "PC", "MOBILE", "API" - ticket prefix
   name: text("name").notNull(),
   description: text("description"),
   icon: text("icon").default("📋"),
@@ -799,7 +799,7 @@ export const userApiKeys = sqliteTable("user_api_keys", {
   // Key info
   name: text("name").notNull(),
   keyHash: text("key_hash").notNull(), // Hashed for security
-  keyPrefix: text("key_prefix").notNull(), // First 8 chars for display: glinr_abc12345...
+  keyPrefix: text("key_prefix").notNull(), // First 8 chars for display: profclaw_abc12345...
 
   // Permissions
   scopes: text("scopes", { mode: "json" })
@@ -911,7 +911,7 @@ export const githubRepositorySyncs = sqliteTable("github_repository_syncs", {
 });
 
 /**
- * GitHub Comment Syncs - Track comment mapping between GLINR and GitHub
+ * GitHub Comment Syncs - Track comment mapping between profClaw and GitHub
  */
 export const githubCommentSyncs = sqliteTable("github_comment_syncs", {
   id: text("id").primaryKey(),

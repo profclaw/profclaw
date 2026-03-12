@@ -7,7 +7,6 @@
 
 import { z } from 'zod';
 import { spawn } from 'child_process';
-import path from 'path';
 import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 
@@ -108,6 +107,31 @@ The command output is captured and returned. Long-running commands can be backgr
       let timedOut = false;
       let yielded = false;
 
+      const resolveAsBackgrounded = () => {
+        if (yielded || proc.exitCode !== null) {
+          return;
+        }
+
+        yielded = true;
+        (sessionManager as unknown as { background: (id: string) => void }).background?.(
+          session.id
+        );
+
+        resolve({
+          success: true,
+          data: {
+            status: 'running',
+            sessionId: session.id,
+            pid: proc.pid,
+            output: stdout || '(running...)',
+          },
+          output: `Command running in background (session ${session.id}). Use session_status to check progress.`,
+          isRunning: true,
+          isBackgrounded: true,
+          sessionId: session.id,
+        });
+      };
+
       // Timeout handler
       const timeout = setTimeout(() => {
         timedOut = true;
@@ -117,26 +141,7 @@ The command output is captured and returned. Long-running commands can be backgr
       // Yield timer for background execution
       const yieldTimer = params.background
         ? null
-        : setTimeout(() => {
-            if (!yielded && proc.exitCode === null) {
-              yielded = true;
-              (sessionManager as unknown as { background: (id: string) => void }).background?.(session.id);
-
-              resolve({
-                success: true,
-                data: {
-                  status: 'running',
-                  sessionId: session.id,
-                  pid: proc.pid,
-                  output: stdout || '(running...)',
-                },
-                output: `Command still running (session ${session.id}). Use process tool to check status.`,
-                isRunning: true,
-                isBackgrounded: true,
-                sessionId: session.id,
-              });
-            }
-          }, YIELD_MS);
+        : setTimeout(resolveAsBackgrounded, YIELD_MS);
 
       // Handle abort signal
       if (signal) {
@@ -252,6 +257,10 @@ The command output is captured and returned. Long-running commands can be backgr
           });
         }
       });
+
+      if (params.background) {
+        resolveAsBackgrounded();
+      }
     });
   },
 };

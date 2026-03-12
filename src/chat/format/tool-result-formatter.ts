@@ -14,7 +14,7 @@
 export type ChannelFormat = 'plain' | 'html' | 'discord';
 
 export interface FormattedToolResult {
-  /** One-line summary (e.g., "Created ticket GLINR-42: Fix login") */
+  /** One-line summary (e.g., "Created ticket PC-42: Fix login") */
   summary: string;
   /** Multi-line detail (markdown, html, or plain depending on format) */
   detail?: string;

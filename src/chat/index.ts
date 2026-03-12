@@ -1,7 +1,7 @@
 /**
  * Chat Module
  *
- * Intelligent chat with GLINR context, conversation history,
+ * Intelligent chat with profClaw context, conversation history,
  * memory management, and specialized presets.
  */
 
@@ -11,7 +11,7 @@ export * from './memory.js';
 
 // Re-export for convenience
 export {
-  GLINR_CONTEXT,
+  PROFCLAW_CONTEXT,
   CHAT_PRESETS,
   QUICK_ACTIONS,
   buildSystemPrompt,
@@ -123,3 +123,20 @@ export {
   type AgenticStreamEvent,
   type StreamAgenticChatRequest,
 } from './agentic-executor.js';
+
+// Group chat management (mention gating, threading, rate limiting, channel personalities)
+export {
+  getGroupChatManager,
+  GroupChatManager,
+  createDefaultGroupChatConfig,
+  MentionGateConfigSchema,
+  ThreadingConfigSchema,
+  RateLimitConfigSchema,
+  GroupChatConfigSchema,
+  type MentionGateConfig,
+  type ThreadingConfig,
+  type RateLimitConfig,
+  type GroupChatConfig,
+  type UserContext,
+  type ChannelPersonality,
+} from './group.js';

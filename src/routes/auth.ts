@@ -9,6 +9,7 @@
  */
 
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
@@ -84,6 +85,27 @@ const COOKIE_OPTIONS = {
   path: '/',
 };
 
+async function parseJsonBody(c: Context): Promise<
+  { ok: true; body: Record<string, unknown> } | { ok: false; response: Response }
+> {
+  try {
+    const body = await c.req.json();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return {
+        ok: false,
+        response: c.json({ error: 'Request body must be a JSON object' }, 400),
+      };
+    }
+
+    return { ok: true, body: body as Record<string, unknown> };
+  } catch {
+    return {
+      ok: false,
+      response: c.json({ error: 'Invalid JSON body' }, 400),
+    };
+  }
+}
+
 // =============================================================================
 // EMAIL/PASSWORD AUTH
 // =============================================================================
@@ -94,8 +116,12 @@ const COOKIE_OPTIONS = {
  */
 authRoutes.post('/signup', signupLimiter, async (c) => {
   try {
-    const body = await c.req.json();
-    const parsed = signupSchema.safeParse(body);
+    const parsedBody = await parseJsonBody(c);
+    if (!parsedBody.ok) {
+      return parsedBody.response;
+    }
+
+    const parsed = signupSchema.safeParse(parsedBody.body);
 
     if (!parsed.success) {
       const firstError = parsed.error.errors[0]?.message || 'Invalid input';
@@ -162,7 +188,7 @@ authRoutes.post('/signup', signupLimiter, async (c) => {
     }
 
     // Set session cookie
-    setCookie(c, 'glinr_session', result.session.token, COOKIE_OPTIONS);
+    setCookie(c, 'profclaw_session', result.session.token, COOKIE_OPTIONS);
 
     return c.json({
       user: result.user,
@@ -180,8 +206,12 @@ authRoutes.post('/signup', signupLimiter, async (c) => {
  */
 authRoutes.post('/login', loginLimiter, async (c) => {
   try {
-    const body = await c.req.json();
-    const parsed = loginSchema.safeParse(body);
+    const parsedBody = await parseJsonBody(c);
+    if (!parsedBody.ok) {
+      return parsedBody.response;
+    }
+
+    const parsed = loginSchema.safeParse(parsedBody.body);
 
     if (!parsed.success) {
       const firstError = parsed.error.errors[0]?.message || 'Invalid input';
@@ -196,7 +226,7 @@ authRoutes.post('/login', loginLimiter, async (c) => {
     }
 
     // Set session cookie
-    setCookie(c, 'glinr_session', result.session.token, COOKIE_OPTIONS);
+    setCookie(c, 'profclaw_session', result.session.token, COOKIE_OPTIONS);
 
     return c.json({
       user: result.user,
@@ -214,11 +244,11 @@ authRoutes.post('/login', loginLimiter, async (c) => {
  */
 authRoutes.post('/logout', async (c) => {
   try {
-    const token = getCookie(c, 'glinr_session');
+    const token = getCookie(c, 'profclaw_session');
 
     if (token) {
       await deleteSession(token);
-      deleteCookie(c, 'glinr_session', { path: '/' });
+      deleteCookie(c, 'profclaw_session', { path: '/' });
     }
 
     return c.json({ message: 'Logged out successfully' });
@@ -282,7 +312,7 @@ authRoutes.get('/github/callback', async (c) => {
     }
 
     // Set session cookie
-    setCookie(c, 'glinr_session', result.session.token, COOKIE_OPTIONS);
+    setCookie(c, 'profclaw_session', result.session.token, COOKIE_OPTIONS);
 
     // Redirect to dashboard or onboarding
     if (!result.user?.onboardingCompleted) {
@@ -317,8 +347,12 @@ authRoutes.get('/github/url', async (c) => {
  */
 authRoutes.post('/github/token', async (c) => {
   try {
-    const body = await c.req.json();
-    const { code } = body;
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const { code } = parsed.body;
 
     if (!code) {
       return c.json({ error: 'Code is required' }, 400);
@@ -331,7 +365,7 @@ authRoutes.post('/github/token', async (c) => {
     }
 
     // Set session cookie
-    setCookie(c, 'glinr_session', result.session.token, COOKIE_OPTIONS);
+    setCookie(c, 'profclaw_session', result.session.token, COOKIE_OPTIONS);
 
     return c.json({
       user: result.user,
@@ -353,17 +387,30 @@ authRoutes.post('/github/token', async (c) => {
  */
 authRoutes.get('/me', async (c) => {
   try {
-    const token = getCookie(c, 'glinr_session');
+    // Check if user was injected by local-mode middleware bypass
+    const localUser = c.get('user');
+    const settings = await getSettingsRaw();
+    const authMode = settings.system.authMode;
+
+    if (localUser && authMode === 'local') {
+      return c.json({
+        authenticated: true,
+        authMode,
+        user: localUser,
+      });
+    }
+
+    const token = getCookie(c, 'profclaw_session');
 
     if (!token) {
-      return c.json({ authenticated: false }, 401);
+      return c.json({ authenticated: false, authMode }, 401);
     }
 
     const user = await validateSession(token);
 
     if (!user) {
-      deleteCookie(c, 'glinr_session', { path: '/' });
-      return c.json({ authenticated: false }, 401);
+      deleteCookie(c, 'profclaw_session', { path: '/' });
+      return c.json({ authenticated: false, authMode }, 401);
     }
 
     // Get connected accounts
@@ -374,6 +421,7 @@ authRoutes.get('/me', async (c) => {
 
     return c.json({
       authenticated: true,
+      authMode,
       user: {
         ...user,
         connectedAccounts,
@@ -392,7 +440,7 @@ authRoutes.get('/me', async (c) => {
  */
 authRoutes.patch('/me', async (c) => {
   try {
-    const token = getCookie(c, 'glinr_session');
+    const token = getCookie(c, 'profclaw_session');
 
     if (!token) {
       return c.json({ error: 'Not authenticated' }, 401);
@@ -404,8 +452,12 @@ authRoutes.patch('/me', async (c) => {
       return c.json({ error: 'Invalid session' }, 401);
     }
 
-    const body = await c.req.json();
-    const parsed = updateProfileSchema.safeParse(body);
+    const parsedBody = await parseJsonBody(c);
+    if (!parsedBody.ok) {
+      return parsedBody.response;
+    }
+
+    const parsed = updateProfileSchema.safeParse(parsedBody.body);
 
     if (!parsed.success) {
       const firstError = parsed.error.errors[0]?.message || 'Invalid input';

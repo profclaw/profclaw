@@ -21,13 +21,13 @@ let cachedConfig: CLIConfig | null = null;
  */
 export function getConfigPath(): string {
   // Check for project-level config first
-  const projectConfig = join(process.cwd(), '.glinr.json');
+  const projectConfig = join(process.cwd(), '.profclaw.json');
   if (existsSync(projectConfig)) {
     return projectConfig;
   }
 
   // Fall back to user-level config
-  return join(homedir(), '.glinr', 'config.json');
+  return join(homedir(), '.profclaw', 'config.json');
 }
 
 /**
@@ -51,11 +51,11 @@ export function getConfig(): CLIConfig {
   }
 
   // Environment variable overrides
-  if (process.env.GLINR_API_URL) {
-    config.apiUrl = process.env.GLINR_API_URL;
+  if (process.env.PROFCLAW_API_URL) {
+    config.apiUrl = process.env.PROFCLAW_API_URL;
   }
-  if (process.env.GLINR_API_TOKEN) {
-    config.apiToken = process.env.GLINR_API_TOKEN;
+  if (process.env.PROFCLAW_API_TOKEN) {
+    config.apiToken = process.env.PROFCLAW_API_TOKEN;
   }
 
   cachedConfig = config;
@@ -66,7 +66,7 @@ export function getConfig(): CLIConfig {
  * Save configuration to file
  */
 export function saveConfig(updates: Partial<CLIConfig>): void {
-  const configPath = join(homedir(), '.glinr', 'config.json');
+  const configPath = join(homedir(), '.profclaw', 'config.json');
   const dir = dirname(configPath);
 
   if (!existsSync(dir)) {

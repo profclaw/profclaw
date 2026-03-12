@@ -59,9 +59,9 @@ import {
   type ImportPreviewItem,
   type FieldMappings,
   type GitHubProjectItem,
-  GLINR_STATUSES,
-  GLINR_PRIORITIES,
-  GLINR_TYPES,
+  PROFCLAW_STATUSES,
+  PROFCLAW_PRIORITIES,
+  PROFCLAW_TYPES,
 } from './types';
 
 interface ImportPreviewTableProps {
@@ -257,7 +257,7 @@ export function ImportPreviewTable({
           const source = row.original.source.status;
           const target = row.original.target.status;
           const isMapped = row.original.mappingStatus.status === 'mapped';
-          const targetOption = GLINR_STATUSES.find((s) => s.value === target);
+          const targetOption = PROFCLAW_STATUSES.find((s) => s.value === target);
 
           return (
             <div className="flex items-center gap-1.5 text-xs">
@@ -298,7 +298,7 @@ export function ImportPreviewTable({
           const source = row.original.source.priority;
           const target = row.original.target.priority;
           const isMapped = row.original.mappingStatus.priority === 'mapped';
-          const targetOption = GLINR_PRIORITIES.find((p) => p.value === target);
+          const targetOption = PROFCLAW_PRIORITIES.find((p) => p.value === target);
 
           return (
             <div className="flex items-center gap-1.5 text-xs">
@@ -339,7 +339,7 @@ export function ImportPreviewTable({
           const source = row.original.source.type;
           const target = row.original.target.type;
           const isMapped = row.original.mappingStatus.type === 'mapped';
-          const targetOption = GLINR_TYPES.find((t) => t.value === target);
+          const targetOption = PROFCLAW_TYPES.find((t) => t.value === target);
 
           return (
             <div className="flex items-center gap-1.5 text-xs">

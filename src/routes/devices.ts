@@ -6,6 +6,7 @@
  */
 
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import {
   loadOrCreateDeviceIdentity,
   getDeviceIdentity,
@@ -28,6 +29,27 @@ import {
 import { getStorage } from '../storage/index.js';
 
 const app = new Hono();
+
+async function parseJsonBody(c: Context): Promise<
+  { ok: true; body: Record<string, unknown> } | { ok: false; response: Response }
+> {
+  try {
+    const body = await c.req.json();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return {
+        ok: false,
+        response: c.json({ success: false, error: 'Request body must be a JSON object' }, 400),
+      };
+    }
+
+    return { ok: true, body: body as Record<string, unknown> };
+  } catch {
+    return {
+      ok: false,
+      response: c.json({ success: false, error: 'Invalid JSON body' }, 400),
+    };
+  }
+}
 
 // ============================================================================
 // Device Identity Endpoints
@@ -62,7 +84,12 @@ app.get('/identity', async (c) => {
  */
 app.post('/attest', async (c) => {
   try {
-    const body = await c.req.json().catch(() => ({}));
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const body = parsed.body;
     const identity = loadOrCreateDeviceIdentity();
     const attestation = createDeviceAttestation(identity, body.data);
 
@@ -88,7 +115,12 @@ app.post('/attest', async (c) => {
  */
 app.post('/verify', async (c) => {
   try {
-    const body = await c.req.json();
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const body = parsed.body;
 
     if (!body.attestation) {
       return c.json({ success: false, error: 'Missing attestation' }, 400);
@@ -128,7 +160,12 @@ app.post('/pairing/request', async (c) => {
     // Ensure table exists
     await initPairingCodesTable();
 
-    const body = await c.req.json().catch(() => ({}));
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const body = parsed.body;
     const identity = loadOrCreateDeviceIdentity();
 
     const result = await requestPairingCode({
@@ -195,7 +232,12 @@ app.get('/pairing/status/:code', async (c) => {
 app.post('/pairing/approve', async (c) => {
   try {
     await initPairingCodesTable();
-    const body = await c.req.json();
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const body = parsed.body;
 
     if (!body.code) {
       return c.json({ success: false, error: 'Missing code' }, 400);
@@ -248,7 +290,12 @@ app.post('/pairing/approve', async (c) => {
 app.post('/pairing/reject', async (c) => {
   try {
     await initPairingCodesTable();
-    const body = await c.req.json();
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const body = parsed.body;
 
     if (!body.code) {
       return c.json({ success: false, error: 'Missing code' }, 400);
@@ -325,7 +372,12 @@ app.get('/pairing/pending', async (c) => {
 app.post('/pairing/validate', async (c) => {
   try {
     await initPairingCodesTable();
-    const body = await c.req.json();
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const body = parsed.body;
 
     if (!body.token) {
       return c.json({ success: false, error: 'Missing token' }, 400);

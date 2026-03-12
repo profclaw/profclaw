@@ -85,9 +85,9 @@ const CATEGORY_INFO: Record<string, { icon: typeof Wrench; label: string; descri
     label: 'Browser',
     description: 'Browser automation (Playwright)',
   },
-  glinr: {
+  profclaw: {
     icon: Wrench,
-    label: 'GLINR',
+    label: 'profClaw',
     description: 'Ticket and project management',
   },
   memory: {

@@ -1,7 +1,7 @@
 /**
  * Agent Executor
  *
- * The main orchestrator for the GLINR agentic loop system.
+ * The main orchestrator for the profClaw agentic loop system.
  * Uses AI SDK's native multi-step execution (stopWhen + onStepFinish)
  * instead of a manual loop. Tools have execute functions and the SDK
  * handles message accumulation, tool result feeding, and step chaining.

@@ -96,7 +96,7 @@ function formatType(type: string): string {
 }
 
 function formatSequenceId(sequence: number): string {
-  return chalk.cyan(`GLINR-${sequence}`);
+  return chalk.cyan(`PC-${sequence}`);
 }
 
 // === CLI Commands ===
@@ -466,7 +466,7 @@ export function ticketCommands() {
     .option('-f, --force', 'Skip confirmation')
     .action(async (id, options) => {
       if (!options.force) {
-        info(`To confirm deletion, run: glinr ticket delete ${id} --force`);
+        info(`To confirm deletion, run: profclaw ticket delete ${id} --force`);
         return;
       }
 

@@ -22,8 +22,24 @@ export type ChatProviderId =
   | 'discord'
   | 'telegram'
   | 'whatsapp'
+  | 'webchat'
+  | 'matrix'
+  | 'googlechat'
   | 'msteams'
   | 'mattermost'
+  | 'signal'
+  | 'irc'
+  | 'line'
+  | 'dingtalk'
+  | 'wecom'
+  | 'feishu'
+  | 'qq'
+  | 'nostr'
+  | 'twitch'
+  | 'zalo'
+  | 'nextcloud'
+  | 'imessage'
+  | 'synology'
   | 'custom';
 
 export interface ChatProviderMeta {
@@ -131,11 +147,176 @@ export interface WhatsAppAccountConfig extends ChatAccountConfigBase {
   webhookVerifyToken?: string;     // Verify token for webhooks
 }
 
+export interface WebChatAccountConfig extends ChatAccountConfigBase {
+  provider: 'webchat';
+  allowAnonymous?: boolean;         // Allow unauthenticated sessions
+  maxSessionsPerIp?: number;        // Rate limit (default: 5)
+  sessionTimeoutMs?: number;        // Session expiry (default: 30min)
+}
+
+export interface MatrixAccountConfig extends ChatAccountConfigBase {
+  provider: 'matrix';
+  homeserverUrl?: string;           // e.g. https://matrix.org
+  accessToken?: string;             // Bot access token
+  userId?: string;                  // e.g. @profclaw:matrix.org
+  deviceId?: string;                // Device ID for E2EE
+  enableEncryption?: boolean;       // Enable E2EE (default: false)
+  allowedRoomIds?: string[];        // Room allowlist
+}
+
+export interface GoogleChatAccountConfig extends ChatAccountConfigBase {
+  provider: 'googlechat';
+  serviceAccountKey?: string;       // JSON service account key (stringified)
+  projectId?: string;               // GCP project ID
+  webhookUrl?: string;              // Incoming webhook URL (simpler setup)
+  allowedSpaceIds?: string[];       // Space allowlist
+}
+
+export interface MSTeamsAccountConfig extends ChatAccountConfigBase {
+  provider: 'msteams';
+  appId?: string;                   // Bot Framework App ID
+  appPassword?: string;             // Bot Framework App Password
+  tenantId?: string;                // Azure AD Tenant ID
+  allowedTeamIds?: string[];        // Team allowlist
+  allowedChannelIds?: string[];     // Channel allowlist
+}
+
+export interface SignalAccountConfig extends ChatAccountConfigBase {
+  provider: 'signal';
+  signaldSocketPath?: string;       // Path to signald UNIX socket
+  phoneNumber?: string;             // Bot phone number (+1234567890)
+  allowedNumbers?: string[];        // Number allowlist
+}
+
+export interface IRCAccountConfig extends ChatAccountConfigBase {
+  provider: 'irc';
+  server?: string;                  // IRC server hostname
+  port?: number;                    // IRC server port (default: 6667, TLS: 6697)
+  nick?: string;                    // Bot nickname
+  password?: string;                // NickServ/server password
+  channels?: string[];              // Channels to join (#channel)
+  useTLS?: boolean;                 // Enable TLS (default: true)
+}
+
+export interface LINEAccountConfig extends ChatAccountConfigBase {
+  provider: 'line';
+  channelAccessToken?: string;      // LINE Messaging API token
+  channelSecret?: string;           // Channel secret for webhook verification
+  webhookUrl?: string;              // Webhook URL
+}
+
+export interface MattermostAccountConfig extends ChatAccountConfigBase {
+  provider: 'mattermost';
+  serverUrl?: string;               // Mattermost server URL
+  botToken?: string;                // Bot access token
+  webhookUrl?: string;              // Incoming webhook URL
+  teamId?: string;                  // Team ID
+  allowedChannelIds?: string[];     // Channel allowlist
+}
+
+export interface DingTalkAccountConfig extends ChatAccountConfigBase {
+  provider: 'dingtalk';
+  appKey?: string;                  // DingTalk app key
+  appSecret?: string;               // DingTalk app secret
+  robotCode?: string;               // Robot code for outgoing messages
+  webhookUrl?: string;              // Webhook URL (simpler, token-based)
+  webhookSecret?: string;           // Webhook signing secret
+}
+
+export interface WeComAccountConfig extends ChatAccountConfigBase {
+  provider: 'wecom';
+  corpId?: string;                  // Corp ID
+  agentId?: string;                 // Agent ID
+  secret?: string;                  // Agent secret
+  token?: string;                   // Callback token
+  encodingAESKey?: string;          // Callback encoding AES key
+  webhookUrl?: string;              // Webhook URL (simpler)
+}
+
+export interface FeishuAccountConfig extends ChatAccountConfigBase {
+  provider: 'feishu';
+  appId?: string;                   // Feishu/Lark app ID
+  appSecret?: string;               // App secret
+  verificationToken?: string;       // Event verification token
+  encryptKey?: string;              // Event encrypt key
+}
+
+export interface QQAccountConfig extends ChatAccountConfigBase {
+  provider: 'qq';
+  appId?: string;                   // QQ Bot app ID
+  token?: string;                   // QQ Bot token
+  secret?: string;                  // QQ Bot secret
+  sandboxMode?: boolean;            // Use sandbox environment
+}
+
+export interface NostrAccountConfig extends ChatAccountConfigBase {
+  provider: 'nostr';
+  privateKey?: string;              // Nostr private key (nsec or hex)
+  relayUrls?: string[];             // Relay URLs to connect to
+  allowedPubkeys?: string[];        // Pubkey allowlist
+}
+
+export interface TwitchAccountConfig extends ChatAccountConfigBase {
+  provider: 'twitch';
+  oauthToken?: string;              // OAuth token for chat
+  clientId?: string;                // Client ID for API
+  nick?: string;                    // Bot username
+  channels?: string[];              // Channels to join
+}
+
+export interface ZaloAccountConfig extends ChatAccountConfigBase {
+  provider: 'zalo';
+  accessToken?: string;             // Zalo OA access token
+  refreshToken?: string;            // Refresh token
+  oaId?: string;                    // Official Account ID
+  secretKey?: string;               // App secret key
+}
+
+export interface NextcloudAccountConfig extends ChatAccountConfigBase {
+  provider: 'nextcloud';
+  serverUrl?: string;               // Nextcloud server URL
+  username?: string;                // Bot username
+  password?: string;                // App password
+  token?: string;                   // Talk token
+}
+
+export interface IMessageAccountConfig extends ChatAccountConfigBase {
+  provider: 'imessage';
+  blueBubblesUrl?: string;          // BlueBubbles server URL
+  blueBubblesPassword?: string;     // BlueBubbles password
+  allowedAddresses?: string[];      // Address allowlist
+}
+
+export interface SynologyAccountConfig extends ChatAccountConfigBase {
+  provider: 'synology';
+  serverUrl?: string;               // Synology Chat server URL
+  incomingWebhookUrl?: string;      // Incoming webhook URL
+  outgoingWebhookToken?: string;    // Outgoing webhook token
+}
+
 export type ChatAccountConfig =
   | SlackAccountConfig
   | DiscordAccountConfig
   | TelegramAccountConfig
-  | WhatsAppAccountConfig;
+  | WhatsAppAccountConfig
+  | WebChatAccountConfig
+  | MatrixAccountConfig
+  | GoogleChatAccountConfig
+  | MSTeamsAccountConfig
+  | SignalAccountConfig
+  | IRCAccountConfig
+  | LINEAccountConfig
+  | MattermostAccountConfig
+  | DingTalkAccountConfig
+  | WeComAccountConfig
+  | FeishuAccountConfig
+  | QQAccountConfig
+  | NostrAccountConfig
+  | TwitchAccountConfig
+  | ZaloAccountConfig
+  | NextcloudAccountConfig
+  | IMessageAccountConfig
+  | SynologyAccountConfig;
 
 // =============================================================================
 // MESSAGE TYPES
@@ -223,7 +404,7 @@ export interface SlashCommand {
   accountId: string;
 
   // Command info
-  command: string;                 // e.g., "/glinr"
+  command: string;                 // e.g., "/profclaw"
   text: string;                    // Arguments after command
 
   // Sender info

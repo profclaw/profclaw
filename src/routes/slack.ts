@@ -2,7 +2,7 @@
  * Slack Integration Routes
  *
  * Handles:
- * - Slash commands (/glinr task list, /glinr ticket create, etc.)
+ * - Slash commands (/profclaw task list, /profclaw ticket create, etc.)
  * - Interactive components (button clicks, modals)
  * - Event subscriptions (optional)
  */
@@ -18,7 +18,7 @@ const slack = new Hono();
 // Configuration
 const SLACK_SIGNING_SECRET = process.env.SLACK_SIGNING_SECRET || "";
 const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN || "";
-const SLACK_COMMAND_NAME = (process.env.SLACK_COMMAND_NAME || "glinr")
+const SLACK_COMMAND_NAME = (process.env.SLACK_COMMAND_NAME || "profclaw")
   .replace(/^\/+/, "")
   .trim();
 const SLACK_SLASH_EPHEMERAL = process.env.SLACK_SLASH_EPHEMERAL !== "false";
@@ -252,7 +252,7 @@ async function handleHelp(): Promise<SlackResponse> {
     blocks: [
       {
         type: "header",
-        text: { type: "plain_text", text: "🎯 GLINR Commands", emoji: true },
+        text: { type: "plain_text", text: "🎯 profClaw Commands", emoji: true },
       },
       {
         type: "section",
@@ -262,7 +262,7 @@ async function handleHelp(): Promise<SlackResponse> {
             "*Ticket Commands:*\n" +
             `• \`${commandLabel} ticket list\` - List recent tickets\n` +
             `• \`${commandLabel} ticket create --title="Bug" --priority=high\` - Create ticket\n` +
-            `• \`${commandLabel} ticket show GLINR-123\` - Show ticket details\n` +
+            `• \`${commandLabel} ticket show PC-123\` - Show ticket details\n` +
             `• \`${commandLabel} ticket search <query>\` - Search tickets\n`,
         },
       },
@@ -349,7 +349,7 @@ async function handleTicketList(
         text: {
           type: "mrkdwn" as const,
           text:
-            `*GLINR-${t.sequence}* ${getStatusEmoji(t.status)} ${t.title}\n` +
+            `*PC-${t.sequence}* ${getStatusEmoji(t.status)} ${t.title}\n` +
             `Priority: ${getPriorityEmoji(t.priority)} | Status: \`${t.status}\``,
         },
       }),
@@ -372,7 +372,7 @@ async function handleTicketList(
           elements: [
             {
               type: "mrkdwn",
-              text: `🔗 <${SLACK_APP_URL}/tickets|View all in GLINR>`,
+              text: `🔗 <${SLACK_APP_URL}/tickets|View all in profClaw>`,
             },
           ],
         },
@@ -465,7 +465,7 @@ async function handleTicketCreate(
           text: {
             type: "mrkdwn",
             text:
-              `✅ *Ticket Created:* GLINR-${nextSequence}\n*${title}*\n` +
+              `✅ *Ticket Created:* PC-${nextSequence}\n*${title}*\n` +
               `Priority: ${getPriorityEmoji(priority)} \`${priority}\` | Type: \`${type}\``,
           },
         },
@@ -474,7 +474,7 @@ async function handleTicketCreate(
           elements: [
             {
               type: "mrkdwn",
-              text: `Created by <@${userId}> • <${SLACK_APP_URL}/tickets/${ticketId}|View in GLINR>`,
+              text: `Created by <@${userId}> • <${SLACK_APP_URL}/tickets/${ticketId}|View in profClaw>`,
             },
           ],
         },
@@ -502,7 +502,7 @@ async function handleTicketShow(ticketRef: string): Promise<SlackResponse> {
   if (!sequenceMatch) {
     return {
       response_type: resolveDefaultResponseType(),
-      text: "❌ Invalid ticket reference. Use GLINR-123 or just 123",
+      text: "❌ Invalid ticket reference. Use PC-123 or just 123",
     };
   }
 
@@ -518,7 +518,7 @@ async function handleTicketShow(ticketRef: string): Promise<SlackResponse> {
     if (result.length === 0) {
       return {
         response_type: resolveDefaultResponseType(),
-        text: `❌ Ticket GLINR-${sequence} not found`,
+        text: `❌ Ticket PC-${sequence} not found`,
       };
     }
 
@@ -531,7 +531,7 @@ async function handleTicketShow(ticketRef: string): Promise<SlackResponse> {
           type: "header",
           text: {
             type: "plain_text",
-            text: `GLINR-${t.sequence}: ${t.title}`,
+            text: `PC-${t.sequence}: ${t.title}`,
             emoji: true,
           },
         },
@@ -569,7 +569,7 @@ async function handleTicketShow(ticketRef: string): Promise<SlackResponse> {
           elements: [
             {
               type: "button",
-              text: { type: "plain_text", text: "🔗 Open in GLINR" },
+              text: { type: "plain_text", text: "🔗 Open in profClaw" },
               action_id: "open_ticket",
               value: t.id,
             },
@@ -622,7 +622,7 @@ async function handleTicketSearch(query: string): Promise<SlackResponse> {
         type: "section",
         text: {
           type: "mrkdwn" as const,
-          text: `*GLINR-${t.sequence}* ${getStatusEmoji(t.status)} ${t.title}`,
+          text: `*PC-${t.sequence}* ${getStatusEmoji(t.status)} ${t.title}`,
         },
       }),
     );
@@ -720,7 +720,7 @@ async function handleProjectShow(projectKey: string): Promise<SlackResponse> {
   if (!projectKey) {
     return {
       response_type: resolveDefaultResponseType(),
-      text: `❌ Project key required. Usage: \`${commandLabel} project show GLINR\``,
+      text: `❌ Project key required. Usage: \`${commandLabel} project show PROFCLAW\``,
     };
   }
 
@@ -838,7 +838,7 @@ async function handleStatus(): Promise<SlackResponse> {
     blocks: [
       {
         type: "header",
-        text: { type: "plain_text", text: "🏥 GLINR Status", emoji: true },
+        text: { type: "plain_text", text: "🏥 profClaw Status", emoji: true },
       },
       {
         type: "section",
@@ -1086,7 +1086,7 @@ slack.post("/interactive", async (c) => {
       }
       return c.json({
         response_type: resolveDefaultResponseType(),
-        text: `🔗 <${SLACK_APP_URL}/tickets/${ticketId}|Open ticket in GLINR>`,
+        text: `🔗 <${SLACK_APP_URL}/tickets/${ticketId}|Open ticket in profClaw>`,
       });
     }
   }

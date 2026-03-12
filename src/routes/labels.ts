@@ -5,6 +5,7 @@
  */
 
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import {
   createLabel,
   getLabel,
@@ -18,6 +19,27 @@ import {
 } from '../labels/index.js';
 
 export const labelsRoutes = new Hono();
+
+async function parseJsonBody(c: Context): Promise<
+  { ok: true; body: Record<string, unknown> } | { ok: false; response: Response }
+> {
+  try {
+    const body = await c.req.json();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return {
+        ok: false,
+        response: c.json({ error: 'Request body must be a JSON object' }, 400),
+      };
+    }
+
+    return { ok: true, body: body as Record<string, unknown> };
+  } catch {
+    return {
+      ok: false,
+      response: c.json({ error: 'Invalid JSON body' }, 400),
+    };
+  }
+}
 
 // =============================================================================
 // PROJECT LABELS
@@ -52,7 +74,12 @@ labelsRoutes.get('/projects/:projectId/labels', async (c) => {
 labelsRoutes.post('/projects/:projectId/labels', async (c) => {
   try {
     const projectId = c.req.param('projectId');
-    const body = await c.req.json();
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const body = parsed.body;
 
     if (!body.name) {
       return c.json({ error: 'name is required' }, 400);
@@ -111,7 +138,12 @@ labelsRoutes.get('/labels/:id', async (c) => {
 labelsRoutes.patch('/labels/:id', async (c) => {
   try {
     const id = c.req.param('id');
-    const body = await c.req.json();
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const body = parsed.body;
 
     const label = await updateLabel(id, {
       name: body.name,
@@ -187,7 +219,12 @@ labelsRoutes.get('/tickets/:ticketId/labels', async (c) => {
 labelsRoutes.put('/tickets/:ticketId/labels', async (c) => {
   try {
     const ticketId = c.req.param('ticketId');
-    const body = await c.req.json();
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const body = parsed.body;
 
     if (!Array.isArray(body.labelIds)) {
       return c.json({ error: 'labelIds must be an array' }, 400);

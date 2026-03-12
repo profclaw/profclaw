@@ -1,29 +1,36 @@
 # Profiles:
-#   (default)   glinr + redis
+#   (default)   profclaw (pro mode) + redis
+#   pico        profclaw (pico mode) -- no redis, no UI
 #   ai          + ollama (free local AI)
 #   tools       + redis-commander
 #   monitoring  + prometheus + grafana
+#
+# Quick start per mode:
+#   docker compose up -d                                  # pro (default)
+#   docker compose up -d profclaw-pico                    # pico (minimal)
+#   docker compose --profile ai up -d                     # pro + ollama
 
 services:
   # ===================
-  # GLINR Task Manager
+  # profClaw Task Manager
   # ===================
-  glinr:
+  profclaw:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: glinr-task-manager
+    container_name: profclaw
     ports:
       - "${PORT:-3000}:3000"
     environment:
       # Core
       - NODE_ENV=production
       - PORT=3000
+      - PROFCLAW_MODE=pro
       # Redis
       - REDIS_URL=redis://redis:6379
-      - GLINR_REQUIRE_REDIS=true
+      - PROFCLAW_REQUIRE_REDIS=true
       # Database
-      - DATABASE_URL=file:/app/data/glinr.db
+      - DATABASE_URL=file:/app/data/profclaw.db
       # OpenClaw
       - OPENCLAW_BASE_URL=${OPENCLAW_BASE_URL:-http://host.docker.internal:18789}
       - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}
@@ -46,7 +53,7 @@ services:
       - POOL_MAX_CONCURRENT=${POOL_MAX_CONCURRENT:-50}
       - POOL_TIMEOUT_MS=${POOL_TIMEOUT_MS:-300000}
     volumes:
-      - glinr-data:/app/data
+      - profclaw-data:/app/data
       - workspace:/workspace
     depends_on:
       redis:
@@ -59,14 +66,45 @@ services:
       start_period: 10s
     restart: unless-stopped
     networks:
-      - glinr-network
+      - profclaw-network
+
+  # ===================
+  # profClaw Pico (minimal, no Redis)
+  # ===================
+  profclaw-pico:
+    build:
+      context: .
+      dockerfile: Dockerfile.pico
+    container_name: profclaw-pico
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - PROFCLAW_MODE=pico
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    volumes:
+      - profclaw-data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    profiles:
+      - pico
+    networks:
+      - profclaw-network
 
   # ===================
   # Redis (Task Queue)
   # ===================
   redis:
     image: redis:7-alpine
-    container_name: glinr-redis
+    container_name: profclaw-redis
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
@@ -79,14 +117,14 @@ services:
       retries: 5
     restart: unless-stopped
     networks:
-      - glinr-network
+      - profclaw-network
 
   # ===================
   # Ollama (Free Local AI)
   # ===================
   ollama:
     image: ollama/ollama:latest
-    container_name: glinr-ollama
+    container_name: profclaw-ollama
     volumes:
       - ollama-data:/root/.ollama
     ports:
@@ -101,16 +139,16 @@ services:
       start_period: 30s
     restart: unless-stopped
     networks:
-      - glinr-network
+      - profclaw-network
 
   # ===================
   # Redis Commander (Dev Tools)
   # ===================
   redis-commander:
     image: rediscommander/redis-commander:latest
-    container_name: glinr-redis-ui
+    container_name: profclaw-redis-ui
     environment:
-      - REDIS_HOSTS=glinr:redis:6379
+      - REDIS_HOSTS=profclaw:redis:6379
     ports:
       - "${REDIS_COMMANDER_PORT:-8081}:8081"
     depends_on:
@@ -119,14 +157,14 @@ services:
     profiles:
       - tools
     networks:
-      - glinr-network
+      - profclaw-network
 
   # ===================
   # Prometheus (Metrics)
   # ===================
   prometheus:
     image: prom/prometheus:latest
-    container_name: glinr-prometheus
+    container_name: profclaw-prometheus
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
     volumes:
@@ -139,14 +177,14 @@ services:
     profiles:
       - monitoring
     networks:
-      - glinr-network
+      - profclaw-network
 
   # ===================
   # Grafana (Dashboards)
   # ===================
   grafana:
     image: grafana/grafana:latest
-    container_name: glinr-grafana
+    container_name: profclaw-grafana
     ports:
       - "${GRAFANA_PORT:-3001}:3000"
     environment:
@@ -160,10 +198,10 @@ services:
     profiles:
       - monitoring
     networks:
-      - glinr-network
+      - profclaw-network
 
 volumes:
-  glinr-data:
+  profclaw-data:
     driver: local
   redis-data:
     driver: local
@@ -177,5 +215,5 @@ volumes:
     driver: local
 
 networks:
-  glinr-network:
+  profclaw-network:
     driver: bridge

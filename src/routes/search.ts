@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { getStorage } from '../storage/index.js';
 import { getEmbeddingService } from '../ai/embedding-service.js';
 import { getSummary, searchSummaries } from '../summaries/index.js';
-import { getTask, getTasks } from '../queue/task-queue.js';
+import { getTask, getTasks } from '../queue/index.js';
 import { logger } from '../utils/logger.js';
 
 const search = new Hono();

@@ -1,4 +1,4 @@
-import { onTaskEvent } from '../queue/task-queue.js';
+import { onTaskEvent } from '../queue/index.js';
 import { calculateCost } from './pricing.js';
 import { logger } from '../utils/logger.js';
 

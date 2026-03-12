@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { handleGitHubWebhook } from '../integrations/github.js';
 import { handleJiraWebhook } from '../integrations/jira.js';
 import { handleLinearWebhook } from '../integrations/linear.js';
-import { addTask } from '../queue/task-queue.js';
+import { addTask } from '../queue/index.js';
 
 const webhooks = new Hono();
 

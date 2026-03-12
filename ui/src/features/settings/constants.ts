@@ -18,6 +18,10 @@ import {
   Puzzle,
   Wrench,
   MessageCircle,
+  MonitorSmartphone,
+  Mic,
+  Globe,
+  Store,
 } from 'lucide-react';
 import {
   AnthropicLogo,
@@ -119,10 +123,34 @@ export const SETTINGS_SECTIONS = [
     description: 'Extensions and MCP',
   },
   {
+    id: 'marketplace',
+    label: 'Marketplace',
+    icon: Store,
+    description: 'Browse and install plugins & skills',
+  },
+  {
     id: 'storage',
     label: 'Storage',
     icon: Database,
     description: 'Data and backup',
+  },
+  {
+    id: 'voice',
+    label: 'Voice',
+    icon: Mic,
+    description: 'Speech recognition and synthesis',
+  },
+  {
+    id: 'pwa',
+    label: 'App & Notifications',
+    icon: MonitorSmartphone,
+    description: 'Install app, push notifications',
+  },
+  {
+    id: 'tunnels',
+    label: 'Tunnels',
+    icon: Globe,
+    description: 'Remote access via Tailscale or Cloudflare',
   },
   {
     id: 'system',

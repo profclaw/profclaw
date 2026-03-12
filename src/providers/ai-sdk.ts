@@ -1,5 +1,5 @@
 /**
- * GLINR AI Provider System
+ * profClaw AI Provider System
  *
  * Built on Vercel AI SDK for production-ready multi-provider support.
  * Supports: Anthropic, OpenAI, Google, Ollama, and more.

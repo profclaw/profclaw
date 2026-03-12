@@ -119,12 +119,12 @@ export function LoginPage() {
           {/* Logo */}
           <div className="flex justify-center mb-6">
             <div className="p-4 rounded-[2rem] glass-heavy shadow-2xl shadow-primary/10 transition-transform hover:scale-110">
-              <Logo className="h-12 w-12 text-[var(--primary)]" aria-label="GLINR Logo" />
+              <Logo className="h-12 w-12 text-[var(--primary)]" aria-label="profClaw Logo" />
             </div>
           </div>
           <h1 className="text-3xl font-black tracking-tighter uppercase tracking-[0.1em]">Welcome back</h1>
           <p className="text-sm text-[var(--muted-foreground)] font-semibold mt-1">
-            Sign in to your GLINR account
+            Sign in to your profClaw account
           </p>
         </div>
 
@@ -242,7 +242,7 @@ export function LoginPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@glinr.ai"
+                placeholder="you@profclaw.ai"
                 required
                 autoComplete="email"
               />
@@ -373,12 +373,12 @@ export function LoginPage() {
                 <div className="space-y-2">
                   <div className="relative">
                     <code className="block w-full p-3 bg-[var(--background)] border border-[var(--border)] rounded-lg text-xs font-mono break-all pr-10">
-                      glinr auth reset-password your@email.com
+                      profclaw auth reset-password your@email.com
                     </code>
                     <button
                       type="button"
                       onClick={() => {
-                        navigator.clipboard.writeText('glinr auth reset-password your@email.com');
+                        navigator.clipboard.writeText('profclaw auth reset-password your@email.com');
                         setCopiedCmd('reset');
                         setTimeout(() => setCopiedCmd(null), 2000);
                         toast.success('Command copied');

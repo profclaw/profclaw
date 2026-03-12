@@ -20,7 +20,7 @@ export async function initStorage(): Promise<StorageAdapter> {
   }
   const settings = loadConfig<SettingsYaml>("settings.yml");
 
-  // Support DATABASE_URL env var (e.g. "file:/app/data/glinr.db" from Docker)
+  // Support DATABASE_URL env var (e.g. "file:/app/data/profclaw.db" from Docker)
   const databaseUrl = process.env.DATABASE_URL;
   let tier = process.env.STORAGE_TIER || settings.storage?.tier || "memory";
   let dbPathOverride: string | undefined;

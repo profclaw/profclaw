@@ -41,8 +41,8 @@ describe('Slack Notifications', () => {
       id: 'task-123456789',
       title: 'Critical Task',
       priority: 1,
-      repository: 'glinr/glinr',
-      sourceUrl: 'https://github.com/glinr/glinr/issues/1'
+      repository: 'profclaw/profclaw',
+      sourceUrl: 'https://github.com/profclaw/profclaw/issues/1'
     } as any;
 
     await slack.notifyTaskStarted(task);
@@ -55,7 +55,7 @@ describe('Slack Notifications', () => {
     // Task ID field in section block
     expect(blocks[2].fields[0].text).toContain('task-123');
     // Repo field
-    expect(blocks[2].fields[2].text).toContain('glinr/glinr');
+    expect(blocks[2].fields[2].text).toContain('profclaw/profclaw');
   });
 
   it('should honor NOTIFY_ON_START setting', async () => {

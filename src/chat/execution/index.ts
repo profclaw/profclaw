@@ -62,10 +62,10 @@ import type { SecurityPolicy, SandboxConfig } from './types.js';
 import type { PoolConfig } from './process-pool.js';
 import type { RateLimitConfig } from './rate-limiter.js';
 import { initSecurityManager } from './security.js';
-import { initSandboxManager } from './sandbox.js';
-import { initProcessPool } from './process-pool.js';
-import { initAuditLogger } from './audit.js';
-import { initRateLimiter } from './rate-limiter.js';
+import { initSandboxManager, getSandboxManager as getSandboxStatusManager } from './sandbox.js';
+import { initProcessPool, getProcessPool as getPoolStatusManager } from './process-pool.js';
+import { initAuditLogger, getAuditLogger as getAuditStatusLogger } from './audit.js';
+import { initRateLimiter, getRateLimiter as getRateLimitStatusManager } from './rate-limiter.js';
 import { registerBuiltinTools } from './tools/index.js';
 import { logger } from '../../utils/logger.js';
 
@@ -144,17 +144,11 @@ export function isInitialized(): boolean {
  * Get system status
  */
 export function getExecutionStatus() {
-  // Import here to avoid circular dependencies during initialization
-  const { getSandboxManager: getSandbox } = require('./sandbox.js');
-  const { getProcessPool: getPool } = require('./process-pool.js');
-  const { getRateLimiter: getLimiter } = require('./rate-limiter.js');
-  const { getAuditLogger: getAudit } = require('./audit.js');
-
   return {
     initialized,
-    sandbox: getSandbox().getStatus(),
-    pool: getPool().getStatus(),
-    rateLimit: getLimiter().getConfig(),
-    audit: getAudit().getStats(),
+    sandbox: getSandboxStatusManager().getStatus(),
+    pool: getPoolStatusManager().getStatus(),
+    rateLimit: getRateLimitStatusManager().getConfig(),
+    audit: getAuditStatusLogger().getStats(),
   };
 }

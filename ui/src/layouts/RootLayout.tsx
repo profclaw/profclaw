@@ -1,7 +1,8 @@
 import { type ReactNode, useState, useMemo, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, ListTodo, FileText, Settings, Bot, Search, Coins, Menu, X, ChevronLeft, ChevronRight, Webhook, AlertTriangle, PanelLeftClose, PanelLeft, Command, Zap, Ticket, Sparkles, FolderKanban, Users, Clock, ChevronDown, LogOut, CreditCard, KeyRound, Bell } from 'lucide-react';
+import { BarChart3, ListTodo, FileText, Settings, Bot, Search, Coins, Menu, X, ChevronLeft, ChevronRight, Webhook, AlertTriangle, PanelLeftClose, PanelLeft, Command, Zap, Ticket, Sparkles, FolderKanban, Users, Clock, ChevronDown, LogOut, CreditCard, KeyRound, Bell } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { useTheme } from 'next-themes';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
 import { CommandPalette, openCommandPalette } from '@/components/shared/CommandPalette';
 import { NotificationBell } from '@/features/notifications/components/NotificationBell';
@@ -29,15 +30,14 @@ const navGroups = [
     id: 'home',
     label: 'Home',
     items: [
-      { name: 'Dashboard', href: '/', icon: LayoutDashboard, shortcut: '⌘1' },
+      { name: 'Chat', href: '/', icon: Sparkles, shortcut: '⌘1' },
     ],
   },
   {
     id: 'ai-studio',
     label: 'AI Studio',
     items: [
-      { name: 'Chat', href: '/chat', icon: Sparkles, shortcut: '⌘2' },
-      { name: 'Agents', href: '/agents', icon: Bot, shortcut: '⌘3' },
+      { name: 'Agents', href: '/agents', icon: Bot, shortcut: '⌘2' },
       { name: 'Gateway', href: '/gateway', icon: Zap },
     ],
   },
@@ -45,9 +45,9 @@ const navGroups = [
     id: 'scrum',
     label: 'Scrum',
     items: [
-      { name: 'Projects', href: '/projects', icon: FolderKanban, shortcut: '⌘4' },
-      { name: 'Tickets', href: '/tickets', icon: Ticket, shortcut: '⌘5' },
-      { name: 'Tasks', href: '/tasks', icon: ListTodo, shortcut: '⌘6', hasBadge: 'pending' },
+      { name: 'Projects', href: '/projects', icon: FolderKanban, shortcut: '⌘3' },
+      { name: 'Tickets', href: '/tickets', icon: Ticket, shortcut: '⌘4' },
+      { name: 'Tasks', href: '/tasks', icon: ListTodo, shortcut: '⌘5', hasBadge: 'pending' },
       { name: 'Failed', href: '/failed', icon: AlertTriangle, hasBadge: 'dlq' },
     ],
   },
@@ -55,6 +55,7 @@ const navGroups = [
     id: 'insights',
     label: 'Insights',
     items: [
+      { name: 'Analytics', href: '/analytics', icon: BarChart3, shortcut: '⌘6' },
       { name: 'Activity', href: '/activity', icon: Bell },
       { name: 'Summaries', href: '/summaries', icon: FileText, shortcut: '⌘7' },
       { name: 'Costs', href: '/costs', icon: Coins, shortcut: '⌘8' },
@@ -90,9 +91,9 @@ const navigation = navGroups.flatMap(g => g.items);
 
 // Quick access toolbar items (subset for header)
 const toolbarNav = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Chat', href: '/', icon: Sparkles },
   { name: 'Tasks', href: '/tasks', icon: ListTodo },
-  { name: 'Summaries', href: '/summaries', icon: FileText },
+  { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   { name: 'Agents', href: '/agents', icon: Bot },
 ];
 
@@ -219,6 +220,7 @@ export function RootLayout({ children }: RootLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { resolvedTheme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(() => {
     const saved = localStorage.getItem('sidebar-collapsed');
@@ -319,12 +321,12 @@ export function RootLayout({ children }: RootLayoutProps) {
       // Only trigger with Cmd/Ctrl + number
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
         const shortcuts: Record<string, string> = {
-          '1': '/',           // Dashboard
-          '2': '/chat',       // AI Studio - Chat
-          '3': '/agents',     // AI Studio - Agents
-          '4': '/projects',   // Scrum - Projects
-          '5': '/tickets',    // Scrum - Tickets
-          '6': '/tasks',      // Scrum - Tasks
+          '1': '/',           // Home - Chat
+          '2': '/agents',     // AI Studio - Agents
+          '3': '/projects',   // Scrum - Projects
+          '4': '/tickets',    // Scrum - Tickets
+          '5': '/tasks',      // Scrum - Tasks
+          '6': '/analytics',  // Insights - Analytics
           '7': '/summaries',  // Insights - Summaries
           '8': '/costs',      // Insights - Costs
           '0': '/settings',   // Settings
@@ -359,7 +361,7 @@ export function RootLayout({ children }: RootLayoutProps) {
     const navItem = navigation.find(item =>
       item.href === path || (item.href !== '/' && path.startsWith(item.href))
     );
-    return navItem ? { name: navItem.name } : { name: 'Dashboard' };
+    return navItem ? { name: navItem.name } : { name: 'Chat' };
   }, [location.pathname]);
 
   const canGoBack = window.history.length > 1;
@@ -395,12 +397,17 @@ export function RootLayout({ children }: RootLayoutProps) {
             "flex items-center flex-shrink-0 transition-all h-14",
             collapsed ? "justify-center px-2" : "justify-between px-3"
           )}>
-            <Link to="/" className="flex items-center gap-2.5 group/logo" aria-label="GLINR Home">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl glass-heavy shadow-lg shadow-primary/5 transition-transform group-hover/logo:scale-105">
-                <Logo className="h-5.5 w-5.5 text-primary" aria-hidden="true" />
-              </div>
-              {!collapsed && (
-                <span className="logo-text-premium">GLINR</span>
+            <Link to="/" className="flex items-center group/logo" aria-label="profClaw Home">
+              {collapsed ? (
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl glass-heavy shadow-lg shadow-primary/5 transition-transform group-hover/logo:scale-105">
+                  <Logo className="h-7 w-7 text-primary" aria-hidden="true" />
+                </div>
+              ) : (
+                <img
+                  src={resolvedTheme === 'light' ? '/brand/profclaw-wordmark-light.svg' : '/brand/profclaw-wordmark-dark.svg'}
+                  alt="profClaw"
+                  className="h-10 transition-transform group-hover/logo:scale-[1.02]"
+                />
               )}
             </Link>
 

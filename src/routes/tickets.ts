@@ -484,7 +484,7 @@ ticketsRouter.post("/:id/comments", async (c) => {
     const commentAuthor = author || {
       type: "human",
       name: "User",
-      platform: "glinr",
+      platform: "profclaw",
     };
     const comment = await addComment(id, content, commentAuthor);
 
@@ -1329,8 +1329,8 @@ ticketsRouter.post("/:id/comments/ai-respond", async (c) => {
     if (result.success && result.shouldPost && result.response && autoPost) {
       const aiComment = await addComment(id, result.response, {
         type: "ai",
-        name: "GLINR AI",
-        platform: "glinr",
+        name: "profClaw AI",
+        platform: "profclaw",
       });
 
       return c.json({

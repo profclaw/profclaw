@@ -578,7 +578,7 @@ export function TicketDetail() {
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-3">
                 <span className="text-sm font-mono text-muted-foreground bg-white/5 px-2 py-1 rounded-md">
-                  {ticketData.projectKey || 'GLINR'}-{ticketData.sequence}
+                  {ticketData.projectKey || 'PROFCLAW'}-{ticketData.sequence}
                 </span>
                 {!ticketData.projectId && (
                   <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
@@ -773,7 +773,7 @@ export function TicketDetail() {
                               <span className="text-xs text-muted-foreground">
                                 {new Date(comment.createdAt).toLocaleString()}
                               </span>
-                              {comment.source !== 'glinr' && (
+                              {comment.source !== 'profclaw' && (
                                 <Badge variant="outline" className="text-[10px] px-1.5 py-0">
                                   {comment.source}
                                 </Badge>
@@ -1061,7 +1061,7 @@ export function TicketDetail() {
               >
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-xs font-mono text-muted-foreground">
-                    {ticketData.parent.projectKey || 'GLINR'}-{ticketData.parent.sequence}
+                    {ticketData.parent.projectKey || 'PROFCLAW'}-{ticketData.parent.sequence}
                   </span>
                   {ticketData.parent.type === 'epic' && (
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-medium">
@@ -1113,7 +1113,7 @@ export function TicketDetail() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-mono text-muted-foreground mb-0.5">
-                        {child.projectKey || 'GLINR'}-{child.sequence}
+                        {child.projectKey || 'PROFCLAW'}-{child.sequence}
                       </p>
                       <p className={`text-sm truncate group-hover:text-primary transition-colors ${child.status === 'done' ? 'line-through text-muted-foreground' : ''}`}>
                         {child.title}
@@ -1204,7 +1204,7 @@ export function TicketDetail() {
                         <div className="flex items-center gap-1.5 mb-0.5">
                           <TicketIcon className="h-3 w-3 text-muted-foreground" />
                           <span className="text-[10px] font-mono text-muted-foreground">
-                            {similar.projectKey || 'GLINR'}-{similar.sequence}
+                            {similar.projectKey || 'PROFCLAW'}-{similar.sequence}
                           </span>
                         </div>
                         <p className="text-xs font-medium truncate group-hover:text-primary transition-colors">

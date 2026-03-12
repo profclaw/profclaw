@@ -55,7 +55,7 @@ interface DeviceIdentityFile {
 /**
  * Default identity file path
  */
-const DEFAULT_IDENTITY_DIR = join(homedir(), '.glinr', 'identity');
+const DEFAULT_IDENTITY_DIR = join(homedir(), '.profclaw', 'identity');
 const DEFAULT_IDENTITY_FILE = 'device.json';
 
 /**
@@ -154,7 +154,7 @@ export function loadOrCreateDeviceIdentity(
     deviceId,
     publicKeyPem: publicKey,
     privateKeyPem: privateKey,
-    displayName: options?.displayName || `GLINR Device ${deviceId.slice(0, 8)}`,
+    displayName: options?.displayName || `profClaw Device ${deviceId.slice(0, 8)}`,
     platform: getPlatform(),
     createdAt: new Date().toISOString(),
   };

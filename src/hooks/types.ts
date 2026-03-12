@@ -1,5 +1,5 @@
 /**
- * Hook Types for GLINR Task Manager
+ * Hook Types for profClaw
  *
  * Types for processing and storing hook events from Claude Code and other agents.
  */
@@ -7,7 +7,7 @@
 export type HookEventType = 'PostToolUse' | 'Stop' | 'UserPromptSubmit';
 
 /**
- * Processed hook event stored by GLINR
+ * Processed hook event stored by profClaw
  */
 export interface HookEvent {
   id: string;

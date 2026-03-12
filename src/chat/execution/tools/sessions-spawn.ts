@@ -22,8 +22,8 @@ const SessionsSpawnParamsSchema = z.object({
     .describe('Title for the new session (auto-generated from task if not provided)'),
   task: z.string().optional()
     .describe('Initial task or message to send to the new session'),
-  presetId: z.string().optional().default('glinr-assistant')
-    .describe('Preset ID for the session (glinr-assistant, code-assistant, etc.)'),
+  presetId: z.string().optional().default('profclaw-assistant')
+    .describe('Preset ID for the session (profclaw-assistant, code-assistant, etc.)'),
   projectId: z.string().optional()
     .describe('Link session to a project'),
   ticketId: z.string().optional()
@@ -90,7 +90,7 @@ Returns the session ID for use with sessions_send or sessions_list.`,
     {
       description: 'Spawn linked to ticket',
       params: {
-        ticketId: 'GLINR-123',
+        ticketId: 'PC-123',
         task: 'Implement the feature described in this ticket',
       }
     },

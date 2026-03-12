@@ -23,7 +23,7 @@ export function PrivacyPolicy() {
             className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span className="text-sm">Back to GLINR</span>
+            <span className="text-sm">Back to profClaw</span>
           </Link>
           {externalUrl && (
             <a
@@ -57,7 +57,7 @@ export function PrivacyPolicy() {
           <section className="mb-8">
             <h2 className="text-xl font-semibold mb-4">1. Introduction</h2>
             <p className="text-muted-foreground leading-relaxed">
-              GLINR ("we", "our", or "us") is committed to protecting your
+              profClaw ("we", "our", or "us") is committed to protecting your
               privacy. This Privacy Policy explains how we collect, use,
               disclose, and safeguard your information when you use our AI task
               management platform.
@@ -154,10 +154,10 @@ export function PrivacyPolicy() {
             <p className="text-muted-foreground leading-relaxed">
               For questions about this Privacy Policy, contact us at:{" "}
               <a
-                href="mailto:support@glincker.com"
+                href="mailto:support@profclaw.dev"
                 className="text-primary hover:underline"
               >
-                support@glincker.com
+                support@profclaw.dev
               </a>
             </p>
           </section>

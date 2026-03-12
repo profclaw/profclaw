@@ -137,8 +137,8 @@ export function resolveMetadata(
       return undefined;
     }
 
-    // Support nested glinr/openclaw key or flat structure
-    const metadataObj = (parsed.glinr || parsed.openclaw || parsed) as Record<string, unknown>;
+    // Support nested profclaw/openclaw key or flat structure
+    const metadataObj = (parsed.profclaw || parsed.openclaw || parsed) as Record<string, unknown>;
 
     const requiresRaw = typeof metadataObj.requires === 'object' && metadataObj.requires !== null
       ? (metadataObj.requires as Record<string, unknown>)

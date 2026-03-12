@@ -2,12 +2,12 @@
 name: mcp-discovery
 description: Discover and use MCP servers for external platform integration (GitHub, Jira, Linear, etc.)
 version: 1.0.0
-metadata: {"glinr": {"emoji": "🔌", "category": "integration", "priority": 80, "always": true}}
+metadata: {"profclaw": {"emoji": "🔌", "category": "integration", "priority": 80, "always": true}}
 ---
 
 # MCP Server Discovery & Integration
 
-GLINR can connect to MCP (Model Context Protocol) servers that provide access to external platforms like GitHub, Jira, Linear, and more. This skill teaches you how to discover and use these capabilities.
+profClaw can connect to MCP (Model Context Protocol) servers that provide access to external platforms like GitHub, Jira, Linear, and more. This skill teaches you how to discover and use these capabilities.
 
 ## What is MCP?
 
@@ -65,21 +65,21 @@ You: (seeing github_create_issue is available)
 
 ## Syncing Between Platforms
 
-You can orchestrate between GLINR and external platforms:
+You can orchestrate between profClaw and external platforms:
 
 ```
-User: "Sync this GLINR ticket to GitHub"
+User: "Sync this profClaw ticket to GitHub"
 
 You:
-  1. get_ticket(ticketKey="GLINR-42") → get ticket details
+  1. get_ticket(ticketKey="PROFCLAW-42") → get ticket details
   2. github_create_issue(
        repo: "user/repo",
        title: ticket.title,
        body: ticket.description,
        labels: ticket.labels
      )
-  3. update_ticket(ticketKey="GLINR-42", linkedPRs: ["#123"])
-  4. Return: "Created GitHub issue #123 and linked to GLINR-42"
+  3. update_ticket(ticketKey="PROFCLAW-42", linkedPRs: ["#123"])
+  4. Return: "Created GitHub issue #123 and linked to PROFCLAW-42"
 ```
 
 ## Dynamic Learning
@@ -97,13 +97,13 @@ User: "Create a Linear issue"
 You: (Linear MCP not connected)
   "I don't have access to Linear yet. Would you like to:
    1. Configure the Linear MCP server in Settings > Integrations
-   2. Create a GLINR ticket instead that can be synced later"
+   2. Create a profClaw ticket instead that can be synced later"
 ```
 
 ## Best Practices
 
 1. **Check what's available** - Don't assume tools exist
-2. **Use native GLINR first** for internal tracking
+2. **Use native profClaw first** for internal tracking
 3. **Sync to external** platforms when the user wants visibility there
-4. **Keep links updated** - Store external IDs in GLINR tickets
+4. **Keep links updated** - Store external IDs in profClaw tickets
 5. **Report what you did** - Always tell the user what was created where

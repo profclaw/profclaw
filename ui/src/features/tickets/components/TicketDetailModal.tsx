@@ -190,7 +190,7 @@ export function TicketDetailModal({ ticketId, open, onOpenChange }: TicketDetail
       api.tickets.addComment(ticketId!, content, {
         type: 'human',
         name: user?.name || 'Anonymous',
-        platform: 'glinr',
+        platform: 'profclaw',
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
@@ -299,7 +299,7 @@ export function TicketDetailModal({ ticketId, open, onOpenChange }: TicketDetail
       >
         <VisuallyHidden>
           <DialogTitle>
-            {ticketData ? `${ticketData.projectKey || 'GLINR'}-${ticketData.sequence}: ${ticketData.title}` : 'Loading ticket...'}
+            {ticketData ? `${ticketData.projectKey || 'PROFCLAW'}-${ticketData.sequence}: ${ticketData.title}` : 'Loading ticket...'}
           </DialogTitle>
         </VisuallyHidden>
 
@@ -335,7 +335,7 @@ export function TicketDetailModal({ ticketId, open, onOpenChange }: TicketDetail
                      {ticketData.projectKey || 'PROJECT'}
                    </Link>
                    <ChevronRight className="h-3 w-3 opacity-30" />
-                   <span className="text-foreground/80 font-mono tracking-tight normal-case">{ticketData.projectKey || 'GLINR'}-{ticketData.sequence}</span>
+                   <span className="text-foreground/80 font-mono tracking-tight normal-case">{ticketData.projectKey || 'PROFCLAW'}-{ticketData.sequence}</span>
                 </nav>
               </div>
 

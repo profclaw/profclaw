@@ -21,7 +21,7 @@ export type ToolCategory =
   | 'system'      // System info, env
   | 'web'         // Web fetch, search
   | 'execution'   // Shell commands
-  | 'glinr'       // GLINR-specific operations
+  | 'profclaw'       // PC-specific operations
   | 'memory'      // Conversation memory
   | 'data'        // Database, API calls
   | 'custom';     // User-defined

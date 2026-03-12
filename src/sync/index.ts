@@ -1,5 +1,5 @@
 /**
- * GLINR Sync Engine
+ * profClaw Sync Engine
  *
  * Bi-directional sync with external platforms:
  * - Linear

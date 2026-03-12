@@ -181,7 +181,7 @@ export function SetupWizard() {
       }
       // Store session token
       if (data.session?.token) {
-        localStorage.setItem('glinr_session', data.session.token);
+        localStorage.setItem('profclaw_session', data.session.token);
       }
       refetchStatus();
       setCurrentStep(3);
@@ -259,7 +259,7 @@ export function SetupWizard() {
               <Sparkles className="h-12 w-12 text-[var(--primary)]" />
             </div>
             <div className="space-y-2">
-              <h2 className="text-2xl font-bold tracking-tight">Welcome to GLINR</h2>
+              <h2 className="text-2xl font-bold tracking-tight">Welcome to profClaw</h2>
               <p className="text-[var(--muted-foreground)] max-w-sm mx-auto">
                 Let's get you set up in just a few minutes. We'll configure
                 authentication so you can start managing tasks with AI.
@@ -343,7 +343,7 @@ export function SetupWizard() {
                 <div className="space-y-1 field-recessed p-1 shadow-inner overflow-hidden">
                   <div className="flex items-center justify-between p-3 hover:bg-white/5 dark:hover:bg-black/20 rounded-xl transition-colors">
                     <span className="text-[var(--muted-foreground)] font-black uppercase tracking-widest text-[9px]">Application name</span>
-                    <code className="text-xs font-bold text-[var(--foreground)] px-2 opacity-80">GLINR Task Manager</code>
+                    <code className="text-xs font-bold text-[var(--foreground)] px-2 opacity-80">profClaw Task Manager</code>
                   </div>
                   <div className="flex items-center justify-between p-3 hover:bg-white/5 dark:hover:bg-black/20 rounded-xl transition-colors">
                     <span className="text-[var(--muted-foreground)] font-black uppercase tracking-widest text-[9px]">Homepage URL</span>
@@ -511,7 +511,7 @@ export function SetupWizard() {
                 <Input
                   id="adminEmail"
                   type="email"
-                  placeholder="admin@glinr.ai"
+                  placeholder="admin@profclaw.ai"
                   value={adminEmail}
                   onChange={(e) => setAdminEmail(e.target.value)}
                 />
@@ -688,7 +688,7 @@ export function SetupWizard() {
                     className="flex-1 gap-2"
                     onClick={() => {
                       const blob = new Blob([
-                        `GLINR Recovery Codes\n`,
+                        `profClaw Recovery Codes\n`,
                         `=====================\n`,
                         `Account: ${adminEmail}\n\n`,
                         recoveryCodes.join('\n'),
@@ -697,7 +697,7 @@ export function SetupWizard() {
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement('a');
                       a.href = url;
-                      a.download = 'glinr-recovery-codes.txt';
+                      a.download = 'profclaw-recovery-codes.txt';
                       a.click();
                       URL.revokeObjectURL(url);
                       toast.success('Recovery codes downloaded');
@@ -726,7 +726,7 @@ export function SetupWizard() {
                   <div className="space-y-2 mt-6">
                     <h2 className="text-2xl font-bold tracking-tight">Setup Complete!</h2>
                     <p className="text-[var(--muted-foreground)] max-w-sm mx-auto">
-                      GLINR is ready to use. You can now sign in and start managing your tasks.
+                      profClaw is ready to use. You can now sign in and start managing your tasks.
                     </p>
                   </div>
                 </div>

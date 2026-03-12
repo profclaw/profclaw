@@ -7,13 +7,13 @@ import { existsSync } from 'fs';
 
 export function serveCommand() {
   const serve = new Command('serve')
-    .description('Start the GLINR API server')
+    .description('Start the profClaw API server')
     .option('-p, --port <port>', 'Port to listen on', '3000')
     .option('--no-cron', 'Disable cron jobs')
     .option('--dev', 'Run in development mode with watch')
     .action(async (options) => {
       // Show banner
-      const banner = figlet.textSync('GLINR', { font: 'Standard' });
+      const banner = figlet.textSync('profClaw', { font: 'Standard' });
       console.log(chalk.cyan(banner));
       console.log(chalk.dim('  AI Agent Task Orchestrator\n'));
 

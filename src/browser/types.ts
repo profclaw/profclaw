@@ -1,7 +1,7 @@
 /**
  * Browser Automation Types
  *
- * TypeScript types for GLINR's Playwright-based browser automation.
+ * TypeScript types for profClaw's Playwright-based browser automation.
  */
 
 export interface BrowserPage {

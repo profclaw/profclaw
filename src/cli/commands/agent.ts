@@ -91,7 +91,7 @@ export function agentCommands() {
         return;
       }
 
-      console.log(`\nGLINR Task Manager v${health.version}`);
+      console.log(`\nprofClaw v${health.version}`);
       console.log(`Status: ${health.status === 'ok' ? chalk.green('OK') : chalk.red('ERROR')}`);
       console.log(`Timestamp: ${health.timestamp}`);
 

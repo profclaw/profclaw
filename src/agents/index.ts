@@ -1,5 +1,5 @@
 /**
- * GLINR Agent System
+ * profClaw Agent System
  *
  * Public exports for the agentic loop system.
  */

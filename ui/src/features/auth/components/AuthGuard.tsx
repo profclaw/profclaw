@@ -2,13 +2,33 @@
  * Auth Guard Component
  *
  * Protects routes by requiring authentication.
- * Redirects to login if not authenticated.
+ * Redirects to OOBE wizard if first-time setup is needed,
+ * or to login if in multi-user mode and not authenticated.
  */
 
 import { type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
+
+interface OOBEStatus {
+  needsSetup: boolean;
+  authMode: string;
+}
+
+function useOOBEStatus() {
+  return useQuery({
+    queryKey: ['oobe', 'status'],
+    queryFn: async (): Promise<OOBEStatus> => {
+      const res = await fetch('/api/oobe/status');
+      if (!res.ok) return { needsSetup: true, authMode: 'local' };
+      return res.json();
+    },
+    staleTime: 30_000,
+    retry: false,
+  });
+}
 
 interface AuthGuardProps {
   children: ReactNode;
@@ -20,10 +40,11 @@ interface AuthGuardProps {
 
 export function AuthGuard({ children, requireOnboarding = false }: AuthGuardProps) {
   const { isAuthenticated, isLoading, user } = useAuth();
+  const { data: oobeStatus, isLoading: oobeLoading } = useOOBEStatus();
   const location = useLocation();
 
-  // Show loading state while checking auth
-  if (isLoading) {
+  // Show loading state while checking auth + oobe
+  if (isLoading || oobeLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--background)]">
         <div className="flex flex-col items-center gap-4">
@@ -34,7 +55,12 @@ export function AuthGuard({ children, requireOnboarding = false }: AuthGuardProp
     );
   }
 
-  // Redirect to login if not authenticated
+  // Redirect to OOBE wizard if first-time setup needed
+  if (oobeStatus?.needsSetup) {
+    return <Navigate to="/oobe" replace />;
+  }
+
+  // Redirect to login if not authenticated (only in multi-user mode)
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
@@ -52,13 +78,15 @@ export function AuthGuard({ children, requireOnboarding = false }: AuthGuardProp
  *
  * For pages that should only be accessible when NOT logged in (login, signup).
  * Redirects to onboarding or dashboard based on completion status.
+ * Also redirects to OOBE if setup is needed.
  */
 export function GuestGuard({ children }: { children: ReactNode }) {
   const { isAuthenticated, isLoading, user } = useAuth();
+  const { data: oobeStatus, isLoading: oobeLoading } = useOOBEStatus();
   const location = useLocation();
 
-  // Show loading state while checking auth
-  if (isLoading) {
+  // Show loading state while checking auth + oobe
+  if (isLoading || oobeLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--background)]">
         <div className="flex flex-col items-center gap-4">
@@ -67,6 +95,11 @@ export function GuestGuard({ children }: { children: ReactNode }) {
         </div>
       </div>
     );
+  }
+
+  // Redirect to OOBE if setup is needed
+  if (oobeStatus?.needsSetup) {
+    return <Navigate to="/oobe" replace />;
   }
 
   // Redirect based on onboarding status if authenticated

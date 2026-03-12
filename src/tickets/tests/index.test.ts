@@ -120,7 +120,7 @@ describe('Ticket Service', () => {
       const author = {
         name: 'Tester',
         type: 'human' as const,
-        platform: 'glinr'
+        platform: 'profclaw'
       };
 
       const { addComment, getComments } = await import('../index.js');

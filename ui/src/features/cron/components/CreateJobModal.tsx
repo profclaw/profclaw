@@ -208,11 +208,11 @@ const JOB_TYPES = [
     type: 'tool' as JobType,
     label: 'Tool Execution',
     icon: Wrench,
-    description: 'Run a GLINR tool',
+    description: 'Run a profClaw tool',
     color: 'from-indigo-500/20 to-pink-500/20',
     examples: ['Git operations', 'File sync', 'Database backups'],
     defaultPayload: { tool: 'git_status', params: {} },
-    guide: 'Execute any registered GLINR tool with custom parameters.',
+    guide: 'Execute any registered profClaw tool with custom parameters.',
   },
   {
     type: 'script' as JobType,

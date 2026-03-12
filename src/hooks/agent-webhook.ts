@@ -2,7 +2,7 @@
  * External Agent Webhook Handlers
  *
  * Receives completion notifications from external AI agents like OpenClaw, Devin, etc.
- * These webhooks allow agents to report their work back to GLINR.
+ * These webhooks allow agents to report their work back to profClaw.
  */
 
 import { randomUUID } from 'crypto';

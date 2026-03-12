@@ -12,12 +12,12 @@ build/
 .env.*.local
 !.env.example
 
-# Claude Code / AI tooling (private)
+# Claude Code / AI tooling (private session data)
 .claude/
-CLAUDE.md
-AGENTS.md
 MEMORY.md
 PLAN.md
+
+# CLAUDE.md and AGENTS.md are tracked (OSS agent instructions)
 
 # Database files
 *.db

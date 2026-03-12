@@ -1,5 +1,5 @@
 /**
- * GLINR Sync Engine Types
+ * profClaw Sync Engine Types
  *
  * Core types for bi-directional sync with external platforms:
  * - Linear

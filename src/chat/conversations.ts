@@ -56,7 +56,7 @@ export async function initConversationTables(): Promise<void> {
     CREATE TABLE IF NOT EXISTS conversations (
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
-      preset_id TEXT NOT NULL DEFAULT 'glinr-assistant',
+      preset_id TEXT NOT NULL DEFAULT 'profclaw-assistant',
       task_id TEXT,
       ticket_id TEXT,
       project_id TEXT,
@@ -110,7 +110,7 @@ export async function createConversation(params: {
   const id = randomUUID();
   const now = new Date().toISOString();
   const title = params.title || 'New conversation';
-  const presetId = params.presetId || 'glinr-assistant';
+  const presetId = params.presetId || 'profclaw-assistant';
 
   await client.execute({
     sql: `INSERT INTO conversations (id, title, preset_id, task_id, ticket_id, project_id, created_at, updated_at)

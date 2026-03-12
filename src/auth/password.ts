@@ -118,11 +118,11 @@ export function hashRecoveryCodes(codes: string[]): string[] {
 
 /**
  * Generate a human-friendly invite code.
- * Format: GLINR-XXXX-XXXX-XXXX (12 hex chars)
+ * Format: PC-XXXX-XXXX-XXXX (12 hex chars)
  */
 export function generateInviteCode(): string {
   const hex = randomBytes(6).toString('hex').toUpperCase();
-  return `GLINR-${hex.slice(0, 4)}-${hex.slice(4, 8)}-${hex.slice(8, 12)}`;
+  return `PC-${hex.slice(0, 4)}-${hex.slice(4, 8)}-${hex.slice(8, 12)}`;
 }
 
 /**

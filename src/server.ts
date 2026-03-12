@@ -36,10 +36,16 @@ import {
   discordRoutes,
   openApiRoutes,
   notificationsRoutes,
+  oobeRoutes,
+  pluginsRoutes,
+  clawhubRoutes,
+  pushRoutes,
+  tunnelsRoutes,
+  voiceRoutes,
 } from './routes/index.js';
 
 // Core imports
-import { initTaskQueue, getTasks, registerSSEBroadcaster, closeTaskQueue } from './queue/task-queue.js';
+import { initQueue, getTasks, registerSSEBroadcaster, closeQueue, addTask, getQueueType } from './queue/index.js';
 import { getTaskSummaries } from './summaries/index.js';
 import { getAgentRegistry } from './adapters/registry.js';
 import { startAllCronJobs, stopAllCronJobs, getHealthStatus } from './cron/index.js';
@@ -53,10 +59,11 @@ import { initApiTokensTable, tokenAuthMiddleware } from './auth/api-tokens.js';
 import { authMiddleware } from './auth/middleware.js';
 import { getGateway, type GatewayRequest, type WorkflowType } from './gateway/index.js';
 import { CreateTaskSchema } from './types/task.js';
-import { addTask } from './queue/task-queue.js';
 import { initSyncIntegration } from './sync/index.js';
 import { aiProvider } from './providers/index.js';
 import { loadAllProviderConfigs } from './storage/index.js';
+import { getMode, getModeLabel, hasCapability } from './core/deployment.js';
+import { webchatRoutes } from './routes/webchat.js';
 
 interface SettingsYaml {
   server: {
@@ -141,8 +148,10 @@ app.get('/health', (c) => {
   const agentHealth = getHealthStatus();
   return c.json({
     status: 'ok',
-    service: 'glinr-task-manager',
+    service: 'profclaw',
     version: '0.2.0',
+    mode: getMode(),
+    queue: getQueueType() || 'not_initialized',
     timestamp: new Date().toISOString(),
     agents: agentHealth,
   });
@@ -151,7 +160,7 @@ app.get('/health', (c) => {
 // API info
 app.get('/', (c) => {
   return c.json({
-    name: 'GLINR Task Manager',
+    name: 'profClaw',
     version: '0.2.0',
     description: 'AI Agent Task Orchestration - Autonomous Mode',
     docs: '/docs',
@@ -368,7 +377,7 @@ app.get('/api/events', (c) => {
       sseConnections.add(controller);
 
       const connectMsg = `event: connected\ndata: ${JSON.stringify({
-        message: 'Connected to GLINR event stream',
+        message: 'Connected to profClaw event stream',
         timestamp: new Date().toISOString()
       })}\n\n`;
       controller.enqueue(encoder.encode(connectMsg));
@@ -441,40 +450,71 @@ app.post('/api/gateway/execute-secure', tokenAuthMiddleware(['gateway:execute'])
   }
 });
 
-// === Mount Route Modules ===
+// === Mount Route Modules (mode-aware) ===
 
-app.route('/auth', authRoutes);
-app.route('/webhooks', webhooksRoutes);
+// Core routes -- always available
 app.route('/api/tasks', tasksRoutes);
-app.route('/api/dlq', dlqRoutes);
 app.route('/api/agents', agentsRoutes);
-app.route('/api/hook', hooksRoutes);
-app.route('/api/summaries', summariesRoutes);
-app.route('/api/costs', costsRoutes);
-app.route('/api/settings', settingsRoutes);
-app.route('/api/tokens', tokensRoutes);
-app.route('/api/gateway', gatewayRoutes);
-app.route('/api/search', searchRoutes);
-app.route('/api/tickets', ticketsRoutes);
-app.route('/api/projects', projectsRoutes);
-app.route('/api/stats', statsRoutes);
-app.route('/api/sync', syncRoutes);
 app.route('/api/chat', chatRoutes);
-app.route('/api/import', importRoutes);
-app.route('/api/users', userRoutes);
-app.route('/api/auth', authRoutes);
+app.route('/api/gateway', gatewayRoutes);
+app.route('/api/hook', hooksRoutes);
 app.route('/api/tools', toolsRoutes);
 app.route('/api/setup', setupRoutes);
-app.route('/api', labelsRoutes); // Labels routes mount at /api for /api/projects/:id/labels and /api/tickets/:id/labels
-app.route('/api/cron', cronRoutes);
-app.route('/api/devices', devicesRoutes);
+app.route('/api/oobe', oobeRoutes);
 app.route('/api/memory', memoryRoutes);
 app.route('/api/skills', skillsRoutes);
-app.route('/api/telegram', telegramRoutes);
-app.route('/api/whatsapp', whatsappRoutes);
-app.route('/api/discord', discordRoutes);
+app.route('/api/plugins', pluginsRoutes);
+app.route('/api/clawhub', clawhubRoutes);
+app.route('/api/push', pushRoutes);
+app.route('/api/tunnels', tunnelsRoutes);
+app.route('/api/voice', voiceRoutes);
+app.route('/api/costs', costsRoutes);
+app.route('/api/settings', settingsRoutes);
 app.route('/api/docs', openApiRoutes);
-app.route('/api/notifications', notificationsRoutes);
+app.route('/auth', authRoutes);
+app.route('/api/auth', authRoutes);
+
+// Mini+ routes -- dashboard, users, search, stats, notifications
+if (hasCapability('web_ui')) {
+  app.route('/api/dlq', dlqRoutes);
+  app.route('/api/summaries', summariesRoutes);
+  app.route('/api/tokens', tokensRoutes);
+  app.route('/api/search', searchRoutes);
+  app.route('/api/stats', statsRoutes);
+  app.route('/api/users', userRoutes);
+  app.route('/api/devices', devicesRoutes);
+  app.route('/api/notifications', notificationsRoutes);
+}
+
+// Mini+ routes -- cron, tickets, projects
+if (hasCapability('cron')) {
+  app.route('/api/cron', cronRoutes);
+}
+
+if (hasCapability('integrations')) {
+  app.route('/api/tickets', ticketsRoutes);
+  app.route('/api/projects', projectsRoutes);
+  app.route('/api', labelsRoutes); // /api/projects/:id/labels and /api/tickets/:id/labels
+  app.route('/webhooks', webhooksRoutes);
+}
+
+// Pro routes -- sync, import, full integrations
+if (hasCapability('sync_engine')) {
+  app.route('/api/sync', syncRoutes);
+  app.route('/api/import', importRoutes);
+}
+
+// WebChat routes -- always available (mini+ has UI, pico has API-only)
+app.route('/api/chat/webchat', webchatRoutes);
+
+// Chat channel routes -- based on channel capability
+if (hasCapability('chat_channels')) {
+  app.route('/api/telegram', telegramRoutes);
+  app.route('/api/whatsapp', whatsappRoutes);
+  app.route('/api/discord', discordRoutes);
+}
+
+// Static UI serving is set up in main() after mode detection
 
 // Alias /api/plugins to /api/settings/plugins for backwards compat
 app.get('/api/plugins/health', async (c) => {
@@ -494,8 +534,8 @@ async function main() {
   if (!isMain && process.env.NODE_ENV === 'test') {
     return;
   }
-  console.log('[GLINR] Task Manager starting...');
-  console.log('[GLINR] Mode: Autonomous');
+  const mode = getMode();
+  console.log(`[profClaw] Starting in ${getModeLabel()} mode...`);
 
   // Validate environment variables (fail fast if critical vars missing)
   const envResult = validateEnvironment({ 
@@ -552,49 +592,29 @@ async function main() {
     console.log('[WARN] Running with in-memory storage only');
   }
 
-  // Validate Redis connectivity
-  const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+  // Initialize task queue (Redis or in-memory based on mode)
   try {
-    const IORedis = (await import('ioredis')).default;
-    const testRedis = new IORedis(redisUrl, {
-      maxRetriesPerRequest: 1,
-      connectTimeout: 5000,
-      lazyConnect: true,
-    });
-    await testRedis.connect();
-    await testRedis.ping();
-    await testRedis.disconnect();
-    console.log('[OK] Redis connected');
-  } catch {
-    console.error(`[ERROR] Redis unreachable at ${redisUrl}`);
-    if (process.env.GLINR_REQUIRE_REDIS === 'true') {
-      console.error('[FATAL] GLINR_REQUIRE_REDIS=true — exiting.');
-      process.exit(1);
-    }
-    console.log('[WARN] Continuing without Redis (tasks will not process)');
-  }
-
-  // Initialize task queue (loads tasks from DB)
-  try {
-    await initTaskQueue();
+    await initQueue();
     registerSSEBroadcaster(broadcastEvent);
-    console.log('[OK] Task queue initialized');
+    console.log(`[OK] Task queue initialized (${getQueueType()})`);
     console.log('[OK] SSE event stream registered');
   } catch (error) {
     console.error('[ERROR] Failed to initialize task queue:', error);
-    console.log('[WARN] Running without Redis (tasks will not be processed)');
+    console.log('[WARN] Tasks will not be processed');
   }
 
-  // Initialize sync engine (if configured)
-  try {
-    const syncEngine = await initSyncIntegration();
-    if (syncEngine) {
-      console.log('[OK] Sync engine initialized');
-    } else {
-      console.log('[INFO] Sync engine disabled (enable in config/settings.yml)');
+  // Initialize sync engine (pro mode or if explicitly configured)
+  if (hasCapability('sync_engine')) {
+    try {
+      const syncEngine = await initSyncIntegration();
+      if (syncEngine) {
+        console.log('[OK] Sync engine initialized');
+      } else {
+        console.log('[INFO] Sync engine disabled (enable in config/settings.yml)');
+      }
+    } catch (error) {
+      console.error('[WARN] Sync engine initialization failed:', error);
     }
-  } catch (error) {
-    console.error('[WARN] Sync engine initialization failed:', error);
   }
 
   // Initialize cost tracking
@@ -697,12 +717,47 @@ async function main() {
     }
   }
 
-  // Start cron jobs
-  if (ENABLE_CRON) {
+  // Start cron jobs (if mode supports it and enabled)
+  if (ENABLE_CRON && hasCapability('cron')) {
     startAllCronJobs();
     console.log('[OK] Cron jobs started (autonomous mode)');
+  } else if (!hasCapability('cron')) {
+    console.log('[INFO] Cron jobs not available in pico mode');
   } else {
     console.log('[INFO] Cron jobs disabled (ENABLE_CRON=false)');
+  }
+
+  // Static UI serving (mini/pro modes)
+  if (hasCapability('web_ui')) {
+    const { existsSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { readFile } = await import('node:fs/promises');
+    const uiDistPath = join(process.cwd(), 'ui', 'dist');
+
+    if (existsSync(uiDistPath)) {
+      const { serveStatic } = await import('@hono/node-server/serve-static');
+
+      app.use('/assets/*', serveStatic({ root: 'ui/dist' }));
+      app.use('/favicon/*', serveStatic({ root: 'ui/dist' }));
+
+      // SPA fallback for non-API routes
+      app.get('*', async (c, next) => {
+        const path = c.req.path;
+        if (path.startsWith('/api/') || path.startsWith('/auth/') ||
+            path.startsWith('/webhooks/') || path === '/health') {
+          return next();
+        }
+        const indexPath = join(uiDistPath, 'index.html');
+        try {
+          const html = await readFile(indexPath, 'utf-8');
+          return c.html(html);
+        } catch {
+          return next();
+        }
+      });
+
+      console.log('[OK] Static UI serving enabled');
+    }
   }
 
   // Start server
@@ -711,17 +766,19 @@ async function main() {
     port: PORT,
   });
 
-  console.log(`\n[READY] GLINR Task Manager running on http://localhost:${PORT}`);
+  console.log(`\n[READY] profClaw running on http://localhost:${PORT} (${getModeLabel()})`);
   console.log(`\nEndpoints:`);
+  console.log(`  Health:   http://localhost:${PORT}/health`);
   console.log(`  Tasks:    http://localhost:${PORT}/api/tasks`);
   console.log(`  Agents:   http://localhost:${PORT}/api/agents`);
-  console.log(`  DLQ:      http://localhost:${PORT}/api/dlq`);
-  console.log(`  GitHub:   http://localhost:${PORT}/webhooks/github`);
-  console.log(`  Jira:     http://localhost:${PORT}/webhooks/jira`);
-  console.log(`  Hooks:    http://localhost:${PORT}/api/hook/tool-use`);
-  console.log(`  Sessions: http://localhost:${PORT}/api/hook/sessions`);
-  console.log(`  Health:   http://localhost:${PORT}/health`);
+  console.log(`  Chat:     http://localhost:${PORT}/api/chat`);
   console.log(`  Gateway:  http://localhost:${PORT}/api/gateway/execute`);
+  if (hasCapability('web_ui')) {
+    console.log(`  DLQ:      http://localhost:${PORT}/api/dlq`);
+  }
+  if (hasCapability('integrations')) {
+    console.log(`  Webhooks: http://localhost:${PORT}/webhooks/github`);
+  }
 
   if (ENABLE_CRON) {
     const heartbeatMs = parseInt(process.env.POLL_INTERVAL_HEARTBEAT || '30000', 10);
@@ -745,11 +802,10 @@ async function main() {
         .limit(1);
       if (adminCount.length === 0) {
         console.log('\n' + '='.repeat(56));
-        console.log('  GLINR needs initial setup!');
+        console.log('  profClaw needs initial setup!');
         console.log('');
-        console.log('  Run:   glinr setup');
-        console.log('  Or:    docker exec -it glinr-task-manager glinr setup');
-        console.log(`  Or visit: http://localhost:${PORT}/setup`);
+        console.log(`  Visit: http://localhost:${PORT}`);
+        console.log('  (The setup wizard will start automatically)');
         console.log('='.repeat(56) + '\n');
       }
     }
@@ -760,14 +816,14 @@ async function main() {
 process.on('SIGINT', async () => {
   console.log('\n[SHUTDOWN] Shutting down...');
   stopAllCronJobs();
-  await closeTaskQueue();
+  await closeQueue();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
   console.log('\n[SHUTDOWN] Shutting down...');
   stopAllCronJobs();
-  await closeTaskQueue();
+  await closeQueue();
   process.exit(0);
 });
 

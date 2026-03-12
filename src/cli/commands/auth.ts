@@ -59,7 +59,7 @@ export function authCommands(): Command {
     .description('Authentication & user management');
 
   // =========================================================================
-  // glinr auth invite
+  // profclaw auth invite
   // =========================================================================
   auth
     .command('invite')
@@ -124,7 +124,7 @@ export function authCommands(): Command {
     });
 
   // =========================================================================
-  // glinr auth reset-password
+  // profclaw auth reset-password
   // =========================================================================
   auth
     .command('reset-password <email>')
@@ -187,7 +187,7 @@ export function authCommands(): Command {
     });
 
   // =========================================================================
-  // glinr auth list-users
+  // profclaw auth list-users
   // =========================================================================
   auth
     .command('list-users')
@@ -245,7 +245,7 @@ export function authCommands(): Command {
     });
 
   // =========================================================================
-  // glinr auth list-invites
+  // profclaw auth list-invites
   // =========================================================================
   auth
     .command('list-invites')
@@ -315,7 +315,7 @@ export function authCommands(): Command {
     });
 
   // =========================================================================
-  // glinr auth set-mode
+  // profclaw auth set-mode
   // =========================================================================
   auth
     .command('set-mode <mode>')
@@ -337,7 +337,7 @@ export function authCommands(): Command {
 
         if (mode === 'invite') {
           info('New users must provide an invite code to register.');
-          info('Generate codes with: glinr auth invite');
+          info('Generate codes with: profclaw auth invite');
         } else {
           warn('Anyone can now register without an invite code.');
         }

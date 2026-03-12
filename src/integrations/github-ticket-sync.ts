@@ -179,7 +179,7 @@ export async function handleIssueEvent(
   const { ticketId, projectId } = synced;
   const now = new Date();
 
-  // Map GitHub state to GLINR status
+  // Map GitHub state to profClaw status
   const newStatus = mapGitHubStateToStatus(issue.state, issue.state_reason);
   const newPriority = mapPriorityFromLabels(issue.labels);
   const newType = mapTypeFromLabels(issue.labels);

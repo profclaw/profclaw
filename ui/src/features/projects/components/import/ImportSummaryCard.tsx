@@ -133,7 +133,7 @@ export function ImportSummaryCard({
           <div className="flex-1">
             <p className="text-sm font-medium">Bidirectional sync enabled</p>
             <p className="text-xs text-muted-foreground">
-              Changes will sync between GLINR and GitHub
+              Changes will sync between profClaw and GitHub
             </p>
           </div>
           <Badge variant="outline" className="text-green-600">

@@ -1,7 +1,7 @@
 /**
  * Slack OAuth Authentication
  *
- * Handles OAuth flow for installing GLINR Slack app into workspaces.
+ * Handles OAuth flow for installing profClaw Slack app into workspaces.
  */
 
 import { logger } from '../utils/logger.js';

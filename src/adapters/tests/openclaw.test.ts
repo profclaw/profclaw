@@ -33,14 +33,14 @@ describe('OpenClaw Adapter', () => {
       id: 'task-1',
       title: 'Fix issue',
       prompt: 'Refactor index.ts',
-      repository: 'glinr/glinr',
+      repository: 'profclaw/profclaw',
       labels: [],
     } as any;
 
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({
-        message: 'I fixed it in commit abc123def456. Pull request created: https://github.com/glinr/glinr/pull/42',
+        message: 'I fixed it in commit abc123def456. Pull request created: https://github.com/profclaw/profclaw/pull/42',
         usage: { total_tokens: 100 }
       })
     });
@@ -52,7 +52,7 @@ describe('OpenClaw Adapter', () => {
     
     // Check if PR artifact was extracted
     const prAtf = result.artifacts?.find(a => a.type === 'pull_request');
-    expect(prAtf?.url).toBe('https://github.com/glinr/glinr/pull/42');
+    expect(prAtf?.url).toBe('https://github.com/profclaw/profclaw/pull/42');
   });
 
   it('should handle API errors during execution', async () => {

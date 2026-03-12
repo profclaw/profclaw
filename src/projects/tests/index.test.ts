@@ -199,7 +199,7 @@ describe('Projects Service', () => {
     it('should get or create default project', async () => {
       const { getOrCreateDefaultProject } = await import('../index.js');
       const project = await getOrCreateDefaultProject();
-      expect(project.key).toBe('GLINR');
+      expect(project.key).toBe('PC');
     });
 
     it('should migrate tickets to default project', async () => {

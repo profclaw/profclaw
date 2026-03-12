@@ -2,8 +2,8 @@
  * Shared Authentication Middleware
  *
  * Provides a unified auth middleware that supports:
- * - Cookie-based sessions (glinr_session)
- * - API token authentication (Authorization: Bearer glinr_...)
+ * - Cookie-based sessions (profclaw_session)
+ * - API token authentication (Authorization: Bearer profclaw_...)
  *
  * Applied globally to /api/* routes with configurable exclusions.
  */
@@ -12,6 +12,15 @@ import type { Context, Next } from 'hono';
 import { getCookie } from 'hono/cookie';
 import { validateSession, type User } from './auth-service.js';
 import { validateToken, hasScope, type TokenScope } from './api-tokens.js';
+import { getSettingsRaw } from '../settings/index.js';
+import { getDb } from '../storage/index.js';
+import { users } from '../storage/schema.js';
+import { eq } from 'drizzle-orm';
+
+// Cached admin user for local-mode bypass (avoids DB query per request)
+let cachedLocalAdmin: User | null = null;
+let cachedLocalAdminExpiry = 0;
+const LOCAL_ADMIN_CACHE_TTL = 60_000; // 60s
 
 /** Routes that don't require authentication */
 const PUBLIC_ROUTES = [
@@ -33,6 +42,7 @@ const PUBLIC_ROUTES = [
 /** Route prefixes that don't require authentication */
 const PUBLIC_PREFIXES = [
   '/api/setup/',
+  '/api/oobe/',
   '/api/auth/github/',
   '/api/auth/jira/',
   '/api/auth/linear/',
@@ -61,8 +71,8 @@ function isPublicRoute(path: string): boolean {
  * Unified auth middleware for all API routes.
  *
  * Checks authentication via:
- * 1. Cookie-based session (glinr_session)
- * 2. API token (Authorization: Bearer glinr_...)
+ * 1. Cookie-based session (profclaw_session)
+ * 2. API token (Authorization: Bearer profclaw_...)
  *
  * Sets `user` and optionally `apiToken` in the context.
  */
@@ -80,8 +90,45 @@ export function authMiddleware() {
       return next();
     }
 
+    // Local-mode bypass: auto-inject admin user when authMode is 'local'
+    try {
+      const settings = await getSettingsRaw();
+      if (settings.system.authMode === 'local') {
+        const now = Date.now();
+        if (!cachedLocalAdmin || now > cachedLocalAdminExpiry) {
+          const db = getDb();
+          if (db) {
+            const admins = await db
+              .select()
+              .from(users)
+              .where(eq(users.role, 'admin'))
+              .limit(1);
+            if (admins.length > 0) {
+              const admin = admins[0];
+              cachedLocalAdmin = {
+                id: admin.id,
+                email: admin.email,
+                name: admin.name ?? 'Owner',
+                role: admin.role as 'admin',
+                status: admin.status as 'active',
+                createdAt: admin.createdAt ?? new Date(),
+                onboardingCompleted: admin.onboardingCompleted ?? true,
+              };
+              cachedLocalAdminExpiry = now + LOCAL_ADMIN_CACHE_TTL;
+            }
+          }
+        }
+        if (cachedLocalAdmin) {
+          c.set('user', cachedLocalAdmin);
+          return next();
+        }
+      }
+    } catch {
+      // Fall through to normal auth if settings read fails
+    }
+
     // Try cookie-based session first
-    const sessionToken = getCookie(c, 'glinr_session');
+    const sessionToken = getCookie(c, 'profclaw_session');
     if (sessionToken) {
       const user = await validateSession(sessionToken);
       if (user) {
@@ -92,7 +139,7 @@ export function authMiddleware() {
 
     // Try API token authentication
     const authHeader = c.req.header('Authorization');
-    if (authHeader?.startsWith('Bearer glinr_')) {
+    if (authHeader?.startsWith('Bearer profclaw_')) {
       const token = authHeader.slice(7);
       const result = await validateToken(token);
 
@@ -105,9 +152,9 @@ export function authMiddleware() {
       }
     }
 
-    // Also allow Bearer with non-glinr tokens to pass through
+    // Also allow Bearer with non-profclaw tokens to pass through
     // for device/CLI auth that may use different token formats
-    if (authHeader?.startsWith('Bearer ') && !authHeader.startsWith('Bearer glinr_')) {
+    if (authHeader?.startsWith('Bearer ') && !authHeader.startsWith('Bearer profclaw_')) {
       // Let the specific route handler validate this token type
       return next();
     }
@@ -147,4 +194,13 @@ export function requireScope(...scopes: TokenScope[]) {
  */
 export function getAuthUser(c: Context): User | null {
   return c.get('user') || null;
+}
+
+/**
+ * Invalidate cached local admin user.
+ * Call when authMode changes or admin user is updated.
+ */
+export function invalidateLocalAdminCache(): void {
+  cachedLocalAdmin = null;
+  cachedLocalAdminExpiry = 0;
 }

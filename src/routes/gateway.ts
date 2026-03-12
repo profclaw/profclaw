@@ -1,15 +1,42 @@
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { getGateway, type GatewayRequest, type WorkflowType } from '../gateway/index.js';
 import { CreateTaskSchema } from '../types/task.js';
-import { addTask } from '../queue/task-queue.js';
+import { addTask } from '../queue/index.js';
 import { tokenAuthMiddleware } from '../auth/api-tokens.js';
 
 const gateway = new Hono();
 
+async function parseJsonBody(c: Context): Promise<
+  { ok: true; body: Record<string, unknown> } | { ok: false; response: Response }
+> {
+  try {
+    const body = await c.req.json();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return {
+        ok: false,
+        response: c.json({ error: 'Request body must be a JSON object' }, 400),
+      };
+    }
+
+    return { ok: true, body: body as Record<string, unknown> };
+  } catch {
+    return {
+      ok: false,
+      response: c.json({ error: 'Invalid JSON body' }, 400),
+    };
+  }
+}
+
 // Execute task through gateway (unified routing)
 gateway.post('/execute', async (c) => {
   try {
-    const body = await c.req.json();
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const body = parsed.body;
     const gw = getGateway();
 
     const request: GatewayRequest = {
@@ -54,7 +81,12 @@ gateway.post('/execute', async (c) => {
 // Protected gateway endpoint (requires token)
 gateway.post('/execute-secure', tokenAuthMiddleware(['gateway:execute']), async (c) => {
   try {
-    const body = await c.req.json();
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const body = parsed.body;
     const gw = getGateway();
 
     const request: GatewayRequest = {
@@ -201,7 +233,12 @@ gateway.get('/config', (c) => {
 // Update gateway configuration
 gateway.patch('/config', async (c) => {
   try {
-    const body = await c.req.json();
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const body = parsed.body;
     const gw = getGateway();
     gw.updateConfig(body);
 

@@ -38,7 +38,7 @@ export class LibSQLAdapter implements StorageAdapter {
 
   constructor(config: { dbPath?: string } = {}) {
     const dbPath =
-      config.dbPath || path.resolve(process.cwd(), "data", "glinr.db");
+      config.dbPath || path.resolve(process.cwd(), "data", "profclaw.db");
     this.dbUrl = `file:${dbPath}`;
   }
 
@@ -297,7 +297,7 @@ export class LibSQLAdapter implements StorageAdapter {
         author_name TEXT NOT NULL,
         author_platform TEXT NOT NULL,
         author_avatar_url TEXT,
-        source TEXT NOT NULL DEFAULT 'glinr',
+        source TEXT NOT NULL DEFAULT 'profclaw',
         external_id TEXT,
         is_ai_response INTEGER NOT NULL DEFAULT 0,
         responding_to TEXT REFERENCES ticket_comments(id),
@@ -325,7 +325,7 @@ export class LibSQLAdapter implements StorageAdapter {
         new_value TEXT,
         changed_by_type TEXT NOT NULL DEFAULT 'human',
         changed_by_name TEXT NOT NULL,
-        changed_by_platform TEXT NOT NULL DEFAULT 'glinr',
+        changed_by_platform TEXT NOT NULL DEFAULT 'profclaw',
         timestamp INTEGER NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);

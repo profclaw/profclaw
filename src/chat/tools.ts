@@ -28,7 +28,7 @@ export const CreateProjectToolSchema = z.object({
 });
 
 export const CreateTicketToolSchema = z.object({
-  projectKey: z.string().describe('Project key to create ticket in (e.g., "GLINR")'),
+  projectKey: z.string().describe('Project key to create ticket in (e.g., "PC")'),
   title: z.string().min(1).describe('Ticket title'),
   description: z.string().optional().describe('Detailed ticket description'),
   type: z.enum(['task', 'bug', 'story', 'epic', 'subtask']).default('task').describe('Ticket type'),
@@ -88,7 +88,7 @@ export const CHAT_TOOLS = {
   },
   createProject: {
     name: 'createProject',
-    description: 'Create a new project in GLINR. Projects organize tickets with a unique key prefix.',
+    description: 'Create a new project in profClaw. Projects organize tickets with a unique key prefix.',
     parameters: CreateProjectToolSchema,
   },
   createTicket: {

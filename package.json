@@ -1,7 +1,7 @@
 {
-  "name": "glinr-task-manager",
-  "version": "1.0.0",
-  "description": "AI-native task orchestration platform — manage projects, tickets, and workflows through natural language",
+  "name": "profclaw",
+  "version": "2.0.0",
+  "description": "Smart, lightweight AI agent engine -- run locally on anything from a $10 board to a VPS",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
@@ -13,18 +13,23 @@
     "./cli": {
       "import": "./dist/cli/index.js"
     },
-    "./cli-entry": "./glinr.mjs",
+    "./cli-entry": "./profclaw.mjs",
     "./mcp": {
       "import": "./dist/mcp/server.js"
+    },
+    "./plugins/sdk": {
+      "import": "./dist/plugins/sdk.js",
+      "types": "./dist/plugins/sdk.d.ts"
     }
   },
   "bin": {
-    "glinr": "glinr.mjs",
-    "glinr-mcp": "./dist/mcp/server.js"
+    "profclaw": "profclaw.mjs",
+    "profclaw-mcp": "./dist/mcp/server.js"
   },
   "files": [
-    "glinr.mjs",
+    "profclaw.mjs",
     "dist/**/*.js",
+    "dist/**/*.d.ts",
     "dist/**/*.json",
     "config/**",
     "skills/**",
@@ -33,7 +38,8 @@
     ".env.example",
     "README.md",
     "LICENSE",
-    "CONTRIBUTING.md"
+    "CONTRIBUTING.md",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "dev": "pnpm kill:ports && concurrently -n api,ui -c blue,magenta \"pnpm dev:api\" \"pnpm dev:ui\"",
@@ -43,7 +49,7 @@
     "build": "tsc && pnpm --dir ui build",
     "prepublishOnly": "pnpm build",
     "start": "node dist/server.js",
-    "glinr": "node glinr.mjs",
+    "profclaw": "node profclaw.mjs",
     "mcp": "node dist/mcp/server.js",
     "mcp:dev": "tsx src/mcp/server.ts",
     "cli": "tsx src/cli/index.ts",
@@ -75,15 +81,15 @@
     "discord-bot",
     "telegram-bot"
   ],
-  "author": "GLINCKER <dev@glincker.com>",
+  "author": "profClaw <dev@profclaw.dev>",
   "license": "AGPL-3.0",
-  "homepage": "https://glinr.dev",
+  "homepage": "https://profclaw.dev",
   "bugs": {
-    "url": "https://github.com/GLINCKER/glinr-task-manager/issues"
+    "url": "https://github.com/profclaw/profclaw/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/GLINCKER/glinr-task-manager.git"
+    "url": "https://github.com/profclaw/profclaw.git"
   },
   "publishConfig": {
     "access": "public",

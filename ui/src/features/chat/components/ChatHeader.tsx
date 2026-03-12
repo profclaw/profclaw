@@ -43,6 +43,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { Logo } from '@/components/shared/Logo';
 import { cn } from '@/lib/utils';
 import type { ChatPreset, MemoryStats, Provider, ModelAlias } from '../types';
 
@@ -56,6 +57,9 @@ const PRESET_ICONS: Record<string, LucideIcon> = {
 };
 
 function PresetIcon({ icon, className }: { icon: string; className?: string }) {
+  if (icon === 'bot') {
+    return <Logo className={className} />;
+  }
   const IconComponent = PRESET_ICONS[icon] || Bot;
   return <IconComponent className={className} />;
 }

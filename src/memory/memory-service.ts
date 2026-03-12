@@ -62,7 +62,7 @@ export interface MemoryConfig {
 
   /** Memory file paths */
   paths: {
-    memoryDir: string; // e.g., ~/.glinr/memory/
+    memoryDir: string; // e.g., ~/.profclaw/memory/
     memoryFile: string; // MEMORY.md
   };
 }

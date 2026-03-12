@@ -1,5 +1,5 @@
 /**
- * GLINR AI Provider System Types
+ * profClaw AI Provider System Types
  *
  * Multi-provider AI chat system supporting:
  * - Anthropic (Claude)

@@ -38,9 +38,9 @@ describe('E2E: Ticket Lifecycle', () => {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'Cookie': `glinr_session=${sessionToken}`
+        'Cookie': `profclaw_session=${sessionToken}`
       },
-      body: JSON.stringify({ 
+      body: JSON.stringify({
         name: 'Test Project',
         description: 'A project for E2E testing',
         key: 'TEST'
@@ -58,7 +58,7 @@ describe('E2E: Ticket Lifecycle', () => {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'Cookie': `glinr_session=${sessionToken}`
+        'Cookie': `profclaw_session=${sessionToken}`
       },
       body: JSON.stringify({ 
         projectId,
@@ -82,7 +82,7 @@ describe('E2E: Ticket Lifecycle', () => {
       method: 'PATCH',
       headers: { 
         'Content-Type': 'application/json',
-        'Cookie': `glinr_session=${sessionToken}`
+        'Cookie': `profclaw_session=${sessionToken}`
       },
       body: JSON.stringify({ status: 'done' })
     });
@@ -97,7 +97,7 @@ describe('E2E: Ticket Lifecycle', () => {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'Cookie': `glinr_session=${sessionToken}`
+        'Cookie': `profclaw_session=${sessionToken}`
       },
       body: JSON.stringify({ 
         content: 'Verified and closed.'
@@ -113,7 +113,7 @@ describe('E2E: Ticket Lifecycle', () => {
     const res = await app.request(`/api/tickets?projectId=${projectId}`, {
       method: 'GET',
       headers: { 
-        'Cookie': `glinr_session=${sessionToken}`
+        'Cookie': `profclaw_session=${sessionToken}`
       }
     });
 

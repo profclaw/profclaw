@@ -1,5 +1,5 @@
 /**
- * GLINR AI Provider Registry
+ * profClaw AI Provider Registry
  *
  * Central registry for managing AI providers.
  * Handles provider discovery, configuration, and routing.

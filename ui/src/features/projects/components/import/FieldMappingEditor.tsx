@@ -1,7 +1,7 @@
 /**
  * Field Mapping Editor
  *
- * Visual UI for mapping source fields (GitHub) to target fields (GLINR).
+ * Visual UI for mapping source fields (GitHub) to target fields (profClaw).
  * Shows auto-mapped values and highlights unmapped ones.
  */
 
@@ -26,9 +26,9 @@ import { cn } from '@/lib/utils';
 import {
   type FieldMappings,
   type GitHubProjectItem,
-  GLINR_STATUSES,
-  GLINR_PRIORITIES,
-  GLINR_TYPES,
+  PROFCLAW_STATUSES,
+  PROFCLAW_PRIORITIES,
+  PROFCLAW_TYPES,
 } from './types';
 
 interface FieldMappingEditorProps {
@@ -48,19 +48,19 @@ const FIELD_CONFIGS: FieldConfig[] = [
   {
     key: 'status',
     label: 'Status',
-    options: GLINR_STATUSES,
+    options: PROFCLAW_STATUSES,
     defaultValue: 'backlog',
   },
   {
     key: 'priority',
     label: 'Priority',
-    options: GLINR_PRIORITIES,
+    options: PROFCLAW_PRIORITIES,
     defaultValue: 'medium',
   },
   {
     key: 'type',
     label: 'Type',
-    options: GLINR_TYPES,
+    options: PROFCLAW_TYPES,
     defaultValue: 'task',
   },
 ];
@@ -179,7 +179,7 @@ export function FieldMappingEditor({
         <div>
           <h3 className="text-sm font-medium">Field Mappings</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Map GitHub fields to GLINR values
+            Map GitHub fields to profClaw values
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -250,7 +250,7 @@ export function FieldMappingEditor({
                       </th>
                       <th className="w-10"></th>
                       <th className="text-left py-2 px-3 font-medium text-muted-foreground">
-                        GLINR Value
+                        profClaw Value
                       </th>
                       <th className="text-right py-2 px-3 font-medium text-muted-foreground w-20">
                         Count

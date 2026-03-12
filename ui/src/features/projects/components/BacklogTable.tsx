@@ -276,7 +276,7 @@ export function BacklogTable({ projectId, sprints, onCreateTicket, showAllTicket
                   <td className="px-4 py-3">
                     <div className="flex items-start gap-2">
                       <span className="text-xs font-mono text-muted-foreground shrink-0">
-                        {ticket.projectKey || 'GLINR'}-{ticket.sequence}
+                        {ticket.projectKey || 'PROFCLAW'}-{ticket.sequence}
                       </span>
                       <Link
                         to={`/tickets/${ticket.id}`}

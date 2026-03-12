@@ -11,6 +11,9 @@ export { MemorySection } from './MemorySection';
 export { SkillsSection } from './SkillsSection';
 export { ToolsSection } from './ToolsSection';
 export { MessagingSection } from './MessagingSection';
+export { PWASection } from './PWASection';
+export { VoiceSection } from './VoiceSection';
+export { TunnelsSection } from './TunnelsSection';
 // Note: Additional sections can be extracted as needed
 // export { AccountSection } from './AccountSection';
 // export { IntegrationsSection } from './IntegrationsSection';

@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import {
   createApiToken,
   listApiTokens,
@@ -8,11 +9,36 @@ import {
 
 const tokens = new Hono();
 
+async function parseJsonBody(c: Context): Promise<
+  { ok: true; body: Record<string, unknown> } | { ok: false; response: Response }
+> {
+  try {
+    const body = await c.req.json();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return {
+        ok: false,
+        response: c.json({ error: 'Request body must be a JSON object' }, 400),
+      };
+    }
+
+    return { ok: true, body: body as Record<string, unknown> };
+  } catch {
+    return {
+      ok: false,
+      response: c.json({ error: 'Invalid JSON body' }, 400),
+    };
+  }
+}
+
 // Create a new API token
 tokens.post('/', async (c) => {
   try {
-    const body = await c.req.json();
-    const { name, scopes, expiresInDays, rateLimit } = body;
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const { name, scopes, expiresInDays, rateLimit } = parsed.body;
 
     if (!name || !scopes || !Array.isArray(scopes)) {
       return c.json({ error: 'name and scopes are required' }, 400);

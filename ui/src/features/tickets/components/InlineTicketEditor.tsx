@@ -296,7 +296,7 @@ export function InlineTicketEditor({ ticketId, onClose, className }: InlineTicke
           <span className="text-muted-foreground">PROJECT</span>
           <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
           <span className="font-medium">
-            {currentProject?.key || 'GLINR'}-{ticket.sequence}
+            {currentProject?.key || 'PROFCLAW'}-{ticket.sequence}
           </span>
         </div>
 

@@ -85,7 +85,7 @@ export function QuickTicketCreate({
     mutationFn: (data: CreateTicketInput) => api.tickets.create(data),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['tickets'] });
-      toast.success(`Created ${result.ticket.projectKey || 'GLINR'}-${result.ticket.sequence}`);
+      toast.success(`Created ${result.ticket.projectKey || 'PROFCLAW'}-${result.ticket.sequence}`);
       onCreated?.(result.ticket.id);
 
       // Reset for next entry

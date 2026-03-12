@@ -168,7 +168,7 @@ export class ToolRegistryImpl implements ToolRegistry {
       web: 'Web & Search',
       data: 'Data & APIs',
       system: 'System Information',
-      glinr: 'GLINR Operations',
+      profclaw: 'profClaw Operations',
       memory: 'Memory Management',
       browser: 'Browser Automation',
       custom: 'Custom Tools',

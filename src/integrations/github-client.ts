@@ -19,7 +19,7 @@ export class GitHubClient {
       headers: {
         'Authorization': `token ${this.token}`,
         'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'GLINR-Task-Manager',
+        'User-Agent': 'profClaw',
         ...options.headers,
       },
     });

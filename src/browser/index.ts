@@ -1,7 +1,7 @@
 /**
  * Browser Automation Module
  *
- * Playwright-based browser automation for GLINR AI agents.
+ * Playwright-based browser automation for profClaw AI agents.
  *
  * @example
  * ```typescript

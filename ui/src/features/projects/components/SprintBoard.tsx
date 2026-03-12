@@ -197,7 +197,7 @@ function TicketCard({
           {/* Header: ID + Type + Priority */}
           <div className="flex items-center gap-2 mb-1.5">
             <span className="text-[11px] font-mono text-muted-foreground font-medium">
-              {ticket.projectKey || 'GLINR'}-{ticket.sequence}
+              {ticket.projectKey || 'PROFCLAW'}-{ticket.sequence}
             </span>
             <span className={cn('flex items-center gap-1', typeConfig.color)}>
               {typeConfig.icon}
@@ -453,7 +453,7 @@ function TicketPreview({
               className="font-mono hover:text-primary hover:underline transition-colors"
               onClick={onClose}
             >
-              {ticket.projectKey || 'GLINR'}-{ticket.sequence}
+              {ticket.projectKey || 'PROFCLAW'}-{ticket.sequence}
             </Link>
           </div>
           <SheetTitle className="text-xl">{ticket.title}</SheetTitle>
@@ -568,7 +568,7 @@ function TicketPreview({
 }
 
 // Helper to load/save WIP limits from localStorage
-const WIP_LIMITS_KEY = 'glinr-board-wip-limits';
+const WIP_LIMITS_KEY = 'profclaw-board-wip-limits';
 
 type WipLimitsMap = Partial<Record<TicketStatus, number>>;
 
@@ -697,7 +697,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
         (t) =>
           t.title.toLowerCase().includes(search.toLowerCase()) ||
           t.description?.toLowerCase().includes(search.toLowerCase()) ||
-          `${t.projectKey || 'GLINR'}-${t.sequence}`.toLowerCase().includes(search.toLowerCase())
+          `${t.projectKey || 'PROFCLAW'}-${t.sequence}`.toLowerCase().includes(search.toLowerCase())
       )
     : tickets;
 

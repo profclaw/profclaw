@@ -2,12 +2,12 @@ import { useEffect, useState, useCallback } from 'react';
 import { driver, type DriveStep } from 'driver.js';
 import 'driver.js/dist/driver.css';
 
-const ONBOARDING_KEY = 'glinr-onboarding-completed';
+const ONBOARDING_KEY = 'profclaw-onboarding-completed';
 
 const tourSteps: DriveStep[] = [
   {
     popover: {
-      title: 'Welcome to GLINR',
+      title: 'Welcome to profClaw',
       description: 'Your AI agent orchestration hub. Let me give you a quick tour of the key features.',
       side: 'bottom',
       align: 'center',

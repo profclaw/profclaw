@@ -7,7 +7,7 @@
  * Loading precedence (lowest to highest):
  * 1. Extra dirs (config.load.extraDirs)
  * 2. Bundled (built-in skills)
- * 3. Managed (~/.glinr/skills/)
+ * 3. Managed (~/.profclaw/skills/)
  * 4. Workspace (<project>/skills/)
  *
  * Later sources override earlier ones by skill name.
@@ -78,8 +78,8 @@ export function parseSkillMd(content: string): {
   if (frontmatter.metadata) {
     try {
       const parsed = JSON.parse(frontmatter.metadata);
-      // Support both { glinr: {...} } and direct format
-      metadata = parsed.glinr || parsed.openclaw || parsed;
+      // Support both { profclaw: {...} } and direct format
+      metadata = parsed.profclaw || parsed.openclaw || parsed;
     } catch {
       logger.warn(`[Skills] Failed to parse metadata JSON for skill: ${frontmatter.name}`);
     }
@@ -287,8 +287,8 @@ export async function loadAllSkills(params: {
     }
   }
 
-  // 3. Managed skills (~/.glinr/skills/)
-  const managedDir = join(homedir(), '.glinr', 'skills');
+  // 3. Managed skills (~/.profclaw/skills/)
+  const managedDir = join(homedir(), '.profclaw', 'skills');
   const managedSkills = await loadSkillsFromDir(managedDir, 'managed', config);
   for (const skill of managedSkills) {
     skillMap.set(skill.name, skill);

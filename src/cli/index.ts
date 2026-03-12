@@ -12,12 +12,14 @@ import { serveCommand } from './commands/serve.js';
 import { toolsCommands } from './commands/tools.js';
 import { authCommands } from './commands/auth.js';
 import { setupCommand } from './commands/setup.js';
+import { onboardCommand } from './commands/onboard.js';
+import { pluginCommands } from './commands/plugin.js';
 
-const VERSION = '1.0.0';
+const VERSION = '2.0.0';
 
 // ASCII Banner
 function showBanner(): void {
-  const banner = figlet.textSync('GLINR', {
+  const banner = figlet.textSync('profClaw', {
     font: 'Standard',
     horizontalLayout: 'default',
   });
@@ -31,8 +33,8 @@ function showBanner(): void {
 const program = new Command();
 
 program
-  .name('glinr')
-  .description('GLINR Task Manager - AI Agent Task Orchestration')
+  .name('profclaw')
+  .description('profClaw - AI Agent Task Orchestration')
   .version(VERSION, '-v, --version', 'Output the current version')
   .option('--json', 'Output results as JSON')
   .option('-q, --quiet', 'Suppress non-essential output');
@@ -48,30 +50,33 @@ program.addCommand(serveCommand());
 program.addCommand(toolsCommands());
 program.addCommand(authCommands());
 program.addCommand(setupCommand());
+program.addCommand(onboardCommand());
+program.addCommand(pluginCommands());
 
 // Default action (no command) - show banner and help
 program.action(() => {
   showBanner();
   console.log(chalk.yellow('Quick Start:'));
-  console.log('  glinr setup            First-time setup wizard');
-  console.log('  glinr serve            Start the API server');
-  console.log('  glinr task list        List all tasks');
-  console.log('  glinr ticket list      List AI-native tickets');
-  console.log('  glinr ticket create    Create a new ticket');
-  console.log('  glinr config get       View current settings');
+  console.log('  profclaw onboard          Zero-to-running wizard (new users)');
+  console.log('  profclaw setup            Configure AI provider, admin, etc.');
+  console.log('  profclaw serve            Start the server');
+  console.log('  profclaw task list        List all tasks');
+  console.log('  profclaw ticket list      List AI-native tickets');
+  console.log('  profclaw ticket create    Create a new ticket');
+  console.log('  profclaw config get       View current settings');
   console.log('');
   console.log(chalk.yellow('Auth & Users:'));
-  console.log('  glinr auth invite      Generate invite codes');
-  console.log('  glinr auth list-users  List all users');
-  console.log('  glinr auth set-mode    Set registration mode');
+  console.log('  profclaw auth invite      Generate invite codes');
+  console.log('  profclaw auth list-users  List all users');
+  console.log('  profclaw auth set-mode    Set registration mode');
   console.log('');
   console.log(chalk.yellow('Tool Testing:'));
-  console.log('  glinr tools list       List all execution tools');
-  console.log('  glinr tools run <cmd>  Execute a shell command');
-  console.log('  glinr tools sysinfo    Show system information');
-  console.log('  glinr tools git-status Show git status');
+  console.log('  profclaw tools list       List all execution tools');
+  console.log('  profclaw tools run <cmd>  Execute a shell command');
+  console.log('  profclaw tools sysinfo    Show system information');
+  console.log('  profclaw tools git-status Show git status');
   console.log('');
-  console.log(chalk.dim('Run `glinr --help` for all commands'));
+  console.log(chalk.dim('Run `profclaw --help` for all commands'));
 });
 
 // Parse and execute

@@ -39,7 +39,7 @@ Content`;
   it("resolves metadata from JSON string", () => {
     const raw = parseFrontmatter(`---
 name: Meta
-metadata: '{"glinr":{"primaryEnv":"API_KEY","os":"darwin, linux","requires":{"bins":"git,rg"},"toolCategories":"web"}}'
+metadata: '{"profclaw":{"primaryEnv":"API_KEY","os":"darwin, linux","requires":{"bins":"git,rg"},"toolCategories":"web"}}'
 ---
 Body`);
 

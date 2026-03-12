@@ -211,10 +211,10 @@ export function configCommands() {
       // Interactive mode (just show instructions for now)
       console.log('\n## Authentication Setup\n');
       console.log('Set your API token:');
-      console.log('  glinr config login --token <your-token>');
+      console.log('  profclaw config login --token <your-token>');
       console.log('');
       console.log('Or set via environment:');
-      console.log('  export GLINR_API_TOKEN=<your-token>');
+      console.log('  export PROFCLAW_API_TOKEN=<your-token>');
     });
 
   return config;

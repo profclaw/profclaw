@@ -110,7 +110,7 @@ async function getStoredToken(userId?: string): Promise<string | null> {
 
 // Get user from session cookie
 async function getUserFromCookie(c: any): Promise<{ id: string; email: string } | null> {
-  const token = getCookie(c, 'glinr_session');
+  const token = getCookie(c, 'profclaw_session');
   if (!token) return null;
 
   const user = await validateSession(token);
@@ -466,8 +466,8 @@ importRoutes.post('/github/projects/:projectId/execute', async (c) => {
       ? preview.items.filter((item) => selectedItemIds.includes(item.id))
       : preview.items;
 
-    // Create GLINR project
-    const glinrProject = await createProject({
+    // Create profClaw project
+    const profclawProject = await createProject({
       key: projectKey.toUpperCase(),
       name: projectName,
       description: description || preview.project.title,
@@ -476,7 +476,7 @@ importRoutes.post('/github/projects/:projectId/execute', async (c) => {
     });
 
     // Create external link for sync
-    const externalLink = await createProjectExternalLink(glinrProject.id, {
+    const externalLink = await createProjectExternalLink(profclawProject.id, {
       platform: 'github',
       externalId: githubProjectId,
       externalUrl: preview.project.url,
@@ -488,7 +488,7 @@ importRoutes.post('/github/projects/:projectId/execute', async (c) => {
 
     if (importIterations && preview.iterations.length > 0) {
       for (const iteration of preview.iterations) {
-        const sprint = await createSprint(glinrProject.id, {
+        const sprint = await createSprint(profclawProject.id, {
           name: iteration.title,
           startDate: iteration.startDate,
           endDate: calculateEndDate(iteration.startDate, iteration.duration),
@@ -518,7 +518,7 @@ importRoutes.post('/github/projects/:projectId/execute', async (c) => {
       const sequenceResult = await db
         .select({ sequence: tickets.sequence })
         .from(tickets)
-        .where(eq(tickets.projectId, glinrProject.id))
+        .where(eq(tickets.projectId, profclawProject.id))
         .orderBy(desc(tickets.sequence))
         .limit(1);
       const nextSequence = ((sequenceResult[0]?.sequence as number) || 0) + 1;
@@ -534,7 +534,7 @@ importRoutes.post('/github/projects/:projectId/execute', async (c) => {
       await db.insert(tickets).values({
         id: ticketId,
         sequence: nextSequence,
-        projectId: glinrProject.id,
+        projectId: profclawProject.id,
         title: item.title,
         description: item.body || '',
         type,
@@ -573,11 +573,11 @@ importRoutes.post('/github/projects/:projectId/execute', async (c) => {
 
     return c.json({
       success: true,
-      project: glinrProject,
+      project: profclawProject,
       externalLink,
       summary: {
         projectCreated: true,
-        projectKey: glinrProject.key,
+        projectKey: profclawProject.key,
         sprintsCreated: createdSprints.length,
         ticketsCreated: createdTickets.length,
         syncEnabled: enableSync,

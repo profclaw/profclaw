@@ -506,7 +506,7 @@ export function TicketList() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 mb-1">
                       <span className="text-xs font-mono text-muted-foreground">
-                        {ticket.projectKey || 'GLINR'}-{ticket.sequence}
+                        {ticket.projectKey || 'PROFCLAW'}-{ticket.sequence}
                       </span>
                       {!ticket.projectId && (
                         <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400 px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">

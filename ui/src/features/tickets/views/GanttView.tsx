@@ -385,7 +385,7 @@ export function GanttView() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground font-mono">
-                        {ticket.project?.key || 'GLINR'}-{ticket.sequence}
+                        {ticket.project?.key || 'PROFCLAW'}-{ticket.sequence}
                       </span>
                       <span
                         className={cn(

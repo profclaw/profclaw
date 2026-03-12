@@ -499,7 +499,7 @@ export function DevicesSection() {
             </p>
             <p className="text-muted-foreground mt-1">
               Only approve pairing requests from devices you trust. Paired
-              devices have full access to your GLINR account. Revoke access
+              devices have full access to your profClaw account. Revoke access
               immediately for any device you no longer use.
             </p>
           </div>

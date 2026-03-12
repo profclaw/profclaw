@@ -187,7 +187,7 @@ describe('E2E: Full Task Lifecycle', () => {
       source: TaskSource.API,
       sourceId: 'e2e-test-1',
       sourceUrl: undefined,
-      repository: 'glinr/task-manager',
+      repository: 'profclaw/task-manager',
       branch: 'main',
       labels: ['enhancement', 'test'],
       assignedAgent: undefined, // Let routing decide

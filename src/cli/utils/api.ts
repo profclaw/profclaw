@@ -8,7 +8,7 @@ export interface ApiResponse<T = unknown> {
 }
 
 /**
- * Make an API request to the GLINR server
+ * Make an API request to the profClaw server
  */
 export async function apiRequest<T = unknown>(
   method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
@@ -61,7 +61,7 @@ export async function apiRequest<T = unknown>(
       return {
         ok: false,
         status: 0,
-        error: `Cannot connect to GLINR server at ${baseUrl}. Is it running? Try: glinr serve`,
+        error: `Cannot connect to profClaw server at ${baseUrl}. Is it running? Try: profclaw serve`,
       };
     }
 

@@ -9,6 +9,13 @@ import type { SandboxConfig, SandboxMount } from './types.js';
 import { logger } from '../../utils/logger.js';
 import { randomUUID } from 'crypto';
 import type Dockerode from 'dockerode';
+import {
+  getSandboxConfig,
+  getSecurityLevel,
+  toDockerMemoryLimit,
+  toDockerCpuLimit,
+} from '../../core/sandbox-config.js';
+import type { SandboxSecurityConfig } from '../../core/sandbox-config.js';
 
 // =============================================================================
 // Types
@@ -59,21 +66,26 @@ const CLEANUP_INTERVAL_MS = 60_000; // 1 minute
 
 export class SandboxManager {
   private config: SandboxConfig;
+  private securityConfig: SandboxSecurityConfig;
   private docker: Dockerode | null = null;
   private containerPool: Map<string, ContainerInfo> = new Map();
   private cleanupTimer: NodeJS.Timeout | null = null;
   private initialized = false;
 
   constructor(config?: Partial<SandboxConfig>) {
+    // Resolve security preset first so derived defaults below can use it
+    this.securityConfig = getSandboxConfig();
+
     this.config = {
       enabled: config?.enabled ?? true,
       image: config?.image ?? DEFAULT_IMAGE,
       workdir: config?.workdir ?? DEFAULT_WORKDIR,
       mounts: config?.mounts ?? [],
       env: config?.env ?? {},
-      networkMode: config?.networkMode ?? 'none',
-      memoryLimit: config?.memoryLimit ?? DEFAULT_MEMORY_LIMIT,
-      cpuLimit: config?.cpuLimit ?? DEFAULT_CPU_LIMIT,
+      // Honor explicit caller override; fall back to security preset
+      networkMode: config?.networkMode ?? (this.securityConfig.allowNetwork ? 'bridge' : 'none'),
+      memoryLimit: config?.memoryLimit ?? (toDockerMemoryLimit(this.securityConfig.maxMemoryMb) ?? DEFAULT_MEMORY_LIMIT),
+      cpuLimit: config?.cpuLimit ?? (toDockerCpuLimit(this.securityConfig.maxCpuPercent) ?? DEFAULT_CPU_LIMIT),
     };
   }
 
@@ -114,6 +126,20 @@ export class SandboxManager {
       // Check Docker connection
       await this.docker.ping();
       logger.info('[Sandbox] Docker connection established', { component: 'Sandbox' });
+
+      // Log active security level so operators know what enforcement is in place
+      logger.info(
+        `[Sandbox] Security level: ${this.securityConfig.level} (mode override: ${process.env.PROFCLAW_SANDBOX_LEVEL ?? 'none'}, resolved: ${getSecurityLevel()})`,
+        {
+          component: 'Sandbox',
+          securityLevel: this.securityConfig.level,
+          allowNetwork: this.securityConfig.allowNetwork,
+          readOnlyFs: this.securityConfig.readOnlyFs,
+          maxMemoryMb: this.securityConfig.maxMemoryMb,
+          maxCpuPercent: this.securityConfig.maxCpuPercent,
+          timeoutMs: this.securityConfig.timeoutMs,
+        },
+      );
 
       // Pull the image if needed
       await this.ensureImage();
@@ -192,6 +218,8 @@ export class SandboxManager {
     poolSize: number;
     activeContainers: number;
     config: SandboxConfig;
+    securityLevel: string;
+    securityConfig: SandboxSecurityConfig;
   } {
     const activeContainers = Array.from(this.containerPool.values())
       .filter(c => c.inUse).length;
@@ -202,13 +230,22 @@ export class SandboxManager {
       poolSize: this.containerPool.size,
       activeContainers,
       config: this.config,
+      securityLevel: this.securityConfig.level,
+      securityConfig: this.securityConfig,
     };
   }
 
   /**
-   * Update sandbox configuration
+   * Update sandbox configuration.
+   * Pass `refreshSecurity: true` to re-read the security preset from env vars.
    */
-  updateConfig(updates: Partial<SandboxConfig>): void {
+  updateConfig(updates: Partial<SandboxConfig>, refreshSecurity = false): void {
+    if (refreshSecurity) {
+      this.securityConfig = getSandboxConfig();
+      logger.info(`[Sandbox] Security config refreshed to level: ${this.securityConfig.level}`, {
+        component: 'Sandbox',
+      });
+    }
     this.config = { ...this.config, ...updates };
     logger.info('[Sandbox] Config updated', { component: 'Sandbox', config: this.config });
   }
@@ -270,13 +307,21 @@ export class SandboxManager {
     if (!this.docker) return null;
 
     try {
-      const name = `glinr-sandbox-${randomUUID().slice(0, 8)}`;
+      const name = `profclaw-sandbox-${randomUUID().slice(0, 8)}`;
 
       // Build mount bindings
       const binds: string[] = this.config.mounts?.map((m: SandboxMount) => {
         const mode = m.readonly ? 'ro' : 'rw';
         return `${m.hostPath}:${m.containerPath}:${mode}`;
       }) ?? [];
+
+      // Build HostConfig security options from the active security preset
+      const secCfg = this.securityConfig;
+      const securityOpts = ['no-new-privileges'];
+      const capDrop: string[] = ['ALL'];
+      // In strict mode, add seccomp-unconfined label as a signal to the runtime
+      // (actual seccomp profile attachment is left to the deployment environment)
+      const capAdd: string[] = secCfg.level === 'permissive' ? ['NET_BIND_SERVICE'] : [];
 
       const container = await this.docker.createContainer({
         Image: this.config.image,
@@ -286,13 +331,16 @@ export class SandboxManager {
         Env: Object.entries(this.config.env ?? {}).map(([k, v]) => `${k}=${v}`),
         HostConfig: {
           Binds: binds,
-          NetworkMode: this.config.networkMode ?? 'none',
+          NetworkMode: this.config.networkMode ?? (secCfg.allowNetwork ? 'bridge' : 'none'),
           Memory: parseMemoryLimit(this.config.memoryLimit),
           NanoCpus: parseCpuLimit(this.config.cpuLimit),
           AutoRemove: false,
-          SecurityOpt: ['no-new-privileges'],
-          CapDrop: ['ALL'],
-          ReadonlyRootfs: false,
+          SecurityOpt: securityOpts,
+          CapDrop: capDrop,
+          CapAdd: capAdd.length > 0 ? capAdd : undefined,
+          // Apply read-only root FS from the security preset.
+          // The workspace mount is always rw so agents can write outputs.
+          ReadonlyRootfs: secCfg.readOnlyFs,
         },
         Tty: false,
         OpenStdin: false,
@@ -355,7 +403,30 @@ export class SandboxManager {
     }
 
     const container = this.docker.getContainer(containerId);
-    const timeout = options.timeout ?? DEFAULT_TIMEOUT_MS;
+    // Prefer caller-supplied timeout; fall back to security preset; then compile-time default
+    const timeout = options.timeout ?? this.securityConfig.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+
+    // Enforce command allowlist when security level is not permissive
+    if (this.securityConfig.allowedCommands.length > 0) {
+      const firstToken = options.command.trimStart().split(/\s+/)[0] ?? '';
+      const allowed = this.securityConfig.allowedCommands.some(
+        cmd => firstToken === cmd || firstToken.endsWith(`/${cmd}`),
+      );
+      if (!allowed) {
+        logger.warn(`[Sandbox] Command blocked by security policy: ${firstToken}`, {
+          component: 'Sandbox',
+          securityLevel: this.securityConfig.level,
+          command: options.command,
+        });
+        return {
+          success: false,
+          stdout: '',
+          stderr: `Command '${firstToken}' is not allowed at security level '${this.securityConfig.level}'.`,
+          exitCode: 126,
+          error: `Command blocked by sandbox security policy (level: ${this.securityConfig.level})`,
+        };
+      }
+    }
 
     try {
       // Create exec instance

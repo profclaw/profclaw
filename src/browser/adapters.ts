@@ -19,10 +19,10 @@ import type { ToolDefinition } from '../tools/types.js';
 // MCP Adapter (browser-specific)
 // =============================================================================
 
-const MCP_PREFIX = 'glinr__';
+const MCP_PREFIX = 'profclaw__';
 
 /**
- * MCP tool definitions for browser tools (with glinr__ prefix)
+ * MCP tool definitions for browser tools (with profclaw__ prefix)
  */
 export const MCP_BROWSER_TOOLS = (BROWSER_TOOLS as unknown as ToolDefinition[]).map(
   (t) => toMCPSchema(t, MCP_PREFIX)

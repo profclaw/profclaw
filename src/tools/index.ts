@@ -1,7 +1,7 @@
 /**
  * Unified Tool System
  *
- * Single source of truth for all GLINR tools.
+ * Single source of truth for all profClaw tools.
  *
  * Usage:
  * ```typescript
@@ -10,14 +10,14 @@
  * // Get all tools
  * const tools = getAllTools();
  *
- * // Get MCP schemas (with glinr__ prefix)
+ * // Get MCP schemas (with profclaw__ prefix)
  * const mcpTools = getMCPTools();
  *
  * // Get chat execution tools
  * const chatTools = getChatTools();
  *
  * // Handle MCP tool call
- * const result = await handleMCPToolCall('glinr__browser_navigate', { url: '...' });
+ * const result = await handleMCPToolCall('profclaw__browser_navigate', { url: '...' });
  * ```
  */
 
@@ -119,10 +119,10 @@ export function getSafeToolNames(): string[] {
 // MCP Integration
 // =============================================================================
 
-const MCP_PREFIX = 'glinr__';
+const MCP_PREFIX = 'profclaw__';
 
 /**
- * Get MCP tool schemas (with glinr__ prefix)
+ * Get MCP tool schemas (with profclaw__ prefix)
  */
 export function getMCPTools(): MCPToolSchema[] {
   return ALL_TOOLS.map((t) => toMCPSchema(t, MCP_PREFIX));

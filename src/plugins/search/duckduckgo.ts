@@ -42,7 +42,7 @@ class DuckDuckGoProvider implements SearchProvider {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'User-Agent': 'GLINR-TaskManager/1.0',
+        'User-Agent': 'profClaw/1.0',
       },
       body: formData.toString(),
     });

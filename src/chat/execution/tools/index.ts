@@ -10,7 +10,16 @@ import type { ToolDefinition } from '../types.js';
 // Core tools
 import { execTool } from './exec.js';
 import { webFetchTool } from './web-fetch.js';
-import { readFileTool, writeFileTool, searchFilesTool, grepTool } from './file-ops.js';
+import { readFileTool, writeFileTool, searchFilesTool, grepTool, editFileTool, directoryTreeTool, patchApplyTool } from './file-ops.js';
+
+// GitHub tools
+import { githubPrTool } from './github.js';
+
+// Test tools
+import { testRunTool } from './test-run.js';
+
+// Image tools
+import { imageAnalyzeTool } from './image-analyze.js';
 
 // Git tools
 import {
@@ -63,7 +72,7 @@ import {
   cronTools,
 } from './cron-tool.js';
 
-// GLINR ops tools (ticket, project management)
+// profClaw ops tools (ticket, project management)
 import {
   createTicketTool,
   createProjectTool,
@@ -71,8 +80,8 @@ import {
   listProjectsTool,
   updateTicketTool,
   getTicketTool,
-  glinrTools,
-} from './glinr-ops.js';
+  profclawTools,
+} from './profclaw-ops.js';
 
 // Browser tools
 import {
@@ -87,6 +96,9 @@ import {
   browserTools,
 } from './browser.js';
 
+// Canvas tools
+import { canvasRenderTool } from './canvas.js';
+
 // Session spawn tools (hierarchical agent sessions)
 import {
   spawnSessionTool,
@@ -96,10 +108,22 @@ import {
   sessionSpawnTools,
 } from './session-spawn.js';
 
+// Integration tools (screen capture, clipboard, notifications)
+import { screenCaptureTool, clipboardReadTool, clipboardWriteTool, notifyTool } from './integrations.js';
+
 // Export individual tools
 export { execTool } from './exec.js';
 export { webFetchTool } from './web-fetch.js';
-export { readFileTool, writeFileTool, searchFilesTool, grepTool } from './file-ops.js';
+export { readFileTool, writeFileTool, searchFilesTool, grepTool, editFileTool, directoryTreeTool, patchApplyTool } from './file-ops.js';
+
+// GitHub tools exports
+export { githubPrTool } from './github.js';
+
+// Test tools exports
+export { testRunTool } from './test-run.js';
+
+// Image tools exports
+export { imageAnalyzeTool } from './image-analyze.js';
 export {
   gitStatusTool,
   gitDiffTool,
@@ -145,7 +169,7 @@ export {
   cronTools,
 } from './cron-tool.js';
 
-// GLINR ops tools exports
+// profClaw ops tools exports
 export {
   createTicketTool,
   createProjectTool,
@@ -153,8 +177,8 @@ export {
   listProjectsTool,
   updateTicketTool,
   getTicketTool,
-  glinrTools,
-} from './glinr-ops.js';
+  profclawTools,
+} from './profclaw-ops.js';
 export type {
   CronCreateParams,
   CronCreateResult,
@@ -185,6 +209,15 @@ export {
   browserTools,
 } from './browser.js';
 
+// Canvas tools exports
+export { canvasRenderTool } from './canvas.js';
+export type { CanvasRenderResult, CanvasArtifact } from './canvas.js';
+export { getArtifact, listArtifacts, clearArtifacts } from './canvas.js';
+
+// Integration tools exports
+export { screenCaptureTool, clipboardReadTool, clipboardWriteTool, notifyTool } from './integrations.js';
+export type { ScreenCaptureResult, ClipboardReadResult, ClipboardWriteResult, NotifyResult } from './integrations.js';
+
 // Session spawn tools exports (hierarchical agent sessions)
 export {
   spawnSessionTool,
@@ -197,7 +230,10 @@ export {
 // Export types for external use
 export type { ExecResult } from './exec.js';
 export type { WebFetchResult } from './web-fetch.js';
-export type { ReadFileResult, WriteFileResult, SearchFilesResult, GrepResult, GrepMatch } from './file-ops.js';
+export type { ReadFileResult, WriteFileResult, SearchFilesResult, GrepResult, GrepMatch, EditFileResult, DirectoryTreeResult, PatchApplyResult } from './file-ops.js';
+export type { GithubPrResult } from './github.js';
+export type { TestRunResult, TestFailure } from './test-run.js';
+export type { ImageAnalyzeResult } from './image-analyze.js';
 export type { GitResult } from './git.js';
 export type {
   EnvResult,
@@ -222,13 +258,18 @@ export type {
 
 // All built-in tools (typed as generic ToolDefinition array)
 export const builtinTools: ToolDefinition<any, any>[] = [
-  // Core tools (6)
+  // Core tools (11)
   execTool,
   webFetchTool,
   readFileTool,
   writeFileTool,
+  editFileTool,
   searchFilesTool,
   grepTool,
+  directoryTreeTool,
+  patchApplyTool,
+  imageAnalyzeTool,
+  canvasRenderTool,
   // Git tools (7)
   gitStatusTool,
   gitDiffTool,
@@ -262,12 +303,21 @@ export const builtinTools: ToolDefinition<any, any>[] = [
   ...cronTools,
   // Browser tools (8)
   ...browserTools,
-  // GLINR ops tools (6)
-  ...glinrTools,
+  // profClaw ops tools (6)
+  ...profclawTools,
   // Session spawn tools (4) - hierarchical agent sessions
   ...sessionSpawnTools,
   // Maintenance tools (1)
   dbMaintenanceTool,
+  // GitHub tools (1)
+  githubPrTool,
+  // Test tools (1)
+  testRunTool,
+  // Integration tools (4) - screen capture, clipboard, notifications
+  screenCaptureTool,
+  clipboardReadTool,
+  clipboardWriteTool,
+  notifyTool,
 ];
 
 /**

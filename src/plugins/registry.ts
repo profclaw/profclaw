@@ -1,5 +1,5 @@
 /**
- * GLINR Plugin Registry
+ * profClaw Plugin Registry
  *
  * Manages plugin registration, instantiation, and health monitoring.
  */

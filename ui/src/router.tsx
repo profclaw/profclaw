@@ -1,6 +1,6 @@
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
 import { RootLayout } from '@/layouts/RootLayout';
-import { Dashboard } from '@/features/dashboard/views/Dashboard';
+import { AnalyticsDashboard } from '@/features/dashboard/views/AnalyticsDashboard';
 import { TaskList } from '@/features/tasks/views/TaskList';
 import { TaskDetail } from '@/features/tasks/views/TaskDetail';
 import { SummaryList } from '@/features/summaries/views/SummaryList';
@@ -18,6 +18,7 @@ import { CronDashboard } from '@/features/cron';
 import { ActivityView } from '@/features/notifications/views/ActivityView';
 import { LoginPage, SignupPage, AuthGuard, GuestGuard } from '@/features/auth';
 import { SetupWizard } from '@/features/setup/views/SetupWizard';
+import { OOBEWizard } from '@/features/setup/views/OOBEWizard';
 import { OnboardingPage } from '@/features/setup/views/OnboardingPage';
 import { UserManagement, InviteCodeManagement } from '@/features/admin';
 import { PrivacyPolicy, TermsOfService } from '@/features/legal';
@@ -31,6 +32,11 @@ const router = createBrowserRouter([
   {
     path: '/signup',
     element: <GuestGuard><SignupPage /></GuestGuard>,
+  },
+  // OOBE wizard (public - for first-time local setup)
+  {
+    path: '/oobe',
+    element: <OOBEWizard />,
   },
   // Setup wizard (public - for first-time configuration)
   {
@@ -54,7 +60,7 @@ const router = createBrowserRouter([
   // Protected app routes (redirects to /login if not authenticated)
   {
     path: '/',
-    element: <AuthGuard><RootLayout><Dashboard /></RootLayout></AuthGuard>,
+    element: <AuthGuard><RootLayout><ChatView /></RootLayout></AuthGuard>,
   },
   {
     path: '/tasks',
@@ -114,7 +120,11 @@ const router = createBrowserRouter([
   },
   {
     path: '/chat',
-    element: <AuthGuard><RootLayout><ChatView /></RootLayout></AuthGuard>,
+    element: <Navigate to="/" replace />,
+  },
+  {
+    path: '/analytics',
+    element: <AuthGuard><RootLayout><AnalyticsDashboard /></RootLayout></AuthGuard>,
   },
   {
     path: '/projects',

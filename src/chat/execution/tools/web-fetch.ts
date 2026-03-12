@@ -33,6 +33,7 @@ const MAX_CONTENT_LENGTH = 500_000; // 500KB
 const BLOCKED_HOSTS = new Set([
   'localhost',
   '127.0.0.1',
+  '::1',
   '0.0.0.0',
   '169.254.169.254', // AWS metadata
   'metadata.google.internal', // GCP metadata
@@ -74,19 +75,21 @@ Use for: reading documentation, fetching API responses, checking web content.`,
       };
     }
 
+    const hostname = normalizeHostname(url.hostname);
+
     // Check for blocked hosts (SSRF protection)
-    if (BLOCKED_HOSTS.has(url.hostname) || url.hostname.endsWith('.local')) {
+    if (BLOCKED_HOSTS.has(hostname) || hostname.endsWith('.local')) {
       return {
         success: false,
         error: {
           code: 'BLOCKED_HOST',
-          message: `Access to ${url.hostname} is not allowed`,
+          message: `Access to ${hostname} is not allowed`,
         },
       };
     }
 
     // Check for private IPs
-    if (isPrivateIP(url.hostname)) {
+    if (isPrivateIP(hostname)) {
       return {
         success: false,
         error: {
@@ -111,7 +114,7 @@ Use for: reading documentation, fetching API responses, checking web content.`,
       const response = await fetch(params.url, {
         method: params.method,
         headers: {
-          'User-Agent': 'GLINR-TaskManager/1.0',
+          'User-Agent': 'profClaw/1.0',
           Accept: 'text/html,application/json,text/plain,*/*',
           ...params.headers,
         },
@@ -201,8 +204,10 @@ Use for: reading documentation, fetching API responses, checking web content.`,
 // =============================================================================
 
 function isPrivateIP(hostname: string): boolean {
+  const normalized = normalizeHostname(hostname);
+
   // Check for IPv4 private ranges
-  const ipv4Match = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  const ipv4Match = normalized.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
   if (ipv4Match) {
     const [_, a, b] = ipv4Match.map(Number);
     // 10.x.x.x
@@ -212,7 +217,23 @@ function isPrivateIP(hostname: string): boolean {
     // 192.168.x.x
     if (a === 192 && b === 168) return true;
   }
+
+  // Check common IPv6 loopback, link-local, and unique local ranges
+  const ipv6 = normalized.toLowerCase();
+  if (ipv6 === '::1') return true;
+  if (ipv6.startsWith('fc') || ipv6.startsWith('fd')) return true;
+  if (ipv6.startsWith('fe8') || ipv6.startsWith('fe9') || ipv6.startsWith('fea') || ipv6.startsWith('feb')) {
+    return true;
+  }
+
   return false;
+}
+
+function normalizeHostname(hostname: string): string {
+  if (hostname.startsWith('[') && hostname.endsWith(']')) {
+    return hostname.slice(1, -1);
+  }
+  return hostname;
 }
 
 function extractTextFromHtml(html: string): string {

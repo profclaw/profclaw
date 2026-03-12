@@ -95,7 +95,7 @@ function generatePairingCode(): string {
  * Generate a secure token for approved devices
  */
 function generateToken(): string {
-  return `glinr_pair_${randomBytes(32).toString('base64url')}`;
+  return `profclaw_pair_${randomBytes(32).toString('base64url')}`;
 }
 
 /**

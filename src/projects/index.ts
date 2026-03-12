@@ -1,5 +1,5 @@
 /**
- * GLINR Projects & Sprints Service
+ * profClaw Projects & Sprints Service
  *
  * Multi-project support with custom ticket prefixes and sprint management.
  * Designed for bi-directional sync with Linear, Jira, GitHub.
@@ -281,7 +281,7 @@ export async function getProject(id: string): Promise<Project | null> {
 }
 
 /**
- * Get a project by key (e.g., "GLINR")
+ * Get a project by key (e.g., "PC")
  */
 export async function getProjectByKey(key: string): Promise<Project | null> {
   const db = getDb();
@@ -992,13 +992,13 @@ export async function reorderSprintTickets(
  * Get or create the default project
  */
 export async function getOrCreateDefaultProject(): Promise<Project> {
-  const existing = await getProjectByKey('GLINR');
+  const existing = await getProjectByKey('PC');
   if (existing) return existing;
 
   return createProject({
-    key: 'GLINR',
-    name: 'GLINR Task Manager',
-    description: 'Default project for GLINR tasks',
+    key: 'PC',
+    name: 'profClaw',
+    description: 'Default project for profClaw tasks',
     icon: '🚀',
     color: '#6366f1',
   });

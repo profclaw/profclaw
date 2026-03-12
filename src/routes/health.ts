@@ -11,7 +11,7 @@
  */
 
 import type { Context } from 'hono';
-import { getTasks } from '../queue/task-queue.js';
+import { getTasks } from '../queue/index.js';
 import { getAgentRegistry } from '../adapters/registry.js';
 import { circuitBreakers } from '../utils/circuit-breaker.js';
 import { getMetricsSummary, metrics } from '../utils/metrics.js';

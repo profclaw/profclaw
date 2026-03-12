@@ -1,7 +1,7 @@
 /**
  * Agent Types and Interfaces
  *
- * Core type definitions for the GLINR agentic loop system.
+ * Core type definitions for the profClaw agentic loop system.
  * Follows patterns from OpenClaw pi-agent-core for session-based execution.
  */
 

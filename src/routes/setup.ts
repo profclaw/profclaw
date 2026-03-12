@@ -7,6 +7,7 @@
  */
 
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { randomUUID, randomBytes } from 'crypto';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../storage/index.js';
@@ -28,6 +29,27 @@ const setup = new Hono();
 const adminCreateLimiter = rateLimit({ windowMs: 60_000, max: 3, message: 'Too many admin creation attempts. Try again in a minute.' });
 const recoveryLimiter = rateLimit({ windowMs: 60_000, max: 5, message: 'Too many recovery attempts. Try again in a minute.' });
 const resetLimiter = rateLimit({ windowMs: 60_000, max: 5, message: 'Too many reset attempts. Try again in a minute.' });
+
+async function parseJsonBody(c: Context): Promise<
+  { ok: true; body: Record<string, unknown> } | { ok: false; response: Response }
+> {
+  try {
+    const body = await c.req.json();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return {
+        ok: false,
+        response: c.json({ error: 'Request body must be a JSON object' }, 400),
+      };
+    }
+
+    return { ok: true, body: body as Record<string, unknown> };
+  } catch {
+    return {
+      ok: false,
+      response: c.json({ error: 'Invalid JSON body' }, 400),
+    };
+  }
+}
 
 // =============================================================================
 // ROUTES
@@ -111,8 +133,12 @@ setup.get('/status', async (c) => {
  */
 setup.post('/github-oauth/validate', async (c) => {
   try {
-    const body = await c.req.json();
-    const { clientId, clientSecret } = body;
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const { clientId, clientSecret } = parsed.body;
 
     if (!clientId || !clientSecret) {
       return c.json({
@@ -222,8 +248,12 @@ setup.post('/github-oauth', async (c) => {
       );
     }
 
-    const body = await c.req.json();
-    const { clientId, clientSecret, redirectUri } = body;
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const { clientId, clientSecret, redirectUri } = parsed.body;
 
     if (!clientId || !clientSecret) {
       return c.json({ error: 'Client ID and Client Secret are required' }, 400);
@@ -266,8 +296,12 @@ setup.post('/admin', adminCreateLimiter, async (c) => {
       return c.json({ error: 'Database not initialized' }, 500);
     }
 
-    const body = await c.req.json();
-    const { email, password, name } = body;
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const { email, password, name } = parsed.body;
 
     if (!email || !password || !name) {
       return c.json({ error: 'Email, password, and name are required' }, 400);
@@ -368,8 +402,12 @@ setup.post('/verify-recovery-code', recoveryLimiter, async (c) => {
       return c.json({ error: 'Database not initialized' }, 500);
     }
 
-    const body = await c.req.json();
-    const { email, code } = body;
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const { email, code } = parsed.body;
 
     if (!email || !code) {
       return c.json({ error: 'Email and recovery code are required' }, 400);
@@ -445,8 +483,12 @@ setup.post('/reset-password', resetLimiter, async (c) => {
       return c.json({ error: 'Database not initialized' }, 500);
     }
 
-    const body = await c.req.json();
-    const { resetToken, newPassword } = body;
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const { resetToken, newPassword } = parsed.body;
 
     if (!resetToken || !newPassword) {
       return c.json({ error: 'Reset token and new password are required' }, 400);
@@ -506,7 +548,7 @@ setup.post('/reset-password', resetLimiter, async (c) => {
  * Get environment variable template for manual setup
  */
 setup.get('/env-template', (c) => {
-  const template = `# GLINR Task Manager Configuration
+  const template = `# profClaw Configuration
 # Copy this to .env and fill in your values
 
 # GitHub OAuth (Required for authentication)
@@ -529,7 +571,7 @@ ANTHROPIC_API_KEY=
 OLLAMA_BASE_URL=http://localhost:11434
 
 # Database
-DATABASE_URL=file:./data/glinr.db
+DATABASE_URL=file:./data/profclaw.db
 
 # Server
 PORT=3000

@@ -58,7 +58,7 @@ export const BUILT_IN_TEMPLATES: Omit<JobTemplate, 'id' | 'createdAt' | 'updated
   // --- Sync Templates ---
   {
     name: 'GitHub Issue Sync',
-    description: 'Sync open GitHub issues to GLINR tickets periodically',
+    description: 'Sync open GitHub issues to profClaw tickets periodically',
     icon: '🔄',
     category: 'sync',
     jobType: 'tool',
@@ -83,7 +83,7 @@ export const BUILT_IN_TEMPLATES: Omit<JobTemplate, 'id' | 'createdAt' | 'updated
   },
   {
     name: 'Linear Sync',
-    description: 'Sync Linear issues to GLINR tickets',
+    description: 'Sync Linear issues to profClaw tickets',
     icon: '📐',
     category: 'sync',
     jobType: 'tool',

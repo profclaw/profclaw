@@ -2,19 +2,22 @@
  * Browser Tools - Single Source of Truth
  *
  * Define browser tools once, use everywhere:
- * - MCP Server (glinr__browser_* prefix)
+ * - MCP Server (profclaw__browser_* prefix)
  * - Chat Execution (browser_* prefix)
  *
  * Uses unified tool types from src/tools/types.ts
  */
 
 import { z } from 'zod';
+import { createRequire } from 'module';
 import {
   getBrowserService,
   formatSnapshotResponse,
   formatSearchResponse,
 } from './index.js';
 import type { ToolDefinition, ToolResult, ToolAvailability } from '../tools/types.js';
+
+const require = createRequire(import.meta.url);
 
 // =============================================================================
 // Availability Check

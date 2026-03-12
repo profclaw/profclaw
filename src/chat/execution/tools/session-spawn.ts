@@ -107,7 +107,7 @@ export const spawnSessionTool: ToolDefinition<SpawnSessionParams, SpawnSessionRe
 - Use \`list_sessions\` to check progress
 - Use \`receive_messages\` to get results when child completes`,
 
-  category: 'glinr',
+  category: 'profclaw',
   securityLevel: 'moderate',
   allowedHosts: ['sandbox', 'gateway', 'local'],
   parameters: SpawnSessionParamsSchema,
@@ -270,7 +270,7 @@ export const sendMessageTool: ToolDefinition<SendMessageParams, SendMessageResul
 }
 \`\`\``,
 
-  category: 'glinr',
+  category: 'profclaw',
   securityLevel: 'safe',
   allowedHosts: ['sandbox', 'gateway', 'local'],
   parameters: SendMessageParamsSchema,
@@ -420,7 +420,7 @@ export const receiveMessagesTool: ToolDefinition<
 
 Returns messages sorted by priority (highest first), then by creation time.`,
 
-  category: 'glinr',
+  category: 'profclaw',
   securityLevel: 'safe',
   allowedHosts: ['sandbox', 'gateway', 'local'],
   parameters: ReceiveMessagesParamsSchema,
@@ -560,7 +560,7 @@ export const listSessionsTool: ToolDefinition<ListSessionsParams, ListSessionsRe
 - Wait for child tasks to complete
 - Get session IDs for direct messaging`,
 
-  category: 'glinr',
+  category: 'profclaw',
   securityLevel: 'safe',
   allowedHosts: ['sandbox', 'gateway', 'local'],
   parameters: ListSessionsParamsSchema,

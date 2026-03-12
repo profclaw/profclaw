@@ -31,7 +31,7 @@ export interface User {
 // Last User Persistence
 // ============================================================================
 
-const LAST_USER_KEY = 'glinr_last_user';
+const LAST_USER_KEY = 'profclaw_last_user';
 
 export interface LastUser {
   email: string;
@@ -83,6 +83,7 @@ interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  authMode: 'local' | 'multi';
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, name: string) => Promise<void>;
   loginWithGitHub: () => void;
@@ -105,10 +106,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryFn: async () => {
       const res = await fetch('/api/auth/me', { credentials: 'include' });
       if (!res.ok) {
-        if (res.status === 401) return { authenticated: false };
+        if (res.status === 401) return { authenticated: false, authMode: 'local' as const };
         throw new Error('Failed to fetch auth status');
       }
-      return res.json() as Promise<{ authenticated: boolean; user?: User }>;
+      return res.json() as Promise<{ authenticated: boolean; authMode?: 'local' | 'multi'; user?: User }>;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: false,
@@ -197,6 +198,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user: authData?.user || null,
     isLoading,
     isAuthenticated: authData?.authenticated ?? false,
+    authMode: authData?.authMode ?? 'local',
     login,
     signup,
     loginWithGitHub,

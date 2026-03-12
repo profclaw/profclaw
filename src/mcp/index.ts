@@ -5,7 +5,7 @@
  * Run as a separate process, not imported into the main server.
  *
  * Usage:
- *   npx @glincker/task-manager-mcp
+ *   npx @profclaw/profclaw-mcp
  *   node dist/mcp/server.js
  */
 

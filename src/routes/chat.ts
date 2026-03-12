@@ -1,7 +1,7 @@
 /**
  * Chat API Routes
  *
- * REST API for AI chat functionality with GLINR intelligence.
+ * REST API for AI chat functionality with profClaw intelligence.
  * Supports multiple providers, conversation history, and context-aware prompts.
  */
 
@@ -50,6 +50,8 @@ import {
   getSessionModel,
   // Agentic executor
   streamAgenticChat,
+  // Group chat
+  getGroupChatManager,
   type ChatContext,
   type RuntimeInfo,
   type ConversationMessage,
@@ -509,7 +511,7 @@ chatRoutes.get("/presets", async (c) => {
       icon: p.icon,
       examples: p.examples,
     })),
-    default: "glinr-assistant",
+    default: "profclaw-assistant",
   });
 });
 
@@ -1377,7 +1379,7 @@ chatRoutes.post(
 
       // Build system prompt
       const systemPrompt = await buildSystemPrompt(
-        body.presetId || "glinr-assistant",
+        body.presetId || "profclaw-assistant",
         context,
       );
 
@@ -1409,7 +1411,7 @@ chatRoutes.post(
         usage: response.usage,
         duration: response.duration,
         context: {
-          presetId: body.presetId || "glinr-assistant",
+          presetId: body.presetId || "profclaw-assistant",
           taskId: body.taskId,
           ticketId: body.ticketId,
         },
@@ -1480,7 +1482,7 @@ chatRoutes.post(
       } else if (!systemPrompt) {
         // Even without preset, add tool-enabled system prompt
         systemPrompt = await buildSystemPrompt(
-          "glinr-assistant",
+          "profclaw-assistant",
           {},
           { enableTools: true },
         );
@@ -1957,6 +1959,90 @@ chatRoutes.post(
       );
       return c.json(
         { error: error instanceof Error ? error.message : "Approval failed" },
+        500,
+      );
+    }
+  },
+);
+
+// =============================================================================
+// Group Chat Routes
+// =============================================================================
+
+/**
+ * GET /api/chat/group/config
+ * Get group chat configuration and channel personalities
+ */
+chatRoutes.get("/group/config", (c) => {
+  const manager = getGroupChatManager();
+  return c.json({
+    mentionGating: true,
+    threadingEnabled: true,
+    rateLimiting: true,
+    channelPersonalities: manager.getChannelPersonalities(),
+  });
+});
+
+/**
+ * POST /api/chat/group/personality
+ * Set a channel-specific system prompt
+ */
+chatRoutes.post(
+  "/group/personality",
+  zValidator(
+    "json",
+    z.object({
+      channelId: z.string().min(1),
+      systemPrompt: z.string().min(1),
+    }),
+  ),
+  async (c) => {
+    const { channelId, systemPrompt } = c.req.valid("json");
+
+    try {
+      const manager = getGroupChatManager();
+      manager.setChannelPersonality(channelId, systemPrompt);
+      return c.json({ success: true });
+    } catch (error) {
+      logger.error(
+        "[Chat/Group] Set personality error:",
+        error instanceof Error ? error : undefined,
+      );
+      return c.json(
+        { error: error instanceof Error ? error.message : "Failed to set personality" },
+        500,
+      );
+    }
+  },
+);
+
+/**
+ * POST /api/chat/group/rate-limit
+ * Configure the per-minute rate limit for a channel
+ */
+chatRoutes.post(
+  "/group/rate-limit",
+  zValidator(
+    "json",
+    z.object({
+      channelId: z.string().min(1),
+      maxPerMinute: z.number().int().positive(),
+    }),
+  ),
+  async (c) => {
+    const { channelId, maxPerMinute } = c.req.valid("json");
+
+    try {
+      const manager = getGroupChatManager();
+      manager.setRateLimit(channelId, maxPerMinute);
+      return c.json({ success: true });
+    } catch (error) {
+      logger.error(
+        "[Chat/Group] Set rate limit error:",
+        error instanceof Error ? error : undefined,
+      );
+      return c.json(
+        { error: error instanceof Error ? error.message : "Failed to set rate limit" },
         500,
       );
     }

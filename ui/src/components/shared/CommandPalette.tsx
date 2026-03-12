@@ -3,7 +3,7 @@ import { Command } from "cmdk"
 import {
   Search, ListTodo, FileText, Bot,
   Settings, Home, Plus, Moon, Sun,
-  Terminal, Sparkles, Activity, Coins, RotateCcw
+  Terminal, Sparkles, Activity, Coins, RotateCcw, BarChart3
 } from "lucide-react"
 import { useNavigate } from "react-router-dom"
 import { useTheme } from "next-themes"
@@ -91,17 +91,20 @@ export function CommandPalette() {
 
             <Command.Group heading="General" className="px-3 py-4 text-[11px] font-bold uppercase tracking-widest text-muted-foreground/60">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 mt-2">
-                <CommandItem onSelect={() => runCommand(() => navigate('/'))} icon={Home}>
-                  Dashboard
+                <CommandItem onSelect={() => runCommand(() => navigate('/'))} icon={Sparkles}>
+                  Chat
                 </CommandItem>
                 <CommandItem onSelect={() => runCommand(() => navigate('/tasks'))} icon={ListTodo}>
                   Tasks
+                </CommandItem>
+                <CommandItem onSelect={() => runCommand(() => navigate('/analytics'))} icon={BarChart3}>
+                  Analytics
                 </CommandItem>
                 <CommandItem onSelect={() => runCommand(() => navigate('/summaries'))} icon={FileText}>
                   Summaries
                 </CommandItem>
                 <CommandItem onSelect={() => runCommand(() => navigate('/costs'))} icon={Coins}>
-                  Costs & Analytics
+                  Costs
                 </CommandItem>
                 <CommandItem onSelect={() => runCommand(() => navigate('/agents'))} icon={Bot}>
                   Agents
@@ -161,7 +164,7 @@ export function CommandPalette() {
              </div>
              <div className="flex items-center gap-2 text-primary">
                 <Sparkles className="h-3 w-3" />
-                <span className="text-[9px] font-bold uppercase tracking-[0.2em]">GLINR INTELLIGENCE</span>
+                <span className="text-[9px] font-bold uppercase tracking-[0.2em]">profClaw INTELLIGENCE</span>
              </div>
           </footer>
         </Command>

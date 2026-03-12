@@ -34,10 +34,10 @@ export function ChatView() {
 
   // Constants for localStorage keys
   const STORAGE_KEYS = {
-    model: 'glinr-chat-model',
-    preset: 'glinr-chat-preset',
-    sidebarOpen: 'glinr-chat-sidebar-open',
-    agentMode: 'glinr-chat-agent-mode',
+    model: 'profclaw-chat-model',
+    preset: 'profclaw-chat-preset',
+    sidebarOpen: 'profclaw-chat-sidebar-open',
+    agentMode: 'profclaw-chat-agent-mode',
   } as const;
 
   // State
@@ -52,9 +52,9 @@ export function ChatView() {
   });
   const [selectedPreset, setSelectedPreset] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem(STORAGE_KEYS.preset) || 'glinr-assistant';
+      return localStorage.getItem(STORAGE_KEYS.preset) || 'profclaw-assistant';
     }
-    return 'glinr-assistant';
+    return 'profclaw-assistant';
   });
   const [showProviderSetup, setShowProviderSetup] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -88,6 +88,7 @@ export function ChatView() {
 
   const urlConversationIdRef = useRef<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   // URL sync for conversation persistence
   const setConversationId = useCallback((id: string | null) => {
@@ -656,10 +657,41 @@ export function ChatView() {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
-      mediaRecorder.onstop = () => {
-        toast.info('Voice recording captured (transcription coming soon)');
-        stream.getTracks().forEach((track) => track.stop());
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
       };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach((track) => track.stop());
+
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        if (audioBlob.size === 0) return;
+
+        try {
+          const formData = new FormData();
+          formData.append('audio', audioBlob, 'recording.webm');
+
+          const response = await fetch('/api/voice/transcribe', {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (!response.ok) throw new Error('Transcription failed');
+
+          const data = (await response.json()) as { text?: string };
+          if (data.text) {
+            setInput((prev) => (prev ? `${prev} ${data.text}` : (data.text ?? '')));
+            toast.success('Voice transcribed');
+          }
+        } catch {
+          toast.error('Voice transcription failed');
+        }
+      };
+
       mediaRecorder.start();
       setIsRecording(true);
       toast.success('Recording started');

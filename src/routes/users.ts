@@ -32,7 +32,7 @@ export const userRoutes = new Hono<{ Variables: Variables }>();
 
 // Middleware to require authentication
 async function requireAuth(c: Context<{ Variables: Variables }>, next: () => Promise<void>) {
-  const token = getCookie(c, 'glinr_session');
+  const token = getCookie(c, 'profclaw_session');
 
   if (!token) {
     return c.json({ error: 'Not authenticated' }, 401);
@@ -569,7 +569,7 @@ userRoutes.post('/me/api-keys', async (c) => {
   }
 
   // Generate API key
-  const rawKey = `glinr_${randomBytes(24).toString('hex')}`;
+  const rawKey = `profclaw_${randomBytes(24).toString('hex')}`;
   const keyPrefix = rawKey.slice(0, 14) + '...';
   const keyHash = createHash('sha256').update(rawKey).digest('hex');
 
@@ -650,7 +650,7 @@ userRoutes.get('/me/sessions', async (c) => {
 
   if (!db) return c.json({ error: 'Database not initialized' }, 500);
 
-  const currentToken = getCookie(c, 'glinr_session');
+  const currentToken = getCookie(c, 'profclaw_session');
 
   const userSessions = await db
     .select({
@@ -715,7 +715,7 @@ userRoutes.delete('/me/sessions/:sessionId', async (c) => {
  */
 userRoutes.delete('/me/sessions', async (c) => {
   const user = c.get('user');
-  const currentToken = getCookie(c, 'glinr_session');
+  const currentToken = getCookie(c, 'profclaw_session');
   const db = getDb();
 
   if (!db) return c.json({ error: 'Database not initialized' }, 500);

@@ -3,9 +3,9 @@
 @custom-variant dark (&:where(.dark, .dark *, .midnight, .midnight *));
 
 @theme {
-  /* Typography - Sora for headings, Manrope for body */
+  /* Typography - Plus Jakarta Sans for headings, Manrope for body */
   --font-sans: "Manrope", system-ui, sans-serif;
-  --font-heading: "Sora", system-ui, sans-serif;
+  --font-heading: "Plus Jakarta Sans", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", monospace;
 
   /* Liquid Design - Softer, More Organic Radius */
@@ -1299,6 +1299,167 @@ h2 { font-weight: 700; letter-spacing: -0.025em; }
   color: var(--muted-foreground);
   font-weight: 500;
 }
+
+/* ===== OOBE Wizard Animations ===== */
+@keyframes wave-drift-1 {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes wave-drift-2 {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes wave-drift-3 {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes oobe-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes oobe-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes oobe-check {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ===== Brand Color Utilities - Coral + Amber ===== */
+
+/* Coral/Amber brand palette */
+:root {
+  --brand-coral: #e11d48;
+  --brand-coral-light: #fb7185;
+  --brand-coral-mid: #f43f5e;
+  --brand-amber: #ea580c;
+  --brand-amber-light: #fb923c;
+  --brand-amber-dark: #c2410c;
+}
+
+/* Heading with coral-to-amber gradient text */
+@utility heading-brand {
+  background: linear-gradient(135deg, #f43f5e 0%, #ea580c 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Heading with glow shadow effect */
+@utility heading-glow {
+  text-shadow:
+    0 0 40px oklch(from #e11d48 l c h / 0.3),
+    0 0 80px oklch(from #ea580c l c h / 0.15);
+}
+
+/* Heading combining gradient + glow (for dark backgrounds) */
+.heading-brand-glow {
+  background: linear-gradient(135deg, #fb7185 0%, #fb923c 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 30px oklch(from #e11d48 l c h / 0.4))
+          drop-shadow(0 4px 20px oklch(from #ea580c l c h / 0.2));
+}
+
+/* Subtle brand glow for dark mode headings */
+.dark .heading-brand-glow,
+.midnight .heading-brand-glow {
+  background: linear-gradient(135deg, #fb7185 0%, #fb923c 80%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 40px oklch(from #f43f5e l c h / 0.5))
+          drop-shadow(0 2px 16px oklch(from #ea580c l c h / 0.3));
+}
+
+/* Brand accent dot/pip */
+@utility brand-dot {
+  background: linear-gradient(135deg, #f43f5e, #ea580c);
+  box-shadow: 0 0 12px oklch(from #e11d48 l c h / 0.4);
+}
+
+/* Brand border glow */
+@utility brand-ring {
+  box-shadow:
+    0 0 0 1px oklch(from #e11d48 l c h / 0.3),
+    0 0 20px -4px oklch(from #f43f5e l c h / 0.2),
+    0 0 40px -8px oklch(from #ea580c l c h / 0.1);
+}
+
+/* Brand button gradient - coral to amber */
+@utility btn-brand {
+  background: linear-gradient(135deg, #e11d48 0%, #c2410c 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  font-weight: 700;
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.1) inset,
+    0 4px 16px -4px oklch(from #e11d48 l c h / 0.5),
+    0 8px 24px -8px oklch(from #ea580c l c h / 0.3);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &:hover:not(:disabled) {
+    background: linear-gradient(135deg, #f43f5e 0%, #ea580c 100%);
+    transform: translateY(-1px);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.15) inset,
+      0 8px 24px -4px oklch(from #e11d48 l c h / 0.5),
+      0 12px 32px -8px oklch(from #ea580c l c h / 0.4);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
+  }
+}
+
+/* Brand outline button */
+@utility btn-brand-outline {
+  background: transparent;
+  color: #f43f5e;
+  border: none;
+  box-shadow: 0 0 0 1.5px oklch(from #e11d48 l c h / 0.4) inset;
+  border-radius: 12px;
+  font-weight: 600;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &:hover:not(:disabled) {
+    background: oklch(from #e11d48 l c h / 0.1);
+    box-shadow:
+      0 0 0 1.5px #e11d48 inset,
+      0 8px 20px -8px oklch(from #f43f5e l c h / 0.3);
+    transform: translateY(-1px);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0) scale(0.98);
+  }
+}
+
+/* OOBE wave colors - coral/amber themed */
+.oobe-wave-1 { fill: #e11d48; }
+.oobe-wave-2 { fill: #ea580c; }
+.oobe-wave-3 { fill: #fb923c; }
 
 /* Midnight mode - Deep Purple/Black palette */
 :root[class~="midnight"],

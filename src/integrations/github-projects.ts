@@ -243,7 +243,7 @@ async function executeGraphQL<T>(token: string, query: string, variables?: Recor
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
-      'User-Agent': 'GLINR-Task-Manager',
+      'User-Agent': 'profClaw',
     },
     body: JSON.stringify({ query, variables }),
   });
@@ -467,7 +467,7 @@ function extractFieldMappings(fieldNodes: any[]): GitHubProjectPreview['fieldMap
     type: {} as Record<string, string>,
   };
 
-  // Default GLINR status mappings
+  // Default profClaw status mappings
   const statusMap: Record<string, string> = {
     'Todo': 'todo',
     'To Do': 'todo',
@@ -507,7 +507,7 @@ function extractFieldMappings(fieldNodes: any[]): GitHubProjectPreview['fieldMap
       for (const option of field.options) {
         const optionName = option.name;
 
-        // Map to GLINR values based on field name
+        // Map to profClaw values based on field name
         if (fieldName === 'status' || fieldName === 'state') {
           mappings.status[optionName] = statusMap[optionName] || 'backlog';
         } else if (fieldName === 'priority') {

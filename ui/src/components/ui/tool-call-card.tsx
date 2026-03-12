@@ -3,7 +3,7 @@
  *
  * Displays tool execution information in chat messages.
  * Shows tool name, arguments, and output in a collapsible format.
- * GLINR tools show formatted markdown summary by default with JSON toggle.
+ * profClaw tools show formatted markdown summary by default with JSON toggle.
  */
 
 import { useState } from "react";
@@ -62,7 +62,7 @@ const TOOL_ICONS: Record<string, typeof Terminal> = {
   git_commit: FileCode,
   database: Database,
   query: Database,
-  // GLINR tools
+  // profClaw tools
   create_ticket: Ticket,
   update_ticket: Ticket,
   get_ticket: Ticket,
@@ -100,7 +100,7 @@ function getToolLabel(name: string): string {
     git_diff: "Git Diff",
     git_log: "Git Log",
     git_commit: "Git Commit",
-    // GLINR tools
+    // profClaw tools
     create_ticket: "Create Ticket",
     update_ticket: "Update Ticket",
     get_ticket: "Get Ticket",

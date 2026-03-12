@@ -56,7 +56,7 @@ const rateLimitTracker = new Map<string, { count: number; resetAt: number }>();
  * Generate a secure random token
  */
 function generateToken(): string {
-  return `glinr_${randomBytes(32).toString('base64url')}`;
+  return `profclaw_${randomBytes(32).toString('base64url')}`;
 }
 
 /**
@@ -198,7 +198,7 @@ async function getTokenByHash(hash: string): Promise<ApiToken | null> {
 export async function validateToken(
   plainTextToken: string
 ): Promise<{ valid: boolean; token?: ApiToken; error?: string }> {
-  if (!plainTextToken || !plainTextToken.startsWith('glinr_')) {
+  if (!plainTextToken || !plainTextToken.startsWith('profclaw_')) {
     return { valid: false, error: 'Invalid token format' };
   }
 

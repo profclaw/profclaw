@@ -1,5 +1,5 @@
 /**
- * GLINR Ticket Service
+ * profClaw Ticket Service
  *
  * Core CRUD operations for AI-native tickets
  */
@@ -192,7 +192,7 @@ export async function createTicket(input: CreateTicketInput): Promise<Ticket> {
   await recordHistory(id, "created", undefined, "created", {
     type: parsed.createdBy || "human",
     name: parsed.aiAgent || "User",
-    platform: "glinr",
+    platform: "profclaw",
   });
 
   // Create external link if provided
@@ -444,7 +444,7 @@ export async function updateTicket(
     await recordHistory(id, change.field, change.oldValue, change.newValue, {
       type: "human",
       name: "User",
-      platform: "glinr",
+      platform: "profclaw",
     });
   }
 

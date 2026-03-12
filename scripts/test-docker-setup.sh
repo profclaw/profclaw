@@ -1,5 +1,5 @@
 #!/bin/bash
-# Quick smoke test for Docker + glinr setup
+# Quick smoke test for Docker + profclaw setup
 # Usage: ./scripts/test-docker-setup.sh
 
 set -euo pipefail
@@ -31,7 +31,7 @@ for i in $(seq 1 60); do
   fi
   if [ "$i" -eq 60 ]; then
     echo "--- Container logs ---"
-    $COMPOSE logs glinr --tail 30
+    $COMPOSE logs profclaw --tail 30
     fail "Health endpoint not reachable after 60s"
   fi
   sleep 1
@@ -47,9 +47,9 @@ echo "  Setup status: $SETUP_STATUS"
 # -------------------------------------------------------------------
 info "4/7  Running non-interactive setup via docker exec"
 # -------------------------------------------------------------------
-$COMPOSE exec -T glinr glinr setup \
+$COMPOSE exec -T profclaw profclaw setup \
   --non-interactive \
-  --admin-email docker-test@glinr.dev \
+  --admin-email docker-test@profclaw.dev \
   --admin-password TestDocker123 \
   --admin-name "Docker Test" \
   --ai-provider skip \
@@ -66,7 +66,7 @@ info "5/7  Verifying admin can login"
 # -------------------------------------------------------------------
 LOGIN_RESP=$(curl -sf -X POST http://localhost:3000/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"docker-test@glinr.dev","password":"TestDocker123"}' \
+  -d '{"email":"docker-test@profclaw.dev","password":"TestDocker123"}' \
   -w "\n%{http_code}" 2>/dev/null || echo -e "\n000")
 
 HTTP_CODE=$(echo "$LOGIN_RESP" | tail -1)
@@ -80,9 +80,9 @@ fi
 # -------------------------------------------------------------------
 info "6/7  Running setup again (should detect existing admin)"
 # -------------------------------------------------------------------
-RERUN=$($COMPOSE exec -T glinr glinr setup \
+RERUN=$($COMPOSE exec -T profclaw profclaw setup \
   --non-interactive \
-  --admin-email docker-test@glinr.dev \
+  --admin-email docker-test@profclaw.dev \
   --admin-password TestDocker123 \
   --admin-name "Docker Test" \
   --ai-provider skip \

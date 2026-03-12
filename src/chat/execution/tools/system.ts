@@ -77,7 +77,16 @@ export const envTool: ToolDefinition<EnvParams, EnvResult> = {
 
     let filtered = Object.entries(env);
     if (params.filter) {
-      const pattern = new RegExp(params.filter, 'i');
+      const pattern = createFilterPattern(params.filter);
+      if (!pattern) {
+        return {
+          success: false,
+          error: {
+            code: 'INVALID_FILTER',
+            message: `Invalid filter pattern: ${params.filter}`,
+          },
+        };
+      }
       filtered = filtered.filter(([key]) => pattern.test(key));
     }
 
@@ -267,9 +276,21 @@ export const processListTool: ToolDefinition<ProcessListParams, ProcessListResul
 
         // Filter
         if (params.filter) {
-          const pattern = new RegExp(params.filter, 'i');
+          const pattern = createFilterPattern(params.filter);
+          if (!pattern) {
+            resolve({
+              success: false,
+              error: {
+                code: 'INVALID_FILTER',
+                message: `Invalid filter pattern: ${params.filter}`,
+              },
+            });
+            return;
+          }
           processes = processes.filter(p => pattern.test(p.command));
         }
+
+        processes.sort((a, b) => compareProcesses(a, b, params.sortBy));
 
         // Limit
         processes = processes.slice(0, params.limit);
@@ -450,6 +471,32 @@ function formatUptime(seconds: number): string {
   if (minutes > 0) parts.push(`${minutes}m`);
 
   return parts.join(' ') || '< 1m';
+}
+
+function createFilterPattern(input: string): RegExp | null {
+  try {
+    return new RegExp(input, 'i');
+  } catch {
+    return null;
+  }
+}
+
+function compareProcesses(
+  a: ProcessInfo,
+  b: ProcessInfo,
+  sortBy: ProcessListParams['sortBy']
+): number {
+  switch (sortBy) {
+    case 'memory':
+      return b.memory - a.memory;
+    case 'pid':
+      return a.pid - b.pid;
+    case 'name':
+      return a.command.localeCompare(b.command);
+    case 'cpu':
+    default:
+      return b.cpu - a.cpu;
+  }
 }
 
 // =============================================================================
