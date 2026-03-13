@@ -61,6 +61,13 @@ temp/
 package-lock.json
 yarn.lock
 
+# Binary artifacts
+*.bin
+engine.bin
+
+# profClaw local runtime
+.profclaw/
+
 # Cache
 .eslintcache
 .cache/

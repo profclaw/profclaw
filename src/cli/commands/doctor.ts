@@ -309,7 +309,7 @@ export function doctorCommand(): Command {
         info(`${passed}/${total} passed, ${warnings} warnings`);
       } else {
         error(`${passed}/${total} passed, ${warnings} warnings, ${failed} failed`);
-        process.exit(1);
+        process.exitCode = 1;
       }
       console.log('');
     });

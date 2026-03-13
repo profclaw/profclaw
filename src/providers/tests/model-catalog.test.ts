@@ -224,16 +224,16 @@ describe('Model Catalog', () => {
       expect(MODEL_ALIASES['o3-mini'].model).toBe('o3-mini');
     });
 
-    it('resolves gemini alias to google gemini-1.5-pro', () => {
+    it('resolves gemini alias to google gemini-2.5-pro', () => {
       expect(MODEL_ALIASES['gemini']).toBeDefined();
       expect(MODEL_ALIASES['gemini'].provider).toBe('google');
-      expect(MODEL_ALIASES['gemini'].model).toBe('gemini-1.5-pro');
+      expect(MODEL_ALIASES['gemini'].model).toBe('gemini-2.5-pro');
     });
 
-    it('resolves gemini-flash alias to google gemini-1.5-flash', () => {
+    it('resolves gemini-flash alias to google gemini-2.5-flash', () => {
       expect(MODEL_ALIASES['gemini-flash']).toBeDefined();
       expect(MODEL_ALIASES['gemini-flash'].provider).toBe('google');
-      expect(MODEL_ALIASES['gemini-flash'].model).toBe('gemini-1.5-flash');
+      expect(MODEL_ALIASES['gemini-flash'].model).toBe('gemini-2.5-flash');
     });
 
     it('resolves groq alias to groq llama-3.3-70b', () => {
@@ -613,12 +613,12 @@ describe('Model Catalog', () => {
   // ===========================================================================
 
   describe('context window validation', () => {
-    it('google gemini-1.5-pro has largest context window among Google models', () => {
+    it('google gemini-2.5-pro has largest context window among Google models', () => {
       const googleModels = getModelsForProvider('google');
-      const pro = googleModels.find((m) => m.id === 'gemini-1.5-pro');
+      const pro = googleModels.find((m) => m.id === 'gemini-2.5-pro');
       expect(pro).toBeDefined();
       for (const m of googleModels) {
-        if (m.id !== 'gemini-1.5-pro') {
+        if (m.id !== 'gemini-2.5-pro') {
           expect(pro!.contextWindow).toBeGreaterThanOrEqual(m.contextWindow);
         }
       }
@@ -686,8 +686,8 @@ describe('Model Catalog', () => {
       expect(info!.provider).toBe('deepseek');
     });
 
-    it('finds gemini-1.5-pro model info', () => {
-      const info = getModelInfo('gemini-1.5-pro');
+    it('finds gemini-2.5-pro model info', () => {
+      const info = getModelInfo('gemini-2.5-pro');
       expect(info).toBeDefined();
       expect(info!.provider).toBe('google');
       expect(info!.supportsVision).toBe(true);

@@ -53,6 +53,7 @@ vi.mock('../../chat/index.js', () => {
     createChatToolHandler: vi.fn(),
     getDefaultChatTools: vi.fn(() => []),
     getAllChatTools: vi.fn(() => []),
+    getChatToolsForModel: vi.fn(() => []),
     getSessionModel: vi.fn(),
     streamAgenticChat: vi.fn(),
     getGroupChatManager: vi.fn(),

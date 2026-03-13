@@ -1,0 +1,5 @@
+# Override ui/.gitignore for npm publishing
+# dist/ is NOT ignored - it contains built UI assets
+node_modules/
+src/
+*.log

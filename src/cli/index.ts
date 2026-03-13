@@ -130,5 +130,5 @@ program.action(() => {
   console.log(chalk.dim('Run `profclaw --help` for all commands'));
 });
 
-// Parse and execute
-program.parse();
+// Parse and execute (parseAsync required for async command actions)
+await program.parseAsync();

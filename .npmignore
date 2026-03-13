@@ -1,0 +1,32 @@
+# npm ignores (overrides .gitignore for publishing)
+# dist/ and ui/dist/ are NOT ignored - they are the published artifacts
+
+node_modules/
+.claude/
+.github/
+docs/
+docs-local/
+coverage/
+playwright-report/
+src/
+ui/src/
+ui/node_modules/
+*.test.ts
+*.spec.ts
+*.tsbuildinfo
+.env
+.env.local
+.env.*.local
+.DS_Store
+*.log
+*.db
+*.db-journal
+data/
+tmp/
+temp/
+.eslintcache
+.cache/
+.vscode/
+.idea/
+.profclaw/
+engine.bin

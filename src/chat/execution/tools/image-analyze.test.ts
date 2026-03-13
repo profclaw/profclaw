@@ -20,13 +20,18 @@ vi.mock('../../../utils/logger.js', () => ({
   },
 }));
 
+const { fsStat, fsReadFile } = vi.hoisted(() => ({
+  fsStat: vi.fn(),
+  fsReadFile: vi.fn(),
+}));
+
 vi.mock('fs/promises', () => ({
   default: {
-    stat: vi.fn(),
-    readFile: vi.fn(),
+    stat: fsStat,
+    readFile: fsReadFile,
   },
-  stat: vi.fn(),
-  readFile: vi.fn(),
+  stat: fsStat,
+  readFile: fsReadFile,
 }));
 
 // ---------------------------------------------------------------------------
@@ -35,7 +40,6 @@ vi.mock('fs/promises', () => ({
 
 import { imageAnalyzeTool } from './image-analyze.js';
 import type { ToolExecutionContext } from '../types.js';
-import * as fsPromises from 'fs/promises';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -60,11 +64,8 @@ function createContext(): ToolExecutionContext {
   };
 }
 
-// We need to mock the default export from 'fs/promises'
-const fsMock = fsPromises as unknown as {
-  stat: ReturnType<typeof vi.fn>;
-  readFile: ReturnType<typeof vi.fn>;
-};
+// Reference the hoisted mock functions directly
+const fsMock = { stat: fsStat, readFile: fsReadFile };
 
 // ---------------------------------------------------------------------------
 // Tests

@@ -20,16 +20,24 @@ vi.mock('../../../utils/logger.js', () => ({
   },
 }));
 
+// Hoisted mocks for stable references across mock definitions and tests
+const { execAsyncMock, fsWriteFile, fsRename, fsCopyFile } = vi.hoisted(() => ({
+  execAsyncMock: vi.fn().mockResolvedValue({ stdout: '', stderr: '' }),
+  fsWriteFile: vi.fn().mockResolvedValue(undefined),
+  fsRename: vi.fn().mockResolvedValue(undefined),
+  fsCopyFile: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Mock fs/promises
 vi.mock('fs/promises', () => ({
   default: {
-    writeFile: vi.fn().mockResolvedValue(undefined),
-    rename: vi.fn().mockResolvedValue(undefined),
-    copyFile: vi.fn().mockResolvedValue(undefined),
+    writeFile: fsWriteFile,
+    rename: fsRename,
+    copyFile: fsCopyFile,
   },
-  writeFile: vi.fn().mockResolvedValue(undefined),
-  rename: vi.fn().mockResolvedValue(undefined),
-  copyFile: vi.fn().mockResolvedValue(undefined),
+  writeFile: fsWriteFile,
+  rename: fsRename,
+  copyFile: fsCopyFile,
 }));
 
 // Mock child_process util (the promisified exec)
@@ -37,13 +45,13 @@ vi.mock('util', async (importOriginal) => {
   const orig = await importOriginal<typeof import('util')>();
   return {
     ...orig,
-    promisify: vi.fn((fn) => {
-      // Only intercept exec - return a mock for it
-      if (fn?.name === 'exec' || String(fn).includes('exec')) {
-        return vi.fn().mockResolvedValue({ stdout: '', stderr: '' });
+    promisify: vi.fn((fn: unknown) => {
+      // Return the hoisted mock for exec
+      const fnStr = typeof fn === 'function' ? fn.name || String(fn) : '';
+      if (fnStr.includes('exec')) {
+        return execAsyncMock;
       }
-      // Pass through for everything else
-      return orig.promisify(fn);
+      return orig.promisify(fn as (...args: unknown[]) => unknown);
     }),
   };
 });
@@ -51,10 +59,14 @@ vi.mock('util', async (importOriginal) => {
 // Mock os.platform and os.tmpdir
 vi.mock('os', async (importOriginal) => {
   const orig = await importOriginal<typeof import('os')>();
-  return {
+  const mocked = {
     ...orig,
     platform: vi.fn(() => 'darwin'),
     tmpdir: vi.fn(() => '/tmp'),
+  };
+  return {
+    ...mocked,
+    default: mocked,
   };
 });
 
@@ -303,28 +315,8 @@ describe('ttsSpeakTool', () => {
     it('returns TTS_FAILED when system TTS throws', async () => {
       delete process.env.OPENAI_API_KEY;
 
-      // The exec mock is set up in vi.mock - we can cause a failure
-      // by making exec throw for this one test
-      vi.mock('util', async (importOriginal) => {
-        const orig = await importOriginal<typeof import('util')>();
-        return {
-          ...orig,
-          promisify: vi.fn(() => vi.fn().mockRejectedValue(new Error('say: command not found'))),
-        };
-      });
-
-      // Can't easily override the already-imported promisify during test,
-      // but we can test this path by making exec throw via a different approach
-      // Instead, test the catch block with an fs error that happens before exec
-      const { writeFile } = await import('fs/promises');
-      const writeMock = writeFile as ReturnType<typeof vi.fn>;
-      writeMock.mockRejectedValueOnce(new Error('Disk full'));
-
-      // Use openai path to trigger the writeFile mock
-      process.env.OPENAI_API_KEY = 'sk-test';
-      mockOpenAISuccess(); // fetch succeeds
-      // But writeFile will fail
-      writeMock.mockRejectedValueOnce(new Error('Disk full'));
+      // Make execAsync reject to simulate system TTS failure
+      execAsyncMock.mockRejectedValueOnce(new Error('say: command not found'));
 
       const result = await ttsSpeakTool.execute(createContext(), {
         text: 'Error path test',
@@ -333,10 +325,27 @@ describe('ttsSpeakTool', () => {
         format: 'mp3',
       });
 
-      // If writeFile fails, the tool catches and falls back to system TTS
-      // If system TTS also fails, it returns TTS_FAILED
-      // Either way, we just verify the tool doesn't throw
-      expect(typeof result.success).toBe('boolean');
+      expect(result.success).toBe(false);
+      expect(result.error?.code).toBe('TTS_FAILED');
+      expect(result.error?.message).toContain('say: command not found');
+    });
+
+    it('falls back to system TTS when OpenAI writeFile fails', async () => {
+      process.env.OPENAI_API_KEY = 'sk-test';
+      mockOpenAISuccess();
+      // writeFile will fail, causing OpenAI path to throw
+      fsWriteFile.mockRejectedValueOnce(new Error('Disk full'));
+
+      const result = await ttsSpeakTool.execute(createContext(), {
+        text: 'Fallback test',
+        voice: 'nova',
+        speed: 1.0,
+        format: 'mp3',
+      });
+
+      // Should fall back to system TTS (exec mock succeeds)
+      expect(result.success).toBe(true);
+      expect(result.data?.engine).toBe('macos-say');
     });
   });
 

@@ -12,7 +12,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: profclaw/profclaw
 
 jobs:
   release-please:
@@ -27,44 +27,6 @@ jobs:
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
-
-  docker:
-    needs: release-please
-    if: ${{ needs.release-please.outputs.release_created }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
-
-      - name: Log in to Container Registry
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@369eb591f429131d6889c46b94e711f089e6ca96 # v5.6.1
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=latest
-            type=raw,value=${{ needs.release-please.outputs.version }}
-            type=raw,value=${{ needs.release-please.outputs.tag_name }}
-
-      - name: Build and push
-        uses: docker/build-push-action@ca877d9245402d1537745e0e356eab47c3520991 # v6.13.0
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
   npm-publish:
     needs: release-please
@@ -97,102 +59,39 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-  binaries:
+  docker:
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created }}
-    strategy:
-      matrix:
-        include:
-          - os: macos-latest
-            platform: darwin
-            arch: x64
-            ext: ""
-          - os: macos-latest
-            platform: darwin
-            arch: arm64
-            ext: ""
-          - os: ubuntu-latest
-            platform: linux
-            arch: x64
-            ext: ""
-          - os: ubuntu-latest
-            platform: linux
-            arch: arm64
-            ext: ""
-          - os: windows-latest
-            platform: win32
-            arch: x64
-            ext: ".exe"
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
-        with:
-          version: 9
-
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-
-      - name: Build binary
-        run: npx pkg . --targets node22-${{ matrix.platform }}-${{ matrix.arch }} --output profclaw-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.ext }}
-
-      - name: Upload binary to release
-        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.2.1
-        with:
-          tag_name: ${{ needs.release-please.outputs.tag_name }}
-          files: profclaw-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.ext }}
-
-  appcast:
-    needs: [release-please, binaries]
     if: ${{ needs.release-please.outputs.release_created }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Determine channel
-        id: channel
-        run: |
-          TAG="${{ needs.release-please.outputs.tag_name }}"
-          if [[ "$TAG" == *"-beta"* ]]; then
-            echo "channel=beta" >> $GITHUB_OUTPUT
-          elif [[ "$TAG" == *"-alpha"* ]] || [[ "$TAG" == *"-dev"* ]]; then
-            echo "channel=dev" >> $GITHUB_OUTPUT
-          else
-            echo "channel=stable" >> $GITHUB_OUTPUT
-          fi
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
 
-      - name: Generate appcast XML
-        run: |
-          VERSION="${{ needs.release-please.outputs.version }}"
-          TAG="${{ needs.release-please.outputs.tag_name }}"
-          CHANNEL="${{ steps.channel.outputs.channel }}"
-          REPO="${{ github.repository }}"
-
-          cat > appcast.xml <<EOF
-          <?xml version="1.0" encoding="utf-8"?>
-          <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
-            <channel>
-              <title>profClaw Updates</title>
-              <item>
-                <title>profClaw ${VERSION}</title>
-                <sparkle:version>${VERSION}</sparkle:version>
-                <sparkle:channel>${CHANNEL}</sparkle:channel>
-                <pubDate>$(date -R)</pubDate>
-                <enclosure url="https://github.com/${REPO}/releases/download/${TAG}/profclaw-darwin-arm64" sparkle:os="macos" type="application/octet-stream" />
-                <enclosure url="https://github.com/${REPO}/releases/download/${TAG}/profclaw-linux-x64" sparkle:os="linux" type="application/octet-stream" />
-              </item>
-            </channel>
-          </rss>
-          EOF
-
-      - name: Upload appcast
-        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.2.1
+      - name: Log in to Container Registry
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
-          tag_name: ${{ needs.release-please.outputs.tag_name }}
-          files: appcast.xml
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@369eb591f429131d6889c46b94e711f089e6ca96 # v5.6.1
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=raw,value=${{ needs.release-please.outputs.version }}
+
+      - name: Build and push (amd64 only)
+        uses: docker/build-push-action@ca877d9245402d1537745e0e356eab47c3520991 # v6.13.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

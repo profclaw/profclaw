@@ -593,7 +593,7 @@ export async function executeWithSelfCorrection<T>(
   const alternativesSuggested: AlternativeTool[] = [];
   let retries = 0;
   let corrections = 0;
-  let attemptNumber = 1;
+  const attemptNumber = 1;
 
   // Wrap executor with retry logic for retryable failures
   const retryWrapper = async (): Promise<ToolResult<T>> => {

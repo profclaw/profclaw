@@ -497,7 +497,7 @@ describe('AIProviderManager (aiProvider singleton)', () => {
         apiKey: 'google-test',
         enabled: true,
       });
-      const model = await aiProvider.getModel('google', 'gemini-1.5-pro');
+      const model = await aiProvider.getModel('google', 'gemini-2.5-pro');
       expect(model).toBeDefined();
     });
 
@@ -886,13 +886,13 @@ describe('AIProviderManager (aiProvider singleton)', () => {
     it('resolves gemini alias', () => {
       const result = aiProvider.resolveModel('gemini');
       expect(result.provider).toBe('google');
-      expect(result.model).toBe('gemini-1.5-pro');
+      expect(result.model).toBe('gemini-2.5-pro');
     });
 
     it('resolves gemini-flash alias', () => {
       const result = aiProvider.resolveModel('gemini-flash');
       expect(result.provider).toBe('google');
-      expect(result.model).toBe('gemini-1.5-flash');
+      expect(result.model).toBe('gemini-2.5-flash');
     });
 
     it('resolves local alias to ollama', () => {

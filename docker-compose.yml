@@ -7,8 +7,11 @@
 #
 # Quick start per mode:
 #   docker compose up -d                                  # pro (default)
-#   docker compose up -d profclaw-pico                    # pico (minimal)
+#   docker compose up -d profclaw-pico                    # pico only (minimal)
 #   docker compose --profile ai up -d                     # pro + ollama
+#
+# NOTE: `docker compose --profile pico up -d` starts pico AND pro (port conflict).
+#       Use `docker compose up -d profclaw-pico` for pico-only.
 
 services:
   # ===================

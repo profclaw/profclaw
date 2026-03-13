@@ -307,7 +307,7 @@ async function runInteractive(): Promise<void> {
   try {
     const { setupCommand } = await import('./setup.js');
     const setupCmd = setupCommand();
-    await setupCmd.parseAsync(['node', 'profclaw', 'setup']);
+    await setupCmd.parseAsync(['node', 'setup']);
   } catch (err) {
     error(`Setup wizard failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
     info('You can run it again later: profclaw setup');
@@ -388,7 +388,7 @@ async function runNonInteractive(options: {
   try {
     const { setupCommand } = await import('./setup.js');
     const setupCmd = setupCommand();
-    const args = ['node', 'profclaw', 'setup', '--non-interactive'];
+    const args = ['node', 'setup', '--non-interactive'];
     if (options.provider) args.push('--ai-provider', options.provider);
     await setupCmd.parseAsync(args);
   } catch (err) {
