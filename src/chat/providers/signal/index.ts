@@ -34,9 +34,7 @@ import type {
 } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // SIGNALD API TYPES
-// =============================================================================
 
 /** Signald message data shape as received in webhook payloads */
 interface SignaldDataMessage {
@@ -110,9 +108,7 @@ interface SignaldHealthResponse {
   name?: string;
 }
 
-// =============================================================================
 // CONFIGURATION
-// =============================================================================
 
 export const SignalAccountConfigSchema = z.object({
   id: z.string(),
@@ -127,9 +123,7 @@ export const SignalAccountConfigSchema = z.object({
 
 type SignalConfig = z.infer<typeof SignalAccountConfigSchema>;
 
-// =============================================================================
 // METADATA
-// =============================================================================
 
 const meta: ChatProviderMeta = {
   id: 'signal',
@@ -141,9 +135,7 @@ const meta: ChatProviderMeta = {
   color: '#3A76F0',
 };
 
-// =============================================================================
 // CAPABILITIES
-// =============================================================================
 
 const capabilities: ChatProviderCapabilities = {
   chatTypes: ['direct', 'group'],
@@ -162,15 +154,11 @@ const capabilities: ChatProviderCapabilities = {
   realtime: false,
 };
 
-// =============================================================================
 // STATE
-// =============================================================================
 
 let currentConfig: SignalConfig | null = null;
 
-// =============================================================================
 // HELPER FUNCTIONS
-// =============================================================================
 
 const SIGNALD_DEFAULT_BASE = 'http://localhost:15432';
 
@@ -273,9 +261,7 @@ function mapAttachmentType(
   return 'file';
 }
 
-// =============================================================================
 // AUTH ADAPTER
-// =============================================================================
 
 const authAdapter: AuthAdapter = {
   getAuthUrl(_state: string, _scopes?: string[]): string {
@@ -305,9 +291,7 @@ const authAdapter: AuthAdapter = {
   },
 };
 
-// =============================================================================
 // OUTBOUND ADAPTER
-// =============================================================================
 
 const outboundAdapter: OutboundAdapter = {
   async send(message: OutgoingMessage): Promise<SendResult> {
@@ -374,9 +358,7 @@ const outboundAdapter: OutboundAdapter = {
   // react/unreact are intentionally omitted
 };
 
-// =============================================================================
 // INBOUND ADAPTER
-// =============================================================================
 
 const inboundAdapter: InboundAdapter = {
   parseMessage(payload: unknown): IncomingMessage | null {
@@ -464,9 +446,7 @@ const inboundAdapter: InboundAdapter = {
   },
 };
 
-// =============================================================================
 // STATUS ADAPTER
-// =============================================================================
 
 const statusAdapter: StatusAdapter = {
   isConfigured(config: SignalAccountConfig): boolean {
@@ -527,9 +507,7 @@ const statusAdapter: StatusAdapter = {
   },
 };
 
-// =============================================================================
 // CONFIG MANAGEMENT
-// =============================================================================
 
 export function setSignalConfig(config: SignalConfig): void {
   currentConfig = config;
@@ -539,9 +517,7 @@ export function clearSignalConfig(): void {
   currentConfig = null;
 }
 
-// =============================================================================
 // PROVIDER EXPORT
-// =============================================================================
 
 export const signalProvider: ChatProvider<SignalAccountConfig> = {
   meta,

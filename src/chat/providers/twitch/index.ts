@@ -31,9 +31,7 @@ import type {
 } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // TWITCH API TYPES
-// =============================================================================
 
 interface TwitchHelixSendBody {
   broadcaster_id: string;
@@ -86,9 +84,7 @@ interface TwitchEventSubPayload {
   };
 }
 
-// =============================================================================
 // CONFIGURATION
-// =============================================================================
 
 export const TwitchAccountConfigSchema = z.object({
   id: z.string(),
@@ -104,9 +100,7 @@ export const TwitchAccountConfigSchema = z.object({
 
 type TwitchConfig = z.infer<typeof TwitchAccountConfigSchema>;
 
-// =============================================================================
 // METADATA
-// =============================================================================
 
 const meta: ChatProviderMeta = {
   id: 'twitch',
@@ -118,9 +112,7 @@ const meta: ChatProviderMeta = {
   color: '#9146FF',
 };
 
-// =============================================================================
 // CAPABILITIES
-// =============================================================================
 
 const capabilities: ChatProviderCapabilities = {
   chatTypes: ['group'],
@@ -139,17 +131,13 @@ const capabilities: ChatProviderCapabilities = {
   realtime: false,
 };
 
-// =============================================================================
 // STATE
-// =============================================================================
 
 let currentConfig: TwitchConfig | null = null;
 
 const TWITCH_API_BASE = 'https://api.twitch.tv/helix';
 
-// =============================================================================
 // HELPER FUNCTIONS
-// =============================================================================
 
 function getHelixHeaders(config?: TwitchConfig | null): Record<string, string> {
   const cfg = config ?? currentConfig;
@@ -248,9 +236,7 @@ function channelToBroadcasterId(channel: string): string {
   return channel.replace(/^#/, '');
 }
 
-// =============================================================================
 // AUTH ADAPTER
-// =============================================================================
 
 const authAdapter: AuthAdapter = {
   getAuthUrl(_state: string, _scopes?: string[]): string {
@@ -299,9 +285,7 @@ const authAdapter: AuthAdapter = {
   },
 };
 
-// =============================================================================
 // OUTBOUND ADAPTER
-// =============================================================================
 
 const outboundAdapter: OutboundAdapter = {
   async send(message: OutgoingMessage): Promise<SendResult> {
@@ -346,9 +330,7 @@ const outboundAdapter: OutboundAdapter = {
   },
 };
 
-// =============================================================================
 // INBOUND ADAPTER
-// =============================================================================
 
 const inboundAdapter: InboundAdapter = {
   parseMessage(payload: unknown): IncomingMessage | null {
@@ -432,9 +414,7 @@ const inboundAdapter: InboundAdapter = {
   },
 };
 
-// =============================================================================
 // STATUS ADAPTER
-// =============================================================================
 
 const statusAdapter: StatusAdapter = {
   isConfigured(config: TwitchAccountConfig): boolean {
@@ -490,9 +470,7 @@ const statusAdapter: StatusAdapter = {
   },
 };
 
-// =============================================================================
 // CONFIG MANAGEMENT
-// =============================================================================
 
 export function setTwitchConfig(config: TwitchConfig): void {
   currentConfig = config;
@@ -502,9 +480,7 @@ export function clearTwitchConfig(): void {
   currentConfig = null;
 }
 
-// =============================================================================
 // PROVIDER EXPORT
-// =============================================================================
 
 export const twitchProvider: ChatProvider<TwitchAccountConfig> = {
   meta,

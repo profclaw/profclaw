@@ -34,9 +34,7 @@ export { formatToolResult } from '../chat/format/index.js';
 
 const telegram = new Hono();
 
-// =============================================================================
 // CONFIGURATION
-// =============================================================================
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || '';
@@ -81,9 +79,7 @@ function getConfig(): TelegramConfig | null {
   return null;
 }
 
-// =============================================================================
 // WEBHOOK ROUTES
-// =============================================================================
 
 /**
  * POST /webhook - Receive updates from Telegram
@@ -290,9 +286,7 @@ telegram.get('/webhook', async (c) => {
   });
 });
 
-// =============================================================================
 // STATUS & HEALTH
-// =============================================================================
 
 /**
  * GET /status - Bot status and health check
@@ -381,9 +375,7 @@ telegram.post('/test', async (c) => {
   return c.json({ error: result.error || 'Failed to send message' }, 500);
 });
 
-// =============================================================================
 // CONFIGURATION MANAGEMENT
-// =============================================================================
 
 /**
  * GET /config - Get current configuration (redacted)

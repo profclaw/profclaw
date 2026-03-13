@@ -35,9 +35,7 @@ import { compileSkill, type CompiledSkill } from './compiler.js';
 
 const execFileAsync = promisify(execFile);
 
-// =============================================================================
 // Compiled Skill Registry (populated during loadSkillFromDir)
-// =============================================================================
 
 /** In-memory registry of compiled skills, keyed by skillKey/skillName */
 const compiledSkillRegistry = new Map<string, CompiledSkill>();
@@ -50,9 +48,7 @@ export function getCompiledSkill(skillId: string): CompiledSkill | undefined {
   return compiledSkillRegistry.get(skillId);
 }
 
-// =============================================================================
 // SKILL.md Parser
-// =============================================================================
 
 const FRONTMATTER_REGEX = /^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/;
 
@@ -165,9 +161,7 @@ function parseSimpleYaml(yaml: string): Record<string, unknown> {
   return result;
 }
 
-// =============================================================================
 // Skill Loading
-// =============================================================================
 
 /**
  * Load a single skill from a directory
@@ -355,9 +349,7 @@ export function filterSkills(
   });
 }
 
-// =============================================================================
 // Eligibility Checking
-// =============================================================================
 
 /** Cache for binary existence checks */
 const binaryCache = new Map<string, boolean>();
@@ -445,9 +437,7 @@ export async function checkEligibility(
   return { eligible: errors.length === 0, errors };
 }
 
-// =============================================================================
 // Skill Snapshot
-// =============================================================================
 
 /**
  * Build a skills snapshot with prompt for AI model (synchronous version)
@@ -498,9 +488,7 @@ export function buildSkillSnapshotSync(
   return { prompt: lines.join('\n'), snapshot };
 }
 
-// =============================================================================
 // Skill Status
-// =============================================================================
 
 /**
  * Build detailed status for all skills
@@ -544,9 +532,7 @@ export function buildSkillsStatus(skills: SkillEntry[], version: number): Skills
   };
 }
 
-// =============================================================================
 // Utility
-// =============================================================================
 
 /** Sanitize a skill name for use as a chat command (alphanumeric + underscore, max 32 chars) */
 function sanitizeCommandName(name: string): string {

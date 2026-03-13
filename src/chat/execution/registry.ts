@@ -17,9 +17,7 @@ import type {
 import { logger } from '../../utils/logger.js';
 import { filterToolsForModel } from './tool-router.js';
 
-// =============================================================================
 // Tool Registry Implementation
-// =============================================================================
 
 export class ToolRegistryImpl implements ToolRegistry {
   private tools: Map<string, ToolDefinition> = new Map();
@@ -165,9 +163,7 @@ export class ToolRegistryImpl implements ToolRegistry {
     return lines.join('\n');
   }
 
-  // ===========================================================================
   // Private Methods
-  // ===========================================================================
 
   private toAISchema(tool: ToolDefinition, capabilityLevel?: 'basic' | 'instruction' | 'reasoning'): AIToolSchema {
     // Convert Zod schema to JSON Schema
@@ -262,9 +258,7 @@ export class ToolRegistryImpl implements ToolRegistry {
   }
 }
 
-// =============================================================================
 // Singleton
-// =============================================================================
 
 let toolRegistry: ToolRegistryImpl | null = null;
 

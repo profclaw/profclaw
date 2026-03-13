@@ -17,9 +17,7 @@ import type {
   ChatContext,
 } from './types.js';
 
-// =============================================================================
 // REGISTRY IMPLEMENTATION
-// =============================================================================
 
 class ChatProviderRegistry implements ProviderRegistry {
   private providers = new Map<ChatProviderId, ChatProvider>();
@@ -85,9 +83,7 @@ class ChatProviderRegistry implements ProviderRegistry {
     return this.providers.has(id);
   }
 
-  // ==========================================================================
   // ACCOUNT MANAGEMENT
-  // ==========================================================================
 
   /**
    * Register an account configuration
@@ -143,9 +139,7 @@ class ChatProviderRegistry implements ProviderRegistry {
     return this.accounts.delete(`${providerId}:${accountId}`);
   }
 
-  // ==========================================================================
   // EVENT HANDLING
-  // ==========================================================================
 
   /**
    * Subscribe to events
@@ -194,9 +188,7 @@ class ChatProviderRegistry implements ProviderRegistry {
     await Promise.all(promises);
   }
 
-  // ==========================================================================
   // UTILITY METHODS
-  // ==========================================================================
 
   /**
    * Get status summary of all providers and accounts
@@ -273,9 +265,7 @@ class ChatProviderRegistry implements ProviderRegistry {
   }
 }
 
-// =============================================================================
 // SINGLETON INSTANCE
-// =============================================================================
 
 let _registry: ChatProviderRegistry | null = null;
 
@@ -293,8 +283,6 @@ export function resetChatRegistry(): void {
   _registry = null;
 }
 
-// =============================================================================
 // EXPORTS
-// =============================================================================
 
 export { ChatProviderRegistry };

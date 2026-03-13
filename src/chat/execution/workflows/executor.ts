@@ -5,7 +5,6 @@ import type {
   WorkflowExecutionContext,
   WorkflowExecuteOptions,
   WorkflowStep,
-  WorkflowStepResult,
   WorkflowSummary,
 } from './types.js';
 

@@ -14,10 +14,3 @@ export { MessagingSection } from './MessagingSection';
 export { PWASection } from './PWASection';
 export { VoiceSection } from './VoiceSection';
 export { TunnelsSection } from './TunnelsSection';
-// Note: Additional sections can be extracted as needed
-// export { AccountSection } from './AccountSection';
-// export { IntegrationsSection } from './IntegrationsSection';
-// export { SecuritySection } from './SecuritySection';
-// export { PluginsSection } from './PluginsSection';
-// export { StorageSection } from './StorageSection';
-// export { SystemSection } from './SystemSection';

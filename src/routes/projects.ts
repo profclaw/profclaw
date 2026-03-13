@@ -63,9 +63,7 @@ function errorMessageIncludes(error: unknown, snippet: string): boolean {
   return getErrorMessage(error)?.includes(snippet) ?? false;
 }
 
-// =============================================================================
 // PROJECTS ROUTES
-// =============================================================================
 
 /**
  * GET /projects - List all projects
@@ -354,9 +352,7 @@ projectsRouter.post('/:id/external-links', async (c) => {
   }
 });
 
-// =============================================================================
 // SPRINTS ROUTES (nested under /projects/:projectId/sprints)
-// =============================================================================
 
 /**
  * GET /projects/:projectId/sprints - List sprints for a project

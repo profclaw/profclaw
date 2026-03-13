@@ -12,9 +12,7 @@ import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.
 import { getFsGuard } from '../../../security/fs-guard.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // Schemas
-// =============================================================================
 
 const ReadFileParamsSchema = z.object({
   path: z.string().min(1).describe('File path to read'),
@@ -72,9 +70,7 @@ export type EditFileParams = z.infer<typeof EditFileParamsSchema>;
 export type DirectoryTreeParams = z.infer<typeof DirectoryTreeParamsSchema>;
 export type PatchApplyParams = z.infer<typeof PatchApplyParamsSchema>;
 
-// =============================================================================
 // Constants
-// =============================================================================
 
 const MAX_FILE_SIZE = 10_000_000; // 10MB
 const BLOCKED_PATHS = [
@@ -87,9 +83,7 @@ const BLOCKED_PATHS = [
   '.env.production',
 ];
 
-// =============================================================================
 // Read File Tool
-// =============================================================================
 
 export const readFileTool: ToolDefinition<ReadFileParams, ReadFileResult> = {
   name: 'read_file',
@@ -190,9 +184,7 @@ Can read specific line ranges for large files.`,
   },
 };
 
-// =============================================================================
 // Write File Tool
-// =============================================================================
 
 export const writeFileTool: ToolDefinition<WriteFileParams, WriteFileResult> = {
   name: 'write_file',
@@ -270,9 +262,7 @@ Use append=true to add to the end of a file.`,
   },
 };
 
-// =============================================================================
 // Search Files Tool
-// =============================================================================
 
 export const searchFilesTool: ToolDefinition<SearchFilesParams, SearchFilesResult> = {
   name: 'search_files',
@@ -326,9 +316,7 @@ Examples: "**/*.ts" for all TypeScript files, "src/**/*.test.ts" for tests.`,
   },
 };
 
-// =============================================================================
 // Grep Tool
-// =============================================================================
 
 export const grepTool: ToolDefinition<GrepParams, GrepResult> = {
   name: 'grep',
@@ -420,9 +408,7 @@ Returns matching lines with file paths and line numbers.`,
   },
 };
 
-// =============================================================================
 // Edit File Tool (Surgical Find-Replace)
-// =============================================================================
 
 export const editFileTool: ToolDefinition<EditFileParams, EditFileResult> = {
   name: 'edit_file',
@@ -526,9 +512,7 @@ Much more efficient than rewriting entire files - only changes what's needed.`,
   },
 };
 
-// =============================================================================
 // Directory Tree Tool
-// =============================================================================
 
 const TREE_IGNORE = new Set([
   'node_modules', '.git', 'dist', 'build', 'coverage',
@@ -625,9 +609,7 @@ Automatically skips node_modules, .git, dist, build, coverage, and other common 
   },
 };
 
-// =============================================================================
 // Patch Apply Tool
-// =============================================================================
 
 export const patchApplyTool: ToolDefinition<PatchApplyParams, PatchApplyResult> = {
   name: 'patch_apply',
@@ -691,9 +673,7 @@ Accepts standard unified diff format (output of git diff or diff -u).`,
   },
 };
 
-// =============================================================================
 // Helpers
-// =============================================================================
 
 function resolvePath(inputPath: string, workdir: string): string {
   if (path.isAbsolute(inputPath)) {
@@ -824,9 +804,7 @@ function applyUnifiedDiff(content: string, patch: string, reverse: boolean): { r
   return { result: lines.join('\n'), hunks };
 }
 
-// =============================================================================
 // Types (exported for use in index.ts)
-// =============================================================================
 
 export interface ReadFileResult {
   path: string;

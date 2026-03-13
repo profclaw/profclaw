@@ -17,9 +17,7 @@ import {
 } from '../../core/sandbox-config.js';
 import type { SandboxSecurityConfig } from '../../core/sandbox-config.js';
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface SandboxExecuteOptions {
   command: string;
@@ -47,9 +45,7 @@ interface ContainerInfo {
   inUse: boolean;
 }
 
-// =============================================================================
 // Constants
-// =============================================================================
 
 const DEFAULT_IMAGE = 'node:22-alpine';
 const DEFAULT_WORKDIR = '/workspace';
@@ -61,9 +57,7 @@ const CONTAINER_MAX_AGE_MS = 3600_000; // 1 hour
 const CLEANUP_INTERVAL_MS = 60_000; // 1 minute
 const DEFAULT_SESSION_IDLE_MS = 600_000; // 10 minutes
 
-// =============================================================================
 // Sandbox Manager
-// =============================================================================
 
 interface SessionContainerInfo {
   container: Dockerode.Container;
@@ -283,9 +277,7 @@ export class SandboxManager {
     logger.info('[Sandbox] Manager destroyed', { component: 'Sandbox' });
   }
 
-  // ===========================================================================
   // Session Isolation Methods
-  // ===========================================================================
 
   /**
    * Create an isolated container for a specific session.
@@ -504,9 +496,7 @@ export class SandboxManager {
     return idleSessions.length;
   }
 
-  // ===========================================================================
   // Private Methods
-  // ===========================================================================
 
   private async ensureImage(): Promise<void> {
     if (!this.docker) return;
@@ -787,9 +777,7 @@ export class SandboxManager {
   }
 }
 
-// =============================================================================
 // Utility Functions
-// =============================================================================
 
 function parseMemoryLimit(limit?: string): number | undefined {
   if (!limit) return undefined;
@@ -818,9 +806,7 @@ function parseCpuLimit(limit?: string): number | undefined {
   return Math.floor(value * 1_000_000_000);
 }
 
-// =============================================================================
 // Singleton
-// =============================================================================
 
 let sandboxManager: SandboxManager | null = null;
 

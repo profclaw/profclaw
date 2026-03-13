@@ -10,9 +10,7 @@ import path from 'path';
 import { spawn } from 'child_process';
 import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.js';
 
-// =============================================================================
 // Schemas
-// =============================================================================
 
 const EnvParamsSchema = z.object({
   name: z.string().optional().describe('Specific environment variable name'),
@@ -43,9 +41,7 @@ export type ProcessListParams = z.infer<typeof ProcessListParamsSchema>;
 export type PathInfoParams = z.infer<typeof PathInfoParamsSchema>;
 export type WhichParams = z.infer<typeof WhichParamsSchema>;
 
-// =============================================================================
 // Env Tool
-// =============================================================================
 
 export const envTool: ToolDefinition<EnvParams, EnvResult> = {
   name: 'env',
@@ -107,9 +103,7 @@ export const envTool: ToolDefinition<EnvParams, EnvResult> = {
   },
 };
 
-// =============================================================================
 // System Info Tool
-// =============================================================================
 
 export const systemInfoTool: ToolDefinition<SystemInfoParams, SystemInfoResult> = {
   name: 'system_info',
@@ -201,9 +195,7 @@ export const systemInfoTool: ToolDefinition<SystemInfoParams, SystemInfoResult> 
   },
 };
 
-// =============================================================================
 // Process List Tool
-// =============================================================================
 
 export const processListTool: ToolDefinition<ProcessListParams, ProcessListResult> = {
   name: 'process_list',
@@ -322,9 +314,7 @@ export const processListTool: ToolDefinition<ProcessListParams, ProcessListResul
   },
 };
 
-// =============================================================================
 // Path Info Tool
-// =============================================================================
 
 export const pathInfoTool: ToolDefinition<PathInfoParams, PathInfoResult> = {
   name: 'path_info',
@@ -370,9 +360,7 @@ export const pathInfoTool: ToolDefinition<PathInfoParams, PathInfoResult> = {
   },
 };
 
-// =============================================================================
 // Which Tool
-// =============================================================================
 
 export const whichTool: ToolDefinition<WhichParams, WhichResult> = {
   name: 'which',
@@ -438,9 +426,7 @@ export const whichTool: ToolDefinition<WhichParams, WhichResult> = {
   },
 };
 
-// =============================================================================
 // Helper Functions
-// =============================================================================
 
 function formatBytes(bytes: number): string {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -494,9 +480,7 @@ function compareProcesses(
   }
 }
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface EnvResult {
   variables: Record<string, string | undefined>;

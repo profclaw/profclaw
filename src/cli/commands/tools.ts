@@ -31,9 +31,7 @@ function getRegistry(): ReturnType<typeof getToolRegistry> {
   return getToolRegistry();
 }
 
-// =============================================================================
 // Minimal Session Manager for CLI
-// =============================================================================
 
 class CLISessionManager implements SessionManager {
   private sessions = new Map<string, ToolSession>();
@@ -84,9 +82,7 @@ class CLISessionManager implements SessionManager {
   }
 }
 
-// =============================================================================
 // Context Creation
-// =============================================================================
 
 const cliSessionManager = new CLISessionManager();
 
@@ -110,9 +106,7 @@ function createContext(workdir?: string): ToolExecutionContext {
   };
 }
 
-// =============================================================================
 // CLI Commands
-// =============================================================================
 
 export function toolsCommands() {
   const tools = new Command('tools')

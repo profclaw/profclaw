@@ -9,9 +9,7 @@ import { z } from 'zod';
 import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // Schema
-// =============================================================================
 
 const TelegramActionsParamsSchema = z.discriminatedUnion('action', [
   z.object({
@@ -74,9 +72,7 @@ const TelegramActionsParamsSchema = z.discriminatedUnion('action', [
 
 export type TelegramActionsParams = z.infer<typeof TelegramActionsParamsSchema>;
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface TelegramActionsResult {
   action: string;
@@ -84,9 +80,7 @@ export interface TelegramActionsResult {
   details: Record<string, unknown>;
 }
 
-// =============================================================================
 // Helpers
-// =============================================================================
 
 interface TelegramApiResponse {
   ok: boolean;
@@ -116,9 +110,7 @@ function telegramErrorMessage(res: TelegramApiResponse): string {
   return `Telegram API error ${res.error_code ?? 0}: ${res.description ?? 'Unknown error'}`;
 }
 
-// =============================================================================
 // Tool Definition
-// =============================================================================
 
 export const telegramActionsTool: ToolDefinition<TelegramActionsParams, TelegramActionsResult> = {
   name: 'telegram_actions',

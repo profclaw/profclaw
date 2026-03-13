@@ -20,9 +20,7 @@ import { logger } from '../../../utils/logger.js';
 
 type SessionScopedToolContext = ToolExecutionContext & { sessionId?: string };
 
-// =============================================================================
 // spawn_session Tool
-// =============================================================================
 
 // Get config for schema defaults (loaded once at module init)
 const config = getSessionSpawnConfig();
@@ -198,9 +196,7 @@ export const spawnSessionTool: ToolDefinition<SpawnSessionParams, SpawnSessionRe
   },
 };
 
-// =============================================================================
 // send_message Tool
-// =============================================================================
 
 const SendMessageParamsSchema = z.object({
   target: z
@@ -354,9 +350,7 @@ export const sendMessageTool: ToolDefinition<SendMessageParams, SendMessageResul
   },
 };
 
-// =============================================================================
 // receive_messages Tool
-// =============================================================================
 
 const ReceiveMessagesParamsSchema = z.object({
   types: z
@@ -509,9 +503,7 @@ Returns messages sorted by priority (highest first), then by creation time.`,
   },
 };
 
-// =============================================================================
 // list_sessions Tool
-// =============================================================================
 
 const ListSessionsParamsSchema = z.object({
   scope: z
@@ -669,9 +661,7 @@ export const listSessionsTool: ToolDefinition<ListSessionsParams, ListSessionsRe
   },
 };
 
-// =============================================================================
 // Export all tools
-// =============================================================================
 
 export const sessionSpawnTools = [
   spawnSessionTool,

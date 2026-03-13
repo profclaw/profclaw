@@ -38,9 +38,7 @@ import type { IncomingMessage, ChatEvent, ChatContext as RegistryChatContext } f
 import type { ChatContext as PromptChatContext } from './system-prompts.js';
 import type { ChatMessage } from '../providers/core/types.js';
 
-// =============================================================================
 // CONSTANTS
-// =============================================================================
 
 /** Max concurrent AI calls to prevent overload (inspired by NanoClaw GroupQueue) */
 const MAX_CONCURRENT = parseInt(process.env['POOL_MAX_CONCURRENT'] ?? '50', 10);
@@ -48,9 +46,7 @@ const MAX_CONCURRENT = parseInt(process.env['POOL_MAX_CONCURRENT'] ?? '50', 10);
 /** Currently processing count */
 let activeCount = 0;
 
-// =============================================================================
 // CONVERSATION CACHE
-// =============================================================================
 
 /** In-memory cache: "telegram:default:12345" -> conversationId */
 const channelConversations = new Map<string, string>();
@@ -98,9 +94,7 @@ async function getOrCreateChannelConversation(
   return conversation.id;
 }
 
-// =============================================================================
 // ERROR HELPERS
-// =============================================================================
 
 function friendlyErrorReply(error: unknown): string {
   if (!(error instanceof Error)) {
@@ -128,9 +122,7 @@ function friendlyErrorReply(error: unknown): string {
   return 'Something went wrong. Please try again.';
 }
 
-// =============================================================================
 // MESSAGE HANDLER
-// =============================================================================
 
 async function handleIncomingMessage(event: ChatEvent, _context: RegistryChatContext): Promise<void> {
   const message = event.payload as IncomingMessage;
@@ -323,9 +315,7 @@ async function handleIncomingMessage(event: ChatEvent, _context: RegistryChatCon
   }
 }
 
-// =============================================================================
 // REGISTRATION
-// =============================================================================
 
 /**
  * Register the messenger message handler.

@@ -336,9 +336,7 @@ export async function isIntegrationConfigured(
 // Validation schema for updates
 export const UpdateSettingsSchema = SettingsSchema.partial();
 
-// =============================================================================
 // OAuth Configuration Getters (env vars override DB)
-// =============================================================================
 
 export interface GitHubOAuthConfig {
   clientId: string;

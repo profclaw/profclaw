@@ -37,9 +37,7 @@ const SLACK_ALLOWED_CHANNEL_IDS = (process.env.SLACK_ALLOWED_CHANNEL_IDS || "")
   .map((value) => value.trim())
   .filter(Boolean);
 
-// =============================================================================
 // TYPES
-// =============================================================================
 
 interface SlackSlashCommand {
   token: string;
@@ -96,9 +94,7 @@ type SlackPostOptions = {
 
 const INLINE_COMMANDS = new Set(["status", "help", "commands", "whoami", "id"]);
 
-// =============================================================================
 // SIGNATURE VERIFICATION
-// =============================================================================
 
 function verifySlackSignature(
   signingSecret: string,
@@ -130,9 +126,7 @@ function verifySlackSignature(
   }
 }
 
-// =============================================================================
 // COMMAND PARSER
-// =============================================================================
 
 interface ParsedCommand {
   action: string;
@@ -245,9 +239,7 @@ async function postSlackResponse(options: SlackPostOptions): Promise<void> {
   }
 }
 
-// =============================================================================
 // COMMAND HANDLERS
-// =============================================================================
 
 async function handleHelp(): Promise<SlackResponse> {
   const commandLabel = `/${SLACK_COMMAND_NAME}`;
@@ -860,9 +852,7 @@ async function handleStatus(): Promise<SlackResponse> {
   };
 }
 
-// =============================================================================
 // HELPERS
-// =============================================================================
 
 function getStatusEmoji(status: string): string {
   const emojis: Record<string, string> = {
@@ -896,9 +886,7 @@ function formatUptime(seconds: number): string {
   return `${mins}m`;
 }
 
-// =============================================================================
 // ROUTES
-// =============================================================================
 
 /**
  * POST /api/slack/commands

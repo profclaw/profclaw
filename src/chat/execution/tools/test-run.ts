@@ -11,9 +11,7 @@ import path from 'path';
 import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // Schema
-// =============================================================================
 
 const TestRunParamsSchema = z.object({
   command: z.string().optional().describe('Test command override (auto-detected if omitted)'),
@@ -24,16 +22,12 @@ const TestRunParamsSchema = z.object({
 
 export type TestRunParams = z.infer<typeof TestRunParamsSchema>;
 
-// =============================================================================
 // Constants
-// =============================================================================
 
 const TEST_TIMEOUT_MS = 120_000; // 2 minutes
 const MAX_OUTPUT_CHARS = 200_000;
 
-// =============================================================================
 // Tool Definition
-// =============================================================================
 
 export const testRunTool: ToolDefinition<TestRunParams, TestRunResult> = {
   name: 'test_run',
@@ -104,9 +98,7 @@ Optionally filter by file or test name pattern.`,
   },
 };
 
-// =============================================================================
 // Framework Detection
-// =============================================================================
 
 interface TestFramework {
   name: string;
@@ -207,9 +199,7 @@ async function detectPackageManager(workdir: string): Promise<string> {
   return 'npm';
 }
 
-// =============================================================================
 // Command Building
-// =============================================================================
 
 function buildTestCommand(framework: TestFramework, params: TestRunParams): string {
   const args = [...framework.args];
@@ -253,9 +243,7 @@ function buildTestCommand(framework: TestFramework, params: TestRunParams): stri
   return `${framework.runner} ${args.join(' ')}`;
 }
 
-// =============================================================================
 // Command Execution
-// =============================================================================
 
 function runCommand(command: string, cwd: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -296,9 +284,7 @@ function runCommand(command: string, cwd: string): Promise<string> {
   });
 }
 
-// =============================================================================
 // Output Parsing
-// =============================================================================
 
 function parseTestOutput(output: string, framework: TestFramework): TestRunResult {
   const result: TestRunResult = {
@@ -444,9 +430,7 @@ function parseGenericOutput(output: string, result: TestRunResult): void {
   if (skipped) result.skipped = parseInt(skipped[1], 10);
 }
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface TestFailure {
   name: string;

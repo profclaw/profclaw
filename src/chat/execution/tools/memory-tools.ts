@@ -19,9 +19,7 @@ import {
   type MemoryStats,
 } from '../../../memory/memory-service.js';
 
-// =============================================================================
 // Memory Search Tool
-// =============================================================================
 
 const MemorySearchParamsSchema = z.object({
   query: z.string().min(1).max(500)
@@ -176,9 +174,7 @@ The search uses hybrid (vector + text) matching for best results.`,
   },
 };
 
-// =============================================================================
 // Memory Get Tool
-// =============================================================================
 
 const MemoryGetParamsSchema = z.object({
   path: z.string()
@@ -284,9 +280,7 @@ This tool is read-only and only accesses indexed memory files.`,
   },
 };
 
-// =============================================================================
 // Memory Stats Tool (bonus)
-// =============================================================================
 
 const MemoryStatsParamsSchema = z.object({});
 

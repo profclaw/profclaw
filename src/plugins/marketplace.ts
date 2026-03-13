@@ -16,9 +16,7 @@ const execFileAsync = promisify(execFile);
 const PLUGINS_DIR = join(homedir(), '.profclaw', 'plugins');
 const REGISTRY_FILE = join(homedir(), '.profclaw', 'marketplace.json');
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface MarketplacePlugin {
   name: string;
@@ -52,9 +50,7 @@ interface MarketplaceState {
   cache: MarketplacePlugin[];
 }
 
-// =============================================================================
 // Marketplace Service
-// =============================================================================
 
 class PluginMarketplace {
   private state: MarketplaceState;
@@ -297,9 +293,7 @@ class PluginMarketplace {
     return this.install(packageName);
   }
 
-  // ===========================================================================
   // Private helpers
-  // ===========================================================================
 
   private inferCategory(keywords: string[]): MarketplacePlugin['category'] {
     const kw = keywords.map((k) => k.toLowerCase());
@@ -339,9 +333,7 @@ class PluginMarketplace {
   }
 }
 
-// =============================================================================
 // Singleton
-// =============================================================================
 
 let marketplace: PluginMarketplace | null = null;
 

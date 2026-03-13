@@ -9,9 +9,7 @@ import { spawn, spawnSync } from 'child_process';
 import type { ToolDefinition, ToolResult, ToolExecutionContext, ToolAvailability } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // Availability Check
-// =============================================================================
 
 /** Cache git availability to avoid repeated system calls */
 let gitAvailabilityCache: ToolAvailability | null = null;
@@ -49,9 +47,7 @@ function checkGitAvailability(): ToolAvailability {
   return gitAvailabilityCache;
 }
 
-// =============================================================================
 // Schemas
-// =============================================================================
 
 const GitStatusParamsSchema = z.object({
   path: z.string().optional().describe('Repository path (defaults to workdir)'),
@@ -111,9 +107,7 @@ export type GitBranchParams = z.infer<typeof GitBranchParamsSchema>;
 export type GitStashParams = z.infer<typeof GitStashParamsSchema>;
 export type GitRemoteParams = z.infer<typeof GitRemoteParamsSchema>;
 
-// =============================================================================
 // Helper Functions
-// =============================================================================
 
 async function runGit(
   args: string[],
@@ -161,9 +155,7 @@ async function runGit(
   });
 }
 
-// =============================================================================
 // Git Status Tool
-// =============================================================================
 
 export const gitStatusTool: ToolDefinition<GitStatusParams, GitResult> = {
   name: 'git_status',
@@ -203,9 +195,7 @@ export const gitStatusTool: ToolDefinition<GitStatusParams, GitResult> = {
   },
 };
 
-// =============================================================================
 // Git Diff Tool
-// =============================================================================
 
 export const gitDiffTool: ToolDefinition<GitDiffParams, GitResult> = {
   name: 'git_diff',
@@ -246,9 +236,7 @@ export const gitDiffTool: ToolDefinition<GitDiffParams, GitResult> = {
   },
 };
 
-// =============================================================================
 // Git Log Tool
-// =============================================================================
 
 export const gitLogTool: ToolDefinition<GitLogParams, GitResult> = {
   name: 'git_log',
@@ -288,9 +276,7 @@ export const gitLogTool: ToolDefinition<GitLogParams, GitResult> = {
   },
 };
 
-// =============================================================================
 // Git Commit Tool
-// =============================================================================
 
 export const gitCommitTool: ToolDefinition<GitCommitParams, GitResult> = {
   name: 'git_commit',
@@ -331,9 +317,7 @@ export const gitCommitTool: ToolDefinition<GitCommitParams, GitResult> = {
   },
 };
 
-// =============================================================================
 // Git Branch Tool
-// =============================================================================
 
 export const gitBranchTool: ToolDefinition<GitBranchParams, GitResult> = {
   name: 'git_branch',
@@ -381,9 +365,7 @@ export const gitBranchTool: ToolDefinition<GitBranchParams, GitResult> = {
   },
 };
 
-// =============================================================================
 // Git Stash Tool
-// =============================================================================
 
 export const gitStashTool: ToolDefinition<GitStashParams, GitResult> = {
   name: 'git_stash',
@@ -428,9 +410,7 @@ export const gitStashTool: ToolDefinition<GitStashParams, GitResult> = {
   },
 };
 
-// =============================================================================
 // Git Remote Tool
-// =============================================================================
 
 export const gitRemoteTool: ToolDefinition<GitRemoteParams, GitResult> = {
   name: 'git_remote',
@@ -472,9 +452,7 @@ export const gitRemoteTool: ToolDefinition<GitRemoteParams, GitResult> = {
   },
 };
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface GitResult {
   command: string;

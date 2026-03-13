@@ -9,9 +9,7 @@
 import type { WorkflowDefinition, WorkflowStep } from '../chat/execution/workflows/types.js';
 import type { ModelCapabilityLevel } from '../chat/execution/types.js';
 
-// =============================================================================
 // 9.1 - Skill-to-Workflow Compiler
-// =============================================================================
 
 export interface CompiledSkill {
   skillId: string;
@@ -275,9 +273,7 @@ export function compileSkill(
   };
 }
 
-// =============================================================================
 // 9.2 - Model-Adaptive Skill Injection
-// =============================================================================
 
 /**
  * Return the appropriate skill instructions for a given model capability level.
@@ -307,9 +303,7 @@ export function getSkillForModel(
   }
 }
 
-// =============================================================================
 // 9.3 - Skill Effectiveness Tracking
-// =============================================================================
 
 export interface SkillEffectiveness {
   skillId: string;

@@ -23,6 +23,8 @@ const LOG_LEVEL_PRIORITY = {
   [LogLevel.ERROR]: 3,
 };
 
+const ERROR_BASE_KEYS = new Set(['name', 'message', 'stack']);
+
 export interface LogContext {
   /** Correlation ID for request tracing */
   correlationId?: string;
@@ -65,6 +67,13 @@ export interface LoggerConfig {
   
   /** Additional context to include in all logs */
   defaultContext?: LogContext;
+}
+
+function getErrorMetadata(error: Error): Record<string, unknown> {
+  const rawError = error as unknown as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.entries(rawError).filter(([key]) => !ERROR_BASE_KEYS.has(key))
+  );
 }
 
 /**
@@ -163,7 +172,7 @@ export class Logger {
         name: error.name,
         message: error.message,
         stack: error.stack,
-        ...(error as any), // Include any additional properties
+        ...getErrorMetadata(error),
       };
     }
 
@@ -205,7 +214,7 @@ export class Logger {
 
     // Print context
     if (entry.context && Object.keys(entry.context).length > 0) {
-      const { correlationId, ...otherContext } = entry.context;
+      const { correlationId: _correlationId, ...otherContext } = entry.context;
       if (Object.keys(otherContext).length > 0) {
         console.log('  Context:', otherContext);
       }
@@ -297,33 +306,51 @@ export function getCorrelationMetadata(): Record<string, unknown> | undefined {
  */
 export function createContextualLogger(name?: string): Logger {
   const baseContext: LogContext = name ? { component: name } : {};
-  
-  return new Proxy(new Logger({ defaultContext: baseContext }), {
-    get(target, prop) {
-      if (prop === 'debug' || prop === 'info' || prop === 'warn' || prop === 'error') {
-        return (...args: any[]) => {
-          const correlationId = getCorrelationId();
-          const metadata = getCorrelationMetadata();
-          
-          // Merge correlation context with provided context
-          const context = args.find((arg) => typeof arg === 'object' && !(arg instanceof Error));
-          const enhancedContext = {
-            ...context,
-            correlationId: correlationId || context?.correlationId,
-            ...metadata,
-          };
-          
-          // Replace context in args
-          const newArgs = args.map((arg) =>
-            typeof arg === 'object' && !(arg instanceof Error) ? enhancedContext : arg
-          );
-          
-          return (target as any)[prop](...newArgs);
-        };
-      }
-      return (target as any)[prop];
-    },
-  });
+
+  const contextualLogger = new Logger({ defaultContext: baseContext });
+
+  const mergeContext = (context?: LogContext): LogContext => {
+    const correlationId = getCorrelationId();
+    const metadata = getCorrelationMetadata();
+    return {
+      ...context,
+      correlationId: correlationId || context?.correlationId,
+      ...metadata,
+    };
+  };
+
+  contextualLogger.debug = (message, context) => {
+    Logger.prototype.debug.call(contextualLogger, message, mergeContext(context));
+  };
+
+  contextualLogger.info = (message, context) => {
+    Logger.prototype.info.call(contextualLogger, message, mergeContext(context));
+  };
+
+  contextualLogger.warn = (message, context) => {
+    Logger.prototype.warn.call(contextualLogger, message, mergeContext(context));
+  };
+
+  contextualLogger.error = (message, errorOrContext, context) => {
+    if (errorOrContext instanceof Error) {
+      Logger.prototype.error.call(
+        contextualLogger,
+        message,
+        errorOrContext,
+        mergeContext(context),
+      );
+      return;
+    }
+
+    Logger.prototype.error.call(
+      contextualLogger,
+      message,
+      mergeContext(errorOrContext),
+      context,
+    );
+  };
+
+  return contextualLogger;
 }
 
 /**

@@ -9,9 +9,7 @@
 import type { ToolProgressUpdate } from './types.js';
 import { logger } from '../../utils/logger.js';
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface StreamChunk {
   type: 'stdout' | 'stderr' | 'status' | 'progress' | 'complete' | 'error';
@@ -22,9 +20,7 @@ export interface StreamChunk {
 
 export type StreamCallback = (chunk: StreamChunk) => void;
 
-// =============================================================================
 // ToolResultStreamer
-// =============================================================================
 
 /**
  * Wraps a tool executor to stream results chunk by chunk.
@@ -37,9 +33,7 @@ export class ToolResultStreamer {
   private listeners = new Map<string, StreamCallback[]>();
   private buffers = new Map<string, StreamChunk[]>();
 
-  // ---------------------------------------------------------------------------
   // Public API
-  // ---------------------------------------------------------------------------
 
   /**
    * Subscribe to stream chunks for a specific tool call.
@@ -154,9 +148,7 @@ export class ToolResultStreamer {
   }
 }
 
-// =============================================================================
 // SSE Adapter
-// =============================================================================
 
 /**
  * Subscribe to tool result stream chunks and write them to a WritableStream

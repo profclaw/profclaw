@@ -16,13 +16,9 @@ import type {
   SyncResult,
   SyncState,
   SyncConflict,
-  ConflictStrategy,
   ExternalTicket,
-  ExternalComment,
-  WebhookEvent,
-  SyncDirection,
 } from './types.js';
-import type { Ticket, TicketComment, ExternalLink, TicketStatus } from '../tickets/types.js';
+import type { Ticket, TicketComment, ExternalLink } from '../tickets/types.js';
 import { LinearSyncAdapter } from './adapters/linear.js';
 import { GitHubSyncAdapter } from './adapters/github.js';
 import { loadSyncConfig, toSyncEngineConfig, isSyncEnabled } from './config.js';
@@ -52,6 +48,19 @@ export class SyncEngine {
   private getTicketByExternalLink?: (platform: string, externalId: string) => Promise<Ticket | null>;
   private getExternalLinks?: (ticketId: string) => Promise<ExternalLink[]>;
   private updateExternalLink?: (id: string, updates: Partial<ExternalLink>) => Promise<void>;
+
+  private toTicketCommentSource(platform: string): TicketComment['source'] {
+    switch (platform) {
+      case 'github':
+      case 'linear':
+      case 'jira':
+      case 'plane':
+      case 'profclaw':
+        return platform;
+      default:
+        return 'profclaw';
+    }
+  }
 
   /**
    * Create a new SyncEngine instance
@@ -514,7 +523,7 @@ export class SyncEngine {
             if (newComment) {
               await this.onCommentAdded(ticket.id, {
                 content: newComment.content,
-                source: platform as any,
+                source: this.toTicketCommentSource(platform),
                 externalId: newComment.externalId,
                 author: {
                   type: 'human',
@@ -548,7 +557,7 @@ export class SyncEngine {
     if (remoteUpdated <= localUpdated) {
       // Check for conflicting fields
       for (const [field, remoteValue] of Object.entries(remoteUpdates)) {
-        const localValue = (local as any)[field];
+        const localValue = local[field as keyof Ticket];
         if (localValue !== undefined && localValue !== remoteValue) {
           return {
             ticketId: local.id,

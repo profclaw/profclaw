@@ -10,9 +10,7 @@ import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.
 import { getSsrfGuard } from '../../../security/ssrf-guard.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // Schema
-// =============================================================================
 
 const WebFetchParamsSchema = z.object({
   url: z.string().url().describe('URL to fetch'),
@@ -25,9 +23,7 @@ const WebFetchParamsSchema = z.object({
 
 export type WebFetchParams = z.infer<typeof WebFetchParamsSchema>;
 
-// =============================================================================
 // Constants
-// =============================================================================
 
 const DEFAULT_TIMEOUT_SEC = 30;
 const MAX_CONTENT_LENGTH = 500_000; // 500KB
@@ -40,9 +36,7 @@ const BLOCKED_HOSTS = new Set([
   'metadata.google.internal', // GCP metadata
 ]);
 
-// =============================================================================
 // Tool Definition
-// =============================================================================
 
 export const webFetchTool: ToolDefinition<WebFetchParams, WebFetchResult> = {
   name: 'web_fetch',
@@ -212,9 +206,7 @@ Use for: reading documentation, fetching API responses, checking web content.`,
   },
 };
 
-// =============================================================================
 // Helpers
-// =============================================================================
 
 function isPrivateIP(hostname: string): boolean {
   const normalized = normalizeHostname(hostname);
@@ -280,9 +272,7 @@ function extractTextFromHtml(html: string): string {
   return text;
 }
 
-// =============================================================================
 // Types (exported for use in index.ts)
-// =============================================================================
 
 export interface WebFetchResult {
   status: number;

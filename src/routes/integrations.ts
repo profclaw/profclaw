@@ -31,9 +31,7 @@ import { logger } from '../utils/logger.js';
 
 const integrations = new Hono();
 
-// =============================================================================
 // Web Search Integration
-// =============================================================================
 
 /**
  * GET /api/integrations/web-search
@@ -202,9 +200,7 @@ integrations.post('/web-search/test', async (c) => {
   }
 });
 
-// =============================================================================
 // Helpers
-// =============================================================================
 
 function maskApiKey(key?: string): string | undefined {
   if (!key) return undefined;

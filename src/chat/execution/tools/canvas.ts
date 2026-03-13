@@ -10,9 +10,7 @@ import { z } from 'zod';
 import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // Artifact Types
-// =============================================================================
 
 export interface CanvasArtifact {
   id: string;
@@ -33,9 +31,7 @@ export interface CanvasRenderResult {
   preview: string;
 }
 
-// =============================================================================
 // In-memory artifact store
-// =============================================================================
 
 const artifactStore = new Map<string, CanvasArtifact>();
 
@@ -75,9 +71,7 @@ export function clearArtifacts(conversationId?: string): number {
   return removed;
 }
 
-// =============================================================================
 // Schema
-// =============================================================================
 
 const CanvasRenderParamsSchema = z.object({
   type: z
@@ -97,9 +91,7 @@ const CanvasRenderParamsSchema = z.object({
 
 export type CanvasRenderParams = z.infer<typeof CanvasRenderParamsSchema>;
 
-// =============================================================================
 // Tool Definition
-// =============================================================================
 
 export const canvasRenderTool: ToolDefinition<CanvasRenderParams, CanvasRenderResult> = {
   name: 'canvas_render',

@@ -3,12 +3,6 @@
  *
  * Quick filter buttons for common ticket filters.
  * Inspired by Plane's filter presets.
- *
- * TODO: Future Enhancements:
- * - [ ] Custom saved filters (per user)
- * - [ ] Filter preset sharing
- * - [ ] Recently used filters
- * - [ ] Filter keyboard shortcuts
  */
 
 import { useState } from 'react';

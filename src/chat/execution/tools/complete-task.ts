@@ -9,9 +9,7 @@ import { z } from 'zod';
 import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // Schema
-// =============================================================================
 
 const ArtifactSchema = z.object({
   type: z.enum(['ticket', 'commit', 'file', 'pr', 'project', 'comment', 'other']).describe('Type of artifact'),
@@ -32,9 +30,7 @@ const CompleteTaskParamsSchema = z.object({
 
 export type CompleteTaskParams = z.infer<typeof CompleteTaskParamsSchema>;
 
-// =============================================================================
 // Result Type
-// =============================================================================
 
 interface CompleteTaskResult {
   /** Signals the agentic loop that the task is complete */
@@ -56,9 +52,7 @@ interface CompleteTaskResult {
   completedAt: string;
 }
 
-// =============================================================================
 // Tool Definition
-// =============================================================================
 
 export const completeTaskTool: ToolDefinition<CompleteTaskParams, CompleteTaskResult> = {
   name: 'complete_task',
@@ -143,8 +137,6 @@ export const completeTaskTool: ToolDefinition<CompleteTaskParams, CompleteTaskRe
   },
 };
 
-// =============================================================================
 // Export
-// =============================================================================
 
 export default completeTaskTool;

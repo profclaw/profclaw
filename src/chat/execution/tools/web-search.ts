@@ -18,9 +18,7 @@ import {
 } from '../../../integrations/web-search.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // Schema
-// =============================================================================
 
 const WebSearchParamsSchema = z.object({
   query: z.string().min(1).describe('Search query'),
@@ -29,9 +27,7 @@ const WebSearchParamsSchema = z.object({
 
 export type WebSearchParams = z.infer<typeof WebSearchParamsSchema>;
 
-// =============================================================================
 // Tool Configuration
-// =============================================================================
 
 /**
  * Current web search configuration
@@ -61,9 +57,7 @@ export function checkWebSearchAvailable(): { available: boolean; provider?: stri
   return isWebSearchAvailable(currentConfig);
 }
 
-// =============================================================================
 // Tool Definition
-// =============================================================================
 
 export const webSearchTool: ToolDefinition<WebSearchParams, WebSearchResult> = {
   name: 'web_search',
@@ -146,9 +140,7 @@ Note: This tool requires a search API key to be configured in settings.`,
   },
 };
 
-// =============================================================================
 // Helpers
-// =============================================================================
 
 /**
  * Format search results for human-readable output
@@ -168,9 +160,7 @@ function formatSearchResults(response: WebSearchResponse): string {
   return header + resultLines.join('\n');
 }
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface WebSearchResult {
   query: string;

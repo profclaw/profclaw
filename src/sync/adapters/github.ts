@@ -61,6 +61,7 @@ interface GitHubIssue {
   updated_at: string;
   closed_at: string | null;
   html_url: string;
+  pull_request?: unknown;
 }
 
 interface GitHubComment {
@@ -233,7 +234,7 @@ export class GitHubSyncAdapter extends BaseSyncAdapter {
     const issues = await response.json() as GitHubIssue[];
 
     // Filter out pull requests (they also come through issues API)
-    const realIssues = issues.filter(i => !(i as any).pull_request);
+    const realIssues = issues.filter((issue) => !issue.pull_request);
 
     // Parse Link header for pagination
     const linkHeader = response.headers.get('Link');

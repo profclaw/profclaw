@@ -7,9 +7,7 @@
 
 import type { z } from 'zod';
 
-// =============================================================================
 // Security Types
-// =============================================================================
 
 /**
  * Security mode determines how commands are validated
@@ -156,9 +154,7 @@ export interface SandboxMount {
   readonly?: boolean;
 }
 
-// =============================================================================
 // Tool Definition Types
-// =============================================================================
 
 /**
  * Tool definition for AI function calling
@@ -239,9 +235,7 @@ export interface RateLimitConfig {
   windowMs: number;
 }
 
-// =============================================================================
 // Tool Execution Types
-// =============================================================================
 
 export type ToolExecutor<TParams, TResult> = (
   context: ToolExecutionContext,
@@ -305,9 +299,7 @@ export interface ToolError {
   retryable?: boolean;
 }
 
-// =============================================================================
 // Session Management Types
-// =============================================================================
 
 export interface SessionManager {
   create(session: Omit<ToolSession, 'id' | 'createdAt'>): ToolSession;
@@ -365,9 +357,7 @@ export interface SessionFilter {
   since?: number;
 }
 
-// =============================================================================
 // Approval Types
-// =============================================================================
 
 export interface ApprovalRequest {
   id: string;
@@ -402,9 +392,7 @@ export interface ApprovalResponse {
   userId?: string;
 }
 
-// =============================================================================
 // Tool Call Types (from AI response)
-// =============================================================================
 
 export interface AIToolCall {
   id?: string;
@@ -424,9 +412,7 @@ export interface ToolCallResult {
   };
 }
 
-// =============================================================================
 // Registry Types
-// =============================================================================
 
 /** Options for filtering tools when building AI schemas */
 export interface ToolFilterOptions {

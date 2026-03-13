@@ -16,9 +16,7 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 const DEFAULT_TIMEOUT = 15000;
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface TailscaleStatus {
   installed: boolean;
@@ -49,9 +47,7 @@ export interface TailscaleServeResult {
   error?: string;
 }
 
-// =============================================================================
 // Tailscale Service
-// =============================================================================
 
 class TailscaleService {
   /**
@@ -229,9 +225,7 @@ class TailscaleService {
   }
 }
 
-// =============================================================================
 // Singleton
-// =============================================================================
 
 let service: TailscaleService | null = null;
 

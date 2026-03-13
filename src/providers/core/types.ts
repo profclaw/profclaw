@@ -6,9 +6,7 @@
 
 import { z } from 'zod';
 
-// =============================================================================
 // Provider Types
-// =============================================================================
 
 export const ProviderType = z.enum([
   'anthropic',
@@ -49,9 +47,7 @@ export const ProviderType = z.enum([
 ]);
 export type ProviderType = z.infer<typeof ProviderType>;
 
-// =============================================================================
 // Provider Configuration
-// =============================================================================
 
 export interface ProviderConfig {
   type: ProviderType;
@@ -106,9 +102,7 @@ export const PROVIDER_STATUS: Record<ProviderType, ProviderStatus> = {
   watsonx: 'stable', // IBM Watsonx
 };
 
-// =============================================================================
 // Model Information
-// =============================================================================
 
 export interface ModelInfo {
   id: string;
@@ -123,9 +117,7 @@ export interface ModelInfo {
   costPer1MOutput: number;
 }
 
-// =============================================================================
 // Chat Types
-// =============================================================================
 
 export interface ChatMessage {
   id: string;
@@ -158,9 +150,7 @@ export interface ChatResponse {
   duration: number;
 }
 
-// =============================================================================
 // Tool Calling Types
-// =============================================================================
 
 export interface ToolDefinition {
   name: string;
@@ -190,9 +180,7 @@ export interface ChatWithToolsResponse extends ChatResponse {
   toolResults?: ToolResult[];
 }
 
-// =============================================================================
 // Native Tool Calling Types (Vercel AI SDK)
-// =============================================================================
 
 export interface NativeToolCall {
   toolCallId: string;
@@ -221,9 +209,7 @@ export interface NativeToolCallResponse extends ChatResponse {
   };
 }
 
-// =============================================================================
 // AI Message Type
-// =============================================================================
 
 export type AIMessage = {
   role: 'user' | 'assistant' | 'system';

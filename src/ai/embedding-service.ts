@@ -2,9 +2,7 @@ import OpenAI from 'openai';
 import { loadConfig } from '../utils/config-loader.js';
 import { logger } from '../utils/logger.js';
 
-// =============================================================================
 // Configuration Types
-// =============================================================================
 
 export type EmbeddingProvider = 'openai' | 'ollama' | 'voyage' | 'gemini';
 
@@ -32,9 +30,7 @@ interface AIConfig {
   };
 }
 
-// =============================================================================
 // Model Limit Tracking
-// =============================================================================
 
 export interface EmbeddingModelLimits {
   maxInputTokens: number;
@@ -53,9 +49,7 @@ const MODEL_LIMITS: Record<string, EmbeddingModelLimits> = {
   'text-embedding-004': { maxInputTokens: 2048, maxBatchSize: 100, dimensions: 768, rateLimit: { requests: 1500, windowMs: 60_000 } },
 };
 
-// =============================================================================
 // Usage Tracking
-// =============================================================================
 
 export interface EmbeddingUsageStats {
   provider: EmbeddingProvider;
@@ -78,9 +72,7 @@ export interface StreamingEmbeddingProgress {
 
 const config = loadConfig<AIConfig>('settings.yml');
 
-// =============================================================================
 // Embedding Service
-// =============================================================================
 
 export class EmbeddingService {
   private openai?: OpenAI;
@@ -224,9 +216,7 @@ export class EmbeddingService {
     return providers;
   }
 
-  // ===========================================================================
   // OpenAI Embeddings
-  // ===========================================================================
 
   private async generateOpenAIEmbedding(text: string): Promise<number[]> {
     if (!this.openai) throw new Error('OpenAI not initialized');
@@ -256,9 +246,7 @@ export class EmbeddingService {
     return results;
   }
 
-  // ===========================================================================
   // Voyage Embeddings
-  // ===========================================================================
 
   private isVoyageConfigured(): boolean {
     const key = config.ai?.providers?.voyage?.apiKey ?? process.env.VOYAGE_API_KEY;
@@ -304,9 +292,7 @@ export class EmbeddingService {
     return results;
   }
 
-  // ===========================================================================
   // Gemini Embeddings
-  // ===========================================================================
 
   private isGeminiConfigured(): boolean {
     const key = config.ai?.providers?.gemini?.apiKey ?? process.env.GOOGLE_API_KEY;
@@ -358,9 +344,7 @@ export class EmbeddingService {
     return data.embeddings.map((e) => e.values);
   }
 
-  // ===========================================================================
   // Streaming Embeddings
-  // ===========================================================================
 
   /**
    * Generate embeddings with streaming progress callback.
@@ -412,9 +396,7 @@ export class EmbeddingService {
     return results;
   }
 
-  // ===========================================================================
   // Usage Tracking
-  // ===========================================================================
 
   private trackUsage(provider: EmbeddingProvider, model: string, count: number, charCount: number): void {
     const key = `${provider}/${model}`;
@@ -438,9 +420,7 @@ export class EmbeddingService {
   }
 }
 
-// =============================================================================
 // Memory Backend Interface (multi-backend plugin slot)
-// =============================================================================
 
 export interface MemoryBackend {
   name: string;
@@ -456,9 +436,7 @@ export interface MemorySearchResult {
   metadata: Record<string, unknown>;
 }
 
-// =============================================================================
 // Citation Tracking
-// =============================================================================
 
 export interface MemoryCitation {
   memoryId: string;
@@ -468,9 +446,7 @@ export interface MemoryCitation {
   excerpt?: string;
 }
 
-// =============================================================================
 // Singleton
-// =============================================================================
 
 let instance: EmbeddingService | null = null;
 

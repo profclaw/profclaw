@@ -13,9 +13,7 @@
 
 import { z } from 'zod';
 
-// =============================================================================
 // PROVIDER IDENTITY
-// =============================================================================
 
 export type ChatProviderId =
   | 'slack'
@@ -54,9 +52,7 @@ export interface ChatProviderMeta {
   color?: string;                  // Brand color
 }
 
-// =============================================================================
 // CAPABILITIES
-// =============================================================================
 
 export interface ChatProviderCapabilities {
   /** Supported chat types */
@@ -102,9 +98,7 @@ export interface ChatProviderCapabilities {
   realtime: boolean;
 }
 
-// =============================================================================
 // ACCOUNT CONFIGURATION
-// =============================================================================
 
 /** Base account config shared by all providers */
 export interface ChatAccountConfigBase {
@@ -337,9 +331,7 @@ export type ChatAccountConfig =
   | TlonAccountConfig
   | ZaloPersonalAccountConfig;
 
-// =============================================================================
 // MESSAGE TYPES
-// =============================================================================
 
 export type ChatType = 'direct' | 'group' | 'channel' | 'thread';
 
@@ -413,9 +405,7 @@ export interface OutgoingAttachment {
   mimeType?: string;
 }
 
-// =============================================================================
 // COMMAND TYPES
-// =============================================================================
 
 /** Slash command from a chat provider */
 export interface SlashCommand {
@@ -465,9 +455,7 @@ export interface InteractiveAction {
   raw: unknown;
 }
 
-// =============================================================================
 // RESULT TYPES
-// =============================================================================
 
 export interface SendResult {
   success: boolean;
@@ -484,9 +472,7 @@ export interface CommandResponse {
   attachments?: unknown[];
 }
 
-// =============================================================================
 // ADAPTERS (Provider implements these)
-// =============================================================================
 
 /** Authentication adapter */
 export interface AuthAdapter {
@@ -564,9 +550,7 @@ export interface StatusAdapter {
   }>;
 }
 
-// =============================================================================
 // PROVIDER PLUGIN INTERFACE
-// =============================================================================
 
 export interface ChatProvider<TConfig extends ChatAccountConfig = ChatAccountConfig> {
   /** Provider metadata */
@@ -588,9 +572,7 @@ export interface ChatProvider<TConfig extends ChatAccountConfig = ChatAccountCon
   status: StatusAdapter;
 }
 
-// =============================================================================
 // REGISTRY TYPES
-// =============================================================================
 
 export interface ProviderRegistry {
   /** Register a provider */
@@ -606,9 +588,7 @@ export interface ProviderRegistry {
   withCapability(capability: keyof ChatProviderCapabilities): ChatProvider[];
 }
 
-// =============================================================================
 // CONTEXT TYPES
-// =============================================================================
 
 /** Context passed to handlers */
 export interface ChatContext {
@@ -626,9 +606,7 @@ export interface ChatContext {
   userName?: string;
 }
 
-// =============================================================================
 // EVENT TYPES
-// =============================================================================
 
 export type ChatEventType =
   | 'message'

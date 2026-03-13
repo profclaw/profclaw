@@ -23,9 +23,7 @@ import type { SessionManager, ToolExecutionContext } from '../chat/execution/typ
 
 const log = createContextualLogger('Scheduler');
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export type JobType = 'http' | 'tool' | 'script' | 'message';
 export type JobStatus = 'active' | 'paused' | 'completed' | 'failed' | 'archived';
@@ -177,9 +175,7 @@ export interface MessageJobPayload {
   content: string;
 }
 
-// =============================================================================
 // Singleton Scheduler
-// =============================================================================
 
 let schedulerInstance: JobScheduler | null = null;
 
@@ -221,9 +217,7 @@ export function getScheduler(): JobScheduler {
   return schedulerInstance;
 }
 
-// =============================================================================
 // JobScheduler Class
-// =============================================================================
 
 export class JobScheduler {
   private queue: Queue | null = null;
@@ -692,9 +686,7 @@ export class JobScheduler {
     }));
   }
 
-  // =============================================================================
   // Private Methods
-  // =============================================================================
 
   /**
    * Schedule a job in BullMQ

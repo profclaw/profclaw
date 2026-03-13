@@ -5,9 +5,7 @@
  * Enables parent agents to spawn child sessions for parallel work.
  */
 
-// =============================================================================
 // Session Types
-// =============================================================================
 
 export type SessionStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 
@@ -59,9 +57,7 @@ export interface AgentSession {
   metadata?: Record<string, unknown>;
 }
 
-// =============================================================================
 // Message Types
-// =============================================================================
 
 export type MessageType = 'message' | 'result' | 'request' | 'notification' | 'error';
 
@@ -95,9 +91,7 @@ export interface SessionMessage {
   readAt?: Date;
 }
 
-// =============================================================================
 // Manager Types
-// =============================================================================
 
 export interface SpawnSessionParams {
   parentSessionId: string;
@@ -147,9 +141,7 @@ export interface CleanupParams {
   olderThanMs: number;
 }
 
-// =============================================================================
 // Manager Interface
-// =============================================================================
 
 export interface AgentSessionManager {
   // Session lifecycle
@@ -174,9 +166,7 @@ export interface AgentSessionManager {
   cleanup(params: CleanupParams): Promise<{ sessionsDeleted: number; messagesDeleted: number }>;
 }
 
-// =============================================================================
 // Constants
-// =============================================================================
 
 export const SESSION_CONSTANTS = {
   MAX_SPAWN_DEPTH: 3,

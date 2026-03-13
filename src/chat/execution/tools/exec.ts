@@ -10,9 +10,7 @@ import { spawn } from 'child_process';
 import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // Schema
-// =============================================================================
 
 const ExecParamsSchema = z.object({
   command: z.string().min(1).describe('Shell command to execute'),
@@ -24,17 +22,13 @@ const ExecParamsSchema = z.object({
 
 export type ExecParams = z.infer<typeof ExecParamsSchema>;
 
-// =============================================================================
 // Constants
-// =============================================================================
 
 const DEFAULT_TIMEOUT_SEC = 300;
 const MAX_OUTPUT_CHARS = 200_000;
 const YIELD_MS = 10_000; // Background after 10s if not finished
 
-// =============================================================================
 // Tool Definition
-// =============================================================================
 
 export const execTool: ToolDefinition<ExecParams, ExecResult> = {
   name: 'exec',
@@ -265,9 +259,7 @@ The command output is captured and returned. Long-running commands can be backgr
   },
 };
 
-// =============================================================================
 // Types (exported for use in index.ts)
-// =============================================================================
 
 export interface ExecResult {
   status: 'completed' | 'failed' | 'running';

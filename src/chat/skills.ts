@@ -7,8 +7,6 @@
  * Inspired by OpenClaw's adapter pattern and HuggingFace skills.
  */
 
-import type { ConversationMessage } from './conversations.js';
-
 // === Skill Types ===
 
 export interface ChatSkill {
@@ -489,7 +487,10 @@ function estimateComplexity(message: string): number {
 export function buildSkillPrompt(
   basePrompt: string,
   skillMatch: SkillMatch,
-  context?: { task?: any; ticket?: any }
+  context?: {
+    task?: { id?: string; title?: string; status?: string; agent?: string };
+    ticket?: { id?: string; title?: string; status?: string };
+  }
 ): string {
   let prompt = basePrompt;
 

@@ -17,9 +17,7 @@ const MANAGED_SKILLS_DIR = join(homedir(), '.profclaw', 'skills');
 const CLAWHUB_STATE_FILE = join(homedir(), '.profclaw', 'clawhub.json');
 const GITHUB_API = 'https://api.github.com';
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface ClawHubSkill {
   name: string;
@@ -70,9 +68,7 @@ interface GitHubRepoContent {
   download_url: string | null;
 }
 
-// =============================================================================
 // ClawHub Client
-// =============================================================================
 
 class ClawHubClient {
   private state: ClawHubState;
@@ -193,9 +189,7 @@ class ClawHubClient {
     return all.sort((a, b) => b.stars - a.stars).slice(0, 20);
   }
 
-  // ===========================================================================
   // Private: GitHub Search
-  // ===========================================================================
 
   private async searchGitHub(query?: string): Promise<ClawHubSkill[]> {
     const skills: ClawHubSkill[] = [];
@@ -326,9 +320,7 @@ class ClawHubClient {
     return fetch(url, { headers });
   }
 
-  // ===========================================================================
   // State persistence
-  // ===========================================================================
 
   private loadState(): ClawHubState {
     try {
@@ -351,9 +343,7 @@ class ClawHubClient {
   }
 }
 
-// =============================================================================
 // Singleton
-// =============================================================================
 
 let client: ClawHubClient | null = null;
 

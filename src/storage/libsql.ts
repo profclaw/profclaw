@@ -6,7 +6,6 @@ import {
   or,
   gte,
   lte,
-  like,
   desc,
   asc,
   count,
@@ -149,7 +148,7 @@ export class LibSQLAdapter implements StorageAdapter {
       await this.client.execute(
         `ALTER TABLE summaries ADD COLUMN has_blob_output INTEGER DEFAULT 0`,
       );
-    } catch (e) {
+    } catch {
       // Column already exists, ignore
     }
 
@@ -842,28 +841,28 @@ export class LibSQLAdapter implements StorageAdapter {
       await this.client.execute(
         `ALTER TABLE scheduled_jobs ADD COLUMN labels TEXT NOT NULL DEFAULT '[]'`,
       );
-    } catch (e) {
+    } catch {
       // Column already exists, ignore
     }
     try {
       await this.client.execute(
         `ALTER TABLE scheduled_jobs ADD COLUMN archived_at INTEGER`,
       );
-    } catch (e) {
+    } catch {
       // Column already exists, ignore
     }
     try {
       await this.client.execute(
         `ALTER TABLE scheduled_jobs ADD COLUMN last_run_duration_ms INTEGER`,
       );
-    } catch (e) {
+    } catch {
       // Column already exists, ignore
     }
     try {
       await this.client.execute(
         `ALTER TABLE scheduled_jobs ADD COLUMN retry_delay_ms INTEGER DEFAULT 60000`,
       );
-    } catch (e) {
+    } catch {
       // Column already exists, ignore
     }
 
@@ -961,7 +960,7 @@ export class LibSQLAdapter implements StorageAdapter {
       await this.client.execute(
         `ALTER TABLE tickets ADD COLUMN project_id TEXT REFERENCES projects(id)`,
       );
-    } catch (e) {
+    } catch {
       // Column already exists, ignore
     }
     await this.client.execute(`
@@ -1132,7 +1131,7 @@ export class LibSQLAdapter implements StorageAdapter {
   }
 
   async deleteTask(id: string): Promise<boolean> {
-    const result = await this.db
+    await this.db
       .delete(schema.tasks)
       .where(eq(schema.tasks.id, id));
     // LibSQL results might be different from better-sqlite3
@@ -1447,7 +1446,7 @@ export class LibSQLAdapter implements StorageAdapter {
     try {
       await this.client.execute("SELECT 1");
       return { healthy: true, latencyMs: Date.now() - start };
-    } catch (error) {
+    } catch {
       return { healthy: false, latencyMs: Date.now() - start };
     }
   }

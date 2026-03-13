@@ -13,9 +13,7 @@
 import { z } from 'zod';
 import { logger } from '../utils/logger.js';
 
-// =============================================================================
 // Configuration Schema
-// =============================================================================
 
 export const WebSearchConfigSchema = z.object({
   enabled: z.boolean().default(true),
@@ -53,9 +51,7 @@ export const WebSearchConfigSchema = z.object({
 
 export type WebSearchConfig = z.infer<typeof WebSearchConfigSchema>;
 
-// =============================================================================
 // Search Result Types
-// =============================================================================
 
 export interface SearchResult {
   title: string;
@@ -119,9 +115,7 @@ interface TavilySearchResponse {
   results?: TavilySearchResult[];
 }
 
-// =============================================================================
 // Provider Implementations
-// =============================================================================
 
 /**
  * Brave Search API
@@ -290,9 +284,7 @@ async function searchTavily(
   };
 }
 
-// =============================================================================
 // Main Search Function
-// =============================================================================
 
 /**
  * Perform a web search using the configured provider
@@ -355,9 +347,7 @@ export async function webSearch(
   }
 }
 
-// =============================================================================
 // Helpers
-// =============================================================================
 
 /**
  * Resolve API key from config or environment variable

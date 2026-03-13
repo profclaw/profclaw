@@ -24,9 +24,7 @@ import type {
 import { logger } from '../utils/logger.js';
 import { SAFE_BROWSER_TOOL_NAMES } from '../browser/index.js';
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface ChatToolHandlerOptions {
   conversationId: string;
@@ -61,9 +59,7 @@ export interface ChatToolHandler {
   ): Promise<ToolExecutionResult | null>;
 }
 
-// =============================================================================
 // In-Memory Session Manager for Chat
-// =============================================================================
 
 class ChatSessionManager implements SessionManager {
   private sessions = new Map<string, ToolSession>();
@@ -131,9 +127,7 @@ class ChatSessionManager implements SessionManager {
   }
 }
 
-// =============================================================================
 // Chat Tool Handler Implementation
-// =============================================================================
 
 let initialized = false;
 
@@ -305,9 +299,7 @@ export async function createChatToolHandler(
   };
 }
 
-// =============================================================================
 // Tool Categories for Chat
-// =============================================================================
 
 /**
  * Get tools by category for selective tool exposure
@@ -373,9 +365,7 @@ export function getChatTools(
   }));
 }
 
-// =============================================================================
 // Default Chat Tools (safe subset)
-// =============================================================================
 
 /**
  * Get the default set of tools for chat

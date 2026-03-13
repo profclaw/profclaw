@@ -24,9 +24,7 @@ import {
   probeSystemTTSAvailability,
 } from './tts/system.js';
 
-// ---------------------------------------------------------------------------
 // Public types
-// ---------------------------------------------------------------------------
 
 export interface TranscribeOptions {
   /** ISO 639-1 language code (e.g. 'en', 'fr'). Auto-detected if omitted. */
@@ -90,9 +88,7 @@ export interface VoiceService {
   getSTTProvider(): string | null;
 }
 
-// ---------------------------------------------------------------------------
 // Provider detection helpers
-// ---------------------------------------------------------------------------
 
 function detectSTTProvider(): 'whisper' | 'deepgram' | null {
   if (process.env.OPENAI_API_KEY) return 'whisper';
@@ -107,9 +103,7 @@ function detectTTSProvider(): 'elevenlabs' | 'openai' | 'system' | null {
   return null;
 }
 
-// ---------------------------------------------------------------------------
 // VoiceServiceImpl
-// ---------------------------------------------------------------------------
 
 class VoiceServiceImpl implements VoiceService {
   private readonly sttProvider: 'whisper' | 'deepgram' | null;
@@ -244,9 +238,7 @@ class VoiceServiceImpl implements VoiceService {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Singleton accessor
-// ---------------------------------------------------------------------------
 
 let instance: VoiceServiceImpl | null = null;
 

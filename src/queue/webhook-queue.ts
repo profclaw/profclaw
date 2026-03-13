@@ -17,9 +17,7 @@ import { logger } from "../utils/logger.js";
  *   Attempt 6 — 12 hours (exhausted after this)
  */
 
-// ---------------------------------------------------------------------------
 // Types
-// ---------------------------------------------------------------------------
 
 /** Shape of the job data placed on the BullMQ queue. */
 export interface WebhookDeliveryPayload {
@@ -47,9 +45,7 @@ interface WebhookDeliveryResult {
   deliveredAt: string;
 }
 
-// ---------------------------------------------------------------------------
 // Constants
-// ---------------------------------------------------------------------------
 
 const QUEUE_NAME = "webhook-delivery";
 
@@ -67,16 +63,12 @@ const RETRY_DELAYS_MS: readonly number[] = [
 
 const MAX_ATTEMPTS = 6;
 
-// ---------------------------------------------------------------------------
 // Queue state (module-level singletons)
-// ---------------------------------------------------------------------------
 
 let webhookQueue: Queue<WebhookDeliveryPayload> | null = null;
 let webhookWorker: Worker<WebhookDeliveryPayload, WebhookDeliveryResult> | null = null;
 
-// ---------------------------------------------------------------------------
 // Redis connection helper (matches task-queue.ts pattern)
-// ---------------------------------------------------------------------------
 
 function buildRedisConnection(): { host: string; port: number; password?: string } {
   const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
@@ -88,9 +80,7 @@ function buildRedisConnection(): { host: string; port: number; password?: string
   };
 }
 
-// ---------------------------------------------------------------------------
 // HMAC signing
-// ---------------------------------------------------------------------------
 
 /**
  * Sign the raw payload string with HMAC-SHA256 and return the hex digest.
@@ -101,9 +91,7 @@ function signPayload(secret: string, payload: string): string {
   return createHmac("sha256", secret).update(payload, "utf8").digest("hex");
 }
 
-// ---------------------------------------------------------------------------
 // Delivery logic
-// ---------------------------------------------------------------------------
 
 async function deliverWebhook(job: Job<WebhookDeliveryPayload>): Promise<WebhookDeliveryResult> {
   const { deliveryId, endpointId: _endpointId, url, secret, eventType, payload } = job.data;
@@ -156,9 +144,7 @@ async function deliverWebhook(job: Job<WebhookDeliveryPayload>): Promise<Webhook
   };
 }
 
-// ---------------------------------------------------------------------------
 // Public API
-// ---------------------------------------------------------------------------
 
 /**
  * Initialize the webhook delivery queue and start the worker.

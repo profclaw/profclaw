@@ -14,9 +14,7 @@ const PUSH_DIR = join(homedir(), '.profclaw', 'push');
 const SUBSCRIPTIONS_FILE = join(PUSH_DIR, 'subscriptions.json');
 const VAPID_FILE = join(PUSH_DIR, 'vapid.json');
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface PushSubscription {
   id: string;
@@ -43,9 +41,7 @@ interface VapidKeys {
   privateKey: string;
 }
 
-// =============================================================================
 // Push Service
-// =============================================================================
 
 class PushNotificationService {
   private subscriptions: PushSubscription[] = [];
@@ -148,9 +144,7 @@ class PushNotificationService {
     return this.subscriptions.length;
   }
 
-  // ===========================================================================
   // Private
-  // ===========================================================================
 
   private async sendPush(subscription: PushSubscription, notification: PushNotification): Promise<void> {
     const payload = JSON.stringify(notification);
@@ -221,9 +215,7 @@ class PushNotificationService {
   }
 }
 
-// =============================================================================
 // Singleton
-// =============================================================================
 
 let pushService: PushNotificationService | null = null;
 

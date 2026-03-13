@@ -7,9 +7,7 @@
 
 import { logger } from '../../utils/logger.js';
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface RateLimitConfig {
   // Per-user limits
@@ -45,9 +43,7 @@ interface WindowEntry {
   timestamps: number[];
 }
 
-// =============================================================================
 // Constants
-// =============================================================================
 
 const DEFAULT_CONFIG: RateLimitConfig = {
   userLimit: 100,
@@ -68,9 +64,7 @@ const DEFAULT_CONFIG: RateLimitConfig = {
 const CLEANUP_INTERVAL_MS = 60_000;
 const MAX_WINDOW_ENTRIES = parseInt(process.env['RATE_LIMIT_MAX_WINDOWS'] ?? '5000', 10);
 
-// =============================================================================
 // Rate Limiter
-// =============================================================================
 
 export class RateLimiter {
   private config: RateLimitConfig;
@@ -339,9 +333,7 @@ export class RateLimiter {
     }
   }
 
-  // ===========================================================================
   // Private Methods
-  // ===========================================================================
 
   private checkWindow(
     window: WindowEntry,
@@ -464,9 +456,7 @@ export class RateLimiter {
   }
 }
 
-// =============================================================================
 // Singleton
-// =============================================================================
 
 let rateLimiter: RateLimiter | null = null;
 

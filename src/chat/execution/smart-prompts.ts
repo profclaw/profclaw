@@ -7,11 +7,9 @@
  * which AI model is being used.
  */
 
-import type { ModelCapabilityLevel, ToolTier } from './types.js';
+import type { ModelCapabilityLevel } from './types.js';
 
-// =============================================================================
 // Tool Usage Instructions (per capability level)
-// =============================================================================
 
 const TOOL_INSTRUCTIONS: Record<ModelCapabilityLevel, string> = {
   reasoning: `You have access to tools. Use them as needed to complete the user's request.
@@ -45,9 +43,7 @@ COMMON PATTERNS:
 Always explain what you're doing and what the tool returned.`,
 };
 
-// =============================================================================
 // Response Format Guidance
-// =============================================================================
 
 const RESPONSE_FORMAT: Record<ModelCapabilityLevel, string> = {
   reasoning: ``,  // No format constraints for reasoning models
@@ -64,9 +60,7 @@ const RESPONSE_FORMAT: Record<ModelCapabilityLevel, string> = {
 - Keep responses short and clear`,
 };
 
-// =============================================================================
 // Few-Shot Examples (for basic/instruction models)
-// =============================================================================
 
 const FEW_SHOT_EXAMPLES: Record<ModelCapabilityLevel, string> = {
   reasoning: ``, // No examples needed
@@ -101,9 +95,7 @@ Result: [matching files]
 You: Found the login component at src/components/Login.tsx.`,
 };
 
-// =============================================================================
 // Context Budget Guidance
-// =============================================================================
 
 /**
  * Estimate token count for a string (rough: 4 chars per token).
@@ -147,9 +139,7 @@ export function truncateHistory(
   return result;
 }
 
-// =============================================================================
 // Main Builder
-// =============================================================================
 
 /**
  * Build adaptive tool usage prompt segment for the given model capability.

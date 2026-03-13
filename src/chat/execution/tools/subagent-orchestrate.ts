@@ -9,9 +9,7 @@ import { z } from 'zod';
 import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // Schema
-// =============================================================================
 
 const SubtaskSchema = z.object({
   description: z.string().min(1).describe('What this subtask should accomplish'),
@@ -44,9 +42,7 @@ const SubagentOrchestrateParamsSchema = z.object({
 
 export type SubagentOrchestrateParams = z.infer<typeof SubagentOrchestrateParamsSchema>;
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface SubtaskResult {
   index: number;
@@ -68,9 +64,7 @@ export interface SubagentOrchestrateResult {
   totalDurationMs: number;
 }
 
-// =============================================================================
 // Helpers
-// =============================================================================
 
 interface SpawnResult {
   sessionId: string;
@@ -208,9 +202,7 @@ async function runSubtask(
   }
 }
 
-// =============================================================================
 // Tool Definition
-// =============================================================================
 
 export const subagentOrchestrateTool: ToolDefinition<SubagentOrchestrateParams, SubagentOrchestrateResult> = {
   name: 'subagent_orchestrate',

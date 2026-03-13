@@ -62,9 +62,7 @@ app.use('*', async (_c, next) => {
   await next();
 });
 
-// =============================================================================
 // Schemas
-// =============================================================================
 
 const deliveryChannelSchema = z.object({
   type: z.enum(['slack', 'webhook', 'email']),
@@ -176,9 +174,7 @@ const createFromTemplateSchema = z.object({
   projectId: z.string().optional(),
 });
 
-// =============================================================================
 // Routes
-// =============================================================================
 
 // Ensure templates are initialized on first request to any cron endpoint
 app.use('*', async (_c, next) => {
@@ -723,9 +719,7 @@ app.get('/stats', async (c) => {
   }
 });
 
-// =============================================================================
 // Template Routes
-// =============================================================================
 
 /**
  * GET /api/cron/templates - List job templates
@@ -828,9 +822,7 @@ app.delete('/templates/:id', async (c) => {
   }
 });
 
-// =============================================================================
 // Event Trigger Routes
-// =============================================================================
 
 /**
  * POST /api/cron/events - Trigger jobs by event

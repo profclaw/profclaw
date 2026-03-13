@@ -10,9 +10,7 @@ import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.
 import { getAgentRegistry } from '../../../adapters/registry.js';
 import type { AgentCapability, AgentHealth } from '../../../types/agent.js';
 
-// =============================================================================
 // Schema
-// =============================================================================
 
 const AgentsListParamsSchema = z.object({
   type: z.string().optional()
@@ -27,9 +25,7 @@ const AgentsListParamsSchema = z.object({
 
 export type AgentsListParams = z.infer<typeof AgentsListParamsSchema>;
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface AgentInfo {
   id: string;
@@ -53,9 +49,7 @@ export interface AgentsListResult {
   message: string;
 }
 
-// =============================================================================
 // Tool Definition
-// =============================================================================
 
 export const agentsListTool: ToolDefinition<AgentsListParams, AgentsListResult> = {
   name: 'agents_list',

@@ -9,8 +9,6 @@
 
 import { MODEL_ALIASES } from '../providers/core/models.js';
 import { getSkillsRegistry } from '../skills/index.js';
-import { detectModelCapability } from './execution/model-capability.js';
-import { buildToolPrompt } from './execution/smart-prompts.js';
 
 // === Runtime Info (injected per-request) ===
 

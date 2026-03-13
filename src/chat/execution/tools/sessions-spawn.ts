@@ -12,9 +12,7 @@ import {
   addMessage,
 } from '../../conversations.js';
 
-// =============================================================================
 // Schema
-// =============================================================================
 
 const SessionsSpawnParamsSchema = z.object({
   title: z.string().optional()
@@ -37,9 +35,7 @@ const SessionsSpawnParamsSchema = z.object({
 
 export type SessionsSpawnParams = z.infer<typeof SessionsSpawnParamsSchema>;
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface SessionsSpawnResult {
   sessionId: string;
@@ -53,9 +49,7 @@ export interface SessionsSpawnResult {
   message: string;
 }
 
-// =============================================================================
 // Tool Definition
-// =============================================================================
 
 export const sessionsSpawnTool: ToolDefinition<SessionsSpawnParams, SessionsSpawnResult> = {
   name: 'sessions_spawn',

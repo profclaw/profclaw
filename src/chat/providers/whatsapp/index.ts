@@ -28,9 +28,7 @@ import type {
 } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // WHATSAPP API TYPES
-// =============================================================================
 
 interface WhatsAppContact {
   profile: {
@@ -116,9 +114,7 @@ interface WhatsAppWebhookPayload {
   entry: WhatsAppWebhookEntry[];
 }
 
-// =============================================================================
 // CONFIGURATION
-// =============================================================================
 
 const WhatsAppAccountConfigSchema = z.object({
   id: z.string(),
@@ -137,9 +133,7 @@ const WhatsAppAccountConfigSchema = z.object({
 
 type WhatsAppConfig = z.infer<typeof WhatsAppAccountConfigSchema>;
 
-// =============================================================================
 // METADATA
-// =============================================================================
 
 const meta: ChatProviderMeta = {
   id: 'whatsapp',
@@ -151,9 +145,7 @@ const meta: ChatProviderMeta = {
   color: '#25D366',
 };
 
-// =============================================================================
 // CAPABILITIES
-// =============================================================================
 
 const capabilities: ChatProviderCapabilities = {
   chatTypes: ['direct'],
@@ -172,9 +164,7 @@ const capabilities: ChatProviderCapabilities = {
   realtime: false, // Webhook only
 };
 
-// =============================================================================
 // HELPER FUNCTIONS
-// =============================================================================
 
 const WHATSAPP_API_BASE = 'https://graph.facebook.com/v18.0';
 
@@ -227,9 +217,7 @@ async function callWhatsAppApi<T>(
   }
 }
 
-// =============================================================================
 // AUTH ADAPTER
-// =============================================================================
 
 const authAdapter: AuthAdapter = {
   getAuthUrl(): string {
@@ -313,9 +301,7 @@ export function isWhatsAppSenderAllowed(
   return { allowed: true };
 }
 
-// =============================================================================
 // OUTBOUND ADAPTER
-// =============================================================================
 
 const outboundAdapter: OutboundAdapter = {
   async send(message: OutgoingMessage): Promise<SendResult> {
@@ -427,9 +413,7 @@ const outboundAdapter: OutboundAdapter = {
   },
 };
 
-// =============================================================================
 // INBOUND ADAPTER
-// =============================================================================
 
 const inboundAdapter: InboundAdapter = {
   parseMessage(payload: unknown): IncomingMessage | null {
@@ -558,9 +542,7 @@ const inboundAdapter: InboundAdapter = {
   },
 };
 
-// =============================================================================
 // STATUS ADAPTER
-// =============================================================================
 
 const statusAdapter: StatusAdapter = {
   isConfigured(config: WhatsAppAccountConfig): boolean {
@@ -613,9 +595,7 @@ const statusAdapter: StatusAdapter = {
   },
 };
 
-// =============================================================================
 // PROVIDER EXPORT
-// =============================================================================
 
 export const whatsappProvider: ChatProvider<WhatsAppAccountConfig> = {
   meta,

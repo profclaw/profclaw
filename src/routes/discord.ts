@@ -36,9 +36,7 @@ export { formatToolResult } from '../chat/format/index.js';
 
 const discord = new Hono();
 
-// =============================================================================
 // CONFIGURATION
-// =============================================================================
 
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || '';
 const DISCORD_APPLICATION_ID = process.env.DISCORD_APPLICATION_ID || '';
@@ -89,9 +87,7 @@ function getConfig(): DiscordConfig | null {
   return null;
 }
 
-// =============================================================================
 // INTERACTIONS ENDPOINT
-// =============================================================================
 
 /**
  * POST /interactions - Main Discord interactions endpoint
@@ -255,9 +251,7 @@ discord.post('/interactions', async (c) => {
   }
 });
 
-// =============================================================================
 // OAUTH ROUTES
-// =============================================================================
 
 /**
  * GET /oauth/url - Get OAuth authorization URL for adding bot to server
@@ -336,9 +330,7 @@ discord.get('/oauth/callback', async (c) => {
   });
 });
 
-// =============================================================================
 // STATUS & HEALTH
-// =============================================================================
 
 /**
  * GET /status - Bot status and health check
@@ -429,9 +421,7 @@ discord.post('/test', async (c) => {
   return c.json({ error: result.error || 'Failed to send message' }, 500);
 });
 
-// =============================================================================
 // SLASH COMMAND MANAGEMENT
-// =============================================================================
 
 /**
  * POST /commands/register - Register slash commands
@@ -529,9 +519,7 @@ discord.get('/commands', async (c) => {
   }
 });
 
-// =============================================================================
 // CONFIGURATION MANAGEMENT
-// =============================================================================
 
 /**
  * GET /config - Get current configuration (redacted)

@@ -26,9 +26,7 @@ import type {
   CommandResponse,
 } from '../types.js';
 
-// =============================================================================
 // CONFIGURATION
-// =============================================================================
 
 const SlackAccountConfigSchema = z.object({
   id: z.string(),
@@ -45,9 +43,7 @@ const SlackAccountConfigSchema = z.object({
   teamName: z.string().optional(),
 }) satisfies z.ZodType<SlackAccountConfig>;
 
-// =============================================================================
 // CONSTANTS
-// =============================================================================
 
 const SLACK_API_BASE = 'https://slack.com/api';
 const SLACK_OAUTH_AUTHORIZE = 'https://slack.com/oauth/v2/authorize';
@@ -60,9 +56,7 @@ const SLACK_REDIRECT_URI = process.env.SLACK_REDIRECT_URI || '';
 const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN || '';
 const SLACK_SIGNING_SECRET = process.env.SLACK_SIGNING_SECRET || '';
 
-// =============================================================================
 // SLACK API RESPONSE TYPES
-// =============================================================================
 
 interface SlackApiResponse {
   ok: boolean;
@@ -83,9 +77,7 @@ interface SlackApiResponse {
   bot_id?: string;
 }
 
-// =============================================================================
 // METADATA
-// =============================================================================
 
 const meta: ChatProviderMeta = {
   id: 'slack',
@@ -97,9 +89,7 @@ const meta: ChatProviderMeta = {
   color: '#4A154B',
 };
 
-// =============================================================================
 // CAPABILITIES
-// =============================================================================
 
 const capabilities: ChatProviderCapabilities = {
   chatTypes: ['direct', 'channel', 'thread'],
@@ -118,9 +108,7 @@ const capabilities: ChatProviderCapabilities = {
   realtime: true, // Socket Mode
 };
 
-// =============================================================================
 // AUTH ADAPTER
-// =============================================================================
 
 const authAdapter: AuthAdapter = {
   getAuthUrl(state: string, scopes?: string[]): string {
@@ -209,9 +197,7 @@ const authAdapter: AuthAdapter = {
   },
 };
 
-// =============================================================================
 // OUTBOUND ADAPTER
-// =============================================================================
 
 const outboundAdapter: OutboundAdapter = {
   async send(message: OutgoingMessage): Promise<SendResult> {
@@ -404,9 +390,7 @@ const outboundAdapter: OutboundAdapter = {
   },
 };
 
-// =============================================================================
 // INBOUND ADAPTER
-// =============================================================================
 
 const inboundAdapter: InboundAdapter = {
   parseMessage(payload: unknown): IncomingMessage | null {
@@ -523,9 +507,7 @@ const inboundAdapter: InboundAdapter = {
   },
 };
 
-// =============================================================================
 // STATUS ADAPTER
-// =============================================================================
 
 const statusAdapter: StatusAdapter = {
   isConfigured(config: SlackAccountConfig): boolean {
@@ -587,9 +569,7 @@ const statusAdapter: StatusAdapter = {
   },
 };
 
-// =============================================================================
 // PROVIDER EXPORT
-// =============================================================================
 
 export const slackProvider: ChatProvider<SlackAccountConfig> = {
   meta,
@@ -606,9 +586,7 @@ export const slackProvider: ChatProvider<SlackAccountConfig> = {
   status: statusAdapter,
 };
 
-// =============================================================================
 // HELPER EXPORTS
-// =============================================================================
 
 export { SlackAccountConfigSchema };
 export type { SlackAccountConfig };

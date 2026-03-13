@@ -12,9 +12,7 @@ import { summaries, summaryBlobs } from '../../../storage/schema.js';
 import { eq, sql } from 'drizzle-orm';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // Schemas
-// =============================================================================
 
 const DbMaintenanceParamsSchema = z.object({
   optimize: z.boolean().default(true).describe('Run VACUUM and ANALYZE'),
@@ -30,9 +28,7 @@ interface DbMaintenanceResult {
   logsCleaned: number;
 }
 
-// =============================================================================
 // Database Maintenance Tool
-// =============================================================================
 
 export const dbMaintenanceTool: ToolDefinition<DbMaintenanceParams, DbMaintenanceResult> = {
   name: 'db_maintenance',

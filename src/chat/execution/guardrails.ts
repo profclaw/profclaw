@@ -10,9 +10,7 @@
  * 8.4 Quality Scoring
  */
 
-// =============================================================================
 // Shared Context Type
-// =============================================================================
 
 export interface GuardrailContext {
   /** Known file paths in the project */
@@ -27,9 +25,7 @@ export interface GuardrailContext {
   securityMode?: string;
 }
 
-// =============================================================================
 // 8.1 Output Validation Types
-// =============================================================================
 
 export interface ValidationResult {
   valid: boolean;
@@ -44,9 +40,7 @@ export interface ValidationIssue {
   autoFixed?: boolean;
 }
 
-// =============================================================================
 // 8.2 Hallucination Detection Types
-// =============================================================================
 
 export interface HallucinationCheck {
   detected: boolean;
@@ -59,9 +53,7 @@ export interface HallucinationFlag {
   confidence: number; // 0-1
 }
 
-// =============================================================================
 // 8.3 Safety Bounds Types
-// =============================================================================
 
 export interface SafetyCheckResult {
   safe: boolean;
@@ -74,9 +66,7 @@ export interface BlockedAction {
   severity: 'warning' | 'critical';
 }
 
-// =============================================================================
 // 8.4 Quality Scoring Types
-// =============================================================================
 
 export interface QualityScore {
   overall: number; // 0-100
@@ -90,9 +80,7 @@ export interface QualityScore {
   shouldCorrect: boolean;
 }
 
-// =============================================================================
 // Main Guardrail Result
-// =============================================================================
 
 export interface GuardrailResult {
   passed: boolean;
@@ -104,9 +92,7 @@ export interface GuardrailResult {
   cleanedResponse?: string;
 }
 
-// =============================================================================
 // 8.1 Output Validation
-// =============================================================================
 
 const MAX_RESPONSE_CHARS = 50_000;
 const STUTTER_THRESHOLD = 3; // same sentence repeated 3+ times
@@ -279,9 +265,7 @@ function checkCodeBlockBalance(response: string): ValidationIssue[] {
   return issues;
 }
 
-// =============================================================================
 // 8.2 Hallucination Detection
-// =============================================================================
 
 // Fabricated URL patterns - overly versioned or nonsense paths
 const FABRICATED_URL_PATTERNS = [
@@ -414,9 +398,7 @@ function extractToolReferences(text: string, registeredTools: string[]): string[
   return [...new Set(found)];
 }
 
-// =============================================================================
 // 8.3 Safety Bounds
-// =============================================================================
 
 interface SafetyPattern {
   pattern: RegExp;
@@ -520,9 +502,7 @@ function extractStringValues(obj: Record<string, unknown>, depth = 0): string[] 
   return values;
 }
 
-// =============================================================================
 // 8.4 Quality Scoring
-// =============================================================================
 
 const TIER_THRESHOLDS = {
   excellent: 80,
@@ -662,9 +642,7 @@ function getTier(score: number): QualityScore['tier'] {
   return 'poor';
 }
 
-// =============================================================================
 // Shared Utilities
-// =============================================================================
 
 // Common English stop words to exclude from keyword extraction
 const STOP_WORDS = new Set([
@@ -685,9 +663,7 @@ function extractKeywords(text: string): string[] {
     .filter((w) => w.length > 3 && !STOP_WORDS.has(w));
 }
 
-// =============================================================================
 // Main Guardrail Pipeline
-// =============================================================================
 
 /**
  * Run all guardrails on an agent response and its tool calls.

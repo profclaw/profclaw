@@ -10,9 +10,7 @@ import path from 'path';
 import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // Schema
-// =============================================================================
 
 const ImageAnalyzeParamsSchema = z.object({
   path: z.string().min(1).describe('Path to image file (png, jpg, gif, webp)'),
@@ -21,9 +19,7 @@ const ImageAnalyzeParamsSchema = z.object({
 
 export type ImageAnalyzeParams = z.infer<typeof ImageAnalyzeParamsSchema>;
 
-// =============================================================================
 // Constants
-// =============================================================================
 
 const MAX_IMAGE_SIZE = 20_000_000; // 20MB
 const SUPPORTED_FORMATS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg']);
@@ -37,9 +33,7 @@ const MIME_TYPES: Record<string, string> = {
   '.svg': 'image/svg+xml',
 };
 
-// =============================================================================
 // Tool Definition
-// =============================================================================
 
 export const imageAnalyzeTool: ToolDefinition<ImageAnalyzeParams, ImageAnalyzeResult> = {
   name: 'image_analyze',
@@ -149,9 +143,7 @@ The image data (base64) is available in the tool result for vision-capable model
   },
 };
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface ImageAnalyzeResult {
   path: string;

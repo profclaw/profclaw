@@ -29,9 +29,7 @@ function hashSessionToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
-// =============================================================================
 // TYPES
-// =============================================================================
 
 export interface User {
   id: string;
@@ -70,9 +68,7 @@ export interface AuthResult {
   error?: string;
 }
 
-// =============================================================================
 // CONFIG
-// =============================================================================
 
 const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
@@ -84,9 +80,7 @@ async function getGitHubConfig(): Promise<GitHubOAuthConfig | null> {
   return cachedGitHubConfig;
 }
 
-// =============================================================================
 // PASSWORD UPGRADE (transparent SHA256 → scrypt migration)
-// =============================================================================
 
 /**
  * Upgrade a user's password hash from legacy SHA256 to scrypt.
@@ -104,9 +98,7 @@ async function upgradePasswordHash(userId: string, password: string): Promise<vo
   console.log(`[Auth] Upgraded password hash to scrypt for user ${userId}`);
 }
 
-// =============================================================================
 // SESSION MANAGEMENT
-// =============================================================================
 
 export async function createSession(
   userId: string,
@@ -194,9 +186,7 @@ export async function deleteAllUserSessions(userId: string): Promise<void> {
   await db.delete(sessions).where(eq(sessions.userId, userId));
 }
 
-// =============================================================================
 // EMAIL/PASSWORD AUTHENTICATION
-// =============================================================================
 
 export async function signUpWithEmail(
   email: string,
@@ -332,9 +322,7 @@ export async function signInWithEmail(
   };
 }
 
-// =============================================================================
 // GITHUB OAUTH
-// =============================================================================
 
 export async function getGitHubAuthUrl(state?: string): Promise<string | null> {
   const config = await getGitHubConfig();
@@ -642,9 +630,7 @@ export async function signInWithGitHub(
   };
 }
 
-// =============================================================================
 // USER OPERATIONS
-// =============================================================================
 
 export async function getUserById(userId: string): Promise<User | null> {
   const db = getDb();

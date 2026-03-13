@@ -17,9 +17,7 @@ import type { ChatMessage } from '../../../providers/core/types.js';
 import { buildSystemPrompt, type ChatContext } from '../../system-prompts.js';
 import { getSessionModel } from './session-status.js';
 
-// =============================================================================
 // Schema
-// =============================================================================
 
 const SessionsSendParamsSchema = z.object({
   sessionId: z.string()
@@ -38,9 +36,7 @@ const SessionsSendParamsSchema = z.object({
 
 export type SessionsSendParams = z.infer<typeof SessionsSendParamsSchema>;
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface SessionsSendResult {
   sessionId: string;
@@ -57,9 +53,7 @@ export interface SessionsSendResult {
   message: string;
 }
 
-// =============================================================================
 // Tool Definition
-// =============================================================================
 
 export const sessionsSendTool: ToolDefinition<SessionsSendParams, SessionsSendResult> = {
   name: 'sessions_send',

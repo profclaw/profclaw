@@ -31,9 +31,7 @@ import type {
 } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // MS TEAMS / BOT FRAMEWORK API TYPES
-// =============================================================================
 
 /** Bot Framework Activity Types */
 const ActivityType = {
@@ -156,9 +154,7 @@ interface OAuthTokenResponse {
   access_token: string;
 }
 
-// =============================================================================
 // CONFIGURATION
-// =============================================================================
 
 export const MSTeamsAccountConfigSchema = z.object({
   id: z.string(),
@@ -175,9 +171,7 @@ export const MSTeamsAccountConfigSchema = z.object({
 
 type MSTeamsConfig = z.infer<typeof MSTeamsAccountConfigSchema>;
 
-// =============================================================================
 // METADATA
-// =============================================================================
 
 const meta: ChatProviderMeta = {
   id: 'msteams',
@@ -189,9 +183,7 @@ const meta: ChatProviderMeta = {
   color: '#6264A7',
 };
 
-// =============================================================================
 // CAPABILITIES
-// =============================================================================
 
 const capabilities: ChatProviderCapabilities = {
   chatTypes: ['direct', 'group', 'channel', 'thread'],
@@ -210,9 +202,7 @@ const capabilities: ChatProviderCapabilities = {
   realtime: false,
 };
 
-// =============================================================================
 // TOKEN CACHE
-// =============================================================================
 
 interface CachedToken {
   token: string;
@@ -222,9 +212,7 @@ interface CachedToken {
 // keyed by `${appId}:${tenantId}`
 const tokenCache = new Map<string, CachedToken>();
 
-// =============================================================================
 // MODULE-LEVEL CONFIG STATE
-// =============================================================================
 
 let currentConfig: MSTeamsConfig | null = null;
 
@@ -236,9 +224,7 @@ function clearTeamsConfig(): void {
   currentConfig = null;
 }
 
-// =============================================================================
 // HELPER FUNCTIONS
-// =============================================================================
 
 const BOT_FRAMEWORK_API_VERSION = 'v3';
 
@@ -413,9 +399,7 @@ export function isTeamsSenderAllowed(
   return { allowed: true };
 }
 
-// =============================================================================
 // HMAC-SHA256 SIGNATURE VERIFICATION
-// =============================================================================
 
 /**
  * Verify Bot Framework incoming request using HMAC-SHA256.
@@ -506,9 +490,7 @@ function buildAdaptiveCardAttachment(blocks: unknown[]): BotFrameworkAttachment 
   };
 }
 
-// =============================================================================
 // AUTH ADAPTER
-// =============================================================================
 
 const authAdapter: AuthAdapter = {
   getAuthUrl(_state: string, _scopes?: string[]): string {
@@ -538,9 +520,7 @@ const authAdapter: AuthAdapter = {
   },
 };
 
-// =============================================================================
 // OUTBOUND ADAPTER
-// =============================================================================
 
 /**
  * Teams activities are sent to:
@@ -699,9 +679,7 @@ const outboundAdapter: OutboundAdapter = {
   },
 };
 
-// =============================================================================
 // INBOUND ADAPTER
-// =============================================================================
 
 /**
  * Parse a mention entity from the activity to strip @bot mentions from text.
@@ -927,9 +905,7 @@ const inboundAdapter: InboundAdapter = {
   },
 };
 
-// =============================================================================
 // STATUS ADAPTER
-// =============================================================================
 
 const statusAdapter: StatusAdapter = {
   isConfigured(config: MSTeamsAccountConfig): boolean {
@@ -976,9 +952,7 @@ const statusAdapter: StatusAdapter = {
   },
 };
 
-// =============================================================================
 // TEAMS-SPECIFIC HELPERS
-// =============================================================================
 
 /**
  * Build a proactive message target string from a saved activity.
@@ -1031,9 +1005,7 @@ export function parseReactionActivity(payload: unknown): {
   };
 }
 
-// =============================================================================
 // PROVIDER EXPORT
-// =============================================================================
 
 export const msteamsProvider: ChatProvider<MSTeamsAccountConfig> = {
   meta,

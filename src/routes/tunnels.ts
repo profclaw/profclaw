@@ -10,9 +10,7 @@ import { getCloudflareTunnelService } from '../integrations/cloudflare-tunnel.js
 
 export const tunnelsRoutes = new Hono();
 
-// =============================================================================
 // Status
-// =============================================================================
 
 /**
  * GET /api/tunnels/status - Get status of all tunnel providers
@@ -38,9 +36,7 @@ tunnelsRoutes.get('/status', async (c) => {
   });
 });
 
-// =============================================================================
 // Tailscale
-// =============================================================================
 
 /**
  * GET /api/tunnels/tailscale/status - Get Tailscale status
@@ -117,9 +113,7 @@ tunnelsRoutes.get('/tailscale/config', async (c) => {
   return c.json(result);
 });
 
-// =============================================================================
 // Cloudflare Tunnel
-// =============================================================================
 
 /**
  * GET /api/tunnels/cloudflare/status - Get Cloudflare status

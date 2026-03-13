@@ -9,9 +9,7 @@ import { z } from 'zod';
 import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // Schema
-// =============================================================================
 
 const LinkUnderstandParamsSchema = z.object({
   url: z.string().url().describe('URL to fetch and summarize'),
@@ -31,9 +29,7 @@ const LinkUnderstandParamsSchema = z.object({
 
 export type LinkUnderstandParams = z.infer<typeof LinkUnderstandParamsSchema>;
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface LinkUnderstandResult {
   url: string;
@@ -45,9 +41,7 @@ export interface LinkUnderstandResult {
   answer?: string;
 }
 
-// =============================================================================
 // Constants
-// =============================================================================
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_FETCH_BYTES = 500_000;
@@ -60,9 +54,7 @@ const BLOCKED_HOSTS = new Set([
   'metadata.google.internal',
 ]);
 
-// =============================================================================
 // Helpers
-// =============================================================================
 
 function extractTitleFromHtml(html: string): string {
   const match = html.match(/<title[^>]*>([^<]*)<\/title>/i);
@@ -188,9 +180,7 @@ Respond in this exact JSON format:
   }
 }
 
-// =============================================================================
 // Tool Definition
-// =============================================================================
 
 export const linkUnderstandTool: ToolDefinition<LinkUnderstandParams, LinkUnderstandResult> = {
   name: 'link_understand',

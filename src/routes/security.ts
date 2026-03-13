@@ -16,9 +16,7 @@ import type {
 
 const security = new Hono();
 
-// =============================================================================
 // Security Policy
-// =============================================================================
 
 security.get('/policy', (c) => {
   const manager = getSecurityManager();
@@ -32,9 +30,7 @@ security.patch('/policy', async (c) => {
   return c.json({ success: true, data: manager.getPolicy() });
 });
 
-// =============================================================================
 // DM Pairing
-// =============================================================================
 
 security.post('/pairing/generate', async (c) => {
   const { senderId, channelProvider } = await c.req.json();
@@ -62,9 +58,7 @@ security.get('/pairing/trusted/:senderId', (c) => {
   return c.json({ success: true, data: { trusted: manager.isDMSenderTrusted(senderId) } });
 });
 
-// =============================================================================
 // Channel Allowlist
-// =============================================================================
 
 security.get('/channels', (c) => {
   const manager = getSecurityManager();
@@ -91,9 +85,7 @@ security.delete('/channels/:provider/:channelId', (c) => {
   return c.json({ success: true, data: { removed } });
 });
 
-// =============================================================================
 // Exec Approval Policies
-// =============================================================================
 
 security.get('/exec-policies', (c) => {
   const manager = getSecurityManager();
@@ -119,9 +111,7 @@ security.delete('/exec-policies/:id', (c) => {
   return c.json({ success: true, data: { removed } });
 });
 
-// =============================================================================
 // Plugin Allowlist
-// =============================================================================
 
 security.get('/plugins', (c) => {
   const manager = getSecurityManager();
@@ -148,9 +138,7 @@ security.delete('/plugins/:pluginId', (c) => {
   return c.json({ success: true, data: { removed } });
 });
 
-// =============================================================================
 // Channel Policies (retry/timeout)
-// =============================================================================
 
 security.get('/channel-policies', (c) => {
   const manager = getSecurityManager();
@@ -178,9 +166,7 @@ security.delete('/channel-policies/:provider/:channelId', (c) => {
   return c.json({ success: true, data: { removed } });
 });
 
-// =============================================================================
 // Risk Analysis
-// =============================================================================
 
 security.post('/analyze-risk', async (c) => {
   const { toolName, params } = await c.req.json();
@@ -202,9 +188,7 @@ security.post('/analyze-risk', async (c) => {
   return c.json({ success: true, data: analysis });
 });
 
-// =============================================================================
 // Approval Management
-// =============================================================================
 
 security.get('/approvals', (c) => {
   const conversationId = c.req.query('conversationId');
@@ -223,9 +207,7 @@ security.post('/approvals/:id/respond', async (c) => {
   return c.json({ success: true, data: { handled } });
 });
 
-// =============================================================================
 // Audit / Status
-// =============================================================================
 
 security.get('/status', (c) => {
   const manager = getSecurityManager();

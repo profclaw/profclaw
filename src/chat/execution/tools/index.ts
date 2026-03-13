@@ -248,9 +248,7 @@ export type {
   BrowserCloseResult,
 } from './browser.js';
 
-// =============================================================================
 // Tool Tier Assignments
-// =============================================================================
 
 /**
  * Tool tier map: assigns each tool to essential/standard/full tier.

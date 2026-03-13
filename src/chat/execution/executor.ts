@@ -38,9 +38,7 @@ import {
 } from "./secrets.js";
 import { checkSafetyBounds } from "./guardrails.js";
 
-// =============================================================================
 // Constants
-// =============================================================================
 
 const DEFAULT_TIMEOUT_MS = 300_000; // 5 minutes
 const PROGRESS_THROTTLE_MS = 100; // Throttle progress updates
@@ -58,9 +56,7 @@ const redactToolText = (text?: string): string | undefined => {
   return redactSecrets(text);
 };
 
-// =============================================================================
 // Tool Executor
-// =============================================================================
 
 export class ToolExecutor {
   private abortControllers: Map<string, AbortController> = new Map();
@@ -690,9 +686,7 @@ export class ToolExecutor {
     };
   }
 
-  // ===========================================================================
   // Private Methods
-  // ===========================================================================
 
   private async executeInSandbox(
     tool: ToolDefinition,
@@ -828,9 +822,7 @@ export class ToolExecutor {
   }
 }
 
-// =============================================================================
 // Singleton
-// =============================================================================
 
 let toolExecutor: ToolExecutor | null = null;
 

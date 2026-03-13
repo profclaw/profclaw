@@ -4,10 +4,6 @@
  * Semantic memory with embeddings and hybrid search.
  */
 
-// TODO(@copilot): Generate unit tests for this module
-// Key functions to test: initMemoryTables, syncMemoryFiles, searchMemory, getMemoryContent, chunkText, estimateTokens, hashContent, getMemoryStats, listMemoryFiles, listFileChunks, deleteMemoryChunk, deleteMemoryFile, clearAllMemories, createMemorySession, listMemorySessions, updateSessionStats, archiveSession, getMemoryWatcher, initMemoryWatcher, stopMemoryWatcher
-// Test file location: src/memory/tests/index.test.ts
-
 export {
   // Config
   DEFAULT_MEMORY_CONFIG,

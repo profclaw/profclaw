@@ -58,9 +58,7 @@ export function authCommands(): Command {
   const auth = new Command('auth')
     .description('Authentication & user management');
 
-  // =========================================================================
   // profclaw auth invite
-  // =========================================================================
   auth
     .command('invite')
     .description('Generate invite code(s)')
@@ -123,9 +121,7 @@ export function authCommands(): Command {
       }
     });
 
-  // =========================================================================
   // profclaw auth reset-password
-  // =========================================================================
   auth
     .command('reset-password <email>')
     .description('Reset a user\'s password')
@@ -186,9 +182,7 @@ export function authCommands(): Command {
       }
     });
 
-  // =========================================================================
   // profclaw auth list-users
-  // =========================================================================
   auth
     .command('list-users')
     .description('List all users')
@@ -244,9 +238,7 @@ export function authCommands(): Command {
       }
     });
 
-  // =========================================================================
   // profclaw auth list-invites
-  // =========================================================================
   auth
     .command('list-invites')
     .description('List invite codes')
@@ -314,9 +306,7 @@ export function authCommands(): Command {
       }
     });
 
-  // =========================================================================
   // profclaw auth set-mode
-  // =========================================================================
   auth
     .command('set-mode <mode>')
     .description('Set registration mode (open or invite)')

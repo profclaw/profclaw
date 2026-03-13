@@ -9,9 +9,7 @@ import { spawn } from 'child_process';
 import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // Schema
-// =============================================================================
 
 const GithubPrParamsSchema = z.object({
   action: z.enum(['create', 'get', 'list', 'comment', 'merge', 'diff']).describe('PR action to perform'),
@@ -25,16 +23,12 @@ const GithubPrParamsSchema = z.object({
 
 export type GithubPrParams = z.infer<typeof GithubPrParamsSchema>;
 
-// =============================================================================
 // Constants
-// =============================================================================
 
 const MAX_OUTPUT_CHARS = 100_000;
 const GH_TIMEOUT_MS = 30_000;
 
-// =============================================================================
 // Tool Definition
-// =============================================================================
 
 export const githubPrTool: ToolDefinition<GithubPrParams, GithubPrResult> = {
   name: 'github_pr',
@@ -116,9 +110,7 @@ Repo is auto-detected from git remote if not specified.`,
   },
 };
 
-// =============================================================================
 // Helpers
-// =============================================================================
 
 function buildGhArgs(params: GithubPrParams): string[] {
   const args: string[] = ['pr'];
@@ -213,9 +205,7 @@ function runGh(args: string[], cwd: string): Promise<string> {
   });
 }
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface GithubPrResult {
   action: string;

@@ -34,9 +34,7 @@ import type {
 } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // LINE API TYPES
-// =============================================================================
 
 /** LINE message types */
 const LINEMsgType = {
@@ -122,9 +120,7 @@ interface LINEApiResponse {
   sentMessages?: Array<{ id: string; quoteToken?: string }>;
 }
 
-// =============================================================================
 // CONFIGURATION
-// =============================================================================
 
 export const LINEAccountConfigSchema = z.object({
   id: z.string(),
@@ -139,9 +135,7 @@ export const LINEAccountConfigSchema = z.object({
 
 type LINEConfig = z.infer<typeof LINEAccountConfigSchema>;
 
-// =============================================================================
 // METADATA
-// =============================================================================
 
 const meta: ChatProviderMeta = {
   id: 'line',
@@ -153,9 +147,7 @@ const meta: ChatProviderMeta = {
   color: '#06C755',
 };
 
-// =============================================================================
 // CAPABILITIES
-// =============================================================================
 
 const capabilities: ChatProviderCapabilities = {
   chatTypes: ['direct', 'group'],
@@ -174,17 +166,13 @@ const capabilities: ChatProviderCapabilities = {
   realtime: false,
 };
 
-// =============================================================================
 // STATE
-// =============================================================================
 
 let currentConfig: LINEConfig | null = null;
 
 const LINE_API_BASE = 'https://api.line.me/v2/bot';
 
-// =============================================================================
 // HELPER FUNCTIONS
-// =============================================================================
 
 function getAuthHeaders(config?: LINEConfig | null): Record<string, string> {
   const token = (config ?? currentConfig)?.channelAccessToken;
@@ -290,9 +278,7 @@ function lineTypeToAttachmentType(
   return map[msgType] ?? null;
 }
 
-// =============================================================================
 // AUTH ADAPTER
-// =============================================================================
 
 const authAdapter: AuthAdapter = {
   getAuthUrl(_state: string, _scopes?: string[]): string {
@@ -338,9 +324,7 @@ const authAdapter: AuthAdapter = {
   },
 };
 
-// =============================================================================
 // OUTBOUND ADAPTER
-// =============================================================================
 
 const outboundAdapter: OutboundAdapter = {
   async send(message: OutgoingMessage): Promise<SendResult> {
@@ -384,9 +368,7 @@ const outboundAdapter: OutboundAdapter = {
   },
 };
 
-// =============================================================================
 // INBOUND ADAPTER
-// =============================================================================
 
 const inboundAdapter: InboundAdapter = {
   parseMessage(payload: unknown): IncomingMessage | null {
@@ -495,9 +477,7 @@ const inboundAdapter: InboundAdapter = {
   },
 };
 
-// =============================================================================
 // STATUS ADAPTER
-// =============================================================================
 
 const statusAdapter: StatusAdapter = {
   isConfigured(config: LINEAccountConfig): boolean {
@@ -559,9 +539,7 @@ const statusAdapter: StatusAdapter = {
   },
 };
 
-// =============================================================================
 // EXPORTED HELPERS
-// =============================================================================
 
 /**
  * Parse all message events from a LINE webhook body.
@@ -620,9 +598,7 @@ export async function replyMessage(
   };
 }
 
-// =============================================================================
 // CONFIG MANAGEMENT
-// =============================================================================
 
 export function setLINEConfig(config: LINEConfig): void {
   currentConfig = config;
@@ -632,9 +608,7 @@ export function clearLINEConfig(): void {
   currentConfig = null;
 }
 
-// =============================================================================
 // PROVIDER EXPORT
-// =============================================================================
 
 export const lineProvider: ChatProvider<LINEAccountConfig> = {
   meta,

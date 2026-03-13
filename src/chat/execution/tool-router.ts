@@ -12,9 +12,7 @@
 import { logger } from '../../utils/logger.js';
 import type { ToolDefinition, ToolTier, ModelCapabilityLevel } from './types.js';
 
-// =============================================================================
 // Types
-// =============================================================================
 
 interface ModelProfile {
   capability: ModelCapabilityLevel;
@@ -37,9 +35,7 @@ interface ModelPattern {
   tier: ToolTier;
 }
 
-// =============================================================================
 // Model Classification
-// =============================================================================
 
 /**
  * Known model family patterns -> capability classification.
@@ -119,9 +115,7 @@ export const FULL_ONLY_TOOL_NAMES = new Set<string>([
   'telegram_actions',
 ]);
 
-// =============================================================================
 // State
-// =============================================================================
 
 let config: ToolRouterConfig = {
   enabled: true,
@@ -133,9 +127,7 @@ let config: ToolRouterConfig = {
 // Track promoted tools per conversation (conversationId -> set of tool names)
 const promotedTools = new Map<string, Set<string>>();
 
-// =============================================================================
 // Core Functions
-// =============================================================================
 
 /**
  * Classify a model ID into a capability profile.
@@ -276,9 +268,7 @@ export function filterToolsByTier(
   });
 }
 
-// =============================================================================
 // Dynamic Promotion
-// =============================================================================
 
 /**
  * Promote a tool for a specific conversation (grants access above normal tier).
@@ -315,9 +305,7 @@ export function cleanupPromotedTools(): void {
   }
 }
 
-// =============================================================================
 // Token Estimation
-// =============================================================================
 
 /**
  * Rough estimate: ~150 tokens per tool (name, description, params schema).
@@ -326,9 +314,7 @@ export function estimateToolTokens(tools: ToolDefinition[]): number {
   return tools.length * 150;
 }
 
-// =============================================================================
 // Compressed Descriptions
-// =============================================================================
 
 /**
  * Get tool descriptions optimised for the model's capability level.
@@ -354,9 +340,7 @@ export function getCompressedDescriptions(
   return tools.map((t) => `- ${t.name}`).join('\n');
 }
 
-// =============================================================================
 // Configuration
-// =============================================================================
 
 /**
  * Configure the tool router at runtime.

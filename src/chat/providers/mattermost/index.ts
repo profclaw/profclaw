@@ -32,9 +32,7 @@ import type {
 } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // MATTERMOST API TYPES
-// =============================================================================
 
 interface MattermostPost {
   id: string;
@@ -92,9 +90,7 @@ interface MattermostWebhookPayload {
   file_ids?: string;
 }
 
-// =============================================================================
 // CONFIGURATION
-// =============================================================================
 
 export const MattermostAccountConfigSchema = z.object({
   id: z.string(),
@@ -111,9 +107,7 @@ export const MattermostAccountConfigSchema = z.object({
 
 type MattermostConfig = z.infer<typeof MattermostAccountConfigSchema>;
 
-// =============================================================================
 // METADATA
-// =============================================================================
 
 const meta: ChatProviderMeta = {
   id: 'mattermost',
@@ -125,9 +119,7 @@ const meta: ChatProviderMeta = {
   color: '#0058CC',
 };
 
-// =============================================================================
 // CAPABILITIES
-// =============================================================================
 
 const capabilities: ChatProviderCapabilities = {
   chatTypes: ['direct', 'group', 'channel', 'thread'],
@@ -146,15 +138,11 @@ const capabilities: ChatProviderCapabilities = {
   realtime: false, // Polling or WebSocket via driver; outgoing webhooks for inbound
 };
 
-// =============================================================================
 // STATE
-// =============================================================================
 
 let currentConfig: MattermostConfig | null = null;
 
-// =============================================================================
 // HELPER FUNCTIONS
-// =============================================================================
 
 function getApiBase(config?: MattermostConfig | null): string {
   const url = (config ?? currentConfig)?.serverUrl ?? '';
@@ -260,9 +248,7 @@ function displayNameFromUser(user: MattermostUser): string {
   return user.username;
 }
 
-// =============================================================================
 // AUTH ADAPTER
-// =============================================================================
 
 const authAdapter: AuthAdapter = {
   getAuthUrl(_state: string, _scopes?: string[]): string {
@@ -294,9 +280,7 @@ const authAdapter: AuthAdapter = {
   },
 };
 
-// =============================================================================
 // OUTBOUND ADAPTER
-// =============================================================================
 
 const outboundAdapter: OutboundAdapter = {
   async send(message: OutgoingMessage): Promise<SendResult> {
@@ -450,9 +434,7 @@ const outboundAdapter: OutboundAdapter = {
   },
 };
 
-// =============================================================================
 // INBOUND ADAPTER
-// =============================================================================
 
 const inboundAdapter: InboundAdapter = {
   parseMessage(payload: unknown): IncomingMessage | null {
@@ -523,9 +505,7 @@ const inboundAdapter: InboundAdapter = {
   },
 };
 
-// =============================================================================
 // STATUS ADAPTER
-// =============================================================================
 
 const statusAdapter: StatusAdapter = {
   isConfigured(config: MattermostAccountConfig): boolean {
@@ -593,9 +573,7 @@ const statusAdapter: StatusAdapter = {
   },
 };
 
-// =============================================================================
 // EXPORTED HELPERS
-// =============================================================================
 
 /**
  * Parse an inbound post payload from the Mattermost Events API or WebSocket driver.
@@ -640,9 +618,7 @@ export function parsePostEvent(
   };
 }
 
-// =============================================================================
 // CONFIG MANAGEMENT
-// =============================================================================
 
 export function setMattermostConfig(config: MattermostConfig): void {
   currentConfig = config;
@@ -652,9 +628,7 @@ export function clearMattermostConfig(): void {
   currentConfig = null;
 }
 
-// =============================================================================
 // PROVIDER EXPORT
-// =============================================================================
 
 export const mattermostProvider: ChatProvider<MattermostAccountConfig> = {
   meta,

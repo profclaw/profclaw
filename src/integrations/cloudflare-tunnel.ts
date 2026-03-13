@@ -21,9 +21,7 @@ import type { ChildProcess } from 'node:child_process';
 const execFileAsync = promisify(execFile);
 const DEFAULT_TIMEOUT = 15000;
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface CloudflareStatus {
   installed: boolean;
@@ -50,9 +48,7 @@ export interface TunnelResult {
   error?: string;
 }
 
-// =============================================================================
 // Cloudflare Tunnel Service
-// =============================================================================
 
 class CloudflareTunnelService extends EventEmitter {
   private activeProcess: ChildProcess | null = null;
@@ -330,9 +326,7 @@ class CloudflareTunnelService extends EventEmitter {
   }
 }
 
-// =============================================================================
 // Singleton
-// =============================================================================
 
 let service: CloudflareTunnelService | null = null;
 

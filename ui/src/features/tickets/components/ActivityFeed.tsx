@@ -5,13 +5,6 @@
  * field changes, comments, and AI responses.
  *
  * Inspired by Plane's issue activity implementation.
- *
- * TODO: Future Enhancements:
- * - [ ] Group activities by day with date separators
- * - [ ] Collapsible activity groups
- * - [ ] Activity type filters (show only status changes, comments, etc.)
- * - [ ] Link to user profiles on avatar click
- * - [ ] Real-time updates via SSE
  */
 
 import { useQuery } from '@tanstack/react-query';

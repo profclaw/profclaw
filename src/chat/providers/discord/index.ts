@@ -32,9 +32,7 @@ import type {
 import { logger } from '../../../utils/logger.js';
 import { chunkForPlatform } from '../../format/chunk.js';
 
-// =============================================================================
 // DISCORD API TYPES
-// =============================================================================
 
 /** Discord Interaction Types */
 const InteractionType = {
@@ -173,9 +171,7 @@ interface DiscordComponent {
   max_values?: number;
 }
 
-// =============================================================================
 // CONFIGURATION
-// =============================================================================
 
 const DiscordAccountConfigSchema = z.object({
   id: z.string(),
@@ -199,9 +195,7 @@ const DiscordAccountConfigSchema = z.object({
 
 type DiscordConfig = z.infer<typeof DiscordAccountConfigSchema>;
 
-// =============================================================================
 // METADATA
-// =============================================================================
 
 const meta: ChatProviderMeta = {
   id: 'discord',
@@ -213,9 +207,7 @@ const meta: ChatProviderMeta = {
   color: '#5865F2',
 };
 
-// =============================================================================
 // CAPABILITIES
-// =============================================================================
 
 const capabilities: ChatProviderCapabilities = {
   chatTypes: ['direct', 'channel', 'thread'],
@@ -234,9 +226,7 @@ const capabilities: ChatProviderCapabilities = {
   realtime: false, // HTTP Interactions only, no Gateway
 };
 
-// =============================================================================
 // HELPER FUNCTIONS
-// =============================================================================
 
 const DISCORD_API_BASE = 'https://discord.com/api/v10';
 
@@ -348,9 +338,7 @@ function parseCommandOptions(
   return result;
 }
 
-// =============================================================================
 // ED25519 SIGNATURE VERIFICATION
-// =============================================================================
 
 /**
  * Verify Discord interaction signature using Ed25519
@@ -450,9 +438,7 @@ export function isDiscordSenderAllowed(
   return { allowed: true };
 }
 
-// =============================================================================
 // AUTH ADAPTER
-// =============================================================================
 
 const authAdapter: AuthAdapter = {
   getAuthUrl(state: string, scopes?: string[]): string {
@@ -494,9 +480,7 @@ const authAdapter: AuthAdapter = {
   },
 };
 
-// =============================================================================
 // OUTBOUND ADAPTER
-// =============================================================================
 
 const outboundAdapter: OutboundAdapter = {
   async send(message: OutgoingMessage): Promise<SendResult> {
@@ -647,9 +631,7 @@ const outboundAdapter: OutboundAdapter = {
   },
 };
 
-// =============================================================================
 // INBOUND ADAPTER
-// =============================================================================
 
 const inboundAdapter: InboundAdapter = {
   parseMessage(payload: unknown): IncomingMessage | null {
@@ -812,9 +794,7 @@ const inboundAdapter: InboundAdapter = {
   },
 };
 
-// =============================================================================
 // STATUS ADAPTER
-// =============================================================================
 
 const statusAdapter: StatusAdapter = {
   isConfigured(config: DiscordAccountConfig): boolean {
@@ -865,9 +845,7 @@ const statusAdapter: StatusAdapter = {
   },
 };
 
-// =============================================================================
 // INTERACTION HELPERS
-// =============================================================================
 
 /**
  * Build a PING response (required for Discord endpoint verification)
@@ -982,9 +960,7 @@ export async function registerSlashCommands(
   };
 }
 
-// =============================================================================
 // PROVIDER EXPORT
-// =============================================================================
 
 export const discordProvider: ChatProvider<DiscordAccountConfig> = {
   meta,

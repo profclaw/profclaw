@@ -35,9 +35,7 @@ import type {
 } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // FEISHU API TYPES
-// =============================================================================
 
 interface FeishuTenantTokenResponse {
   code: number;
@@ -113,9 +111,7 @@ interface FeishuTextContent {
   text?: string;
 }
 
-// =============================================================================
 // CONFIGURATION
-// =============================================================================
 
 export const FeishuAccountConfigSchema = z.object({
   id: z.string(),
@@ -131,9 +127,7 @@ export const FeishuAccountConfigSchema = z.object({
 
 type FeishuConfig = z.infer<typeof FeishuAccountConfigSchema>;
 
-// =============================================================================
 // METADATA
-// =============================================================================
 
 const meta: ChatProviderMeta = {
   id: 'feishu',
@@ -145,9 +139,7 @@ const meta: ChatProviderMeta = {
   color: '#3370FF',
 };
 
-// =============================================================================
 // CAPABILITIES
-// =============================================================================
 
 const capabilities: ChatProviderCapabilities = {
   chatTypes: ['direct', 'group', 'channel'],
@@ -166,9 +158,7 @@ const capabilities: ChatProviderCapabilities = {
   realtime: false,
 };
 
-// =============================================================================
 // STATE
-// =============================================================================
 
 let currentConfig: FeishuConfig | null = null;
 
@@ -178,9 +168,7 @@ let tokenExpiresAt = 0;
 
 const FEISHU_API_BASE = 'https://open.feishu.cn/open-apis';
 
-// =============================================================================
 // HELPER FUNCTIONS
-// =============================================================================
 
 /**
  * Fetch a fresh tenant_access_token from Feishu.
@@ -290,9 +278,7 @@ async function callFeishuApi<T>(
   }
 }
 
-// =============================================================================
 // AUTH ADAPTER
-// =============================================================================
 
 const authAdapter: AuthAdapter = {
   getAuthUrl(_state: string, _scopes?: string[]): string {
@@ -336,9 +322,7 @@ const authAdapter: AuthAdapter = {
   },
 };
 
-// =============================================================================
 // OUTBOUND ADAPTER
-// =============================================================================
 
 const outboundAdapter: OutboundAdapter = {
   async send(message: OutgoingMessage): Promise<SendResult> {
@@ -381,9 +365,7 @@ const outboundAdapter: OutboundAdapter = {
   },
 };
 
-// =============================================================================
 // INBOUND ADAPTER
-// =============================================================================
 
 const inboundAdapter: InboundAdapter = {
   parseMessage(payload: unknown): IncomingMessage | null {
@@ -480,9 +462,7 @@ const inboundAdapter: InboundAdapter = {
   },
 };
 
-// =============================================================================
 // STATUS ADAPTER
-// =============================================================================
 
 const statusAdapter: StatusAdapter = {
   isConfigured(config: FeishuAccountConfig): boolean {
@@ -541,9 +521,7 @@ const statusAdapter: StatusAdapter = {
   },
 };
 
-// =============================================================================
 // CONFIG MANAGEMENT
-// =============================================================================
 
 export function setFeishuConfig(config: FeishuConfig): void {
   currentConfig = config;
@@ -555,9 +533,7 @@ export function clearFeishuConfig(): void {
   clearTokenCache();
 }
 
-// =============================================================================
 // PROVIDER EXPORT
-// =============================================================================
 
 export const feishuProvider: ChatProvider<FeishuAccountConfig> = {
   meta,

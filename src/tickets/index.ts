@@ -16,8 +16,6 @@ import {
   inArray,
   gte,
   lte,
-  isNull,
-  notInArray,
 } from "drizzle-orm";
 import { getDb } from "../storage/index.js";
 import {
@@ -485,7 +483,7 @@ export async function deleteTicket(id: string): Promise<boolean> {
   await db.delete(ticketAttachments).where(eq(ticketAttachments.ticketId, id));
   await db.delete(ticketReactions).where(eq(ticketReactions.ticketId, id));
 
-  const result = await db.delete(tickets).where(eq(tickets.id, id));
+  await db.delete(tickets).where(eq(tickets.id, id));
   return true;
 }
 

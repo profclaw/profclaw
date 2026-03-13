@@ -28,9 +28,7 @@ import {
 import { updateSettings, type Settings } from '../../settings/index.js';
 import { success, error, info, warn, spinner } from '../utils/output.js';
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 function showBanner(): void {
   const banner = figlet.textSync('profClaw', {
@@ -184,9 +182,7 @@ function hasEnvKey(key: string): boolean {
   return !!val && val !== '' && !val.startsWith('sk-ant-xxxx') && !val.startsWith('sk-xxxx');
 }
 
-// ---------------------------------------------------------------------------
 // Step 1: System Check
-// ---------------------------------------------------------------------------
 
 async function stepSystemCheck(db: ReturnType<typeof getDb>): Promise<{
   redisOk: boolean;
@@ -224,9 +220,7 @@ async function stepSystemCheck(db: ReturnType<typeof getDb>): Promise<{
   return { redisOk, hasAdmin, hasAnthropicKey, hasOpenAIKey };
 }
 
-// ---------------------------------------------------------------------------
 // Step 2: AI Provider
-// ---------------------------------------------------------------------------
 
 async function stepAiProvider(
   rl: ReturnType<typeof createInterface>,
@@ -297,9 +291,7 @@ async function stepAiProvider(
   return 'ollama';
 }
 
-// ---------------------------------------------------------------------------
 // Step 3: Admin Account
-// ---------------------------------------------------------------------------
 
 async function createAdminUser(
   db: ReturnType<typeof getDb>,
@@ -464,9 +456,7 @@ async function stepAdminAccount(
   return result.email;
 }
 
-// ---------------------------------------------------------------------------
 // Step 4: Registration Mode
-// ---------------------------------------------------------------------------
 
 async function stepRegistrationMode(
   rl: ReturnType<typeof createInterface>,
@@ -516,9 +506,7 @@ async function stepRegistrationMode(
   return { mode, codes };
 }
 
-// ---------------------------------------------------------------------------
 // Step 5: GitHub OAuth (optional)
-// ---------------------------------------------------------------------------
 
 async function stepGitHubOAuth(rl: ReturnType<typeof createInterface>): Promise<boolean> {
   console.log(chalk.bold.white('\n  Step 5: GitHub OAuth (Optional)\n'));
@@ -557,9 +545,7 @@ async function stepGitHubOAuth(rl: ReturnType<typeof createInterface>): Promise<
   return true;
 }
 
-// ---------------------------------------------------------------------------
 // Step 6: Summary
-// ---------------------------------------------------------------------------
 
 function showSummary(results: {
   redisOk: boolean;
@@ -588,9 +574,7 @@ function showSummary(results: {
   console.log('');
 }
 
-// ---------------------------------------------------------------------------
 // Non-Interactive Mode
-// ---------------------------------------------------------------------------
 
 async function runNonInteractive(options: {
   adminEmail?: string;
@@ -726,9 +710,7 @@ async function runNonInteractive(options: {
   success('Setup complete.');
 }
 
-// ---------------------------------------------------------------------------
 // Command Registration
-// ---------------------------------------------------------------------------
 
 export function setupCommand(): Command {
   const cmd = new Command('setup')

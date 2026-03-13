@@ -50,9 +50,7 @@ export {
   findTool,
 } from './adapters.js';
 
-// =============================================================================
 // Tool Imports (add new tool categories here)
-// =============================================================================
 
 import { BROWSER_TOOLS } from '../browser/tools.js';
 import type { ToolDefinition, MCPToolSchema } from './types.js';
@@ -65,9 +63,7 @@ import {
   getToolNames,
 } from './adapters.js';
 
-// =============================================================================
 // Tool Registry
-// =============================================================================
 
 /**
  * All registered tools (single source of truth)
@@ -83,9 +79,7 @@ const ALL_TOOLS: ToolDefinition[] = [
   // ...WEB_TOOLS,
 ];
 
-// =============================================================================
 // Getters
-// =============================================================================
 
 /**
  * Get all registered tools
@@ -115,9 +109,7 @@ export function getSafeToolNames(): string[] {
   return getToolNames(filterSafeTools(ALL_TOOLS));
 }
 
-// =============================================================================
 // MCP Integration
-// =============================================================================
 
 const MCP_PREFIX = 'profclaw__';
 
@@ -142,9 +134,7 @@ export function isMCPTool(name: string): boolean {
   return ALL_TOOLS.some((t) => t.name === toolName);
 }
 
-// =============================================================================
 // Chat Execution Integration
-// =============================================================================
 
 /**
  * Get chat execution tools
@@ -160,9 +150,7 @@ export function getSafeChatTools(): ChatToolDefinition[] {
   return toChatTools(filterSafeTools(ALL_TOOLS));
 }
 
-// =============================================================================
 // Category-specific exports (for targeted imports)
-// =============================================================================
 
 export { BROWSER_TOOLS } from '../browser/tools.js';
 

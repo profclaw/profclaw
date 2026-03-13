@@ -20,9 +20,7 @@ import { getClient } from '../storage/index.js';
 import { getEmbeddingService } from '../ai/embedding-service.js';
 import { logger } from '../utils/logger.js';
 
-// =============================================================================
 // Configuration
-// =============================================================================
 
 export interface MemoryConfig {
   /** Sources to index */
@@ -103,9 +101,7 @@ export const DEFAULT_MEMORY_CONFIG: MemoryConfig = {
   },
 };
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface MemoryFile {
   path: string;
@@ -143,9 +139,7 @@ export interface MemoryStats {
   cachedEmbeddings: number;
 }
 
-// =============================================================================
 // Database Initialization
-// =============================================================================
 
 /**
  * Initialize memory tables including FTS5 virtual table
@@ -263,9 +257,7 @@ export async function initMemoryTables(): Promise<void> {
   logger.info('[Memory] Tables initialized');
 }
 
-// =============================================================================
 // Chunking
-// =============================================================================
 
 /**
  * Estimate token count for a string (rough approximation: 4 chars = 1 token)
@@ -330,9 +322,7 @@ export function chunkText(
   return chunks;
 }
 
-// =============================================================================
 // Hashing
-// =============================================================================
 
 /**
  * Generate SHA256 hash of content
@@ -341,9 +331,7 @@ export function hashContent(content: string): string {
   return createHash('sha256').update(content).digest('hex');
 }
 
-// =============================================================================
 // File Sync
-// =============================================================================
 
 /**
  * Sync memory files from disk to database
@@ -625,9 +613,7 @@ async function removeFile(path: string): Promise<void> {
   });
 }
 
-// =============================================================================
 // Search
-// =============================================================================
 
 /**
  * Search memory using hybrid (vector + FTS5) search
@@ -821,9 +807,7 @@ function cosineSimilarity(a: number[], b: number[]): number {
   return magnitude === 0 ? 0 : dotProduct / magnitude;
 }
 
-// =============================================================================
 // Memory Get (Read specific lines)
-// =============================================================================
 
 /**
  * Get specific content from a memory file
@@ -888,9 +872,7 @@ export async function getMemoryContent(
   };
 }
 
-// =============================================================================
 // Memory Stats
-// =============================================================================
 
 /**
  * Get memory system statistics
@@ -928,9 +910,7 @@ export async function getMemoryStats(): Promise<MemoryStats> {
   };
 }
 
-// =============================================================================
 // Memory Management (CRUD)
-// =============================================================================
 
 /**
  * List all memory files
@@ -1021,9 +1001,7 @@ export async function clearAllMemories(): Promise<void> {
   logger.info('[Memory] All memories cleared');
 }
 
-// =============================================================================
 // Session Management
-// =============================================================================
 
 export interface MemorySession {
   id: string;
@@ -1205,9 +1183,7 @@ export async function archiveSession(sessionId: string): Promise<void> {
   });
 }
 
-// =============================================================================
 // Chat Conversation Indexing
-// =============================================================================
 
 export interface ConversationIndexInput {
   conversationId: string;
@@ -1359,9 +1335,7 @@ export async function removeConversationFromMemory(conversationId: string): Prom
   logger.info(`[Memory] Removed conversation ${conversationId} from memory`);
 }
 
-// =============================================================================
 // Citation Tracking
-// =============================================================================
 
 export interface MemoryCitation {
   id: string;
@@ -1471,9 +1445,7 @@ export async function deleteCitation(citationId: string): Promise<boolean> {
   return (result.rowsAffected ?? 0) > 0;
 }
 
-// =============================================================================
 // Multi-Backend Memory (Plugin Slot)
-// =============================================================================
 
 export interface MemoryBackendPlugin {
   name: string;

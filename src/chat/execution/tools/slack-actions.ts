@@ -9,9 +9,7 @@ import { z } from 'zod';
 import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // Schema
-// =============================================================================
 
 const SlackActionsParamsSchema = z.discriminatedUnion('action', [
   z.object({
@@ -56,9 +54,7 @@ const SlackActionsParamsSchema = z.discriminatedUnion('action', [
 
 export type SlackActionsParams = z.infer<typeof SlackActionsParamsSchema>;
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface SlackActionsResult {
   action: string;
@@ -66,9 +62,7 @@ export interface SlackActionsResult {
   details: Record<string, unknown>;
 }
 
-// =============================================================================
 // Helpers
-// =============================================================================
 
 const SLACK_API_BASE = 'https://slack.com/api';
 
@@ -104,9 +98,7 @@ function slackErrorMessage(data: SlackApiResponse): string {
   return `Slack API error: ${data.error ?? 'unknown_error'}`;
 }
 
-// =============================================================================
 // Tool Definition
-// =============================================================================
 
 export const slackActionsTool: ToolDefinition<SlackActionsParams, SlackActionsResult> = {
   name: 'slack_actions',

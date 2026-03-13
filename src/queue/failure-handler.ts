@@ -7,7 +7,7 @@
  * - BullMQ integration for actual delayed retries
  */
 
-import type { Task, TaskResult } from '../types/task.js';
+import type { Task } from '../types/task.js';
 import { sendSlackNotification } from '../notifications/slack.js';
 import { getStorage } from '../storage/index.js';
 import { randomUUID } from 'crypto';
@@ -51,10 +51,49 @@ export interface DeadLetterTask {
   resolvedAt?: Date;
   resolvedBy?: string;
   resolutionNote?: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   createdAt: Date;
   taskCreatedAt?: Date;
   taskStartedAt?: Date;
+}
+
+interface DeadLetterTaskRow {
+  id: string;
+  task_id: string;
+  title: string;
+  description: string | null;
+  prompt: string;
+  source: string;
+  source_id: string | null;
+  source_url: string | null;
+  repository: string | null;
+  branch: string | null;
+  labels: string | null;
+  assigned_agent: string | null;
+  priority: number;
+  attempts: number;
+  max_attempts: number;
+  last_error_code: string;
+  last_error_message: string;
+  last_error_stack: string | null;
+  retry_count: number;
+  last_retry_at: number | null;
+  status: 'pending' | 'resolved' | 'discarded';
+  resolved_at: number | null;
+  resolved_by: string | null;
+  resolution_note: string | null;
+  metadata: string | null;
+  created_at: number;
+  task_created_at: number | null;
+  task_started_at: number | null;
+}
+
+function toUnixSeconds(date?: Date): number | null {
+  return date ? Math.floor(date.getTime() / 1000) : null;
+}
+
+function undefinedIfNull<T>(value: T | null): T | undefined {
+  return value ?? undefined;
 }
 
 /**
@@ -220,8 +259,8 @@ async function addToDeadLetterQueue(task: Task, error: Error): Promise<void> {
       error.stack ?? null,
       'pending',
       JSON.stringify(task.metadata ?? {}),
-      task.createdAt ? Math.floor(new Date(task.createdAt as any).getTime() / 1000) : null,
-      task.startedAt ? Math.floor(new Date(task.startedAt as any).getTime() / 1000) : null,
+      toUnixSeconds(task.createdAt),
+      toUnixSeconds(task.startedAt),
     ]
   );
 
@@ -256,7 +295,7 @@ ${error.message}
 ### Details
 - **Task ID:** \`${task.id}\`
 - **Attempts:** ${task.attempts}/${task.maxAttempts}
-- **Duration:** ${task.startedAt ? Math.round((Date.now() - new Date(task.startedAt as any).getTime()) / 1000) : 'N/A'}s
+- **Duration:** ${task.startedAt ? Math.round((Date.now() - task.startedAt.getTime()) / 1000) : 'N/A'}s
 
 ### Next Steps
 This task has been moved to the dead letter queue for manual review. Please:
@@ -306,7 +345,7 @@ export async function getDeadLetterQueue(options?: {
   const total = countResult[0]?.count || 0;
 
   // Get tasks
-  const rows = await storage.query<Record<string, any>>(
+  const rows = await storage.query<DeadLetterTaskRow>(
     `SELECT * FROM dead_letter_tasks WHERE status = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
     [status, limit, offset]
   );
@@ -315,27 +354,27 @@ export async function getDeadLetterQueue(options?: {
     id: row.id,
     taskId: row.task_id,
     title: row.title,
-    description: row.description,
+    description: undefinedIfNull(row.description),
     prompt: row.prompt,
     source: row.source,
-    sourceId: row.source_id,
-    sourceUrl: row.source_url,
-    repository: row.repository,
-    branch: row.branch,
+    sourceId: undefinedIfNull(row.source_id),
+    sourceUrl: undefinedIfNull(row.source_url),
+    repository: undefinedIfNull(row.repository),
+    branch: undefinedIfNull(row.branch),
     labels: JSON.parse(row.labels || '[]'),
-    assignedAgent: row.assigned_agent,
+    assignedAgent: undefinedIfNull(row.assigned_agent),
     priority: row.priority,
     attempts: row.attempts,
     maxAttempts: row.max_attempts,
     lastErrorCode: row.last_error_code,
     lastErrorMessage: row.last_error_message,
-    lastErrorStack: row.last_error_stack,
+    lastErrorStack: undefinedIfNull(row.last_error_stack),
     retryCount: row.retry_count,
     lastRetryAt: row.last_retry_at ? new Date(row.last_retry_at * 1000) : undefined,
     status: row.status as 'pending' | 'resolved' | 'discarded',
     resolvedAt: row.resolved_at ? new Date(row.resolved_at * 1000) : undefined,
-    resolvedBy: row.resolved_by,
-    resolutionNote: row.resolution_note,
+    resolvedBy: undefinedIfNull(row.resolved_by),
+    resolutionNote: undefinedIfNull(row.resolution_note),
     metadata: JSON.parse(row.metadata || '{}'),
     createdAt: new Date(row.created_at * 1000),
     taskCreatedAt: row.task_created_at ? new Date(row.task_created_at * 1000) : undefined,
@@ -355,7 +394,7 @@ export async function removeFromDeadLetterQueue(
 ): Promise<boolean> {
   const storage = getStorage();
 
-  const result = await storage.execute(
+  await storage.execute(
     `UPDATE dead_letter_tasks
      SET status = 'resolved', resolved_at = strftime('%s', 'now'), resolved_by = ?, resolution_note = ?
      WHERE id = ?`,
@@ -397,7 +436,7 @@ export async function retryDeadLetterTask(dlqId: string): Promise<boolean> {
   const storage = getStorage();
 
   // Get the DLQ entry
-  const rows = await storage.query<Record<string, any>>(
+  const rows = await storage.query<DeadLetterTaskRow>(
     'SELECT * FROM dead_letter_tasks WHERE id = ? AND status = ?',
     [dlqId, 'pending']
   );
@@ -413,17 +452,17 @@ export async function retryDeadLetterTask(dlqId: string): Promise<boolean> {
   const task: Task = {
     id: dlqEntry.task_id,
     title: dlqEntry.title,
-    description: dlqEntry.description,
+    description: undefinedIfNull(dlqEntry.description),
     prompt: dlqEntry.prompt,
     status: 'pending',
     priority: dlqEntry.priority,
     source: dlqEntry.source,
-    sourceId: dlqEntry.source_id,
-    sourceUrl: dlqEntry.source_url,
-    repository: dlqEntry.repository,
-    branch: dlqEntry.branch,
+    sourceId: undefinedIfNull(dlqEntry.source_id),
+    sourceUrl: undefinedIfNull(dlqEntry.source_url),
+    repository: undefinedIfNull(dlqEntry.repository),
+    branch: undefinedIfNull(dlqEntry.branch),
     labels: JSON.parse(dlqEntry.labels || '[]'),
-    assignedAgent: dlqEntry.assigned_agent,
+    assignedAgent: undefinedIfNull(dlqEntry.assigned_agent),
     createdAt: new Date(),
     updatedAt: new Date(),
     attempts: 0, // Reset attempts for retry
@@ -467,7 +506,7 @@ export async function cleanupDeadLetterQueue(
   const storage = getStorage();
   const cutoffSeconds = Math.floor(Date.now() / 1000) - (retentionDays * 86400);
 
-  const result = await storage.execute(
+  await storage.execute(
     `DELETE FROM dead_letter_tasks
      WHERE status IN ('resolved', 'discarded')
      AND (resolved_at IS NOT NULL AND resolved_at < ?)`,

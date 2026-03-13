@@ -10,9 +10,7 @@ import { jobTemplates } from '../storage/schema.js';
 import { eq } from 'drizzle-orm';
 import type { JobType, RetryPolicy, DeliveryConfig } from './scheduler.js';
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface JobTemplate {
   id: string;
@@ -58,9 +56,7 @@ type TemplateValue =
   | TemplateValue[]
   | { [key: string]: TemplateValue };
 
-// =============================================================================
 // Built-in Templates
-// =============================================================================
 
 export const BUILT_IN_TEMPLATES: Omit<JobTemplate, 'id' | 'createdAt' | 'updatedAt'>[] = [
   // --- Sync Templates ---
@@ -278,9 +274,7 @@ export const BUILT_IN_TEMPLATES: Omit<JobTemplate, 'id' | 'createdAt' | 'updated
   },
 ];
 
-// =============================================================================
 // Template Service
-// =============================================================================
 
 export class TemplateService {
   /**

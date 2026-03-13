@@ -27,14 +27,10 @@ import type {
   UpdateSessionParams,
 } from './types.js';
 
-// =============================================================================
 // Manager Implementation
-// =============================================================================
 
 export class AgentSessionManagerImpl implements AgentSessionManager {
-  // ===========================================================================
   // Session Lifecycle
-  // ===========================================================================
 
   async spawn(params: SpawnSessionParams): Promise<AgentSession> {
     const db = getDb();
@@ -179,9 +175,7 @@ export class AgentSessionManagerImpl implements AgentSessionManager {
     return this.get(sessionId);
   }
 
-  // ===========================================================================
   // Hierarchy Queries
-  // ===========================================================================
 
   async getChildren(sessionId: string): Promise<AgentSession[]> {
     const db = getDb();
@@ -235,9 +229,7 @@ export class AgentSessionManagerImpl implements AgentSessionManager {
     return rows.map((r: typeof agentSessions.$inferSelect) => this.mapToAgentSession(r));
   }
 
-  // ===========================================================================
   // Messaging
-  // ===========================================================================
 
   async send(params: SendMessageParams): Promise<SessionMessage[]> {
     const db = getDb();
@@ -362,9 +354,7 @@ export class AgentSessionManagerImpl implements AgentSessionManager {
     return result[0]?.count ?? 0;
   }
 
-  // ===========================================================================
   // Cleanup
-  // ===========================================================================
 
   async cleanup(
     params: CleanupParams
@@ -408,9 +398,7 @@ export class AgentSessionManagerImpl implements AgentSessionManager {
     return { sessionsDeleted, messagesDeleted };
   }
 
-  // ===========================================================================
   // Helper: Create Root Session
-  // ===========================================================================
 
   /**
    * Create a root session for a conversation.
@@ -460,9 +448,7 @@ export class AgentSessionManagerImpl implements AgentSessionManager {
     return this.mapToAgentSession(sessionData);
   }
 
-  // ===========================================================================
   // Private Helpers
-  // ===========================================================================
 
   private async resolveTargetSessionIds(
     fromSessionId: string,
@@ -554,9 +540,7 @@ export class AgentSessionManagerImpl implements AgentSessionManager {
   }
 }
 
-// =============================================================================
 // Singleton
-// =============================================================================
 
 let managerInstance: AgentSessionManagerImpl | null = null;
 

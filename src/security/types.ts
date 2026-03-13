@@ -5,9 +5,7 @@
  * prompt injection, SSRF, filesystem, audit scanning.
  */
 
-// =============================================================================
 // Common
-// =============================================================================
 
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
@@ -19,9 +17,7 @@ export interface GuardResult {
   score?: number;
 }
 
-// =============================================================================
 // Prompt Guard
-// =============================================================================
 
 export interface PromptGuardConfig {
   enabled: boolean;
@@ -43,9 +39,7 @@ export interface CanaryToken {
   conversationId?: string;
 }
 
-// =============================================================================
 // SSRF Guard
-// =============================================================================
 
 export interface SsrfGuardConfig {
   enabled: boolean;
@@ -61,9 +55,7 @@ export interface SsrfGuardConfig {
   allowedSchemes: string[];
 }
 
-// =============================================================================
 // Filesystem Guard
-// =============================================================================
 
 export type FsOperation = 'read' | 'write' | 'delete' | 'list';
 
@@ -79,9 +71,7 @@ export interface FsGuardConfig {
   blockedPatterns: string[];
 }
 
-// =============================================================================
 // Audit Scanner
-// =============================================================================
 
 export interface AuditScannerConfig {
   enabled: boolean;
@@ -115,9 +105,7 @@ export interface ConfigValidationResult {
   }>;
 }
 
-// =============================================================================
 // Context Isolation
-// =============================================================================
 
 export interface IsolationContext {
   conversationId: string;

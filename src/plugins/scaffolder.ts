@@ -11,9 +11,7 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export type PluginTemplateType = 'tool' | 'channel' | 'integration' | 'skill';
 
@@ -32,9 +30,7 @@ export interface ScaffoldResult {
   error?: string;
 }
 
-// =============================================================================
 // Templates
-// =============================================================================
 
 function getPackageJson(opts: ScaffoldOptions): string {
   return JSON.stringify(
@@ -383,9 +379,7 @@ dist/
 `;
 }
 
-// =============================================================================
 // Scaffolder
-// =============================================================================
 
 /**
  * Generate a new plugin project

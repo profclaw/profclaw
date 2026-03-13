@@ -9,9 +9,7 @@
 import { getMode } from './deployment.js';
 import type { DeploymentMode } from './deployment.js';
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export type SandboxSecurityLevel = 'permissive' | 'standard' | 'strict';
 
@@ -41,9 +39,7 @@ export interface SandboxSecurityConfig {
   blockedPaths: string[];
 }
 
-// =============================================================================
 // Presets per deployment mode
-// =============================================================================
 
 /**
  * pico — single-user, trusted machine.
@@ -140,9 +136,7 @@ const LEVEL_PRESETS: Record<SandboxSecurityLevel, SandboxSecurityConfig> = {
   strict: STRICT_PRESET,
 };
 
-// =============================================================================
 // Public API
-// =============================================================================
 
 /**
  * Resolve the active sandbox security level.

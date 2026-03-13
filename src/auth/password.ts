@@ -112,9 +112,7 @@ export function hashRecoveryCodes(codes: string[]): string[] {
   return codes.map(hashRecoveryCode);
 }
 
-// =============================================================================
 // INVITE CODE UTILITIES
-// =============================================================================
 
 /**
  * Generate a human-friendly invite code.

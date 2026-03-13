@@ -52,9 +52,7 @@ async function requireAuth(c: Context<{ Variables: Variables }>, next: () => Pro
 // Apply auth middleware to all routes
 userRoutes.use('/*', requireAuth);
 
-// =============================================================================
 // PROFILE
-// =============================================================================
 
 /**
  * GET /api/users/me/profile
@@ -257,9 +255,7 @@ userRoutes.put('/me/password', async (c) => {
   return c.json({ message: 'Password updated successfully' });
 });
 
-// =============================================================================
 // CONNECTED ACCOUNTS (OAuth)
-// =============================================================================
 
 /**
  * GET /api/users/me/connected-accounts
@@ -411,9 +407,7 @@ userRoutes.put('/me/primary-email', async (c) => {
   });
 });
 
-// =============================================================================
 // PREFERENCES
-// =============================================================================
 
 /**
  * GET /api/users/me/preferences
@@ -521,9 +515,7 @@ userRoutes.patch('/me/preferences', async (c) => {
   return c.json({ preferences: updated[0] });
 });
 
-// =============================================================================
 // API KEYS
-// =============================================================================
 
 /**
  * GET /api/users/me/api-keys
@@ -638,9 +630,7 @@ userRoutes.delete('/me/api-keys/:keyId', async (c) => {
   return c.json({ message: 'API key revoked' });
 });
 
-// =============================================================================
 // SESSIONS
-// =============================================================================
 
 /**
  * GET /api/users/me/sessions
@@ -739,9 +729,7 @@ userRoutes.delete('/me/sessions', async (c) => {
   return c.json({ message: `Revoked ${revokedCount} sessions` });
 });
 
-// =============================================================================
 // ONBOARDING
-// =============================================================================
 
 /**
  * POST /api/users/me/complete-onboarding
@@ -761,9 +749,7 @@ userRoutes.post('/me/complete-onboarding', async (c) => {
   return c.json({ message: 'Onboarding completed' });
 });
 
-// =============================================================================
 // RECOVERY CODES
-// =============================================================================
 
 /**
  * POST /api/users/me/recovery-codes/regenerate
@@ -835,9 +821,7 @@ userRoutes.get('/me/recovery-codes/count', async (c) => {
   }
 });
 
-// =============================================================================
 // ADMIN: USER MANAGEMENT
-// =============================================================================
 
 /**
  * Middleware to require admin role
@@ -881,9 +865,7 @@ userRoutes.get('/admin/list', requireAdmin, async (c) => {
   }
 });
 
-// =============================================================================
 // ADMIN: INVITE CODES (must be before /:userId to avoid route shadowing)
-// =============================================================================
 
 /**
  * POST /api/users/admin/invites
@@ -991,9 +973,7 @@ userRoutes.delete('/admin/invites/:id', requireAdmin, async (c) => {
   }
 });
 
-// =============================================================================
 // ADMIN: REGISTRATION MODE (must be before /:userId to avoid route shadowing)
-// =============================================================================
 
 /**
  * GET /api/users/admin/registration-mode
@@ -1033,9 +1013,7 @@ userRoutes.patch('/admin/registration-mode', requireAdmin, async (c) => {
   }
 });
 
-// =============================================================================
 // ADMIN: USER CRUD (/:userId wildcard routes - must be AFTER specific routes)
-// =============================================================================
 
 /**
  * GET /api/users/admin/:userId

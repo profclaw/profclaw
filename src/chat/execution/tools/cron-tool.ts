@@ -24,9 +24,7 @@ import {
   type JobType,
 } from '../../../cron/scheduler.js';
 
-// =============================================================================
 // Cron Create Tool
-// =============================================================================
 
 const CronCreateParamsSchema = z.object({
   name: z.string().min(1).max(100)
@@ -238,9 +236,7 @@ Or use \`interval\` for fixed millisecond intervals.`,
   },
 };
 
-// =============================================================================
 // Cron List Tool
-// =============================================================================
 
 const CronListParamsSchema = z.object({
   status: z.enum(['active', 'paused', 'completed', 'failed', 'archived']).optional()
@@ -331,9 +327,7 @@ Filter by status (active, paused, completed, failed) or type (http, tool, script
   },
 };
 
-// =============================================================================
 // Cron Trigger Tool
-// =============================================================================
 
 const CronTriggerParamsSchema = z.object({
   id: z.string().uuid()
@@ -403,9 +397,7 @@ This does not affect the regular schedule.`,
   },
 };
 
-// =============================================================================
 // Cron Pause Tool
-// =============================================================================
 
 const CronPauseParamsSchema = z.object({
   id: z.string().uuid()
@@ -488,9 +480,7 @@ Use this to temporarily disable a job without deleting it.`,
   },
 };
 
-// =============================================================================
 // Cron Delete Tool
-// =============================================================================
 
 const CronDeleteParamsSchema = z.object({
   id: z.string().uuid()
@@ -560,9 +550,7 @@ Run history is preserved for audit purposes.`,
   },
 };
 
-// =============================================================================
 // Cron Archive Tool
-// =============================================================================
 
 const CronArchiveParamsSchema = z.object({
   id: z.string().uuid()
@@ -663,9 +651,7 @@ Use this instead of delete when you might want to restore the job.`,
   },
 };
 
-// =============================================================================
 // Cron History Tool
-// =============================================================================
 
 const CronHistoryParamsSchema = z.object({
   id: z.string().uuid()
@@ -766,9 +752,7 @@ Shows recent executions with their status, duration, and any errors.`,
   },
 };
 
-// =============================================================================
 // Export All Cron Tools
-// =============================================================================
 
 export const cronTools = [
   cronCreateTool,
@@ -780,9 +764,7 @@ export const cronTools = [
   cronHistoryTool,
 ];
 
-// =============================================================================
 // Helpers
-// =============================================================================
 
 function formatStatus(status: string): string {
   switch (status) {

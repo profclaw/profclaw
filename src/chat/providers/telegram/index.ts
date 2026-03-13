@@ -30,9 +30,7 @@ import type {
 import { logger } from '../../../utils/logger.js';
 import { chunkForPlatform } from '../../format/chunk.js';
 
-// =============================================================================
 // TELEGRAM API TYPES
-// =============================================================================
 
 interface TelegramUser {
   id: number;
@@ -93,9 +91,7 @@ interface TelegramInlineKeyboardMarkup {
   inline_keyboard: TelegramInlineKeyboardButton[][];
 }
 
-// =============================================================================
 // CONFIGURATION
-// =============================================================================
 
 const TelegramAccountConfigSchema = z.object({
   id: z.string(),
@@ -116,9 +112,7 @@ const TelegramAccountConfigSchema = z.object({
 
 type TelegramConfig = z.infer<typeof TelegramAccountConfigSchema>;
 
-// =============================================================================
 // METADATA
-// =============================================================================
 
 const meta: ChatProviderMeta = {
   id: 'telegram',
@@ -130,9 +124,7 @@ const meta: ChatProviderMeta = {
   color: '#0088CC',
 };
 
-// =============================================================================
 // CAPABILITIES
-// =============================================================================
 
 const capabilities: ChatProviderCapabilities = {
   chatTypes: ['direct', 'group', 'channel'],
@@ -151,9 +143,7 @@ const capabilities: ChatProviderCapabilities = {
   realtime: true, // Long polling available
 };
 
-// =============================================================================
 // HELPER FUNCTIONS
-// =============================================================================
 
 const TELEGRAM_API_BASE = 'https://api.telegram.org';
 
@@ -202,9 +192,7 @@ function formatUserName(user: TelegramUser): string {
   return parts.join(' ') || `User ${user.id}`;
 }
 
-// =============================================================================
 // AUTH ADAPTER
-// =============================================================================
 
 const authAdapter: AuthAdapter = {
   getAuthUrl(): string {
@@ -284,9 +272,7 @@ export function isTelegramSenderAllowed(
   return { allowed: true };
 }
 
-// =============================================================================
 // OUTBOUND ADAPTER
-// =============================================================================
 
 let currentConfig: TelegramConfig | null = null;
 
@@ -447,9 +433,7 @@ const outboundAdapter: OutboundAdapter = {
   },
 };
 
-// =============================================================================
 // INBOUND ADAPTER
-// =============================================================================
 
 const inboundAdapter: InboundAdapter = {
   parseMessage(payload: unknown): IncomingMessage | null {
@@ -583,9 +567,7 @@ function parseAttachments(message: TelegramMessage) {
   return attachments.length > 0 ? attachments : undefined;
 }
 
-// =============================================================================
 // STATUS ADAPTER
-// =============================================================================
 
 const statusAdapter: StatusAdapter = {
   isConfigured(config: TelegramAccountConfig): boolean {
@@ -632,9 +614,7 @@ const statusAdapter: StatusAdapter = {
   },
 };
 
-// =============================================================================
 // WEBHOOK MANAGEMENT
-// =============================================================================
 
 /**
  * Set webhook URL for the bot
@@ -725,9 +705,7 @@ export async function answerTelegramCallbackQuery(
   return { success: result.ok };
 }
 
-// =============================================================================
 // PROVIDER EXPORT
-// =============================================================================
 
 export const telegramProvider: ChatProvider<TelegramAccountConfig> = {
   meta,

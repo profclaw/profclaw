@@ -20,9 +20,7 @@ import type {
 } from '../chat/execution/types.js';
 import { logger } from '../utils/logger.js';
 
-// =============================================================================
 // Constants
-// =============================================================================
 
 const PROFCLAW_PREFIX = 'profclaw__';
 const ALLOWED_SECURITY_LEVELS = new Set<ToolDefinition['securityLevel']>(['safe', 'moderate']);
@@ -31,9 +29,7 @@ const MCP_SECURITY_POLICY: SecurityPolicy = {
   mode: 'allowlist',
 };
 
-// =============================================================================
 // Public Types
-// =============================================================================
 
 /**
  * A single tool in MCP wire format.
@@ -58,9 +54,7 @@ export interface AdaptedTool {
   securityLevel: ToolDefinition['securityLevel'];
 }
 
-// =============================================================================
 // adaptToolsToMCP
-// =============================================================================
 
 /**
  * Converts all registered profClaw tools that have securityLevel 'safe' or
@@ -112,9 +106,7 @@ export function adaptToolsToMCP(): AdaptedTool[] {
   return adapted;
 }
 
-// =============================================================================
 // handleMCPToolCall
-// =============================================================================
 
 /**
  * Executes a profClaw tool invoked via an MCP call.
@@ -194,9 +186,7 @@ export async function handleMCPToolCall(
   }
 }
 
-// =============================================================================
 // Helpers
-// =============================================================================
 
 /**
  * Converts a ToolDefinition to an MCPToolSchema.

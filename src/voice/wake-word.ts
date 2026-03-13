@@ -14,9 +14,7 @@
 
 import { logger } from '../utils/logger.js';
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface WakeWordConfig {
   /** The wake phrase (informational; only used by ML engines). */
@@ -40,9 +38,7 @@ export interface WakeWordDetector {
   getStats(): { detections: number; falsePositives: number; uptime: number };
 }
 
-// =============================================================================
 // Factory
-// =============================================================================
 
 /**
  * Create a wake word detector for the given configuration.
@@ -72,9 +68,7 @@ function resolveEngine(engine: WakeWordConfig['engine']): 'none' | 'energy' {
   return engine;
 }
 
-// =============================================================================
 // NoopDetector - engine: 'none'
-// =============================================================================
 
 class NoopDetector implements WakeWordDetector {
   private listening = false;
@@ -105,9 +99,7 @@ class NoopDetector implements WakeWordDetector {
   }
 }
 
-// =============================================================================
 // EnergyDetector - engine: 'energy'
-// =============================================================================
 
 /**
  * Simple amplitude-threshold detection.

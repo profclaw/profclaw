@@ -7,9 +7,7 @@
 
 import { logger } from '../../utils/logger.js';
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface SecretMatch {
   type: string;
@@ -25,9 +23,7 @@ export interface ScanResult {
   redactedText: string;
 }
 
-// =============================================================================
 // Secret Patterns
-// =============================================================================
 
 // Pattern definitions with descriptions
 const SECRET_PATTERNS: Array<{ name: string; pattern: RegExp; preview: number }> = [
@@ -260,9 +256,7 @@ const SECRET_PATTERNS: Array<{ name: string; pattern: RegExp; preview: number }>
 // Redaction placeholder
 const REDACTION_PLACEHOLDER = '[REDACTED]';
 
-// =============================================================================
 // Core Functions
-// =============================================================================
 
 /**
  * Scan text for potential secrets
@@ -373,9 +367,7 @@ export function getSecretStats(matches: SecretMatch[]): Record<string, number> {
   return stats;
 }
 
-// =============================================================================
 // Configuration
-// =============================================================================
 
 let secretsDetectionEnabled = process.env.SECRETS_DETECTION !== 'false';
 
@@ -388,9 +380,7 @@ export function setSecretsDetectionEnabled(enabled: boolean): void {
   logger.info(`[Secrets] Detection ${enabled ? 'enabled' : 'disabled'}`);
 }
 
-// =============================================================================
 // Export for testing
-// =============================================================================
 
 export const _internals = {
   SECRET_PATTERNS,

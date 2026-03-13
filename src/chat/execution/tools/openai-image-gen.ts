@@ -9,9 +9,7 @@ import { z } from 'zod';
 import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // Schema
-// =============================================================================
 
 const ImageGenParamsSchema = z.object({
   prompt: z.string().min(1).max(4000).describe('Text description of the image to generate'),
@@ -35,9 +33,7 @@ const ImageGenParamsSchema = z.object({
 
 export type ImageGenParams = z.infer<typeof ImageGenParamsSchema>;
 
-// =============================================================================
 // Tool Configuration
-// =============================================================================
 
 interface ImageGenConfig {
   apiKey: string;
@@ -63,9 +59,7 @@ export function getImageGenConfig(): ImageGenConfig {
   return { ...currentConfig };
 }
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface ImageGenResult {
   url: string;
@@ -76,9 +70,7 @@ export interface ImageGenResult {
   style: string;
 }
 
-// =============================================================================
 // OpenAI API types
-// =============================================================================
 
 interface OpenAIImageData {
   url?: string;
@@ -91,9 +83,7 @@ interface OpenAIImageResponse {
   data: OpenAIImageData[];
 }
 
-// =============================================================================
 // Tool Definition
-// =============================================================================
 
 export const openaiImageGenTool: ToolDefinition<ImageGenParams, ImageGenResult> = {
   name: 'openai_image_gen',

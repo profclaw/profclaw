@@ -18,9 +18,7 @@ import type {
   RiskLevel,
 } from './types.js';
 
-// =============================================================================
 // Default Dangerous Patterns
-// =============================================================================
 
 interface PatternDef {
   pattern: RegExp;
@@ -108,9 +106,7 @@ const DEFAULT_CONFIG: AuditScannerConfig = {
   alertOnMatch: true,
 };
 
-// =============================================================================
 // Audit Scanner
-// =============================================================================
 
 export class AuditScanner {
   private config: AuditScannerConfig;
@@ -250,9 +246,7 @@ export class AuditScanner {
     return { ...this.config };
   }
 
-  // ===========================================================================
   // Private
-  // ===========================================================================
 
   private highestRisk(findings: ScanFinding[]): RiskLevel {
     const order: RiskLevel[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
@@ -266,9 +260,7 @@ export class AuditScanner {
   }
 }
 
-// =============================================================================
 // Singleton
-// =============================================================================
 
 let instance: AuditScanner | null = null;
 

@@ -234,10 +234,139 @@ export interface GitHubRepo {
   hasProjectsEnabled: boolean;
 }
 
+interface GraphQLResult<T> {
+  data?: T;
+  errors?: Array<{ message: string }>;
+}
+
+interface GitHubRepoNode {
+  id: string;
+  name: string;
+  nameWithOwner: string;
+  description: string | null;
+  url: string;
+  isPrivate: boolean;
+  isFork: boolean;
+  isArchived: boolean;
+  stargazerCount: number;
+  defaultBranchRef?: { name?: string | null } | null;
+  pushedAt: string | null;
+  owner: { login: string };
+  hasIssuesEnabled: boolean;
+  hasProjectsEnabled: boolean;
+}
+
+interface GitHubProjectNode {
+  id: string;
+  number: number;
+  title: string;
+  shortDescription?: string;
+  url: string;
+  public: boolean;
+  creator?: { login: string };
+  items: { totalCount: number };
+  fields: { totalCount: number };
+}
+
+interface GitHubProjectOptionNode {
+  id: string;
+  name: string;
+}
+
+interface GitHubIterationConfigNode {
+  id: string;
+  title: string;
+  startDate: string;
+  duration: number;
+}
+
+interface GitHubProjectFieldNode {
+  name?: string;
+  options?: GitHubProjectOptionNode[];
+  configuration?: {
+    iterations?: GitHubIterationConfigNode[];
+  };
+}
+
+interface GitHubItemFieldValueNode {
+  iterationId?: string;
+  title?: string;
+  name?: string;
+  field?: { name?: string };
+}
+
+interface GitHubProjectItemContent {
+  number?: number;
+  title?: string;
+  body?: string;
+  url?: string;
+  createdAt: string;
+  updatedAt: string;
+  labels?: { nodes?: Array<{ name: string }> };
+  assignees?: { nodes?: Array<{ login: string }> };
+  repository?: {
+    owner?: { login: string };
+    name?: string;
+  };
+}
+
+interface GitHubProjectItemNode {
+  id: string;
+  content?: GitHubProjectItemContent | null;
+  fieldValues?: {
+    nodes?: GitHubItemFieldValueNode[];
+  };
+}
+
+interface ListReposResponse {
+  viewer: {
+    repositories: {
+      pageInfo: { hasNextPage: boolean; endCursor: string };
+      nodes: GitHubRepoNode[];
+    };
+  };
+}
+
+interface ListProjectsResponse {
+  viewer: {
+    projectsV2: {
+      nodes: GitHubProjectNode[];
+    };
+  };
+}
+
+interface ProjectItemsResponse {
+  node: {
+    id: string;
+    title: string;
+    url: string;
+    items: {
+      pageInfo: { hasNextPage: boolean; endCursor: string };
+      nodes: GitHubProjectItemNode[];
+    };
+    fields: {
+      nodes: GitHubProjectFieldNode[];
+    };
+  };
+}
+
+interface ProjectFieldsResponse {
+  node: {
+    id: string;
+    title: string;
+    url: string;
+    fields: { nodes: GitHubProjectFieldNode[] };
+  };
+}
+
 /**
  * Execute a GraphQL query against GitHub's API
  */
-async function executeGraphQL<T>(token: string, query: string, variables?: Record<string, any>): Promise<T> {
+async function executeGraphQL<T>(
+  token: string,
+  query: string,
+  variables?: Record<string, unknown>,
+): Promise<T> {
   const response = await fetch(GITHUB_GRAPHQL_URL, {
     method: 'POST',
     headers: {
@@ -253,7 +382,7 @@ async function executeGraphQL<T>(token: string, query: string, variables?: Recor
     throw new Error(`GitHub API error: ${response.status} - ${errorText}`);
   }
 
-  const result = await response.json() as { data?: T; errors?: Array<{ message: string }> };
+  const result = await response.json() as GraphQLResult<T>;
 
   if (result.errors && result.errors.length > 0) {
     const errorMessages = result.errors.map((e) => e.message).join(', ');
@@ -290,14 +419,11 @@ export async function listGitHubRepos(token: string, limit: number = 100): Promi
   let after: string | undefined;
 
   while (hasNextPage && allRepos.length < limit) {
-    const data = await executeGraphQL<{
-      viewer: {
-        repositories: {
-          pageInfo: { hasNextPage: boolean; endCursor: string };
-          nodes: any[];
-        };
-      };
-    }>(token, LIST_REPOS_QUERY, { first: Math.min(50, limit - allRepos.length), after });
+    const data = await executeGraphQL<ListReposResponse>(
+      token,
+      LIST_REPOS_QUERY,
+      { first: Math.min(50, limit - allRepos.length), after },
+    );
 
     for (const repo of data.viewer.repositories.nodes) {
       allRepos.push({
@@ -329,15 +455,9 @@ export async function listGitHubRepos(token: string, limit: number = 100): Promi
  * List all GitHub Projects V2 accessible by the token
  */
 export async function listGitHubProjects(token: string): Promise<GitHubProject[]> {
-  const data = await executeGraphQL<{
-    viewer: {
-      projectsV2: {
-        nodes: any[];
-      };
-    };
-  }>(token, LIST_PROJECTS_QUERY, { first: 50 });
+  const data = await executeGraphQL<ListProjectsResponse>(token, LIST_PROJECTS_QUERY, { first: 50 });
 
-  return data.viewer.projectsV2.nodes.map((node: any) => ({
+  return data.viewer.projectsV2.nodes.map((node) => ({
     id: node.id,
     number: node.number,
     title: node.title,
@@ -360,20 +480,11 @@ export async function getGitHubProjectPreview(token: string, projectId: string):
 
   // Paginate through all items
   while (hasNextPage) {
-    const data = await executeGraphQL<{
-      node: {
-        id: string;
-        title: string;
-        url: string;
-        items: {
-          pageInfo: { hasNextPage: boolean; endCursor: string };
-          nodes: any[];
-        };
-        fields: {
-          nodes: any[];
-        };
-      };
-    }>(token, GET_PROJECT_ITEMS_QUERY, { projectId, first: 100, after });
+    const data = await executeGraphQL<ProjectItemsResponse>(
+      token,
+      GET_PROJECT_ITEMS_QUERY,
+      { projectId, first: 100, after },
+    );
 
     const project = data.node;
 
@@ -411,14 +522,11 @@ export async function getGitHubProjectPreview(token: string, projectId: string):
   }
 
   // Fetch one more time for field mappings if we paginated
-  const data = await executeGraphQL<{
-    node: {
-      id: string;
-      title: string;
-      url: string;
-      fields: { nodes: any[] };
-    };
-  }>(token, GET_PROJECT_ITEMS_QUERY, { projectId, first: 1 });
+  const data = await executeGraphQL<ProjectFieldsResponse>(
+    token,
+    GET_PROJECT_ITEMS_QUERY,
+    { projectId, first: 1 },
+  );
 
   const fieldMappings = extractFieldMappings(data.node.fields.nodes);
   const iterations = extractIterations(data.node.fields.nodes);
@@ -438,7 +546,7 @@ export async function getGitHubProjectPreview(token: string, projectId: string):
 /**
  * Extract iterations from field nodes
  */
-function extractIterations(fieldNodes: any[]): GitHubIteration[] {
+function extractIterations(fieldNodes: GitHubProjectFieldNode[]): GitHubIteration[] {
   const iterations: GitHubIteration[] = [];
 
   for (const field of fieldNodes) {
@@ -460,7 +568,7 @@ function extractIterations(fieldNodes: any[]): GitHubIteration[] {
 /**
  * Extract field mappings from field nodes
  */
-function extractFieldMappings(fieldNodes: any[]): GitHubProjectPreview['fieldMappings'] {
+function extractFieldMappings(fieldNodes: GitHubProjectFieldNode[]): GitHubProjectPreview['fieldMappings'] {
   const mappings = {
     status: {} as Record<string, string>,
     priority: {} as Record<string, string>,
@@ -525,7 +633,7 @@ function extractFieldMappings(fieldNodes: any[]): GitHubProjectPreview['fieldMap
 /**
  * Process a project item into our standard format
  */
-function processProjectItem(item: any): GitHubProjectItem | null {
+function processProjectItem(item: GitHubProjectItemNode): GitHubProjectItem | null {
   const content = item.content;
   if (!content) return null;
 
@@ -561,8 +669,8 @@ function processProjectItem(item: any): GitHubProjectItem | null {
     status,
     priority,
     type,
-    labels: content.labels?.nodes?.map((l: any) => l.name) || [],
-    assignees: content.assignees?.nodes?.map((a: any) => a.login) || [],
+    labels: content.labels?.nodes?.map((l) => l.name) || [],
+    assignees: content.assignees?.nodes?.map((a) => a.login) || [],
     iteration,
     createdAt: content.createdAt,
     updatedAt: content.updatedAt,

@@ -235,9 +235,7 @@ function rowToExternalLink(row: ProjectExternalLinkRow): ProjectExternalLink {
   };
 }
 
-// =============================================================================
 // PROJECTS CRUD
-// =============================================================================
 
 /**
  * Create a new project
@@ -516,9 +514,7 @@ export async function queryProjects(query: ProjectQuery = {}): Promise<{ project
   };
 }
 
-// =============================================================================
 // PROJECT EXTERNAL LINKS
-// =============================================================================
 
 /**
  * Create an external link for a project (Linear Team, Jira Project, etc.)
@@ -589,9 +585,7 @@ export async function findProjectByExternalId(platform: string, externalId: stri
   return getProject(linkResult[0].projectId);
 }
 
-// =============================================================================
 // SPRINTS CRUD
-// =============================================================================
 
 /**
  * Create a new sprint for a project
@@ -912,9 +906,7 @@ export async function getActiveSprint(projectId: string): Promise<Sprint | null>
   return result.sprints[0] || null;
 }
 
-// =============================================================================
 // SPRINT-TICKET ASSIGNMENTS
-// =============================================================================
 
 /**
  * Add tickets to a sprint
@@ -1021,9 +1013,7 @@ export async function reorderSprintTickets(
   }
 }
 
-// =============================================================================
 // DEFAULT PROJECT MANAGEMENT
-// =============================================================================
 
 /**
  * Get or create the default project

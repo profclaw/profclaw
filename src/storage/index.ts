@@ -87,9 +87,7 @@ export function getClient(): any {
 export * from "./adapter.js";
 export * from "./schema.js";
 
-// =============================================================================
 // AI Provider Configuration Persistence
-// =============================================================================
 
 export interface SavedProviderConfig {
   type: string;

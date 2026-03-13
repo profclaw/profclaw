@@ -13,9 +13,7 @@ import { randomBytes } from 'crypto';
 import { logger } from '../utils/logger.js';
 import type { GuardResult, PromptGuardConfig, CanaryToken, RiskLevel } from './types.js';
 
-// =============================================================================
 // Default Patterns
-// =============================================================================
 
 const DEFAULT_JAILBREAK_PATTERNS: RegExp[] = [
   // Direct instruction override
@@ -59,9 +57,7 @@ const PATTERN_SCORES: Array<{ indices: number[]; score: number; description: str
   { indices: [14], score: 45, description: 'Token smuggling / boundary attack' },
 ];
 
-// =============================================================================
 // Default Config
-// =============================================================================
 
 const DEFAULT_CONFIG: PromptGuardConfig = {
   enabled: true,
@@ -72,9 +68,7 @@ const DEFAULT_CONFIG: PromptGuardConfig = {
   warnThreshold: 10,
 };
 
-// =============================================================================
 // Prompt Guard
-// =============================================================================
 
 export class PromptGuard {
   private config: PromptGuardConfig;
@@ -221,9 +215,7 @@ export class PromptGuard {
   }
 }
 
-// =============================================================================
 // Singleton
-// =============================================================================
 
 let instance: PromptGuard | null = null;
 

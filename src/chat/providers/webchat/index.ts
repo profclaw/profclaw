@@ -24,9 +24,7 @@ import type {
   OutgoingMessage,
   ChatAccountConfig,
 } from '../types.js';
-// =============================================================================
 // SESSION MANAGEMENT
-// =============================================================================
 
 interface WebChatSession {
   id: string;
@@ -55,9 +53,7 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000);
 
-// =============================================================================
 // PUBLIC API
-// =============================================================================
 
 /** Create a new WebChat session. Returns session ID. */
 export function createSession(opts: {
@@ -139,9 +135,7 @@ export function getSessionCountByIp(ip: string): number {
   return count;
 }
 
-// =============================================================================
 // WEBCHAT PROVIDER IMPLEMENTATION
-// =============================================================================
 
 const meta: ChatProviderMeta = {
   id: 'webchat',

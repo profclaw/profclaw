@@ -19,9 +19,7 @@ import { execSync } from 'node:child_process';
 import { success, error, info, warn, spinner } from '../utils/output.js';
 import type { DeploymentMode } from '../../core/deployment.js';
 
-// ---------------------------------------------------------------------------
 // Environment Detection
-// ---------------------------------------------------------------------------
 
 interface EnvironmentInfo {
   os: string;
@@ -126,9 +124,7 @@ function recommendMode(env: EnvironmentInfo): DeploymentMode {
   return 'mini';
 }
 
-// ---------------------------------------------------------------------------
 // .env Generation
-// ---------------------------------------------------------------------------
 
 function generateEnvFile(opts: {
   mode: DeploymentMode;
@@ -172,9 +168,7 @@ function generateEnvFile(opts: {
   return lines.join('\n');
 }
 
-// ---------------------------------------------------------------------------
 // Interactive Onboarding
-// ---------------------------------------------------------------------------
 
 async function prompt(rl: ReturnType<typeof createInterface>, question: string): Promise<string> {
   const answer = await rl.question(chalk.bold(question));
@@ -352,9 +346,7 @@ async function runInteractive(): Promise<void> {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Non-Interactive Onboarding
-// ---------------------------------------------------------------------------
 
 async function runNonInteractive(options: {
   mode?: string;
@@ -399,9 +391,7 @@ async function runNonInteractive(options: {
   success('Non-interactive onboarding complete.');
 }
 
-// ---------------------------------------------------------------------------
 // Command Registration
-// ---------------------------------------------------------------------------
 
 export function onboardCommand(): Command {
   const cmd = new Command('onboard')

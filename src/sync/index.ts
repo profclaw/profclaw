@@ -22,10 +22,6 @@
  * ```
  */
 
-// TODO(@copilot): Generate unit tests for this module
-// Key functions to test: getSyncEngine, initSyncEngine, hasSyncEngine, loadSyncConfig, reloadSyncConfig, toSyncEngineConfig, isSyncEnabled, getEnabledPlatforms, getPlatformConfig, validatePlatformCredentials, getStatusMapping, BaseSyncAdapter, LinearSyncAdapter, GitHubSyncAdapter, initSyncIntegration, handleSyncWebhook, pushTicketToExternal, getSyncStatus
-// Test file location: src/sync/tests/index.test.ts
-
 // Core engine
 export { SyncEngine, getSyncEngine, initSyncEngine, hasSyncEngine } from './engine.js';
 

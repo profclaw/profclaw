@@ -221,9 +221,7 @@ export const taskArchives = sqliteTable("task_archives", {
   durationMs: integer("duration_ms"), // Pre-computed for analytics
 });
 
-// =============================================================================
 // TICKET SYSTEM (AI-Native Tickets - Phase 16)
-// =============================================================================
 
 /**
  * Tickets Table - AI-native ticket system
@@ -467,9 +465,7 @@ export const ticketSequence = sqliteTable("ticket_sequence", {
   lastSequence: integer("last_sequence").notNull().default(0),
 });
 
-// =============================================================================
 // PROJECTS & SPRINTS (Phase 17 - Multi-Project Support)
-// =============================================================================
 
 /**
  * Projects Table - Multi-project support with custom prefixes
@@ -625,9 +621,7 @@ export const sprintTickets = sqliteTable("sprint_tickets", {
   ),
 });
 
-// =============================================================================
 // USER AUTHENTICATION SYSTEM (Phase 20)
-// =============================================================================
 
 /**
  * Users Table - Central user identity
@@ -818,9 +812,7 @@ export const userApiKeys = sqliteTable("user_api_keys", {
   revokedAt: integer("revoked_at", { mode: "timestamp" }),
 });
 
-// =============================================================================
 // LABELS SYSTEM (Phase 21 - Labels for GitHub/Linear sync)
-// =============================================================================
 
 /**
  * Labels Table - Workspace/Project-scoped labels
@@ -869,9 +861,7 @@ export const ticketLabels = sqliteTable("ticket_labels", {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
-// =============================================================================
 // GITHUB SYNC TRACKING (Phase 21 - Complete bidirectional sync)
-// =============================================================================
 
 /**
  * GitHub Repository Syncs - Track sync state per repository
@@ -933,9 +923,7 @@ export const githubCommentSyncs = sqliteTable("github_comment_syncs", {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
-// =============================================================================
 // CRON / SCHEDULED JOBS SYSTEM
-// =============================================================================
 
 /**
  * Scheduled Jobs Table - Cron jobs, intervals, one-shot, and event-triggered jobs
@@ -1025,9 +1013,7 @@ export const scheduledJobs = sqliteTable("scheduled_jobs", {
   archivedAt: integer("archived_at", { mode: "timestamp" }), // Soft delete timestamp
 });
 
-// =============================================================================
 // DEAD LETTER QUEUE (Phase 22 - Persistent failed task storage)
-// =============================================================================
 
 /**
  * Dead Letter Tasks Table - Failed tasks that exceeded max retries
@@ -1159,9 +1145,7 @@ export const jobTemplates = sqliteTable("job_templates", {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
-// =============================================================================
 // AGENT SESSIONS (Phase 23 - Session Spawn/Send)
-// =============================================================================
 
 /**
  * Agent Sessions Table - Persistent session hierarchy for parallel work
@@ -1221,9 +1205,7 @@ export const agentSessions = sqliteTable("agent_sessions", {
  * Session Messages Table - Mailbox pattern for inter-session communication
  * Supports parent/child/sibling messaging with priority and status tracking.
  */
-// =============================================================================
 // INVITE CODES (Invite-Only Registration)
-// =============================================================================
 
 /**
  * Invite Codes Table - One-time-use codes for invite-only registration
@@ -1279,9 +1261,7 @@ export const sessionMessages = sqliteTable("session_messages", {
   readAt: integer("read_at", { mode: "timestamp" }),
 });
 
-// =============================================================================
 // EXPERIENCE STORE (Phase 19 - Cross-Conversation Memory)
-// =============================================================================
 
 /**
  * Experiences Table - Learned patterns across conversations

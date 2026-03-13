@@ -26,9 +26,7 @@ import type {
 import { logger } from '../../utils/logger.js';
 import { randomUUID, randomInt } from 'crypto';
 
-// =============================================================================
 // Constants
-// =============================================================================
 
 const DEFAULT_ASK_TIMEOUT_MS = 120_000; // 2 minutes
 const APPROVAL_CLEANUP_INTERVAL_MS = 60_000; // 1 minute
@@ -66,9 +64,7 @@ interface SecurityCheckContext {
   channelId?: string;
 }
 
-// =============================================================================
 // Security Policy Manager
-// =============================================================================
 
 export class SecurityPolicyManager {
   private policy: SecurityPolicy;
@@ -356,9 +352,7 @@ export class SecurityPolicyManager {
     this.approvalResolvers.clear();
   }
 
-  // ===========================================================================
   // Feature 1: DM Pairing Mode
-  // ===========================================================================
 
   private pairingSessions: Map<string, DMPairingSession> = new Map();
 
@@ -449,9 +443,7 @@ export class SecurityPolicyManager {
     return this.policy.dmPairing?.trustedSenders.includes(senderId) ?? false;
   }
 
-  // ===========================================================================
   // Feature 2: Channel Allowlist Management
-  // ===========================================================================
 
   /**
    * Add a channel to the allowlist
@@ -501,9 +493,7 @@ export class SecurityPolicyManager {
     return [...(this.policy.channelAllowlist ?? [])];
   }
 
-  // ===========================================================================
   // Feature 3: Granular Exec Approval Policies
-  // ===========================================================================
 
   /**
    * Add a granular exec approval policy
@@ -578,9 +568,7 @@ export class SecurityPolicyManager {
     return [...(this.policy.execPolicies ?? [])];
   }
 
-  // ===========================================================================
   // Feature 4: Plugin Allowlisting
-  // ===========================================================================
 
   /**
    * Add a plugin to the allowlist
@@ -624,9 +612,7 @@ export class SecurityPolicyManager {
     return [...(this.policy.pluginAllowlist ?? [])];
   }
 
-  // ===========================================================================
   // Feature 5: Security Risk Analyzer
-  // ===========================================================================
 
   /**
    * Analyze the security risk of a tool call
@@ -718,9 +704,7 @@ export class SecurityPolicyManager {
     return `Risk level ${level}: ${factorNames}`;
   }
 
-  // ===========================================================================
   // Feature 6: Per-Channel Retry/Timeout Policies
-  // ===========================================================================
 
   /**
    * Set a per-channel policy
@@ -783,9 +767,7 @@ export class SecurityPolicyManager {
     };
   }
 
-  // ===========================================================================
   // Private Methods
-  // ===========================================================================
 
   private extractCommand(tool: ToolDefinition, params: Record<string, unknown>): string | null {
     // For exec-like tools, extract the command
@@ -904,9 +886,7 @@ export class SecurityPolicyManager {
   }
 }
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface SecurityCheckResult {
   allowed: boolean;
@@ -916,9 +896,7 @@ export interface SecurityCheckResult {
   sandboxRequired?: boolean;
 }
 
-// =============================================================================
 // Singleton
-// =============================================================================
 
 let securityManager: SecurityPolicyManager | null = null;
 

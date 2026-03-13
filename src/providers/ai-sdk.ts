@@ -7,7 +7,7 @@
  * @see https://sdk.vercel.ai/docs
  */
 
-import { generateText, streamText, tool as createTool, type LanguageModel, jsonSchema } from 'ai';
+import { generateText, streamText, tool as createTool, type LanguageModel, type Tool as AiSdkTool, type ToolSet, jsonSchema } from 'ai';
 // Provider SDKs are lazily imported inside ensureProvider() to reduce startup memory
 // (each SDK is ~15MB; loading all 6 at startup costs ~100MB even if unused)
 import { zodToJsonSchema } from 'zod-to-json-schema';
@@ -76,6 +76,48 @@ export type {
 
 // Pre-compiled regex patterns for performance (avoid recompilation on each call)
 const TOOL_CALL_REGEX = /```tool\s*\n?([\s\S]*?)\n?```/g;
+
+type AiSdkToolSchema = AiSdkTool<unknown, unknown>['inputSchema'];
+
+function asJsonSchemaInput(schema: unknown): Parameters<typeof jsonSchema>[0] {
+  return schema as Parameters<typeof jsonSchema>[0];
+}
+
+function toAiMessages(messages: ChatMessage[]): AIMessage[] {
+  return messages.map((msg) => ({
+    role: msg.role,
+    content: msg.content,
+  }));
+}
+
+function toToolArguments(args: unknown): Record<string, unknown> {
+  return typeof args === 'object' && args !== null
+    ? (args as Record<string, unknown>)
+    : {};
+}
+
+function getToolResultMessage(result: unknown): string {
+  if (typeof result === 'object' && result !== null && typeof (result as { message?: unknown }).message === 'string') {
+    return (result as { message: string }).message;
+  }
+  return JSON.stringify(result);
+}
+
+function buildNativeToolSchema(
+  parameters: z.ZodType<unknown>,
+  normalizeForAzure: boolean,
+): AiSdkToolSchema {
+  if (!normalizeForAzure) {
+    return parameters;
+  }
+
+  const rawJsonSchema = zodToJsonSchema(parameters, {
+    $refStrategy: 'none',
+    target: 'openAi',
+  });
+  const normalizedSchema = normalizeToolSchema(rawJsonSchema);
+  return jsonSchema(asJsonSchemaInput(normalizedSchema));
+}
 
 // === Provider Factory ===
 
@@ -1027,8 +1069,7 @@ class AIProviderManager {
     const detectedToolCalls: ToolCall[] = [];
 
     // Convert tools for native AI SDK usage
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const aiSdkTools: Record<string, any> = {};
+    const aiSdkTools: ToolSet = {};
     
     if (useNativeTools && request.tools) {
       // Add a reinforcement prompt for local models to ensure they provide arguments
@@ -1040,11 +1081,9 @@ class AIProviderManager {
         const rawJsonSchema = zodToJsonSchema(t.parameters as z.ZodType, {
           $refStrategy: 'none',
         });
-        // Type cast needed due to minor differences between zod-to-json-schema and AI SDK JSONSchema types
         aiSdkTools[t.name] = createTool({
           description: t.description,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          inputSchema: jsonSchema(rawJsonSchema as any),
+          inputSchema: jsonSchema(asJsonSchemaInput(rawJsonSchema)),
         });
       });
     } else if (request.tools && request.tools.length > 0) {
@@ -1089,16 +1128,15 @@ class AIProviderManager {
       if (useNativeTools && result.toolCalls && result.toolCalls.length > 0) {
         for (const toolCall of result.toolCalls) {
           if (request.executeTools) {
+            const args = toToolArguments(toolCall.input);
             detectedToolCalls.push({
               id: toolCall.toolCallId,
               name: toolCall.toolName,
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              arguments: (toolCall as any).args, 
+              arguments: args,
             });
 
             // Execute the tool
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const toolResult = await request.executeTools(toolCall.toolName, (toolCall as any).args);
+            const toolResult = await request.executeTools(toolCall.toolName, args);
             toolResults.push({
               toolCallId: toolCall.toolCallId,
               toolName: toolCall.toolName,
@@ -1135,8 +1173,7 @@ class AIProviderManager {
               });
 
               // Replace the tool call block with the result
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const resultMessage = (toolResult as any)?.message || JSON.stringify(toolResult);
+              const resultMessage = getToolResultMessage(toolResult);
               finalContent = finalContent.replace(match[0], `\n✅ **${toolCall.tool}**: ${resultMessage}\n`);
             }
           } catch {
@@ -1230,7 +1267,7 @@ class AIProviderManager {
    * NOTE: If the model doesn't support native tool calling, tools will be
    * skipped and a warning will be included in the response.
    */
-  async chatWithNativeTools(request: any): Promise<any> {
+  async chatWithNativeTools(request: ChatWithNativeToolsRequest): Promise<ChatWithNativeToolsResponse> {
     const startTime = Date.now();
 
     // Resolve model
@@ -1254,10 +1291,7 @@ class AIProviderManager {
     }
 
     // Convert messages to AI SDK format
-    const messages: AIMessage[] = request.messages.map((msg: any) => ({
-      role: msg.role,
-      content: msg.content,
-    }));
+    const messages = toAiMessages(request.messages);
 
     // Add system prompt if provided
     if (request.systemPrompt) {
@@ -1270,7 +1304,7 @@ class AIProviderManager {
 
     // Convert tool definitions to AI SDK format with execute handlers
     // Only build tools if the model supports them
-    const tools: Record<string, ReturnType<typeof createTool>> = {};
+    const tools: ToolSet = {};
 
     // Check if provider is Azure - needs normalized JSON Schema
     const isAzureProvider = modelRef.provider === 'azure';
@@ -1279,19 +1313,11 @@ class AIProviderManager {
       for (const toolDef of request.tools || []) {
         // For Azure, convert Zod schemas to normalized JSON Schema
         // Azure has stricter schema validation requirements
-        let inputSchema: unknown = toolDef.parameters;
+        let inputSchema: AiSdkToolSchema = toolDef.parameters;
 
         if (isAzureProvider && toolDef.parameters) {
           try {
-            // Convert Zod schema to JSON Schema
-            const rawJsonSchema = zodToJsonSchema(toolDef.parameters as z.ZodType, {
-              $refStrategy: 'none',
-              target: 'openAi',
-            });
-            // Normalize for Azure compatibility (removes unsupported keywords, ensures type: object)
-            const normalizedSchema = normalizeToolSchema(rawJsonSchema);
-            // Wrap in AI SDK's jsonSchema helper for proper typing
-            inputSchema = jsonSchema(normalizedSchema);
+            inputSchema = buildNativeToolSchema(toolDef.parameters, true);
             logger.debug(`[AIProvider] Normalized schema for Azure tool: ${toolDef.name}`, {
               component: 'AIProvider',
             });
@@ -1304,17 +1330,18 @@ class AIProviderManager {
         }
 
         // AI SDK v5+ uses inputSchema instead of parameters
-        (tools as any)[toolDef.name] = createTool({
+        tools[toolDef.name] = createTool<unknown, unknown>({
         description: toolDef.description,
-        inputSchema: inputSchema as any,
-        execute: async (args: any) => {
+        inputSchema,
+        execute: async (args: unknown) => {
           const toolCallId = randomUUID();
+          const toolArgs = toToolArguments(args);
 
           // Record the tool call
           toolCallHistory.push({
             id: toolCallId,
             name: toolDef.name,
-            arguments: args as Record<string, unknown>,
+            arguments: toolArgs,
           });
 
           // Execute through the provided handler (which goes through security)
@@ -1436,11 +1463,11 @@ class AIProviderManager {
    * Stream chat with native tool calling
    */
   async streamWithNativeTools(
-    request: any,
+    request: ChatWithNativeToolsRequest,
     onChunk: (chunk: string) => void,
     onToolCall?: (toolName: string, args: unknown) => void,
     onToolResult?: (toolName: string, result: unknown) => void,
-  ): Promise<any> {
+  ): Promise<ChatWithNativeToolsResponse> {
     const startTime = Date.now();
 
     // Resolve model
@@ -1451,10 +1478,7 @@ class AIProviderManager {
     const model = await this.getModel(modelRef.provider, modelRef.model);
 
     // Convert messages
-    const messages: AIMessage[] = request.messages.map((msg: any) => ({
-      role: msg.role,
-      content: msg.content,
-    }));
+    const messages = toAiMessages(request.messages);
 
     if (request.systemPrompt) {
       messages.unshift({ role: 'system', content: request.systemPrompt });
@@ -1465,39 +1489,35 @@ class AIProviderManager {
     const toolResultHistory: Array<{ toolCallId: string; toolName: string; result: unknown; approvalRequired?: boolean; approvalId?: string }> = [];
 
     // Build tools with execute handlers
-    const tools: Record<string, ReturnType<typeof createTool>> = {};
+    const tools: ToolSet = {};
 
     // Check if provider is Azure - needs normalized JSON Schema
     const isAzureProvider = modelRef.provider === 'azure';
 
     for (const toolDef of request.tools || []) {
       // For Azure, convert Zod schemas to normalized JSON Schema
-      let inputSchema: unknown = toolDef.parameters;
+      let inputSchema: AiSdkToolSchema = toolDef.parameters;
 
       if (isAzureProvider && toolDef.parameters) {
         try {
-          const rawJsonSchema = zodToJsonSchema(toolDef.parameters as z.ZodType, {
-            $refStrategy: 'none',
-            target: 'openAi',
-          });
-          const normalizedSchema = normalizeToolSchema(rawJsonSchema);
-          inputSchema = jsonSchema(normalizedSchema);
+          inputSchema = buildNativeToolSchema(toolDef.parameters, true);
         } catch {
           // Fall back to original schema
         }
       }
 
       // AI SDK v5+ uses inputSchema instead of parameters
-      (tools as any)[toolDef.name] = createTool({
+      tools[toolDef.name] = createTool<unknown, unknown>({
         description: toolDef.description,
-        inputSchema: inputSchema as any,
-        execute: async (args: any) => {
+        inputSchema,
+        execute: async (args: unknown) => {
           const toolCallId = randomUUID();
+          const toolArgs = toToolArguments(args);
 
           toolCallHistory.push({
             id: toolCallId,
             name: toolDef.name,
-            arguments: args as Record<string, unknown>,
+            arguments: toolArgs,
           });
 
           // Notify about tool call
@@ -1797,6 +1817,12 @@ export interface ChatWithNativeToolsResponse extends ChatResponse {
   toolResults?: NativeToolResult[];
   pendingApprovals?: NativeToolResult[];
   steps?: number;
+  toolSupport?: {
+    requested: boolean;
+    supported: boolean;
+    used: boolean;
+    recommendation?: string;
+  };
 }
 
 export async function chat(

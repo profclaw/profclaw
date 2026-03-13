@@ -16,9 +16,7 @@ import os from 'os';
 import { logger } from '../utils/logger.js';
 import type { GuardResult, FsGuardConfig, FsOperation } from './types.js';
 
-// =============================================================================
 // Default Configuration
-// =============================================================================
 
 const DEFAULT_BLOCKED_PATHS = [
   '/etc/passwd',
@@ -58,9 +56,7 @@ const DEFAULT_CONFIG: FsGuardConfig = {
   blockedPatterns: DEFAULT_BLOCKED_PATTERNS,
 };
 
-// =============================================================================
 // Filesystem Guard
-// =============================================================================
 
 export class FsGuard {
   private config: FsGuardConfig;
@@ -174,9 +170,7 @@ export class FsGuard {
     return { ...this.config };
   }
 
-  // ===========================================================================
   // Private
-  // ===========================================================================
 
   /**
    * Validate a symlink-resolved path
@@ -230,9 +224,7 @@ export class FsGuard {
   }
 }
 
-// =============================================================================
 // Singleton
-// =============================================================================
 
 let instance: FsGuard | null = null;
 

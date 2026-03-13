@@ -33,9 +33,7 @@ import type {
 } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // IRC PROTOCOL TYPES
-// =============================================================================
 
 /** Parsed IRC message (RFC 1459) */
 interface IRCMessage {
@@ -59,9 +57,7 @@ interface IRCConnection {
   messageHandlers: Array<(msg: IRCMessage) => void>;
 }
 
-// =============================================================================
 // CONFIGURATION
-// =============================================================================
 
 export const IRCAccountConfigSchema = z.object({
   id: z.string(),
@@ -79,9 +75,7 @@ export const IRCAccountConfigSchema = z.object({
 
 type IRCConfig = z.infer<typeof IRCAccountConfigSchema>;
 
-// =============================================================================
 // METADATA
-// =============================================================================
 
 const meta: ChatProviderMeta = {
   id: 'irc',
@@ -93,9 +87,7 @@ const meta: ChatProviderMeta = {
   color: '#6B7280',
 };
 
-// =============================================================================
 // CAPABILITIES
-// =============================================================================
 
 const capabilities: ChatProviderCapabilities = {
   chatTypes: ['direct', 'channel'],
@@ -114,16 +106,12 @@ const capabilities: ChatProviderCapabilities = {
   realtime: true,  // Persistent TCP socket
 };
 
-// =============================================================================
 // MODULE-LEVEL STATE
-// =============================================================================
 
 let currentConfig: IRCConfig | null = null;
 let activeConnection: IRCConnection | null = null;
 
-// =============================================================================
 // IRC PROTOCOL HELPERS
-// =============================================================================
 
 /**
  * Parse a raw IRC line into a structured IRCMessage.
@@ -189,9 +177,7 @@ function writeLine(socket: net.Socket | tls.TLSSocket, line: string): void {
   socket.write(`${line}\r\n`, 'utf8');
 }
 
-// =============================================================================
 // CONNECTION MANAGER
-// =============================================================================
 
 /**
  * Create a new IRC connection from the given config.
@@ -376,9 +362,7 @@ export function disconnectIRC(reason = 'Disconnecting'): void {
   conn.state = 'disconnected';
 }
 
-// =============================================================================
 // AUTH ADAPTER
-// =============================================================================
 
 const authAdapter: AuthAdapter = {
   getAuthUrl(_state: string, _scopes?: string[]): string {
@@ -404,9 +388,7 @@ const authAdapter: AuthAdapter = {
   },
 };
 
-// =============================================================================
 // OUTBOUND ADAPTER
-// =============================================================================
 
 const outboundAdapter: OutboundAdapter = {
   async send(message: OutgoingMessage): Promise<SendResult> {
@@ -462,9 +444,7 @@ const outboundAdapter: OutboundAdapter = {
   },
 };
 
-// =============================================================================
 // INBOUND ADAPTER
-// =============================================================================
 
 const inboundAdapter: InboundAdapter = {
   parseMessage(payload: unknown): IncomingMessage | null {
@@ -543,9 +523,7 @@ const inboundAdapter: InboundAdapter = {
   },
 };
 
-// =============================================================================
 // STATUS ADAPTER
-// =============================================================================
 
 const statusAdapter: StatusAdapter = {
   isConfigured(config: IRCAccountConfig): boolean {
@@ -631,9 +609,7 @@ const statusAdapter: StatusAdapter = {
   },
 };
 
-// =============================================================================
 // CONFIG MANAGEMENT
-// =============================================================================
 
 export function setIRCConfig(config: IRCConfig): void {
   currentConfig = config;
@@ -643,9 +619,7 @@ export function clearIRCConfig(): void {
   currentConfig = null;
 }
 
-// =============================================================================
 // EXPORTED HELPERS
-// =============================================================================
 
 /**
  * Register a handler that will be called for every parsed IRC message
@@ -697,9 +671,7 @@ export function partChannel(channel: string, reason = 'Leaving'): void {
   writeLine(activeConnection.socket, `PART ${channel} :${reason}`);
 }
 
-// =============================================================================
 // PROVIDER EXPORT
-// =============================================================================
 
 export const ircProvider: ChatProvider<IRCAccountConfig> = {
   meta,

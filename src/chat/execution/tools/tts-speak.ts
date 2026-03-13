@@ -16,9 +16,7 @@ import { logger } from '../../../utils/logger.js';
 
 const execAsync = promisify(exec);
 
-// =============================================================================
 // Schema
-// =============================================================================
 
 const TtsSpeakParamsSchema = z.object({
   text: z.string().min(1).max(4096).describe('Text to convert to speech'),
@@ -44,9 +42,7 @@ const TtsSpeakParamsSchema = z.object({
 
 export type TtsSpeakParams = z.infer<typeof TtsSpeakParamsSchema>;
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface TtsSpeakResult {
   audioPath: string;
@@ -57,9 +53,7 @@ export interface TtsSpeakResult {
   charCount: number;
 }
 
-// =============================================================================
 // Helpers
-// =============================================================================
 
 function estimateDurationSec(text: string, speed: number): number {
   // Average speaking rate is about 130 words/min, ~5 chars/word
@@ -124,9 +118,7 @@ async function speakWithSystemTts(text: string, outputPath: string): Promise<'ma
   }
 }
 
-// =============================================================================
 // Tool Definition
-// =============================================================================
 
 export const ttsSpeakTool: ToolDefinition<TtsSpeakParams, TtsSpeakResult> = {
   name: 'tts_speak',

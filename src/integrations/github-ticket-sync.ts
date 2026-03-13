@@ -68,9 +68,7 @@ interface GitHubRepository {
   name: string;
 }
 
-// =============================================================================
 // STATUS MAPPING
-// =============================================================================
 
 type TicketStatus = 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'done' | 'cancelled';
 
@@ -111,9 +109,7 @@ function mapTypeFromLabels(labels: Array<{ name: string }>): string {
   return 'task';
 }
 
-// =============================================================================
 // FIND SYNCED TICKET
-// =============================================================================
 
 async function findSyncedTicket(
   repository: GitHubRepository,
@@ -165,9 +161,7 @@ async function findSyncedTicket(
   return null;
 }
 
-// =============================================================================
 // ISSUE EVENT HANDLERS
-// =============================================================================
 
 /**
  * Handle issue opened/edited/closed/reopened events
@@ -310,9 +304,7 @@ export async function handleIssueLabelEvent(
   return handleIssueEvent('labeled', issue, repository);
 }
 
-// =============================================================================
 // COMMENT EVENT HANDLERS
-// =============================================================================
 
 /**
  * Handle issue comment created event
@@ -454,9 +446,7 @@ export async function handleCommentDeleted(
   return { action: 'comment_deleted', ticketId: synced.ticketId };
 }
 
-// =============================================================================
 // MAIN WEBHOOK HANDLER
-// =============================================================================
 
 /**
  * Process GitHub webhook for ticket sync

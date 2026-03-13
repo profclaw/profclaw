@@ -15,9 +15,7 @@ import { isIP } from 'net';
 import { logger } from '../utils/logger.js';
 import type { GuardResult, SsrfGuardConfig, RiskLevel } from './types.js';
 
-// =============================================================================
 // Default blocked CIDR ranges
-// =============================================================================
 
 /** RFC 1918 + special-use ranges to block */
 const DEFAULT_BLOCKED_CIDRS = [
@@ -54,9 +52,7 @@ const DEFAULT_CONFIG: SsrfGuardConfig = {
   allowedSchemes: ['http', 'https'],
 };
 
-// =============================================================================
 // CIDR Matching Utilities
-// =============================================================================
 
 interface CidrRange {
   networkInt: number;
@@ -97,9 +93,7 @@ function isIpInCidr(ip: string, cidr: CidrRange): boolean {
   return ((ipInt & cidr.maskInt) >>> 0) === cidr.networkInt;
 }
 
-// =============================================================================
 // SSRF Guard
-// =============================================================================
 
 export class SsrfGuard {
   private config: SsrfGuardConfig;
@@ -278,9 +272,7 @@ export class SsrfGuard {
     return { ...this.config };
   }
 
-  // ===========================================================================
   // Private
-  // ===========================================================================
 
   private async resolveWithTimeout(hostname: string): Promise<string[]> {
     const timeoutPromise = new Promise<never>((_, reject) => {
@@ -292,9 +284,7 @@ export class SsrfGuard {
   }
 }
 
-// =============================================================================
 // Helpers
-// =============================================================================
 
 function normalizeHostname(hostname: string): string {
   // Strip IPv6 brackets
@@ -304,9 +294,7 @@ function normalizeHostname(hostname: string): string {
   return hostname.toLowerCase();
 }
 
-// =============================================================================
 // Singleton
-// =============================================================================
 
 let instance: SsrfGuard | null = null;
 

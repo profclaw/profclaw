@@ -33,9 +33,7 @@ import type {
 } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // GOOGLE CHAT API TYPES
-// =============================================================================
 
 /** Google Chat event types delivered via HTTP */
 const GoogleChatEventType = {
@@ -213,9 +211,7 @@ interface GoogleChatMessageResponse {
   space?: GoogleChatSpace;
 }
 
-// =============================================================================
 // CONFIGURATION
-// =============================================================================
 
 export const GoogleChatAccountConfigSchema = z.object({
   id: z.string(),
@@ -231,9 +227,7 @@ export const GoogleChatAccountConfigSchema = z.object({
 
 type GoogleChatConfig = z.infer<typeof GoogleChatAccountConfigSchema>;
 
-// =============================================================================
 // METADATA
-// =============================================================================
 
 const meta: ChatProviderMeta = {
   id: 'googlechat',
@@ -245,9 +239,7 @@ const meta: ChatProviderMeta = {
   color: '#00AC47',
 };
 
-// =============================================================================
 // CAPABILITIES
-// =============================================================================
 
 const capabilities: ChatProviderCapabilities = {
   chatTypes: ['direct', 'group', 'thread'],
@@ -266,9 +258,7 @@ const capabilities: ChatProviderCapabilities = {
   realtime: false,
 };
 
-// =============================================================================
 // MODULE STATE
-// =============================================================================
 
 const GOOGLE_CHAT_API_BASE = 'https://chat.googleapis.com/v1';
 
@@ -282,9 +272,7 @@ export function clearGoogleChatConfig(): void {
   currentConfig = null;
 }
 
-// =============================================================================
 // HELPER FUNCTIONS
-// =============================================================================
 
 /**
  * Extract a Bearer token from a service account key JSON string.
@@ -514,9 +502,7 @@ function buildMessageBody(message: OutgoingMessage): GoogleChatMessageBody {
   return body;
 }
 
-// =============================================================================
 // OUTBOUND ADAPTER
-// =============================================================================
 
 const outboundAdapter: OutboundAdapter = {
   async send(message: OutgoingMessage): Promise<SendResult> {
@@ -636,9 +622,7 @@ const outboundAdapter: OutboundAdapter = {
   },
 };
 
-// =============================================================================
 // INBOUND ADAPTER
-// =============================================================================
 
 const inboundAdapter: InboundAdapter = {
   parseMessage(payload: unknown): IncomingMessage | null {
@@ -797,9 +781,7 @@ const inboundAdapter: InboundAdapter = {
   },
 };
 
-// =============================================================================
 // STATUS ADAPTER
-// =============================================================================
 
 const statusAdapter: StatusAdapter = {
   isConfigured(config: GoogleChatAccountConfig): boolean {
@@ -894,9 +876,7 @@ const statusAdapter: StatusAdapter = {
   },
 };
 
-// =============================================================================
 // UTILITY EXPORTS
-// =============================================================================
 
 /**
  * Build a simple text card for Google Chat (Cards v2 format).
@@ -993,9 +973,7 @@ export async function verifyGoogleChatToken(
   }
 }
 
-// =============================================================================
 // PROVIDER EXPORT
-// =============================================================================
 
 export const googlechatProvider: ChatProvider<GoogleChatAccountConfig> = {
   meta,

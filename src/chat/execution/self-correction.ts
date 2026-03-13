@@ -18,9 +18,7 @@
 import type { ToolResult, ToolError } from './types.js';
 import { logger } from '../../utils/logger.js';
 
-// =============================================================================
 // 3.1 - Tool Failure Classifier
-// =============================================================================
 
 /** Broad category of a tool failure - determines the correction strategy */
 export type FailureType = 'retryable' | 'fixable' | 'terminal';
@@ -148,9 +146,7 @@ export function classifyFailure(
   };
 }
 
-// =============================================================================
 // 3.2 - Auto-Retry with Exponential Backoff + Jitter
-// =============================================================================
 
 export interface RetryConfig {
   /** Maximum number of attempts (including the initial one). Default: 3 */
@@ -235,9 +231,7 @@ export async function executeWithRetry<T>(
   return lastResult as ToolResult<T>;
 }
 
-// =============================================================================
 // 3.3 - Parameter Fix Suggestions
-// =============================================================================
 
 export interface ParameterFix {
   paramName: string;
@@ -350,9 +344,7 @@ export function suggestParameterFixes(
   return fixes;
 }
 
-// =============================================================================
 // 3.4 - Alternative Tool Suggestions
-// =============================================================================
 
 export interface AlternativeTool {
   toolName: string;
@@ -456,9 +448,7 @@ export function suggestAlternativeTools(
     .map(({ toolName, reason, paramMapping }) => ({ toolName, reason, paramMapping }));
 }
 
-// =============================================================================
 // 3.5 - Error Context Injection
-// =============================================================================
 
 export interface ErrorContext {
   failedTool: string;
@@ -504,9 +494,7 @@ export function formatErrorContextForPrompt(ctx: ErrorContext): string {
   return lines.join('\n');
 }
 
-// =============================================================================
 // 3.6 - Correction Budget
-// =============================================================================
 
 export interface CorrectionBudget {
   maxCorrections: number;
@@ -550,9 +538,7 @@ export class CorrectionTracker {
   }
 }
 
-// =============================================================================
 // Main orchestrator
-// =============================================================================
 
 export interface SelfCorrectionResult<T> {
   result: ToolResult<T>;
@@ -663,9 +649,7 @@ export async function executeWithSelfCorrection<T>(
   };
 }
 
-// =============================================================================
 // Legacy helpers (preserved for backward compatibility with executor.ts)
-// =============================================================================
 
 /** @deprecated Use CorrectionTracker class instead */
 export type FailureClass = FailureType;

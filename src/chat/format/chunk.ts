@@ -11,9 +11,7 @@
 
 import type { ChatProviderId } from '../providers/types.js';
 
-// =============================================================================
 // Types
-// =============================================================================
 
 /** How to determine split points when chunking */
 export type ChunkMode = 'length' | 'newline';
@@ -37,9 +35,7 @@ export interface ChunkResult {
   totalLength: number;
 }
 
-// =============================================================================
 // Platform limits
-// =============================================================================
 
 /**
  * Per-platform character limits for outgoing messages.
@@ -87,9 +83,7 @@ export function getPlatformLimit(platform: ChatProviderId | string): number {
   return PLATFORM_LIMITS.default;
 }
 
-// =============================================================================
 // Code block utilities
-// =============================================================================
 
 interface TextSegment {
   text: string;
@@ -126,9 +120,7 @@ function splitIntoSegments(text: string): TextSegment[] {
   return segments;
 }
 
-// =============================================================================
 // Splitting strategies
-// =============================================================================
 
 /**
  * Split prose text by length, respecting word boundaries.
@@ -212,9 +204,7 @@ function splitByNewline(text: string, limit: number): string[] {
   return chunks;
 }
 
-// =============================================================================
 // Core chunking logic
-// =============================================================================
 
 /**
  * Chunk a text string so every chunk fits within `limit` characters.
@@ -280,9 +270,7 @@ function chunkWithLimit(text: string, limit: number, mode: ChunkMode): string[] 
   return resultChunks.filter(c => c.trim().length > 0);
 }
 
-// =============================================================================
 // Public API
-// =============================================================================
 
 /**
  * Chunk text for a specific platform.

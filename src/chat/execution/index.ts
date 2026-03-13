@@ -109,9 +109,7 @@ export {
   grepTool,
 } from './tools/index.js';
 
-// =============================================================================
 // Initialization
-// =============================================================================
 
 import type { SecurityPolicy, SandboxConfig } from './types.js';
 import type { PoolConfig } from './process-pool.js';

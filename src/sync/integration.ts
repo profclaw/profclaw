@@ -94,7 +94,11 @@ export async function initSyncIntegration(): Promise<SyncEngine | null> {
 
     // Update external link
     updateExternalLink: async (id: string, updates: Partial<ExternalLink>) => {
-      await updateExternalLink(id, updates as any);
+      await updateExternalLink(id, {
+        lastSyncedAt: updates.lastSyncedAt,
+        syncError: updates.syncError,
+        syncEnabled: updates.syncEnabled,
+      });
     },
   });
 

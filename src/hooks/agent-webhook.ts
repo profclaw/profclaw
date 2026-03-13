@@ -10,9 +10,7 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import type { Context } from 'hono';
 import { z } from 'zod';
 
-// ============================================================================
 // Schemas
-// ============================================================================
 
 /**
  * Generic agent completion payload
@@ -59,9 +57,7 @@ export const OpenClawCompletionSchema = AgentCompletionSchema.extend({
 
 export type OpenClawCompletion = z.infer<typeof OpenClawCompletionSchema>;
 
-// ============================================================================
 // Storage
-// ============================================================================
 
 interface AgentReport {
   id: string;
@@ -78,9 +74,7 @@ interface AgentReport {
 const agentReports = new Map<string, AgentReport>();
 const taskReports = new Map<string, AgentReport[]>(); // taskId -> reports
 
-// ============================================================================
 // Signature Verification
-// ============================================================================
 
 const WEBHOOK_SECRETS: Record<string, string | undefined> = {
   openclaw: process.env.OPENCLAW_WEBHOOK_SECRET,
@@ -127,9 +121,7 @@ function verifySignature(
   }
 }
 
-// ============================================================================
 // Handlers
-// ============================================================================
 
 /**
  * Handle OpenClaw completion webhook
@@ -225,9 +217,7 @@ function processAgentCompletion(completion: AgentCompletion): AgentReport {
   return report;
 }
 
-// ============================================================================
 // Query Functions
-// ============================================================================
 
 /**
  * Get report by ID

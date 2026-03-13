@@ -14,9 +14,7 @@ import { EventEmitter } from 'node:events';
 import { freemem, totalmem } from 'node:os';
 import { statfs } from 'node:fs/promises';
 
-// =============================================================================
 // 6.1 - Event-Driven Triggers
-// =============================================================================
 
 export type TriggerEvent =
   | 'file_change'      // File modified in watched directory
@@ -210,9 +208,7 @@ export class TriggerManager {
   }
 }
 
-// =============================================================================
 // 6.2 - Proactive Suggestions
-// =============================================================================
 
 export type SuggestionType = 'follow_up' | 'optimization' | 'warning' | 'tip';
 
@@ -408,9 +404,7 @@ export function generateSuggestions(
   return suggestions.sort((a, b) => b.confidence - a.confidence);
 }
 
-// =============================================================================
 // 6.3 - Health Monitoring
-// =============================================================================
 
 export type HealthStatus = 'healthy' | 'degraded' | 'down';
 
@@ -575,9 +569,7 @@ export class HealthMonitor extends EventEmitter {
   }
 }
 
-// =============================================================================
 // 6.4 - Auto-Context Gathering
-// =============================================================================
 
 export type ContextSourceType = 'file' | 'memory' | 'recent_conversation' | 'project_info';
 
@@ -759,9 +751,7 @@ export async function gatherContext(
   return { sources: selected, tokens: totalTokens, summary };
 }
 
-// =============================================================================
 // 6.5 - Background Research
-// =============================================================================
 
 export type ResearchStatus = 'pending' | 'running' | 'completed' | 'failed';
 

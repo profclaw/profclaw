@@ -5,9 +5,7 @@
  * and other integrations.
  */
 
-// ============================================================================
 // Core Plugin Types
-// ============================================================================
 
 export type PluginCategory = 'search' | 'tool' | 'integration' | 'model';
 
@@ -60,9 +58,7 @@ export interface PluginHealth {
   };
 }
 
-// ============================================================================
 // Search Provider Types
-// ============================================================================
 
 export interface SearchResult {
   title: string;
@@ -107,9 +103,7 @@ export interface SearchProvider {
 
 export type SearchProviderFactory = (config: PluginConfig) => SearchProvider;
 
-// ============================================================================
 // Tool Types (for AI function calling)
-// ============================================================================
 
 export interface ToolParameter {
   name: string;
@@ -151,9 +145,7 @@ export interface ToolProvider {
 
 export type ToolProviderFactory = (config: PluginConfig) => ToolProvider;
 
-// ============================================================================
 // Registry Types
-// ============================================================================
 
 export interface PluginRegistry<T> {
   register(id: string, factory: (config: PluginConfig) => T): void;
@@ -166,9 +158,7 @@ export interface PluginRegistry<T> {
   getHealth(id: string): Promise<PluginHealth>;
 }
 
-// ============================================================================
 // Settings Schema Types (for UI generation)
-// ============================================================================
 
 export interface SettingsField {
   key: string;
@@ -193,9 +183,7 @@ export interface PluginSettingsSchema {
   settings: SettingsField[];
 }
 
-// ============================================================================
 // Plugin Definition (for registration)
-// ============================================================================
 
 export interface SearchPluginDefinition {
   metadata: PluginMetadata;

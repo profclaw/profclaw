@@ -14,9 +14,7 @@ import {
 import { BROWSER_TOOLS } from './tools.js';
 import type { ToolDefinition } from '../tools/types.js';
 
-// =============================================================================
 // MCP Adapter (browser-specific)
-// =============================================================================
 
 const MCP_PREFIX = 'profclaw__';
 
@@ -35,9 +33,7 @@ export const handleMCPBrowserTool = createMCPHandler(
   MCP_PREFIX
 );
 
-// =============================================================================
 // Chat Execution Adapter (browser-specific)
-// =============================================================================
 
 /**
  * Chat execution tool definitions for browser tools
@@ -53,8 +49,6 @@ export function getChatBrowserTool(name: string): ChatToolDefinition | undefined
   return CHAT_BROWSER_TOOLS.find((t) => t.name === name);
 }
 
-// =============================================================================
 // Re-exports for backwards compatibility
-// =============================================================================
 
 export { BROWSER_TOOLS, SAFE_BROWSER_TOOL_NAMES } from './tools.js';

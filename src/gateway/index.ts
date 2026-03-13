@@ -30,10 +30,6 @@
  * ```
  */
 
-// TODO(@copilot): Generate unit tests for this module
-// Key functions to test: getGateway, createGateway, GatewayRouter, getWorkflow, getAllWorkflows, inferWorkflow, interpolateTemplate
-// Test file location: src/gateway/tests/index.test.ts
-
 // Types
 export type {
   Gateway,

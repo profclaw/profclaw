@@ -41,16 +41,12 @@ import { getDb } from '../storage/index.js';
 import { inviteCodes, users } from '../storage/schema.js';
 import { invalidateLocalAdminCache } from '../auth/middleware.js';
 
-// =============================================================================
 // RATE LIMITERS
-// =============================================================================
 
 const loginLimiter = rateLimit({ windowMs: 60_000, max: 10, message: 'Too many login attempts. Try again in a minute.' });
 const signupLimiter = rateLimit({ windowMs: 60_000, max: 5, message: 'Too many signup attempts. Try again in a minute.' });
 
-// =============================================================================
 // VALIDATION SCHEMAS
-// =============================================================================
 
 const signupSchema = z.object({
   email: z.string().email('Invalid email address').max(255),
@@ -119,9 +115,7 @@ async function parseJsonBody(c: Context): Promise<
   }
 }
 
-// =============================================================================
 // EMAIL/PASSWORD AUTH
-// =============================================================================
 
 /**
  * POST /api/auth/signup
@@ -271,9 +265,7 @@ authRoutes.post('/logout', async (c) => {
   }
 });
 
-// =============================================================================
 // GITHUB OAUTH
-// =============================================================================
 
 /**
  * GET /api/auth/github
@@ -390,9 +382,7 @@ authRoutes.post('/github/token', async (c) => {
   }
 });
 
-// =============================================================================
 // SESSION & USER
-// =============================================================================
 
 /**
  * GET /api/auth/me
@@ -511,9 +501,7 @@ authRoutes.patch('/me', async (c) => {
   }
 });
 
-// =============================================================================
 // ACCESS KEY (local mode protection)
-// =============================================================================
 
 /**
  * POST /api/auth/verify-access-key
@@ -617,9 +605,7 @@ authRoutes.put('/access-key', async (c) => {
   }
 });
 
-// =============================================================================
 // OTHER OAUTH PROVIDERS (preserved from original)
-// =============================================================================
 
 // Jira OAuth
 authRoutes.get('/jira', (c) => redirectToJira(c));

@@ -33,9 +33,7 @@ import type {
 } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // MATRIX API TYPES
-// =============================================================================
 
 /** Matrix event types for m.room.message */
 const MatrixMsgType = {
@@ -134,9 +132,7 @@ interface MatrixSyncResponse {
   };
 }
 
-// =============================================================================
 // CONFIGURATION
-// =============================================================================
 
 export const MatrixAccountConfigSchema = z.object({
   id: z.string(),
@@ -154,9 +150,7 @@ export const MatrixAccountConfigSchema = z.object({
 
 type MatrixConfig = z.infer<typeof MatrixAccountConfigSchema>;
 
-// =============================================================================
 // METADATA
-// =============================================================================
 
 const meta: ChatProviderMeta = {
   id: 'matrix',
@@ -168,9 +162,7 @@ const meta: ChatProviderMeta = {
   color: '#0DBD8B',
 };
 
-// =============================================================================
 // CAPABILITIES
-// =============================================================================
 
 const capabilities: ChatProviderCapabilities = {
   chatTypes: ['direct', 'group', 'channel', 'thread'],
@@ -189,9 +181,7 @@ const capabilities: ChatProviderCapabilities = {
   realtime: false, // Polling via /sync or Application Service; no built-in push
 };
 
-// =============================================================================
 // STATE
-// =============================================================================
 
 let currentConfig: MatrixConfig | null = null;
 
@@ -202,9 +192,7 @@ function nextTxnId(): string {
   return `profclaw_${++txnCounter}`;
 }
 
-// =============================================================================
 // HELPER FUNCTIONS
-// =============================================================================
 
 function getApiBase(config?: MatrixConfig | null): string {
   const url = (config ?? currentConfig)?.homeserverUrl ?? '';
@@ -326,9 +314,7 @@ function displayNameFromUserId(userId: string): string {
   return match ? match[1] : userId;
 }
 
-// =============================================================================
 // AUTH ADAPTER
-// =============================================================================
 
 const authAdapter: AuthAdapter = {
   getAuthUrl(_state: string, _scopes?: string[]): string {
@@ -359,9 +345,7 @@ const authAdapter: AuthAdapter = {
   },
 };
 
-// =============================================================================
 // OUTBOUND ADAPTER
-// =============================================================================
 
 const outboundAdapter: OutboundAdapter = {
   async send(message: OutgoingMessage): Promise<SendResult> {
@@ -575,9 +559,7 @@ const outboundAdapter: OutboundAdapter = {
   },
 };
 
-// =============================================================================
 // INBOUND ADAPTER
-// =============================================================================
 
 const inboundAdapter: InboundAdapter = {
   parseMessage(payload: unknown): IncomingMessage | null {
@@ -701,9 +683,7 @@ const inboundAdapter: InboundAdapter = {
   },
 };
 
-// =============================================================================
 // STATUS ADAPTER
-// =============================================================================
 
 const statusAdapter: StatusAdapter = {
   isConfigured(config: MatrixAccountConfig): boolean {
@@ -772,9 +752,7 @@ const statusAdapter: StatusAdapter = {
   },
 };
 
-// =============================================================================
 // EXPORTED HELPERS
-// =============================================================================
 
 /**
  * Parse incoming events from a Matrix /sync response.
@@ -839,9 +817,7 @@ export async function getRoomInfo(
   return { ok: false, error: result.error };
 }
 
-// =============================================================================
 // CONFIG MANAGEMENT
-// =============================================================================
 
 export function setMatrixConfig(config: MatrixConfig): void {
   currentConfig = config;
@@ -851,9 +827,7 @@ export function clearMatrixConfig(): void {
   currentConfig = null;
 }
 
-// =============================================================================
 // PROVIDER EXPORT
-// =============================================================================
 
 export const matrixProvider: ChatProvider<MatrixAccountConfig> = {
   meta,

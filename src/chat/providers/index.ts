@@ -49,9 +49,7 @@ export { synologyProvider, SynologyAccountConfigSchema } from './synology/index.
 export { tlonProvider, TlonAccountConfigSchema } from './tlon/index.js';
 export { zaloPersonalProvider, ZaloPersonalAccountConfigSchema } from './zalo-personal/index.js';
 
-// =============================================================================
 // INITIALIZATION
-// =============================================================================
 
 import { getChatRegistry } from './registry.js';
 import { slackProvider } from './slack/index.js';
@@ -422,9 +420,7 @@ export function initializeChatProviders(): void {
   // Future: Load additional providers from database or config file
 }
 
-// =============================================================================
 // CONVENIENCE FUNCTIONS
-// =============================================================================
 
 import type { OutgoingMessage, SendResult, ChatProviderId } from './types.js';
 

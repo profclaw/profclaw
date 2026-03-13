@@ -13,9 +13,7 @@ import { projects, tickets } from '../../../storage/schema.js';
 import { eq, sql, desc, and, like, or } from 'drizzle-orm';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // Availability Check
-// =============================================================================
 
 /** Cache database availability to avoid repeated checks */
 let dbAvailabilityCache: ToolAvailability | null = null;
@@ -56,9 +54,7 @@ function checkDatabaseAvailability(): ToolAvailability {
   return dbAvailabilityCache;
 }
 
-// =============================================================================
 // Schemas
-// =============================================================================
 
 const CreateTicketParamsSchema = z.object({
   projectKey: z.string().describe('Project key (e.g., "PC")'),
@@ -113,9 +109,7 @@ export type ListProjectsParams = z.infer<typeof ListProjectsParamsSchema>;
 export type UpdateTicketParams = z.infer<typeof UpdateTicketParamsSchema>;
 export type GetTicketParams = z.infer<typeof GetTicketParamsSchema>;
 
-// =============================================================================
 // Result Types
-// =============================================================================
 
 interface TicketResult {
   id: string;
@@ -144,9 +138,7 @@ interface ProjectResult {
   ticketCount?: number;
 }
 
-// =============================================================================
 // Helper Functions
-// =============================================================================
 
 async function getProjectByKey(key: string) {
   const client = getDb();
@@ -218,9 +210,7 @@ function formatDateSafe(value: unknown): string {
   return new Date().toISOString();
 }
 
-// =============================================================================
 // Create Ticket Tool
-// =============================================================================
 
 export const createTicketTool: ToolDefinition<CreateTicketParams, TicketResult> = {
   name: 'create_ticket',
@@ -329,9 +319,7 @@ DO NOT just list projects and stop - you must CREATE the ticket to complete the 
   },
 };
 
-// =============================================================================
 // Create Project Tool
-// =============================================================================
 
 export const createProjectTool: ToolDefinition<CreateProjectParams, ProjectResult> = {
   name: 'create_project',
@@ -413,9 +401,7 @@ export const createProjectTool: ToolDefinition<CreateProjectParams, ProjectResul
   },
 };
 
-// =============================================================================
 // List Tickets Tool
-// =============================================================================
 
 export const listTicketsTool: ToolDefinition<ListTicketsParams, { tickets: TicketResult[]; total: number }> = {
   name: 'list_tickets',
@@ -546,9 +532,7 @@ export const listTicketsTool: ToolDefinition<ListTicketsParams, { tickets: Ticke
   },
 };
 
-// =============================================================================
 // List Projects Tool
-// =============================================================================
 
 export const listProjectsTool: ToolDefinition<ListProjectsParams, { projects: ProjectResult[]; hint?: string }> = {
   name: 'list_projects',
@@ -641,9 +625,7 @@ Example: User says "create a bug ticket" →
   },
 };
 
-// =============================================================================
 // Update Ticket Tool
-// =============================================================================
 
 export const updateTicketTool: ToolDefinition<UpdateTicketParams, TicketResult> = {
   name: 'update_ticket',
@@ -733,9 +715,7 @@ export const updateTicketTool: ToolDefinition<UpdateTicketParams, TicketResult> 
   },
 };
 
-// =============================================================================
 // Get Ticket Tool
-// =============================================================================
 
 export const getTicketTool: ToolDefinition<GetTicketParams, TicketResult> = {
   name: 'get_ticket',
@@ -793,9 +773,7 @@ export const getTicketTool: ToolDefinition<GetTicketParams, TicketResult> = {
   },
 };
 
-// =============================================================================
 // Exports
-// =============================================================================
 
 export const profclawTools = [
   createTicketTool,

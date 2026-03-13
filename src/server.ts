@@ -9,7 +9,7 @@ import { loadConfig } from './utils/config-loader.js';
 import { validateEnvironment, getConfiguredIntegrations, getConfiguredAIProviders } from './utils/env-validator.js';
 import { initApiTokensTable, tokenAuthMiddleware } from './auth/api-tokens.js';
 import { authMiddleware } from './auth/middleware.js';
-import { rateLimit, type RateLimitMiddleware } from './middleware/rate-limit.js';
+import { rateLimit } from './middleware/rate-limit.js';
 import type { GatewayRequest, WorkflowType } from './gateway/index.js';
 import type { AgentConfig } from './types/agent.js';
 import { CreateTaskSchema } from './types/task.js';
@@ -872,7 +872,7 @@ async function gracefulShutdown(signal: string): Promise<void> {
 
   // 1. Close SSE connections with shutdown event
   const encoder = new TextEncoder();
-  for (const [id, conn] of sseConnections) {
+  for (const [, conn] of sseConnections) {
     try {
       const msg = `event: shutdown\ndata: ${JSON.stringify({ reason: signal })}\n\n`;
       conn.controller.enqueue(encoder.encode(msg));

@@ -59,9 +59,7 @@ function buildScopedWhatsAppPayload(
   };
 }
 
-// =============================================================================
 // CONFIGURATION
-// =============================================================================
 
 const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || '';
 const WHATSAPP_BUSINESS_ACCOUNT_ID = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '';
@@ -106,9 +104,7 @@ function getConfig(): WhatsAppConfig | null {
   return null;
 }
 
-// =============================================================================
 // WEBHOOK ROUTES
-// =============================================================================
 
 /**
  * GET /webhook - Webhook verification challenge
@@ -261,9 +257,7 @@ whatsapp.post('/webhook', async (c) => {
   return c.json({ ok: true });
 });
 
-// =============================================================================
 // STATUS & HEALTH
-// =============================================================================
 
 /**
  * GET /status - WhatsApp status and health check
@@ -351,9 +345,7 @@ whatsapp.post('/test', async (c) => {
   return c.json({ error: result.error || 'Failed to send message' }, 500);
 });
 
-// =============================================================================
 // CONFIGURATION MANAGEMENT
-// =============================================================================
 
 /**
  * GET /config - Get current configuration (redacted)

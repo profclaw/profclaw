@@ -10,9 +10,7 @@ import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.
 import { MODEL_ALIASES, MODEL_CATALOG } from '../../../providers/core/models.js';
 import type { ModelInfo } from '../../../providers/core/types.js';
 
-// =============================================================================
 // Schema
-// =============================================================================
 
 const SessionStatusParamsSchema = z.object({
   action: z.enum(['status', 'set_model', 'list_models']).optional().default('status')
@@ -23,9 +21,7 @@ const SessionStatusParamsSchema = z.object({
 
 export type SessionStatusParams = z.infer<typeof SessionStatusParamsSchema>;
 
-// =============================================================================
 // Session State (in-memory per conversation)
-// =============================================================================
 
 // Store per-session model overrides
 const sessionModelOverrides = new Map<string, string>();
@@ -42,9 +38,7 @@ export function clearSessionModel(conversationId: string): void {
   sessionModelOverrides.delete(conversationId);
 }
 
-// =============================================================================
 // Tool Definition
-// =============================================================================
 
 export interface SessionStatusResult {
   action: 'status' | 'set_model' | 'list_models';

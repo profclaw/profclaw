@@ -8,9 +8,7 @@
 import { randomUUID } from 'crypto';
 import { logger } from '../../utils/logger.js';
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export type AuditEventType =
   | 'tool_execution'
@@ -86,17 +84,13 @@ export interface AuditStats {
   };
 }
 
-// =============================================================================
 // Constants
-// =============================================================================
 
 const OUTPUT_PREVIEW_LENGTH = 500;
 const CLEANUP_THRESHOLD = 11_000;
 const ENTRIES_TO_REMOVE = 2_000;
 
-// =============================================================================
 // Audit Logger
-// =============================================================================
 
 export class AuditLogger {
   private entries: AuditEntry[] = [];
@@ -421,9 +415,7 @@ export class AuditLogger {
     return this.entries.length;
   }
 
-  // ===========================================================================
   // Private Methods
-  // ===========================================================================
 
   private createEntry(
     eventType: AuditEventType,
@@ -521,9 +513,7 @@ export class AuditLogger {
   }
 }
 
-// =============================================================================
 // Singleton
-// =============================================================================
 
 let auditLogger: AuditLogger | null = null;
 

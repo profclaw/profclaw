@@ -12,10 +12,6 @@
  * This enables dynamic capability extension without hardcoding every tool.
  */
 
-// TODO(@copilot): Generate unit tests for this module
-// Key functions to test: parseFrontmatter, getMarkdownContent, resolveMetadata, resolveSkillInvocationPolicy, parseSkillFile, loadAllSkills, filterSkills, parseSkillMd, checkEligibility, hasBinary, buildSkillSnapshotSync, buildSkillsStatus, applySkillEnvOverrides, formatSkillsForPrompt, buildSkillSnapshot, buildSkillsPrompt, resolveSkillsPromptForRun, getSkillFromSnapshot, estimateSkillsTokenCost, getSkillsRegistry, initializeSkillsRegistry
-// Test file location: src/skills/tests/index.test.ts
-
 // Types
 export * from './types.js';
 

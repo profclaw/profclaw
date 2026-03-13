@@ -129,9 +129,7 @@ export async function installSkillDependencies(
   return results;
 }
 
-// =============================================================================
 // Install Methods
-// =============================================================================
 
 async function installViaBrew(
   spec: SkillInstallSpec,

@@ -6,9 +6,7 @@
 
 import { ProviderType, type ModelInfo } from './types.js';
 
-// =============================================================================
 // Model Aliases
-// =============================================================================
 
 export const MODEL_ALIASES: Record<string, { provider: ProviderType; model: string }> = {
   // Anthropic
@@ -139,9 +137,7 @@ export const MODEL_ALIASES: Record<string, { provider: ProviderType; model: stri
   granite: { provider: 'watsonx', model: 'watsonx/ibm/granite-3.0-8b-instruct' },
 };
 
-// =============================================================================
 // Model Catalog
-// =============================================================================
 
 export const MODEL_CATALOG: ModelInfo[] = [
   // Anthropic - All support native function calling
@@ -964,9 +960,7 @@ export const MODEL_CATALOG: ModelInfo[] = [
   },
 ];
 
-// =============================================================================
 // Helper Functions
-// =============================================================================
 
 /**
  * Get model info by ID

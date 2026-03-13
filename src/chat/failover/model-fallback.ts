@@ -17,9 +17,7 @@ import {
   getUserFriendlyErrorMessage,
 } from './error.js';
 
-// =============================================================================
 // Cooldown Management
-// =============================================================================
 
 /**
  * Cooldown durations by failure reason (in milliseconds)
@@ -113,9 +111,7 @@ export function getProvidersInCooldown(): ProviderCooldown[] {
   return result;
 }
 
-// =============================================================================
 // Model Candidate Resolution
-// =============================================================================
 
 /**
  * Model candidate for fallback
@@ -239,9 +235,7 @@ export function buildFallbackCandidates(params: {
   return candidates;
 }
 
-// =============================================================================
 // Run With Model Fallback
-// =============================================================================
 
 /**
  * Run an operation with automatic model fallback.

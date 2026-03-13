@@ -9,9 +9,7 @@ import { z } from 'zod';
 import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // Schema
-// =============================================================================
 
 const DiscordActionsParamsSchema = z.discriminatedUnion('action', [
   z.object({
@@ -73,9 +71,7 @@ const DiscordActionsParamsSchema = z.discriminatedUnion('action', [
 
 export type DiscordActionsParams = z.infer<typeof DiscordActionsParamsSchema>;
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface DiscordActionsResult {
   action: string;
@@ -83,9 +79,7 @@ export interface DiscordActionsResult {
   details: Record<string, unknown>;
 }
 
-// =============================================================================
 // Helpers
-// =============================================================================
 
 const DISCORD_API_BASE = 'https://discord.com/api/v10';
 
@@ -119,9 +113,7 @@ function discordErrorMessage(data: unknown, status: number): string {
   return `Discord API error ${status}`;
 }
 
-// =============================================================================
 // Tool Definition
-// =============================================================================
 
 export const discordActionsTool: ToolDefinition<DiscordActionsParams, DiscordActionsResult> = {
   name: 'discord_actions',

@@ -7,9 +7,7 @@
 
 import type { AgentState, StopCondition } from './types.js';
 
-// =============================================================================
 // Step Count Conditions
-// =============================================================================
 
 /**
  * Stop when step count reaches a specific number.
@@ -32,9 +30,7 @@ export function stepCountExceeds(threshold: number): StopCondition {
   };
 }
 
-// =============================================================================
 // Tool Call Conditions
-// =============================================================================
 
 /**
  * Stop when a specific tool has been called.
@@ -80,9 +76,7 @@ export function totalToolCalls(maxCalls: number): StopCondition {
   };
 }
 
-// =============================================================================
 // Budget Conditions
-// =============================================================================
 
 /**
  * Stop when token budget is exceeded.
@@ -117,9 +111,7 @@ export function budgetPercentageExceeds(percentage: number): StopCondition {
   };
 }
 
-// =============================================================================
 // Task Completion Conditions
-// =============================================================================
 
 /**
  * Stop when the complete_task tool has been called successfully.
@@ -188,9 +180,7 @@ export function noToolCallsInLastStep(): StopCondition {
   };
 }
 
-// =============================================================================
 // Repeat Detection
-// =============================================================================
 
 /**
  * Stop when the same tool is called with the same arguments repeatedly.
@@ -215,9 +205,7 @@ export function sameToolRepeated(maxRepeats: number = 3): StopCondition {
   };
 }
 
-// =============================================================================
 // Error Conditions
-// =============================================================================
 
 /**
  * Stop when a tool call fails.
@@ -246,9 +234,7 @@ export function consecutiveFailures(count: number): StopCondition {
   };
 }
 
-// =============================================================================
 // Time Conditions
-// =============================================================================
 
 /**
  * Stop when execution time exceeds a limit.
@@ -260,9 +246,7 @@ export function timeoutExceeded(timeoutMs: number): StopCondition {
   };
 }
 
-// =============================================================================
 // Composite Conditions
-// =============================================================================
 
 /**
  * Stop when ANY of the provided conditions are met (OR logic).
@@ -308,9 +292,7 @@ export function not(condition: StopCondition): StopCondition {
   };
 }
 
-// =============================================================================
 // Custom Condition Builder
-// =============================================================================
 
 /**
  * Create a custom stop condition with a check function.
@@ -322,9 +304,7 @@ export function custom(
   return { name, check };
 }
 
-// =============================================================================
 // Default Stop Conditions
-// =============================================================================
 
 /**
  * Default stop conditions for profClaw agents.

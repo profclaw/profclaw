@@ -11,9 +11,7 @@ import { join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { logger } from '../utils/logger.js';
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface ExtensionManifest {
   manifest_version: number;
@@ -73,9 +71,7 @@ export interface CDPProxyConfig {
   interceptPatterns: string[];
 }
 
-// =============================================================================
 // Extension Manager
-// =============================================================================
 
 export class ExtensionManager {
   private extensions: Map<string, ExtensionInfo> = new Map();
@@ -92,9 +88,7 @@ export class ExtensionManager {
     };
   }
 
-  // ===========================================================================
   // Chrome Extension Support
-  // ===========================================================================
 
   /**
    * Load a Chrome extension from a directory
@@ -185,9 +179,7 @@ export class ExtensionManager {
     return true;
   }
 
-  // ===========================================================================
   // Extension Manifest Validation
-  // ===========================================================================
 
   validateManifest(manifest: ExtensionManifest): string[] {
     const errors: string[] = [];
@@ -229,9 +221,7 @@ export class ExtensionManager {
     return errors;
   }
 
-  // ===========================================================================
   // User Data Directory / Profile Management
-  // ===========================================================================
 
   /**
    * Create a browser profile with user data directory
@@ -276,9 +266,7 @@ export class ExtensionManager {
     return this.profiles.delete(profileId);
   }
 
-  // ===========================================================================
   // Auth Bridge Registry
-  // ===========================================================================
 
   /**
    * Register an auth bridge for a domain
@@ -311,9 +299,7 @@ export class ExtensionManager {
     return this.authBridges.delete(id);
   }
 
-  // ===========================================================================
   // CDP Proxy Configuration
-  // ===========================================================================
 
   /**
    * Update CDP proxy configuration
@@ -361,9 +347,7 @@ export class ExtensionManager {
   }
 }
 
-// =============================================================================
 // Singleton
-// =============================================================================
 
 let extensionManager: ExtensionManager | null = null;
 

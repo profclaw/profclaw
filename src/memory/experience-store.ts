@@ -13,9 +13,7 @@ import { randomUUID } from 'node:crypto';
 import { getClient } from '../storage/index.js';
 import { logger } from '../utils/logger.js';
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export type ExperienceType =
   | 'tool_chain'
@@ -81,9 +79,7 @@ interface ExperienceRow {
   weight: number;
 }
 
-// =============================================================================
 // Table Initialization
-// =============================================================================
 
 /**
  * Initialize the experiences table and indexes.
@@ -123,9 +119,7 @@ export async function initExperienceStore(): Promise<void> {
   );
 }
 
-// =============================================================================
 // Helpers
-// =============================================================================
 
 function rowToExperience(row: ExperienceRow): Experience {
   return {
@@ -144,9 +138,7 @@ function rowToExperience(row: ExperienceRow): Experience {
   };
 }
 
-// =============================================================================
 // Core CRUD
-// =============================================================================
 
 /**
  * Record a new experience learned from a conversation.
@@ -247,9 +239,7 @@ export async function deleteExperience(id: string): Promise<boolean> {
   }
 }
 
-// =============================================================================
 // Listing / Querying
-// =============================================================================
 
 export interface ListExperiencesOptions {
   type?: ExperienceType;
@@ -313,9 +303,7 @@ export async function listExperiences(
   }
 }
 
-// =============================================================================
 // 5.3 Pattern Matching - Similarity Search
-// =============================================================================
 
 /**
  * Find similar experiences by keyword overlap in intent + tag matching.
@@ -384,9 +372,7 @@ export async function findSimilarExperiences(
   }
 }
 
-// =============================================================================
 // 5.2 User Preference Learning
-// =============================================================================
 
 /**
  * Track a user preference (language, framework, tool, style).
@@ -499,9 +485,7 @@ export async function getUserPreferences(
   }
 }
 
-// =============================================================================
 // 5.4 Memory Decay
-// =============================================================================
 
 const DEFAULT_HALF_LIFE_DAYS = 30;
 
@@ -579,9 +563,7 @@ export async function pruneExpired(minWeight = 0.05): Promise<number> {
   }
 }
 
-// =============================================================================
 // Statistics
-// =============================================================================
 
 /**
  * Get aggregate statistics about the experience store.
