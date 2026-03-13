@@ -133,7 +133,7 @@ integrations.patch('/web-search', async (c) => {
 
     // Update settings
     // TODO: Add webSearch to main settings schema
-    await updateSettings({ integrations: {} } as any); // Stub - webSearch not in settings yet
+    await updateSettings({ integrations: {} }); // Stub - webSearch not in settings yet
 
     // Reload the web search tool config
     const fullConfig = WebSearchConfigSchema.parse(updatedWebSearch);

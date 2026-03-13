@@ -5,7 +5,6 @@
  * Uses centralized definitions from src/browser/tools.ts
  */
 
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { MCP_BROWSER_TOOLS, handleMCPBrowserTool } from '../browser/index.js';
 
 // Re-export MCP tool definitions for server registration

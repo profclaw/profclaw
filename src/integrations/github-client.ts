@@ -1,5 +1,13 @@
 import { logger } from '../utils/logger.js';
 
+interface GitHubApiError {
+  message?: string;
+}
+
+interface GitHubRelease {
+  tag_name: string;
+}
+
 /**
  * GitHub API Client
  * 
@@ -12,7 +20,7 @@ export class GitHubClient {
     this.token = token;
   }
 
-  private async request(path: string, options: RequestInit = {}): Promise<any> {
+  private async request<T = unknown>(path: string, options: RequestInit = {}): Promise<T | null> {
     const url = `https://api.github.com${path}`;
     const response = await fetch(url, {
       ...options,
@@ -25,13 +33,13 @@ export class GitHubClient {
     });
 
     if (!response.ok) {
-      const error = await response.json() as any;
+      const error = await response.json() as GitHubApiError;
       logger.error(`[GitHub Client] Error ${response.status} on ${path}:`, error as Error);
       throw new Error(error.message || 'GitHub API error');
     }
 
     if (response.status === 204) return null;
-    return response.json();
+    return response.json() as Promise<T>;
   }
 
   /**
@@ -57,7 +65,7 @@ export class GitHubClient {
   /**
    * Get pull request details
    */
-  async getPullRequest(repo: string, prNumber: number): Promise<any> {
+  async getPullRequest<T = unknown>(repo: string, prNumber: number): Promise<T | null> {
     return this.request(`/repos/${repo}/pulls/${prNumber}`);
   }
 
@@ -67,7 +75,10 @@ export class GitHubClient {
   async suggestVersion(repo: string): Promise<string> {
     // Basic logic: get latest release and propose next patch/minor
     try {
-      const release = await this.request(`/repos/${repo}/releases/latest`);
+      const release = await this.request<GitHubRelease>(`/repos/${repo}/releases/latest`);
+      if (!release?.tag_name) {
+        return 'v1.0.1';
+      }
       const tag = release.tag_name;
       // Very simple semver increment
       const parts = tag.replace('v', '').split('.');

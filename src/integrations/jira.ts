@@ -65,7 +65,7 @@ export async function handleJiraWebhook(
     try {
       const baseUrl = new URL(issue.self).origin;
       sourceUrl = `${baseUrl}/browse/${issue.key}`;
-    } catch (e) {
+    } catch {
       // Ignore URL parsing error
     }
   }

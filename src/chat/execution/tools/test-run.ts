@@ -280,7 +280,7 @@ function runCommand(command: string, cwd: string): Promise<string> {
       output += data.toString();
     });
 
-    proc.on('close', (code) => {
+    proc.on('close', (_code) => {
       clearTimeout(timeout);
       // Tests can exit non-zero on failure, that's expected
       if (output.length > MAX_OUTPUT_CHARS) {

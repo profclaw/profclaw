@@ -6,7 +6,7 @@
  */
 
 import { randomUUID } from 'crypto';
-import { eq, and, asc, desc, isNull } from 'drizzle-orm';
+import { eq, asc, isNull } from 'drizzle-orm';
 import { getDb } from '../storage/index.js';
 import { states } from '../storage/schema.js';
 import type { StateGroup } from '../tickets/types.js';
@@ -137,7 +137,7 @@ export async function updateState(id: string, input: UpdateStateInput): Promise<
       .where(existing.projectId ? eq(states.projectId, existing.projectId) : isNull(states.projectId));
   }
 
-  const updates: any = { updatedAt: new Date() };
+  const updates: Partial<typeof states.$inferInsert> = { updatedAt: new Date() };
   if (input.name !== undefined) updates.name = input.name;
   if (input.slug !== undefined) updates.slug = input.slug;
   if (input.color !== undefined) updates.color = input.color;

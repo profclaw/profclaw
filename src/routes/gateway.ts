@@ -147,7 +147,7 @@ gateway.post('/execute-secure', tokenAuthMiddleware(['gateway:execute']), async 
 
     const response = await gw.execute(request);
     return c.json(response);
-  } catch (error) {
+  } catch {
     return c.json({ error: 'Gateway execution failed' }, 500);
   }
 });

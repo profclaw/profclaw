@@ -1,27 +1,88 @@
+import { type ReactNode, lazy, Suspense } from 'react';
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
 import { RootLayout } from '@/layouts/RootLayout';
-import { AnalyticsDashboard } from '@/features/dashboard/views/AnalyticsDashboard';
-import { TaskList } from '@/features/tasks/views/TaskList';
-import { TaskDetail } from '@/features/tasks/views/TaskDetail';
-import { SummaryList } from '@/features/summaries/views/SummaryList';
-import { SummaryDetail } from '@/features/summaries/views/SummaryDetail';
-import { AgentList } from '@/features/agents';
-import { Settings } from '@/features/settings';
-import { CostsDashboard } from '@/features/costs/views/CostsDashboard';
-import { WebhookStatus } from '@/features/webhooks';
-import { DLQDashboard } from '@/features/dlq';
-import { GatewayDashboard } from '@/features/gateway';
-import { TicketList, TicketDetail, TicketBoard } from '@/features/tickets';
-import { ChatView } from '@/features/chat';
-import { ProjectList, ProjectDetail } from '@/features/projects';
-import { CronDashboard } from '@/features/cron';
-import { ActivityView } from '@/features/notifications/views/ActivityView';
-import { LoginPage, SignupPage, AuthGuard, GuestGuard } from '@/features/auth';
+import { PageSkeleton } from '@/components/shared/PageSkeleton';
+
+// Eager imports - auth and setup pages must load immediately
+import { LoginPage, SignupPage, AccessKeyPage, AuthGuard, GuestGuard } from '@/features/auth';
 import { SetupWizard } from '@/features/setup/views/SetupWizard';
 import { OOBEWizard } from '@/features/setup/views/OOBEWizard';
 import { OnboardingPage } from '@/features/setup/views/OnboardingPage';
-import { UserManagement, InviteCodeManagement } from '@/features/admin';
-import { PrivacyPolicy, TermsOfService } from '@/features/legal';
+
+// Lazy imports - heavy feature pages split into separate chunks
+const AnalyticsDashboard = lazy(() =>
+  import('@/features/dashboard/views/AnalyticsDashboard').then(m => ({ default: m.AnalyticsDashboard }))
+);
+const TaskList = lazy(() =>
+  import('@/features/tasks/views/TaskList').then(m => ({ default: m.TaskList }))
+);
+const TaskDetail = lazy(() =>
+  import('@/features/tasks/views/TaskDetail').then(m => ({ default: m.TaskDetail }))
+);
+const SummaryList = lazy(() =>
+  import('@/features/summaries/views/SummaryList').then(m => ({ default: m.SummaryList }))
+);
+const SummaryDetail = lazy(() =>
+  import('@/features/summaries/views/SummaryDetail').then(m => ({ default: m.SummaryDetail }))
+);
+const AgentList = lazy(() =>
+  import('@/features/agents/views/AgentList').then(m => ({ default: m.AgentList }))
+);
+const Settings = lazy(() =>
+  import('@/features/settings/views/Settings').then(m => ({ default: m.Settings }))
+);
+const CostsDashboard = lazy(() =>
+  import('@/features/costs/views/CostsDashboard').then(m => ({ default: m.CostsDashboard }))
+);
+const WebhookStatus = lazy(() =>
+  import('@/features/webhooks/index').then(m => ({ default: m.WebhookStatus }))
+);
+const DLQDashboard = lazy(() =>
+  import('@/features/dlq/index').then(m => ({ default: m.DLQDashboard }))
+);
+const GatewayDashboard = lazy(() =>
+  import('@/features/gateway/index').then(m => ({ default: m.GatewayDashboard }))
+);
+const TicketList = lazy(() =>
+  import('@/features/tickets/views/TicketList').then(m => ({ default: m.TicketList }))
+);
+const TicketDetail = lazy(() =>
+  import('@/features/tickets/views/TicketDetail').then(m => ({ default: m.TicketDetail }))
+);
+const TicketBoard = lazy(() =>
+  import('@/features/tickets/views/TicketBoard').then(m => ({ default: m.TicketBoard }))
+);
+const ChatView = lazy(() =>
+  import('@/features/chat/views/ChatView').then(m => ({ default: m.ChatView }))
+);
+const ProjectList = lazy(() =>
+  import('@/features/projects/views/ProjectList').then(m => ({ default: m.ProjectList }))
+);
+const ProjectDetail = lazy(() =>
+  import('@/features/projects/views/ProjectDetail').then(m => ({ default: m.ProjectDetail }))
+);
+const CronDashboard = lazy(() =>
+  import('@/features/cron/index').then(m => ({ default: m.CronDashboard }))
+);
+const ActivityView = lazy(() =>
+  import('@/features/notifications/views/ActivityView').then(m => ({ default: m.ActivityView }))
+);
+const UserManagement = lazy(() =>
+  import('@/features/admin/views/UserManagement').then(m => ({ default: m.UserManagement }))
+);
+const InviteCodeManagement = lazy(() =>
+  import('@/features/admin/views/InviteCodeManagement').then(m => ({ default: m.InviteCodeManagement }))
+);
+const PrivacyPolicy = lazy(() =>
+  import('@/features/legal/index').then(m => ({ default: m.PrivacyPolicy }))
+);
+const TermsOfService = lazy(() =>
+  import('@/features/legal/index').then(m => ({ default: m.TermsOfService }))
+);
+
+function Lazy({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<PageSkeleton />}>{children}</Suspense>;
+}
 
 const router = createBrowserRouter([
   // Auth routes (guest only - redirects to / if logged in)
@@ -32,6 +93,10 @@ const router = createBrowserRouter([
   {
     path: '/signup',
     element: <GuestGuard><SignupPage /></GuestGuard>,
+  },
+  {
+    path: '/access-key',
+    element: <GuestGuard><AccessKeyPage /></GuestGuard>,
   },
   // OOBE wizard (public - for first-time local setup)
   {
@@ -46,77 +111,77 @@ const router = createBrowserRouter([
   // Legal pages (public - no auth required)
   {
     path: '/privacy',
-    element: <PrivacyPolicy />,
+    element: <Lazy><PrivacyPolicy /></Lazy>,
   },
   {
     path: '/terms',
-    element: <TermsOfService />,
+    element: <Lazy><TermsOfService /></Lazy>,
   },
   // Onboarding (for new users after signup)
   {
     path: '/onboarding',
-    element: <AuthGuard><OnboardingPage /></AuthGuard>,
+    element: <AuthGuard><Lazy><OnboardingPage /></Lazy></AuthGuard>,
   },
   // Protected app routes (redirects to /login if not authenticated)
   {
     path: '/',
-    element: <AuthGuard><RootLayout><ChatView /></RootLayout></AuthGuard>,
+    element: <AuthGuard><RootLayout><Lazy><ChatView /></Lazy></RootLayout></AuthGuard>,
   },
   {
     path: '/tasks',
-    element: <AuthGuard><RootLayout><TaskList /></RootLayout></AuthGuard>,
+    element: <AuthGuard><RootLayout><Lazy><TaskList /></Lazy></RootLayout></AuthGuard>,
   },
   {
     path: '/tasks/:id',
-    element: <AuthGuard><RootLayout><TaskDetail /></RootLayout></AuthGuard>,
+    element: <AuthGuard><RootLayout><Lazy><TaskDetail /></Lazy></RootLayout></AuthGuard>,
   },
   {
     path: '/summaries',
-    element: <AuthGuard><RootLayout><SummaryList /></RootLayout></AuthGuard>,
+    element: <AuthGuard><RootLayout><Lazy><SummaryList /></Lazy></RootLayout></AuthGuard>,
   },
   {
     path: '/summaries/:id',
-    element: <AuthGuard><RootLayout><SummaryDetail /></RootLayout></AuthGuard>,
+    element: <AuthGuard><RootLayout><Lazy><SummaryDetail /></Lazy></RootLayout></AuthGuard>,
   },
   {
     path: '/agents',
-    element: <AuthGuard><RootLayout><AgentList /></RootLayout></AuthGuard>,
+    element: <AuthGuard><RootLayout><Lazy><AgentList /></Lazy></RootLayout></AuthGuard>,
   },
   {
     path: '/costs',
-    element: <AuthGuard><RootLayout><CostsDashboard /></RootLayout></AuthGuard>,
+    element: <AuthGuard><RootLayout><Lazy><CostsDashboard /></Lazy></RootLayout></AuthGuard>,
   },
   {
     path: '/settings',
-    element: <AuthGuard><RootLayout><Settings /></RootLayout></AuthGuard>,
+    element: <AuthGuard><RootLayout><Lazy><Settings /></Lazy></RootLayout></AuthGuard>,
   },
   {
     path: '/settings/:section',
-    element: <AuthGuard><RootLayout><Settings /></RootLayout></AuthGuard>,
+    element: <AuthGuard><RootLayout><Lazy><Settings /></Lazy></RootLayout></AuthGuard>,
   },
   {
     path: '/webhooks',
-    element: <AuthGuard><RootLayout><WebhookStatus /></RootLayout></AuthGuard>,
+    element: <AuthGuard><RootLayout><Lazy><WebhookStatus /></Lazy></RootLayout></AuthGuard>,
   },
   {
     path: '/failed',
-    element: <AuthGuard><RootLayout><DLQDashboard /></RootLayout></AuthGuard>,
+    element: <AuthGuard><RootLayout><Lazy><DLQDashboard /></Lazy></RootLayout></AuthGuard>,
   },
   {
     path: '/gateway',
-    element: <AuthGuard><RootLayout><GatewayDashboard /></RootLayout></AuthGuard>,
+    element: <AuthGuard><RootLayout><Lazy><GatewayDashboard /></Lazy></RootLayout></AuthGuard>,
   },
   {
     path: '/tickets',
-    element: <AuthGuard><RootLayout><TicketList /></RootLayout></AuthGuard>,
+    element: <AuthGuard><RootLayout><Lazy><TicketList /></Lazy></RootLayout></AuthGuard>,
   },
   {
     path: '/tickets/board',
-    element: <AuthGuard><RootLayout><TicketBoard /></RootLayout></AuthGuard>,
+    element: <AuthGuard><RootLayout><Lazy><TicketBoard /></Lazy></RootLayout></AuthGuard>,
   },
   {
     path: '/tickets/:id',
-    element: <AuthGuard><RootLayout><TicketDetail /></RootLayout></AuthGuard>,
+    element: <AuthGuard><RootLayout><Lazy><TicketDetail /></Lazy></RootLayout></AuthGuard>,
   },
   {
     path: '/chat',
@@ -124,32 +189,32 @@ const router = createBrowserRouter([
   },
   {
     path: '/analytics',
-    element: <AuthGuard><RootLayout><AnalyticsDashboard /></RootLayout></AuthGuard>,
+    element: <AuthGuard><RootLayout><Lazy><AnalyticsDashboard /></Lazy></RootLayout></AuthGuard>,
   },
   {
     path: '/projects',
-    element: <AuthGuard><RootLayout><ProjectList /></RootLayout></AuthGuard>,
+    element: <AuthGuard><RootLayout><Lazy><ProjectList /></Lazy></RootLayout></AuthGuard>,
   },
   {
     path: '/projects/:id',
-    element: <AuthGuard><RootLayout><ProjectDetail /></RootLayout></AuthGuard>,
+    element: <AuthGuard><RootLayout><Lazy><ProjectDetail /></Lazy></RootLayout></AuthGuard>,
   },
   {
     path: '/cron',
-    element: <AuthGuard><RootLayout><CronDashboard /></RootLayout></AuthGuard>,
+    element: <AuthGuard><RootLayout><Lazy><CronDashboard /></Lazy></RootLayout></AuthGuard>,
   },
   {
     path: '/activity',
-    element: <AuthGuard><RootLayout><ActivityView /></RootLayout></AuthGuard>,
+    element: <AuthGuard><RootLayout><Lazy><ActivityView /></Lazy></RootLayout></AuthGuard>,
   },
   // Admin routes
   {
     path: '/admin/users',
-    element: <AuthGuard><RootLayout><UserManagement /></RootLayout></AuthGuard>,
+    element: <AuthGuard><RootLayout><Lazy><UserManagement /></Lazy></RootLayout></AuthGuard>,
   },
   {
     path: '/admin/invite-codes',
-    element: <AuthGuard><RootLayout><InviteCodeManagement /></RootLayout></AuthGuard>,
+    element: <AuthGuard><RootLayout><Lazy><InviteCodeManagement /></Lazy></RootLayout></AuthGuard>,
   },
 ]);
 

@@ -25,6 +25,18 @@ export interface GitHubWebhookResult {
   reason?: string;
 }
 
+interface GitHubSyncWebhookPayload {
+  action?: string;
+  issue?: GitHubIssue;
+  repository?: GitHubRepository;
+  label?: { name: string; color?: string };
+  comment?: GitHubComment;
+}
+
+function isGitHubSyncWebhookPayload(payload: unknown): payload is GitHubSyncWebhookPayload {
+  return typeof payload === 'object' && payload !== null;
+}
+
 interface GitHubIssue {
   id: number;
   number: number;
@@ -286,7 +298,7 @@ export async function handleIssueLabelEvent(
   action: 'labeled' | 'unlabeled',
   issue: GitHubIssue,
   repository: GitHubRepository,
-  label: { name: string; color?: string }
+  _label: { name: string; color?: string }
 ): Promise<GitHubWebhookResult> {
   const synced = await findSyncedTicket(repository, issue);
 
@@ -452,31 +464,40 @@ export async function handleCommentDeleted(
  */
 export async function processGitHubWebhookForTicketSync(
   event: string,
-  payload: any
+  payload: unknown,
 ): Promise<GitHubWebhookResult> {
   try {
+    if (!isGitHubSyncWebhookPayload(payload)) {
+      return { action: 'ignored', reason: 'invalid_payload' };
+    }
+
     if (event === 'issues') {
       const { action, issue, repository, label } = payload;
 
-      if (action === 'labeled' || action === 'unlabeled') {
+      if ((action === 'labeled' || action === 'unlabeled') && issue && repository && label) {
         return handleIssueLabelEvent(action, issue, repository, label);
       }
 
-      if (['opened', 'edited', 'closed', 'reopened', 'assigned', 'unassigned'].includes(action)) {
-        return handleIssueEvent(action, issue, repository);
+      if (
+        action
+        && issue
+        && repository
+        && ['opened', 'edited', 'closed', 'reopened', 'assigned', 'unassigned'].includes(action)
+      ) {
+        return handleIssueEvent(action, issue!, repository);
       }
     }
 
     if (event === 'issue_comment') {
       const { action, issue, comment, repository } = payload;
 
-      if (action === 'created') {
+      if (action === 'created' && issue && comment && repository) {
         return handleCommentCreated(issue, comment, repository);
       }
-      if (action === 'edited') {
+      if (action === 'edited' && issue && comment && repository) {
         return handleCommentEdited(issue, comment, repository);
       }
-      if (action === 'deleted') {
+      if (action === 'deleted' && issue && comment && repository) {
         return handleCommentDeleted(issue, comment, repository);
       }
     }

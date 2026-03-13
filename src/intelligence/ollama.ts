@@ -1,7 +1,7 @@
 import { logger } from '../utils/logger.js';
 import { loadConfig } from '../utils/config-loader.js';
 import type { TaskResult } from '../types/task.js';
-import type { CreateSummaryInput } from '../types/summary.js';
+import type { CreateSummaryInput, FileChange } from '../types/summary.js';
 
 interface OllamaConfig {
   ai?: {
@@ -40,7 +40,7 @@ export class OllamaService {
         signal: AbortSignal.timeout(2000),
       });
       return response.ok;
-    } catch (error) {
+    } catch {
       logger.debug('[Ollama] Health check failed, service unavailable');
       return false;
     }
@@ -223,7 +223,7 @@ Generate the summary now:`;
       const match = line.match(/(created|modified|deleted|renamed)\|(.+)/i);
       if (match) {
         files.push({
-          action: match[1].toLowerCase() as any,
+          action: match[1].toLowerCase() as FileChange['action'],
           path: match[2].trim(),
         });
       }

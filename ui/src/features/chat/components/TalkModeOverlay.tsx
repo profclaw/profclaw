@@ -40,6 +40,7 @@ interface TalkModeOverlayProps {
   selectedVoice: string;
   onVoiceChange: (voice: string) => void;
   onStop: () => void;
+  ttsAvailable?: boolean;
 }
 
 // =============================================================================
@@ -120,6 +121,7 @@ export function TalkModeOverlay({
   selectedVoice,
   onVoiceChange,
   onStop,
+  ttsAvailable = true,
 }: TalkModeOverlayProps) {
   const isRecording = state === 'recording';
   const [isExiting, setIsExiting] = useState(false);
@@ -211,6 +213,13 @@ export function TalkModeOverlay({
           />
         </div>
       </div>
+
+      {/* TTS unavailable warning */}
+      {!ttsAvailable && (
+        <p className="mt-2 text-[11px] text-amber-400/80 bg-amber-500/10 rounded-lg px-2 py-1">
+          TTS not configured - responses won't be spoken
+        </p>
+      )}
 
       {/* Calibration noise floor display */}
       {!isCalibrating && noiseFloor > 0 && (

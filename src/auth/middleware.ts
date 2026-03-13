@@ -34,6 +34,7 @@ const PUBLIC_ROUTES = [
   '/api/auth/jira/callback',
   '/api/auth/linear',
   '/api/auth/linear/callback',
+  '/api/auth/verify-access-key',
   '/api/setup',
   '/health',
   '/auth',
@@ -91,9 +92,10 @@ export function authMiddleware() {
     }
 
     // Local-mode bypass: auto-inject admin user when authMode is 'local'
+    // Skip auto-inject if an access key is set (require session cookie instead)
     try {
       const settings = await getSettingsRaw();
-      if (settings.system.authMode === 'local') {
+      if (settings.system.authMode === 'local' && !settings.system.accessKeyHash) {
         const now = Date.now();
         if (!cachedLocalAdmin || now > cachedLocalAdminExpiry) {
           const db = getDb();

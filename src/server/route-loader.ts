@@ -121,6 +121,7 @@ const INTEGRATION_ROUTE_DEFINITIONS: RouteDefinition[] = [
 const SYNC_ROUTE_DEFINITIONS: RouteDefinition[] = [
   { id: 'sync', mountPaths: ['/api/sync'], load: defaultRoute(() => import('../routes/sync.js')) },
   { id: 'import', mountPaths: ['/api/import'], load: namedRoute(() => import('../routes/import.js'), 'importRoutes') },
+  { id: 'backup', mountPaths: ['/api/backup'], load: namedRoute(() => import('../routes/backup.js'), 'backupRoutes') },
 ];
 
 const CHAT_CHANNEL_ROUTE_DEFINITIONS: RouteDefinition[] = [

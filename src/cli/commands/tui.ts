@@ -30,13 +30,6 @@ interface ProviderHealth {
   latencyMs?: number;
 }
 
-interface DashboardData {
-  system: SystemStatus;
-  sessions: ActiveSession[];
-  tasks: RecentTask[];
-  providers: ProviderHealth[];
-}
-
 function formatUptime(seconds: number): string {
   const d = Math.floor(seconds / 86400);
   const h = Math.floor((seconds % 86400) / 3600);

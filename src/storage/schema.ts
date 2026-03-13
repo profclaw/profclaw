@@ -1278,3 +1278,52 @@ export const sessionMessages = sqliteTable("session_messages", {
   deliveredAt: integer("delivered_at", { mode: "timestamp" }),
   readAt: integer("read_at", { mode: "timestamp" }),
 });
+
+// =============================================================================
+// EXPERIENCE STORE (Phase 19 - Cross-Conversation Memory)
+// =============================================================================
+
+/**
+ * Experiences Table - Learned patterns across conversations
+ * Stores tool chains, user preferences, task solutions, and error recovery.
+ */
+export const experiences = sqliteTable("experiences", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull(), // tool_chain | user_preference | task_solution | error_recovery
+  intent: text("intent").notNull(),
+  solution: text("solution").notNull(), // JSON
+  successScore: integer("success_score").notNull().default(1),
+  tags: text("tags", { mode: "json" })
+    .$type<string[]>()
+    .notNull()
+    .default(sql`'[]'`),
+  sourceConversationId: text("source_conversation_id").notNull().default(""),
+  userId: text("user_id"),
+  createdAt: integer("created_at").notNull(),
+  lastUsedAt: integer("last_used_at").notNull(),
+  useCount: integer("use_count").notNull().default(1),
+  weight: integer("weight").notNull().default(1), // stored as REAL in raw SQL
+});
+
+/**
+ * Cost History Table
+ * Persists usage/cost data for analytics and billing across restarts.
+ */
+export const costHistory = sqliteTable("cost_history", {
+  id: text("id").primaryKey(),
+  sessionId: text("session_id"),
+  model: text("model").notNull(),
+  provider: text("provider"),
+  inputTokens: integer("input_tokens").notNull().default(0),
+  outputTokens: integer("output_tokens").notNull().default(0),
+  totalTokens: integer("total_tokens").notNull().default(0),
+  cost: integer("cost").notNull().default(0), // Cost in microdollars (1/1,000,000 USD)
+  source: text("source").notNull().default("chat"), // chat, task, cron, agent
+  agentId: text("agent_id"),
+  metadata: text("metadata", { mode: "json" })
+    .$type<Record<string, unknown>>()
+    .default(sql`'{}'`),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+});

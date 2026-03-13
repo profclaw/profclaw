@@ -247,7 +247,7 @@ export function toolsCommands() {
       if (options.params) {
         try {
           params = JSON.parse(options.params);
-        } catch (_e) {
+        } catch {
           error('Invalid JSON for --params');
           process.exit(1);
         }

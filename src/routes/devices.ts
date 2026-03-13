@@ -10,7 +10,6 @@ import type { Context } from 'hono';
 import { z } from 'zod';
 import {
   loadOrCreateDeviceIdentity,
-  getDeviceIdentity,
   exportPublicIdentity,
   createDeviceAttestation,
   verifyDeviceAttestation,
@@ -27,6 +26,7 @@ import {
   parsePairingCode,
   initPairingCodesTable,
 } from '../auth/pairing-codes.js';
+import { generatePairingQR, generatePairingUrl, generateQRSvg } from '../auth/qr-pairing.js';
 import { getStorage } from '../storage/index.js';
 
 const app = new Hono();
@@ -469,6 +469,54 @@ app.post('/pairing/cleanup', async (c) => {
       },
       500
     );
+  }
+});
+
+/**
+ * GET /api/devices/pairing/qr/:code
+ * Generate a QR code payload (url, svg, text) for a pairing code
+ */
+app.get('/pairing/qr/:code', async (c: Context) => {
+  try {
+    const code = c.req.param('code');
+    if (!code) {
+      return c.json({ error: 'Pairing code required' }, 400);
+    }
+
+    const forwardedHost = c.req.header('X-Forwarded-Host');
+    const baseUrl = forwardedHost ? `https://${forwardedHost}` : undefined;
+
+    const qr = generatePairingQR(code, { baseUrl });
+    return c.json({ success: true, ...qr });
+  } catch (error) {
+    console.error('[Devices] Failed to generate QR code:', error);
+    return c.json({ error: 'Failed to generate QR code' }, 500);
+  }
+});
+
+/**
+ * GET /api/devices/pairing/qr/:code/svg
+ * Return QR code as a raw SVG image for direct embedding
+ */
+app.get('/pairing/qr/:code/svg', async (c: Context) => {
+  try {
+    const code = c.req.param('code');
+    if (!code) {
+      return c.text('Missing code', 400);
+    }
+
+    const forwardedHost = c.req.header('X-Forwarded-Host');
+    const baseUrl = forwardedHost ? `https://${forwardedHost}` : undefined;
+
+    const url = generatePairingUrl(code, { baseUrl });
+    const svg = generateQRSvg(url, 300);
+
+    c.header('Content-Type', 'image/svg+xml');
+    c.header('Cache-Control', 'public, max-age=3600');
+    return c.body(svg);
+  } catch (error) {
+    console.error('[Devices] Failed to generate QR SVG:', error);
+    return c.text('Failed to generate QR', 500);
   }
 });
 

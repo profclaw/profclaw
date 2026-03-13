@@ -1,10 +1,10 @@
-import { type ReactNode, useState, useMemo, useEffect, useRef } from 'react';
+import { type ReactNode, useState, useMemo, useEffect, useRef, lazy, Suspense } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { BarChart3, ListTodo, FileText, Settings, Bot, Search, Coins, Menu, X, ChevronLeft, ChevronRight, Webhook, AlertTriangle, PanelLeftClose, PanelLeft, Command, Zap, Ticket, Sparkles, FolderKanban, Users, Clock, ChevronDown, LogOut, CreditCard, KeyRound, Bell } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from 'next-themes';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
-import { CommandPalette, openCommandPalette } from '@/components/shared/CommandPalette';
+import { openCommandPalette } from '@/components/shared/CommandPalette';
 import { NotificationBell } from '@/features/notifications/components/NotificationBell';
 import { Logo } from '@/components/shared/Logo';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,14 @@ import {
 import { cn } from '@/lib/utils';
 import { api } from '@/core/api/client';
 import { UserMenu, useAuth } from '@/features/auth';
-import { FloatingChatbot } from '@/components/shared/FloatingChatbot';
+
+// Lazy-loaded overlay components - only needed after initial render
+const CommandPalette = lazy(() =>
+  import('@/components/shared/CommandPalette').then(m => ({ default: m.CommandPalette }))
+);
+const FloatingChatbot = lazy(() =>
+  import('@/components/shared/FloatingChatbot').then(m => ({ default: m.FloatingChatbot }))
+);
 
 interface RootLayoutProps {
   children: ReactNode;
@@ -374,7 +381,7 @@ export function RootLayout({ children }: RootLayoutProps) {
       >
         Skip to main content
       </a>
-      <CommandPalette />
+      <Suspense fallback={null}><CommandPalette /></Suspense>
       
       {/* Mobile Overlay */}
       {sidebarOpen && (
@@ -759,7 +766,7 @@ export function RootLayout({ children }: RootLayoutProps) {
         <main id="main-content" className="flex-1 p-4 sm:p-6 outline-none" tabIndex={-1}>
           {children}
         </main>
-        <FloatingChatbot />
+        <Suspense fallback={null}><FloatingChatbot /></Suspense>
       </div>
     </div>
   );

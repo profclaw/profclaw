@@ -21,7 +21,7 @@ import {
   generateRecoveryCodes,
   hashRecoveryCodes,
 } from '../../auth/password.js';
-import { getSettingsRaw, updateSettings, type Settings } from '../../settings/index.js';
+import { updateSettings, type Settings } from '../../settings/index.js';
 import { createTable, success, error, info, warn } from '../utils/output.js';
 
 /**

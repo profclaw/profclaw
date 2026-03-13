@@ -9,6 +9,8 @@
 
 import { MODEL_ALIASES } from '../providers/core/models.js';
 import { getSkillsRegistry } from '../skills/index.js';
+import { detectModelCapability } from './execution/model-capability.js';
+import { buildToolPrompt } from './execution/smart-prompts.js';
 
 // === Runtime Info (injected per-request) ===
 
@@ -300,7 +302,7 @@ export interface ChatContext {
 export async function buildSystemPrompt(
   presetId: string,
   context?: ChatContext,
-  options?: { includeGrounding?: boolean; includeModelAliases?: boolean; enableTools?: boolean; agentMode?: boolean }
+  options?: { includeGrounding?: boolean; includeModelAliases?: boolean; enableTools?: boolean; agentMode?: boolean; modelId?: string }
 ): Promise<string> {
   // Find the preset
   const preset = CHAT_PRESETS.find((p) => p.id === presetId) || CHAT_PRESETS[0];
@@ -396,6 +398,17 @@ ${context.user.role ? `- Role: ${context.user.role}` : ''}`);
   } else if (options?.includeGrounding !== false) {
     // Default: grounding suffix to prevent hallucinations
     prompt += GROUNDING_SUFFIX;
+  }
+
+  // Apply model-adaptive prompt modifications
+  if (context?.runtime?.model) {
+    const { adaptPromptForModel } = await import('./prompt-adapter.js');
+    const adapted = adaptPromptForModel({
+      modelId: context.runtime.model,
+      systemPrompt: prompt,
+      toolDescriptions: options?.enableTools ? 'enabled' : undefined,
+    });
+    prompt = adapted.systemPrompt;
   }
 
   return prompt;

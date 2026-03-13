@@ -40,6 +40,8 @@ export type ChatProviderId =
   | 'nextcloud'
   | 'imessage'
   | 'synology'
+  | 'tlon'
+  | 'zalo-personal'
   | 'custom';
 
 export interface ChatProviderMeta {
@@ -294,6 +296,21 @@ export interface SynologyAccountConfig extends ChatAccountConfigBase {
   outgoingWebhookToken?: string;    // Outgoing webhook token
 }
 
+export interface TlonAccountConfig extends ChatAccountConfigBase {
+  provider: 'tlon';
+  shipUrl?: string;                 // Urbit ship URL (e.g., http://localhost:8080)
+  shipCode?: string;                // +code from ship
+  shipName?: string;                // ~sampel-palnet
+  channelPath?: string;             // /channel/path
+}
+
+export interface ZaloPersonalAccountConfig extends ChatAccountConfigBase {
+  provider: 'zalo-personal';
+  accessToken?: string;             // Zalo personal access token
+  secretKey?: string;               // App secret key
+  userId?: string;                  // Zalo user ID
+}
+
 export type ChatAccountConfig =
   | SlackAccountConfig
   | DiscordAccountConfig
@@ -316,7 +333,9 @@ export type ChatAccountConfig =
   | ZaloAccountConfig
   | NextcloudAccountConfig
   | IMessageAccountConfig
-  | SynologyAccountConfig;
+  | SynologyAccountConfig
+  | TlonAccountConfig
+  | ZaloPersonalAccountConfig;
 
 // =============================================================================
 // MESSAGE TYPES

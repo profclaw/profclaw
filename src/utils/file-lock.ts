@@ -239,7 +239,7 @@ export async function cleanupStaleLock(filePath: string): Promise<boolean> {
     await lockfile.unlock(filePath, { realpath: false });
     console.log(`[FileLock] Cleaned up stale lock: ${filePath}`);
     return true;
-  } catch (error) {
+  } catch {
     // Lock file might not exist
     return false;
   }

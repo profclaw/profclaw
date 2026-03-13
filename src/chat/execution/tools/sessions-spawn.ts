@@ -10,7 +10,6 @@ import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.
 import {
   createConversation,
   addMessage,
-  type Conversation,
 } from '../../conversations.js';
 
 // =============================================================================

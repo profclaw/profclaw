@@ -61,18 +61,6 @@ const LIST_CONTAINER_ROLES = new Set([
   'table',
 ]);
 
-// Roles for list items
-const LIST_ITEM_ROLES = new Set([
-  'listitem',
-  'option',
-  'menuitem',
-  'tab',
-  'treeitem',
-  'row',
-  'gridcell',
-  'cell',
-]);
-
 /**
  * Check if two nodes are similar enough to fold
  */

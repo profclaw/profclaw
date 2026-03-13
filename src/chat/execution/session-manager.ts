@@ -8,7 +8,6 @@
 import type {
   SessionManager,
   ToolSession,
-  SessionStatus,
   SessionFilter,
 } from "./types.js";
 import { logger } from "../../utils/logger.js";

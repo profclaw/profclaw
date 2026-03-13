@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { driver, type DriveStep } from 'driver.js';
 import 'driver.js/dist/driver.css';
+import { useAuth } from '@/features/auth/hooks/useAuth';
 
 const ONBOARDING_KEY = 'profclaw-onboarding-completed';
 
@@ -73,6 +74,13 @@ export function useOnboardingTour() {
         localStorage.setItem(ONBOARDING_KEY, 'true');
         setHasCompleted(true);
         driverObj.destroy();
+        // Also update server-side onboarding status
+        fetch('/api/auth/me', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ onboardingCompleted: true }),
+        }).catch(() => { /* best-effort */ });
       },
     });
 
@@ -89,16 +97,24 @@ export function useOnboardingTour() {
 
 export function OnboardingTour() {
   const { hasCompleted, startTour } = useOnboardingTour();
+  const { isAuthenticated, user } = useAuth();
 
   useEffect(() => {
-    // Auto-start tour for first-time users after a brief delay
-    if (!hasCompleted) {
-      const timer = setTimeout(() => {
-        startTour();
-      }, 1500);
-      return () => clearTimeout(timer);
+    // Only auto-start tour when authenticated and not yet completed
+    // Use server-side onboardingCompleted as source of truth, localStorage as fast cache
+    if (!isAuthenticated) return;
+    if (hasCompleted) return;
+    if (user?.onboardingCompleted) {
+      // Server says completed, sync localStorage
+      localStorage.setItem(ONBOARDING_KEY, 'true');
+      return;
     }
-  }, [hasCompleted, startTour]);
+
+    const timer = setTimeout(() => {
+      startTour();
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [hasCompleted, startTour, isAuthenticated, user?.onboardingCompleted]);
 
   return null; // This component just handles the tour logic
 }

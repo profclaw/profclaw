@@ -1,8 +1,10 @@
 import { Hono } from 'hono';
 import { getAgentRegistry } from '../adapters/registry.js';
 import { getStorage } from '../storage/index.js';
+import type { StorageAdapter } from '../storage/adapter.js';
 
 const agents = new Hono();
+type AgentStats = Awaited<ReturnType<StorageAdapter['getAgentStats']>>;
 
 // List available agents with detailed status
 agents.get('/', async (c) => {
@@ -10,7 +12,7 @@ agents.get('/', async (c) => {
   const adapters = registry.getActiveAdapters();
   const storage = getStorage();
 
-  let agentStats: Record<string, any> = {};
+  let agentStats: AgentStats = {};
   try {
     agentStats = await storage.getAgentStats();
   } catch (error) {

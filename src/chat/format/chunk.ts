@@ -69,6 +69,8 @@ export const PLATFORM_LIMITS: Readonly<Record<ChatProviderId | 'default', number
   nextcloud: 4000,
   imessage: 4000,
   synology: 4000,
+  tlon: 4000,
+  'zalo-personal': 4000,
   custom: 4000,
   default: 4000,
 };

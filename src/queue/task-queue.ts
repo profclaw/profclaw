@@ -472,13 +472,13 @@ export function onTaskEvent(callback: (event: TaskEvent) => void): () => void {
 }
 
 // SSE broadcast callback (set from server.ts)
-let sseBroadcaster: ((eventType: string, data: any) => void) | null = null;
+let sseBroadcaster: ((eventType: string, data: Record<string, unknown>) => void) | null = null;
 
 /**
  * Register SSE broadcaster for real-time updates
  */
 export function registerSSEBroadcaster(
-  broadcaster: (eventType: string, data: any) => void,
+  broadcaster: (eventType: string, data: Record<string, unknown>) => void,
 ): void {
   sseBroadcaster = broadcaster;
 }

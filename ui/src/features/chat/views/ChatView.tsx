@@ -4,7 +4,7 @@
  * Main chat interface with tool calling support and approval workflow.
  */
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -23,6 +23,9 @@ import {
   TalkModeOverlay,
   type AgenticEvent,
 } from '../components';
+import { WorkflowQuickActions } from '../components/WorkflowQuickActions';
+import { AutonomySlider, type AutonomyLevel } from '../components/AutonomySlider';
+import { ToolTimeline, type ToolCallEvent } from '../components/ToolTimeline';
 import { useTalkMode } from '@/core/hooks/useTalkMode';
 import {
   ToolApprovalDialog,
@@ -82,11 +85,36 @@ export function ChatView() {
     }
     return false;
   });
+  const [autonomyLevel, setAutonomyLevel] = useState<AutonomyLevel>('ask-dangerous');
   const [focusedView, setFocusedView] = useState(false);
 
   // Agentic execution state
   const [agenticEvents, setAgenticEvents] = useState<AgenticEvent[]>([]);
   const [isAgenticRunning, setIsAgenticRunning] = useState(false);
+
+  // Derive tool call events from agentic events for ToolTimeline
+  const toolCallEvents = useMemo<ToolCallEvent[]>(() => {
+    const calls = new Map<string, ToolCallEvent>();
+    for (const event of agenticEvents) {
+      if (event.type === 'tool:call') {
+        const data = event.data as { id?: string; name?: string; toolCallId?: string; toolName?: string };
+        const id = data.id ?? data.toolCallId ?? crypto.randomUUID();
+        const name = data.name ?? data.toolName ?? 'unknown';
+        calls.set(id, { id, toolName: name, status: 'running', startedAt: Date.now() });
+      }
+      if (event.type === 'tool:result') {
+        const data = event.data as { id?: string; toolCallId?: string; success?: boolean; error?: string };
+        const id = data.id ?? data.toolCallId ?? '';
+        const existing = calls.get(id);
+        if (existing) {
+          existing.status = data.success === false ? 'failed' : 'completed';
+          existing.completedAt = Date.now();
+          if (data.error) existing.error = data.error;
+        }
+      }
+    }
+    return Array.from(calls.values());
+  }, [agenticEvents]);
 
   const urlConversationIdRef = useRef<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -148,6 +176,38 @@ export function ChatView() {
     refetchInterval: 60000,
     staleTime: 55000,
   });
+
+  // Model capability detection
+  const { data: modelCapability } = useQuery<{
+    capability: 'basic' | 'instruction' | 'reasoning';
+    tier: 'essential' | 'standard' | 'full';
+    maxSchemaTokens: number;
+  }>({
+    queryKey: ['model-capability', selectedModel],
+    queryFn: async () => {
+      if (!selectedModel) return { capability: 'reasoning' as const, tier: 'full' as const, maxSchemaTokens: 20000 };
+      const res = await fetch(`/api/chat/model-capability?model=${encodeURIComponent(selectedModel)}`);
+      if (!res.ok) return { capability: 'reasoning' as const, tier: 'full' as const, maxSchemaTokens: 20000 };
+      return res.json() as Promise<{ capability: 'basic' | 'instruction' | 'reasoning'; tier: 'essential' | 'standard' | 'full'; maxSchemaTokens: number }>;
+    },
+    staleTime: 300_000,
+    enabled: !!selectedModel,
+  });
+
+  // Voice availability status
+  const { data: voiceStatus } = useQuery<{ available: boolean; stt: { provider: string | null }; tts: { provider: string | null } }>({
+    queryKey: ['voice-status'],
+    queryFn: async () => {
+      const res = await fetch('/api/voice/status');
+      if (!res.ok) return { available: false, stt: { provider: null }, tts: { provider: null } };
+      return res.json() as Promise<{ available: boolean; stt: { provider: string | null }; tts: { provider: string | null } }>;
+    },
+    staleTime: 60_000,
+    retry: 1,
+  });
+
+  const sttAvailable = voiceStatus?.stt?.provider != null;
+  const ttsAvailable = voiceStatus?.tts?.provider != null;
 
   // ============================================================================
   // Mutations
@@ -646,6 +706,14 @@ export function ChatView() {
     }
   }, [messages, talkMode.state, talkMode.config.autoTts, talkMode.speakResponse]);
 
+  const handleToggleTalkMode = useCallback(() => {
+    if (!sttAvailable && talkMode.state === 'idle') {
+      toast.error('Talk Mode requires an STT provider. Go to Settings > Voice to configure.', { id: 'voice-unavailable' });
+      return;
+    }
+    talkMode.toggle();
+  }, [sttAvailable, talkMode.state, talkMode.toggle]);
+
   const handleNewChat = () => {
     setConversationId(null);
     setMessages([]);
@@ -714,6 +782,19 @@ export function ChatView() {
     setInput(prompt);
   };
 
+  const handleWorkflowSelect = useCallback((workflowId: string) => {
+    const workflowPrompts: Record<string, string> = {
+      deploy: 'Run the deploy workflow for this project',
+      review: 'Run a code review on the recent changes',
+      debug: 'Help me debug the current issue',
+      research: 'Research this topic for me',
+      test: 'Run the test suite and analyze results',
+      refactor: 'Suggest refactoring improvements for the current code',
+    };
+    const prompt = workflowPrompts[workflowId] || `Run the ${workflowId} workflow`;
+    setInput(prompt);
+  }, []);
+
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -731,6 +812,10 @@ export function ChatView() {
   };
 
   const startRecording = async () => {
+    if (!sttAvailable) {
+      toast.error('Voice input requires an STT provider. Go to Settings > Voice to configure.', { id: 'voice-unavailable' });
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
@@ -904,6 +989,10 @@ export function ChatView() {
             onClearChat={handleNewChat}
             focusedView={focusedView}
             onToggleFocusedView={handleToggleFocusedView}
+            modelCapability={modelCapability ? {
+              toolTier: modelCapability.tier,
+              capabilityLevel: modelCapability.capability,
+            } : undefined}
           />
         </header>
 
@@ -931,11 +1020,29 @@ export function ChatView() {
         </div>
       )}
 
+      {/* Autonomy Level (agent mode only) */}
+      {agentMode && (
+        <AutonomySlider
+          level={autonomyLevel}
+          onChange={setAutonomyLevel}
+          className="mb-3"
+        />
+      )}
+
       {/* Agentic Thinking Display */}
       {agentMode && (agenticEvents.length > 0 || isAgenticRunning) && (
         <AgenticThinking
           events={agenticEvents}
           isActive={isAgenticRunning}
+          className="mb-3"
+        />
+      )}
+
+      {/* Tool Execution Timeline */}
+      {agentMode && (toolCallEvents.length > 0 || isAgenticRunning) && (
+        <ToolTimeline
+          toolCalls={toolCallEvents}
+          isExecuting={isAgenticRunning}
           className="mb-3"
         />
       )}
@@ -964,6 +1071,7 @@ export function ChatView() {
           selectedVoice={talkMode.selectedVoice}
           onVoiceChange={talkMode.setSelectedVoice}
           onStop={talkMode.stop}
+          ttsAvailable={ttsAvailable}
         />
       )}
 
@@ -990,8 +1098,18 @@ export function ChatView() {
         agentMode={agentMode}
         onToggleAgentMode={handleToggleAgentMode}
         talkModeState={talkMode.state}
-        onToggleTalkMode={talkMode.toggle}
+        onToggleTalkMode={handleToggleTalkMode}
+        voiceAvailable={{ stt: sttAvailable, tts: ttsAvailable }}
       />
+
+      {/* Workflow Quick Actions */}
+      {agentMode && (
+        <WorkflowQuickActions
+          onWorkflowSelect={handleWorkflowSelect}
+          disabled={isPending || healthyProviders.length === 0}
+          className="px-3 pb-2"
+        />
+      )}
       </div>
 
       {/* History Sheet */}

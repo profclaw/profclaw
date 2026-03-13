@@ -1,6 +1,14 @@
 import type { Context } from 'hono';
 import { logger } from '../utils/logger.js';
 
+interface LinearOAuthTokenResponse {
+  access_token?: string;
+  expires_in?: number;
+  scope?: string[];
+  error?: string;
+  error_description?: string;
+}
+
 const CLIENT_ID = process.env.LINEAR_CLIENT_ID || '';
 const CLIENT_SECRET = process.env.LINEAR_CLIENT_SECRET || '';
 const REDIRECT_URI = process.env.LINEAR_REDIRECT_URI || '';
@@ -49,7 +57,7 @@ export async function handleLinearCallback(c: Context) {
       }),
     });
 
-    const data = await response.json() as any;
+    const data = await response.json() as LinearOAuthTokenResponse;
     
     if (data.error) {
       return c.json({ error: data.error, description: data.error_description }, 400);

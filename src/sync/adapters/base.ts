@@ -146,7 +146,7 @@ export abstract class BaseSyncAdapter implements SyncAdapter {
 
   // === Webhook Parsing (optional, override in subclass) ===
 
-  parseWebhook?(payload: unknown): WebhookEvent | null {
+  parseWebhook?(_payload: unknown): WebhookEvent | null {
     return null;
   }
 

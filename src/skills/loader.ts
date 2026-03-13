@@ -13,7 +13,7 @@
  * Later sources override earlier ones by skill name.
  */
 
-import { readFile, readdir, stat } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { join, basename } from 'node:path';
 import { homedir } from 'node:os';
 import { execFile } from 'node:child_process';
@@ -31,8 +31,24 @@ import {
   type SkillStatus,
   type SkillsStatus,
 } from './types.js';
+import { compileSkill, type CompiledSkill } from './compiler.js';
 
 const execFileAsync = promisify(execFile);
+
+// =============================================================================
+// Compiled Skill Registry (populated during loadSkillFromDir)
+// =============================================================================
+
+/** In-memory registry of compiled skills, keyed by skillKey/skillName */
+const compiledSkillRegistry = new Map<string, CompiledSkill>();
+
+/**
+ * Return the compiled (model-adaptive) version of a skill by its ID.
+ * Returns undefined if the skill has not been loaded yet.
+ */
+export function getCompiledSkill(skillId: string): CompiledSkill | undefined {
+  return compiledSkillRegistry.get(skillId);
+}
 
 // =============================================================================
 // SKILL.md Parser
@@ -199,6 +215,10 @@ async function loadSkillFromDir(
       }
     }
 
+    // Compile skill instructions for model-adaptive injection (9.1)
+    const compiled = compileSkill(skillKey, skillName, instructions);
+    compiledSkillRegistry.set(skillKey, compiled);
+
     return {
       name: skillName,
       description: frontmatter.description || '',
@@ -214,7 +234,7 @@ async function loadSkillFromDir(
       enabled: skillConfig?.enabled !== false,
       command,
     };
-  } catch (error) {
+  } catch {
     // SKILL.md doesn't exist or can't be read - skip silently
     return null;
   }

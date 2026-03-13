@@ -370,7 +370,7 @@ const outboundAdapter: OutboundAdapter = {
     };
   },
 
-  async delete(messageId: string): Promise<{ success: boolean; error?: string }> {
+  async delete(_messageId: string): Promise<{ success: boolean; error?: string }> {
     // WhatsApp doesn't support message deletion via API
     return { success: false, error: 'WhatsApp does not support message deletion' };
   },

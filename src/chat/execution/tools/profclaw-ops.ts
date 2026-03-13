@@ -22,6 +22,12 @@ let dbAvailabilityCache: ToolAvailability | null = null;
 let lastDbCheck = 0;
 const DB_CHECK_INTERVAL_MS = 30000; // Recheck every 30 seconds
 
+/** Reset cache (for testing) */
+export function _resetDbAvailabilityCache(): void {
+  dbAvailabilityCache = null;
+  lastDbCheck = 0;
+}
+
 /**
  * Check if database is available
  * Rechecks periodically in case database becomes available after startup

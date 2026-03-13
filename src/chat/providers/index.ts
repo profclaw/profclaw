@@ -46,6 +46,8 @@ export { zaloProvider, ZaloAccountConfigSchema } from './zalo/index.js';
 export { nextcloudProvider, NextcloudAccountConfigSchema } from './nextcloud/index.js';
 export { imessageProvider, IMessageAccountConfigSchema } from './imessage/index.js';
 export { synologyProvider, SynologyAccountConfigSchema } from './synology/index.js';
+export { tlonProvider, TlonAccountConfigSchema } from './tlon/index.js';
+export { zaloPersonalProvider, ZaloPersonalAccountConfigSchema } from './zalo-personal/index.js';
 
 // =============================================================================
 // INITIALIZATION
@@ -74,6 +76,8 @@ import { zaloProvider } from './zalo/index.js';
 import { nextcloudProvider } from './nextcloud/index.js';
 import { imessageProvider } from './imessage/index.js';
 import { synologyProvider } from './synology/index.js';
+import { tlonProvider } from './tlon/index.js';
+import { zaloPersonalProvider } from './zalo-personal/index.js';
 
 /**
  * Initialize chat providers with default configuration
@@ -104,6 +108,8 @@ export function initializeChatProviders(): void {
   registry.register(nextcloudProvider);
   registry.register(imessageProvider);
   registry.register(synologyProvider);
+  registry.register(tlonProvider);
+  registry.register(zaloPersonalProvider);
 
   // WebChat is always available with default account
   registry.registerAccount({
@@ -381,6 +387,35 @@ export function initializeChatProviders(): void {
       privateKey: process.env.NOSTR_PRIVATE_KEY,
       relayUrls: process.env.NOSTR_RELAY_URLS?.split(',').map((u) => u.trim()),
       allowedPubkeys: process.env.NOSTR_ALLOWED_PUBKEYS?.split(',').map((p) => p.trim()),
+    });
+  }
+
+  // Tlon/Urbit account from environment
+  if (process.env['TLON_SHIP_URL'] && process.env['TLON_SHIP_CODE']) {
+    registry.registerAccount({
+      id: 'default',
+      provider: 'tlon',
+      name: 'Tlon',
+      enabled: true,
+      isDefault: true,
+      shipUrl: process.env['TLON_SHIP_URL'],
+      shipCode: process.env['TLON_SHIP_CODE'],
+      shipName: process.env['TLON_SHIP_NAME'],
+      channelPath: process.env['TLON_CHANNEL_PATH'],
+    });
+  }
+
+  // Zalo Personal account from environment
+  if (process.env['ZALO_PERSONAL_ACCESS_TOKEN']) {
+    registry.registerAccount({
+      id: 'default',
+      provider: 'zalo-personal',
+      name: 'Zalo Personal',
+      enabled: true,
+      isDefault: true,
+      accessToken: process.env['ZALO_PERSONAL_ACCESS_TOKEN'],
+      secretKey: process.env['ZALO_PERSONAL_SECRET_KEY'],
+      userId: process.env['ZALO_PERSONAL_USER_ID'],
     });
   }
 

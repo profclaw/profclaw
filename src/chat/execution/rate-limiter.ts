@@ -66,6 +66,7 @@ const DEFAULT_CONFIG: RateLimitConfig = {
 };
 
 const CLEANUP_INTERVAL_MS = 60_000;
+const MAX_WINDOW_ENTRIES = parseInt(process.env['RATE_LIMIT_MAX_WINDOWS'] ?? '5000', 10);
 
 // =============================================================================
 // Rate Limiter
@@ -431,6 +432,35 @@ export class RateLimiter {
 
     // Clean up global window
     this.globalWindow.timestamps = this.globalWindow.timestamps.filter(t => t > cutoff);
+
+    // Evict oldest entries if any window map exceeds the cap
+    this.evictOldestEntries(this.userWindows);
+    this.evictOldestEntries(this.conversationWindows);
+    this.evictOldestEntries(this.toolWindows);
+  }
+
+  /**
+   * Evict oldest entries from a window map if it exceeds MAX_WINDOW_ENTRIES.
+   * Prevents unbounded memory growth from many unique keys.
+   */
+  private evictOldestEntries(windowMap: Map<string, WindowEntry>): void {
+    if (windowMap.size <= MAX_WINDOW_ENTRIES) return;
+
+    const sorted = [...windowMap.entries()]
+      .sort((a, b) => {
+        const latestA = a[1].timestamps.length > 0 ? Math.max(...a[1].timestamps) : 0;
+        const latestB = b[1].timestamps.length > 0 ? Math.max(...b[1].timestamps) : 0;
+        return latestA - latestB;
+      });
+
+    const toRemove = sorted.slice(0, sorted.length - MAX_WINDOW_ENTRIES);
+    for (const [key] of toRemove) {
+      windowMap.delete(key);
+    }
+
+    if (toRemove.length > 0) {
+      logger.info(`[RateLimit] Evicted ${toRemove.length} stale window entries`, { component: 'RateLimiter' });
+    }
   }
 }
 

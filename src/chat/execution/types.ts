@@ -162,18 +162,21 @@ export interface SandboxMount {
 
 /**
  * Tool definition for AI function calling
- * Note: parameters uses z.ZodType with any input type to support .default() schemas
+ * Note: parameters uses z.ZodType with unknown input type to support .default() schemas
  */
 export interface ToolDefinition<TParams = unknown, TResult = unknown> {
   name: string;
   description: string;
   category: ToolCategory;
-  parameters: z.ZodType<TParams, z.ZodTypeDef, any>;
+  parameters: z.ZodType<TParams, z.ZodTypeDef, unknown>;
 
   // Security
   requiresApproval?: boolean;
   securityLevel: 'safe' | 'moderate' | 'dangerous';
   allowedHosts?: ('sandbox' | 'gateway' | 'local')[];
+
+  /** Tool tier for model-aware routing. Defaults to 'standard'. */
+  tier?: ToolTier;
 
   // Execution
   execute: ToolExecutor<TParams, TResult>;
@@ -209,6 +212,22 @@ export type ToolCategory =
   | 'browser'      // Browser automation (Playwright)
   | 'custom';      // User-defined
 
+/**
+ * Tool tier determines which models receive this tool.
+ * - essential: Core tools that work reliably with any model (8-10 tools)
+ * - standard: Tools that need moderate reasoning (25-30 tools)
+ * - full: All tools, only for large/capable models (72 tools)
+ */
+export type ToolTier = 'essential' | 'standard' | 'full';
+
+/**
+ * Model capability level for adaptive prompting and tool selection.
+ * - basic: Small/local models (<14B params). Simple instruction following.
+ * - instruction: Medium models (14B-70B). Can follow multi-step instructions.
+ * - reasoning: Large frontier models. Chain-of-thought, complex tool orchestration.
+ */
+export type ModelCapabilityLevel = 'basic' | 'instruction' | 'reasoning';
+
 export interface ToolExample {
   description: string;
   params: Record<string, unknown>;
@@ -239,12 +258,23 @@ export interface ToolExecutionContext {
   env: Record<string, string>;
   securityPolicy: SecurityPolicy;
 
+  // Context isolation for per-conversation memory boundaries
+  isolationContext?: IsolationContext;
+
   // Callbacks
   onProgress?: (update: ToolProgressUpdate) => void;
   signal?: AbortSignal;
 
   // Session management
   sessionManager: SessionManager;
+}
+
+/** Per-conversation isolation boundaries */
+export interface IsolationContext {
+  conversationId: string;
+  userId?: string;
+  /** Memory paths this conversation is allowed to access */
+  allowedMemoryPaths: string[];
 }
 
 export interface ToolProgressUpdate {
@@ -398,12 +428,31 @@ export interface ToolCallResult {
 // Registry Types
 // =============================================================================
 
+/** Options for filtering tools when building AI schemas */
+export interface ToolFilterOptions {
+  /** Only include tools at or below this tier */
+  tier?: ToolTier;
+  /** Model capability level for description adaptation */
+  capabilityLevel?: ModelCapabilityLevel;
+  /** Maximum token budget for tool schemas (approximate) */
+  maxSchemaTokens?: number;
+  /** Specific tool names to include regardless of tier */
+  promote?: string[];
+}
+
 export interface ToolRegistry {
   register<TParams, TResult>(tool: ToolDefinition<TParams, TResult>): void;
   unregister(name: string): boolean;
   get(name: string): ToolDefinition | undefined;
   list(category?: ToolCategory): ToolDefinition[];
-  getForAI(): AIToolSchema[];
+  /** Get tools filtered by options (tier ceiling, token budget, promoted overrides). */
+  getForAI(options?: ToolFilterOptions): AIToolSchema[];
+  /**
+   * Get tools filtered for a specific model's capability tier.
+   * Preferred over getForAI() when the model ID is known - uses model classification
+   * to automatically apply the right tier (essential/standard/full).
+   */
+  getForModel(modelId: string, conversationId?: string): AIToolSchema[];
 }
 
 /**

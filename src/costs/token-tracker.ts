@@ -1,6 +1,8 @@
 import { onTaskEvent } from '../queue/index.js';
 import { calculateCost } from './pricing.js';
 import { logger } from '../utils/logger.js';
+import { recordCost } from './persistence.js';
+import type { Task, TaskResult } from '../types/task.js';
 
 export interface UsageSummary {
   totalTokens: number;
@@ -18,6 +20,12 @@ export interface UsageSummary {
     cost: number;
     tasks: number;
   }>;
+}
+
+interface CompletedTaskEvent extends Record<string, unknown> {
+  type: 'completed';
+  task: Pick<Task, 'id' | 'assignedAgentId' | 'metadata'>;
+  result: TaskResult;
 }
 
 // In-memory usage store
@@ -39,21 +47,31 @@ export function initTokenTracker(): void {
   
   // Subscribe to task events
   onTaskEvent((event) => {
-    if (event.type === 'completed' && event.result) {
+    if (isCompletedTaskEvent(event)) {
       trackTaskUsage(event.task, event.result);
     }
   });
 }
 
+function isCompletedTaskEvent(event: Record<string, unknown>): event is CompletedTaskEvent {
+  return event.type === 'completed' && typeof event.task === 'object' && event.task !== null
+    && typeof event.result === 'object' && event.result !== null;
+}
+
 /**
  * Track usage for a single task
  */
-function trackTaskUsage(task: any, result: any): void {
+function trackTaskUsage(
+  task: Pick<Task, 'id' | 'assignedAgentId' | 'metadata'>,
+  result: TaskResult,
+): void {
   if (!result.tokensUsed) return;
 
   const { input, output, total } = result.tokensUsed;
   // Get model from task metadata or default
-  const model = task.metadata?.model || 'claude-3-5-sonnet';
+  const model = typeof task.metadata?.model === 'string'
+    ? task.metadata.model
+    : 'claude-3-5-sonnet';
   const agentId = task.assignedAgentId || 'unknown';
   
   // Calculate cost
@@ -83,6 +101,17 @@ function trackTaskUsage(task: any, result: any): void {
   globalUsage.byAgent[agentId].tokens += total;
   globalUsage.byAgent[agentId].cost += cost;
   globalUsage.byAgent[agentId].tasks += 1;
+
+  // Persist to database
+  recordCost({
+    model,
+    inputTokens: input,
+    outputTokens: output,
+    totalTokens: total,
+    cost,
+    source: 'task',
+    agentId,
+  });
 
   logger.debug('Usage tracked for task', {
     taskId: task.id,
@@ -125,6 +154,17 @@ export function trackChatUsage(
   globalUsage.byAgent[agentId].tokens += totalTokens;
   globalUsage.byAgent[agentId].cost += cost;
   globalUsage.byAgent[agentId].tasks += 1;
+
+  // Persist to database
+  recordCost({
+    model,
+    inputTokens: input,
+    outputTokens: output,
+    totalTokens: totalTokens,
+    cost,
+    source: 'chat',
+    agentId: 'chat',
+  });
 
   logger.debug('Chat usage tracked', { model, tokens: totalTokens, cost });
 }

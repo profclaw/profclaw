@@ -1,6 +1,13 @@
 import { Context } from 'hono';
 import { getGitHubOAuthConfig } from '../settings/index.js';
 
+interface GitHubOAuthTokenResponse {
+  access_token?: string;
+  scope?: string;
+  error?: string;
+  error_description?: string;
+}
+
 /**
  * Redirect user to GitHub for OAuth
  */
@@ -23,7 +30,7 @@ export async function redirectToGitHub(c: Context) {
  */
 export async function handleGitHubCallback(c: Context) {
   const code = c.req.query('code');
-  const state = c.req.query('state');
+  const _state = c.req.query('state');
 
   const config = await getGitHubOAuthConfig();
   if (!config?.clientId || !config?.clientSecret) {
@@ -49,7 +56,7 @@ export async function handleGitHubCallback(c: Context) {
       }),
     });
 
-    const data = await response.json() as any;
+    const data = await response.json() as GitHubOAuthTokenResponse;
 
     if (data.error) {
       return c.json({ error: data.error, description: data.error_description }, 400);

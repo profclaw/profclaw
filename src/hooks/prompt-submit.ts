@@ -14,8 +14,8 @@
 
 import { randomUUID } from 'crypto';
 import type { Context } from 'hono';
-import { UserPromptSubmitPayloadSchema, type UserPromptSubmitPayload } from './schemas.js';
-import type { HookEvent, HookProcessingResult } from './types.js';
+import { UserPromptSubmitPayloadSchema } from './schemas.js';
+import type { HookProcessingResult } from './types.js';
 
 // In-memory storage for prompt events
 const promptEvents = new Map<string, PromptEvent[]>();

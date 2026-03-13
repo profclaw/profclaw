@@ -91,9 +91,7 @@ Note: This tool requires a search API key to be configured in settings.`,
     { description: 'Find documentation', params: { query: 'React useEffect cleanup function' } },
   ],
 
-  async execute(context: ToolExecutionContext, params: WebSearchParams): Promise<ToolResult<WebSearchResult>> {
-    const { signal } = context;
-
+  async execute(_context: ToolExecutionContext, params: WebSearchParams): Promise<ToolResult<WebSearchResult>> {
     // Check if web search is available
     const availability = isWebSearchAvailable(currentConfig);
     if (!availability.available) {

@@ -9,6 +9,8 @@ import {
 } from '../utils/config.js';
 import { createTable, success, error, info, spinner } from '../utils/output.js';
 
+type ServerSettings = Record<string, Record<string, unknown>>;
+
 export function configCommands() {
   const config = new Command('config')
     .description('Manage configuration');
@@ -23,7 +25,7 @@ export function configCommands() {
       if (options.server) {
         // Get server-side settings
         const spin = spinner('Fetching settings...').start();
-        const result = await api.get<{ settings: any }>('/api/settings');
+        const result = await api.get<{ settings: ServerSettings }>('/api/settings');
         spin.stop();
 
         if (!result.ok) {

@@ -1,6 +1,6 @@
 import type { Context } from 'hono';
 import { createHmac, timingSafeEqual } from 'crypto';
-import type { CreateTaskInput, TaskSource } from '../types/task.js';
+import type { CreateTaskInput } from '../types/task.js';
 
 /**
  * GitHub Webhook Integration

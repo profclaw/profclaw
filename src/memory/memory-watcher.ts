@@ -11,7 +11,6 @@
 
 import { watch, type FSWatcher } from 'chokidar';
 import { join, basename, extname } from 'node:path';
-import { stat } from 'node:fs/promises';
 import { syncMemoryFiles, searchMemory, type MemoryConfig, DEFAULT_MEMORY_CONFIG, type SearchResult } from './memory-service.js';
 import { logger } from '../utils/logger.js';
 

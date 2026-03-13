@@ -7,9 +7,6 @@
  */
 
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
-import { join } from 'node:path';
-import { homedir } from 'node:os';
-import { existsSync, readFileSync } from 'node:fs';
 import { EventEmitter } from 'node:events';
 
 // =============================================================================

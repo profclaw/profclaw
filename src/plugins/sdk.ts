@@ -17,7 +17,6 @@
 
 import type {
   PluginMetadata,
-  ToolDefinition,
   ToolResult,
   SearchProvider,
   PluginConfig,

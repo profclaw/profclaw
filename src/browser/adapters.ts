@@ -5,7 +5,6 @@
  * This file provides browser-specific exports for backwards compatibility.
  */
 
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolDefinition as ChatToolDefinition } from '../chat/execution/types.js';
 import {
   toMCPSchema,

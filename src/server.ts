@@ -2,18 +2,21 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
+import { createServer } from 'net';
 
-// Core imports - keep static only for lifecycle essentials (init/close/broadcast)
-import { initQueue, registerSSEBroadcaster, closeQueue } from './queue/index.js';
+// Core imports - keep static only for truly essential boot utilities
 import { loadConfig } from './utils/config-loader.js';
 import { validateEnvironment, getConfiguredIntegrations, getConfiguredAIProviders } from './utils/env-validator.js';
-import { initStorage } from './storage/index.js';
 import { initApiTokensTable, tokenAuthMiddleware } from './auth/api-tokens.js';
 import { authMiddleware } from './auth/middleware.js';
+import { rateLimit, type RateLimitMiddleware } from './middleware/rate-limit.js';
 import type { GatewayRequest, WorkflowType } from './gateway/index.js';
+import type { AgentConfig } from './types/agent.js';
 import { CreateTaskSchema } from './types/task.js';
 import { getMode, getModeLabel, hasCapability } from './core/deployment.js';
 import { registerRouteModules } from './server/route-loader.js';
+
+const VERSION = '2.0.0';
 
 interface SettingsYaml {
   server: {
@@ -109,6 +112,18 @@ app.use(
 // Skips public routes (auth, setup, webhooks, messaging channels)
 app.use('/api/*', authMiddleware());
 
+// HTTP rate limiting (sliding window, per-IP)
+const apiRateLimiter = rateLimit({
+  maxRequests: parseInt(process.env['API_RATE_LIMIT'] ?? '100', 10),
+  windowMs: 60_000,
+});
+const authRateLimiter = rateLimit({
+  maxRequests: parseInt(process.env['AUTH_RATE_LIMIT'] ?? '20', 10),
+  windowMs: 60_000,
+});
+app.use('/api/*', apiRateLimiter);
+app.use('/auth/*', authRateLimiter);
+
 // === Core Routes ===
 
 // Health check
@@ -119,7 +134,7 @@ app.get('/health', async (c) => {
   return c.json({
     status: 'ok',
     service: 'profclaw',
-    version: '0.2.0',
+    version: VERSION,
     mode: getMode(),
     queue: getQueueType() || 'not_initialized',
     timestamp: new Date().toISOString(),
@@ -131,7 +146,7 @@ app.get('/health', async (c) => {
 app.get('/', (c) => {
   return c.json({
     name: 'profClaw',
-    version: '0.2.0',
+    version: VERSION,
     description: 'AI Agent Task Orchestration - Autonomous Mode',
     docs: '/docs',
     endpoints: {
@@ -325,28 +340,74 @@ app.get('/api/integrations/status', (c) => {
 
 // === Server-Sent Events (SSE) ===
 
-const sseConnections = new Set<ReadableStreamDefaultController<Uint8Array>>();
+interface SseConnection {
+  controller: ReadableStreamDefaultController<Uint8Array>;
+  heartbeat: ReturnType<typeof setInterval>;
+  connectedAt: number;
+  lastPingAt: number;
+}
+
+const sseConnections = new Map<string, SseConnection>();
+
+// Stale SSE connection cleanup (no successful ping in 90s)
+const SSE_STALE_MS = parseInt(process.env['SSE_STALE_TIMEOUT_MS'] ?? '90000', 10);
+const sseCleanupInterval = setInterval(() => {
+  const now = Date.now();
+  for (const [id, conn] of sseConnections) {
+    if (now - conn.lastPingAt > SSE_STALE_MS) {
+      try {
+        clearInterval(conn.heartbeat);
+        conn.controller.close();
+      } catch { /* already closed */ }
+      sseConnections.delete(id);
+    }
+  }
+}, 30000);
 
 export function broadcastEvent(eventType: string, data: unknown) {
   const message = `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
   const encoder = new TextEncoder();
   const bytes = encoder.encode(message);
 
-  sseConnections.forEach((controller) => {
+  for (const [id, conn] of sseConnections) {
     try {
-      controller.enqueue(bytes);
+      conn.controller.enqueue(bytes);
     } catch {
-      // Connection closed
+      // Connection dead - remove it
+      try { clearInterval(conn.heartbeat); } catch { /* noop */ }
+      sseConnections.delete(id);
     }
-  });
+  }
 }
+
+let sseConnectionCounter = 0;
 
 app.get('/api/events', (c) => {
   const encoder = new TextEncoder();
+  const connId = `sse-${++sseConnectionCounter}`;
 
   const stream = new ReadableStream({
     start(controller) {
-      sseConnections.add(controller);
+      const now = Date.now();
+      const heartbeat = setInterval(() => {
+        try {
+          const ping = `event: ping\ndata: ${JSON.stringify({ timestamp: new Date().toISOString() })}\n\n`;
+          controller.enqueue(encoder.encode(ping));
+          // Update lastPingAt on successful enqueue
+          const conn = sseConnections.get(connId);
+          if (conn) conn.lastPingAt = Date.now();
+        } catch {
+          clearInterval(heartbeat);
+          sseConnections.delete(connId);
+        }
+      }, 30000);
+
+      sseConnections.set(connId, {
+        controller,
+        heartbeat,
+        connectedAt: now,
+        lastPingAt: now,
+      });
 
       const connectMsg = `event: connected\ndata: ${JSON.stringify({
         message: 'Connected to profClaw event stream',
@@ -354,19 +415,9 @@ app.get('/api/events', (c) => {
       })}\n\n`;
       controller.enqueue(encoder.encode(connectMsg));
 
-      const heartbeat = setInterval(() => {
-        try {
-          const ping = `event: ping\ndata: ${JSON.stringify({ timestamp: new Date().toISOString() })}\n\n`;
-          controller.enqueue(encoder.encode(ping));
-        } catch {
-          clearInterval(heartbeat);
-          sseConnections.delete(controller);
-        }
-      }, 30000);
-
       c.req.raw.signal.addEventListener('abort', () => {
         clearInterval(heartbeat);
-        sseConnections.delete(controller);
+        sseConnections.delete(connId);
         try {
           controller.close();
         } catch {
@@ -438,9 +489,22 @@ app.post('/api/plugins/:id/toggle', async (c) => {
 
 // === Server Startup ===
 
+function checkPortAvailable(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = createServer();
+    server.once('error', (err: NodeJS.ErrnoException) => {
+      resolve(err.code !== 'EADDRINUSE');
+    });
+    server.once('listening', () => {
+      server.close();
+      resolve(true);
+    });
+    server.listen(port, '127.0.0.1');
+  });
+}
+
 async function main() {
   // Only start IF we are the main module actually being executed
-  // We check if this is the start file.
   const isMain = process.argv[1]?.endsWith('server.ts') || process.argv[1]?.endsWith('server.js');
   if (!isMain && process.env.NODE_ENV === 'test') {
     return;
@@ -449,14 +513,23 @@ async function main() {
   const appSettings = getAppSettings();
   const PORT = getPort();
   const ENABLE_CRON = isCronEnabled();
-  console.log(`[profClaw] Starting in ${getModeLabel()} mode...`);
+  console.log(`[profClaw] v${VERSION} starting in ${getModeLabel()} mode...`);
+
+  // Early port conflict detection
+  const portAvailable = await checkPortAvailable(PORT);
+  if (!portAvailable) {
+    console.error(`[FATAL] Port ${PORT} is already in use.`);
+    console.error(`  Try: PORT=${PORT + 1} profclaw serve`);
+    console.error(`  Or:  lsof -ti:${PORT} | xargs kill`);
+    process.exit(1);
+  }
 
   // Validate environment variables (fail fast if critical vars missing)
-  const envResult = validateEnvironment({ 
+  const envResult = validateEnvironment({
     exitOnError: process.env.NODE_ENV === 'production',
     logResults: true,
   });
-  
+
   if (!envResult.valid && process.env.NODE_ENV === 'production') {
     console.error('\n[FATAL] Cannot start in production with invalid environment.');
     process.exit(1);
@@ -474,6 +547,7 @@ async function main() {
 
   // Initialize storage FIRST (queue needs it for persistence)
   try {
+    const { initStorage } = await import('./storage/index.js');
     await initStorage();
     console.log('[OK] Storage initialized');
 
@@ -525,6 +599,7 @@ async function main() {
 
   // Initialize task queue (Redis or in-memory based on mode)
   try {
+    const { initQueue, registerSSEBroadcaster } = await import('./queue/index.js');
     await initQueue();
     registerSSEBroadcaster(broadcastEvent);
     const { getQueueType } = await import('./queue/index.js');
@@ -550,17 +625,19 @@ async function main() {
     }
   }
 
-  // Initialize cost tracking
-  const { initTokenTracker } = await import('./costs/token-tracker.js');
-  initTokenTracker();
-  console.log('[OK] Token tracker initialized');
+  // Initialize cost tracking (skip in pico - loaded on first use)
+  if (getMode() !== 'pico') {
+    const { initTokenTracker } = await import('./costs/token-tracker.js');
+    initTokenTracker();
+    console.log('[OK] Token tracker initialized');
+  }
 
   // Initialize agents from config
   const { getAgentRegistry } = await import('./adapters/registry.js');
   const registry = getAgentRegistry();
 
   interface AgentsYaml {
-    agents: any[];
+    agents: AgentConfig[];
   }
 
   const agentsConfig = loadConfig<AgentsYaml>('agents.yml');
@@ -665,6 +742,19 @@ async function main() {
     console.log('[INFO] Cron jobs disabled (ENABLE_CRON=false)');
   }
 
+  // Start proactive health monitor (Phase 19)
+  try {
+    const { HealthMonitor } = await import('./chat/proactive/index.js');
+    const healthMonitor = new HealthMonitor(5 * 60_000); // 5-minute interval
+    healthMonitor.on('degraded', (check: { service: string; message?: string }) => {
+      console.warn(`[HEALTH] Service degraded: ${check.service} - ${check.message ?? 'unknown'}`);
+    });
+    healthMonitor.start();
+    console.log('[OK] Health monitor started (5-min interval)');
+  } catch {
+    console.log('[INFO] Health monitor unavailable');
+  }
+
   // Static UI serving (mini/pro modes)
   if (hasCapability('web_ui')) {
     const { existsSync } = await import('node:fs');
@@ -755,21 +845,96 @@ async function main() {
   } catch { /* ignore - DB may not be ready */ }
 }
 
-// Graceful shutdown
-process.on('SIGINT', async () => {
-  console.log('\n[SHUTDOWN] Shutting down...');
-  const { stopAllCronJobs } = await import('./cron/index.js');
-  stopAllCronJobs();
-  await closeQueue();
-  process.exit(0);
+// Graceful shutdown with connection draining
+let isShuttingDown = false;
+const SHUTDOWN_TIMEOUT_MS = parseInt(process.env['SHUTDOWN_TIMEOUT_MS'] ?? '10000', 10);
+
+// Middleware to reject new requests during shutdown
+app.use('*', async (c, next) => {
+  if (isShuttingDown) {
+    return c.json({ error: 'Server is shutting down' }, 503);
+  }
+  return next();
 });
 
-process.on('SIGTERM', async () => {
-  console.log('\n[SHUTDOWN] Shutting down...');
-  const { stopAllCronJobs } = await import('./cron/index.js');
-  stopAllCronJobs();
-  await closeQueue();
+async function gracefulShutdown(signal: string): Promise<void> {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  console.log(`\n[SHUTDOWN] ${signal} received, shutting down gracefully...`);
+
+  // Force exit after timeout to prevent hanging
+  const forceExitTimer = setTimeout(() => {
+    console.error('[SHUTDOWN] Force exit after timeout');
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS);
+  forceExitTimer.unref();
+
+  // 1. Close SSE connections with shutdown event
+  const encoder = new TextEncoder();
+  for (const [id, conn] of sseConnections) {
+    try {
+      const msg = `event: shutdown\ndata: ${JSON.stringify({ reason: signal })}\n\n`;
+      conn.controller.enqueue(encoder.encode(msg));
+      clearInterval(conn.heartbeat);
+      conn.controller.close();
+    } catch {
+      // Already closed
+    }
+  }
+  sseConnections.clear();
+  clearInterval(sseCleanupInterval);
+  console.log('[SHUTDOWN] SSE connections closed');
+
+  // 2. Stop cron jobs
+  try {
+    const { stopAllCronJobs } = await import('./cron/index.js');
+    stopAllCronJobs();
+    console.log('[SHUTDOWN] Cron jobs stopped');
+  } catch {
+    // Cron may not be initialized
+  }
+
+  // 3. Drain task queue
+  try {
+    const { closeQueue } = await import('./queue/index.js');
+    await closeQueue();
+    console.log('[SHUTDOWN] Task queue drained');
+  } catch {
+    // Queue may not be initialized
+  }
+
+  // 4. Destroy HTTP rate limiters
+  try {
+    apiRateLimiter.destroy();
+    authRateLimiter.destroy();
+    console.log('[SHUTDOWN] Rate limiters destroyed');
+  } catch {
+    // Rate limiters may not be initialized
+  }
+
+  console.log('[SHUTDOWN] Clean exit.');
+  clearTimeout(forceExitTimer);
   process.exit(0);
+}
+
+process.on('SIGINT', () => { gracefulShutdown('SIGINT'); });
+process.on('SIGTERM', () => { gracefulShutdown('SIGTERM'); });
+
+// Catch unhandled errors to log before crashing
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] Uncaught exception:', err);
+  // Let the process crash (daemon/serve will restart it)
+  process.exit(1);
 });
 
-main().catch(console.error);
+process.on('unhandledRejection', (reason) => {
+  console.error('[FATAL] Unhandled rejection:', reason);
+  // Don't exit for unhandled rejections - log and continue
+  // This prevents a single failed promise from taking down the server
+});
+
+main().catch((err) => {
+  console.error('[FATAL] Startup failed:', err);
+  process.exit(1);
+});

@@ -19,6 +19,7 @@ import {
   signInWithGitHub,
   validateSession,
   deleteSession,
+  createSession,
   getGitHubAuthUrl,
   updateUser,
   getUserConnectedAccounts,
@@ -34,10 +35,11 @@ import {
   handleLinearCallback,
 } from '../auth/linear-oauth.js';
 import { rateLimit } from '../middleware/rate-limit.js';
-import { validatePasswordStrength, hashInviteCode } from '../auth/password.js';
-import { getSettingsRaw } from '../settings/index.js';
+import { validatePasswordStrength, hashInviteCode, hashPassword, verifyPassword } from '../auth/password.js';
+import { getSettingsRaw, updateSettings } from '../settings/index.js';
 import { getDb } from '../storage/index.js';
-import { inviteCodes } from '../storage/schema.js';
+import { inviteCodes, users } from '../storage/schema.js';
+import { invalidateLocalAdminCache } from '../auth/middleware.js';
 
 // =============================================================================
 // RATE LIMITERS
@@ -72,6 +74,14 @@ const updateProfileSchema = z.object({
   timezone: z.string().max(50).optional(),
   locale: z.string().max(10).optional(),
   onboardingCompleted: z.boolean().optional(),
+});
+
+const accessKeySchema = z.object({
+  key: z.string().min(1, 'Access key is required').max(128),
+});
+
+const setAccessKeySchema = z.object({
+  key: z.string().max(128).nullable(),
 });
 
 type AuthVariables = {
@@ -405,6 +415,31 @@ authRoutes.get('/me', async (c) => {
 
     const token = getCookie(c, 'profclaw_session');
 
+    // In local mode with access key set but no valid session
+    if (authMode === 'local' && settings.system.accessKeyHash) {
+      if (!token) {
+        return c.json({
+          authenticated: false,
+          authMode,
+          accessKeyRequired: true,
+        }, 401);
+      }
+      const user = await validateSession(token);
+      if (!user) {
+        deleteCookie(c, 'profclaw_session', { path: '/' });
+        return c.json({
+          authenticated: false,
+          authMode,
+          accessKeyRequired: true,
+        }, 401);
+      }
+      return c.json({
+        authenticated: true,
+        authMode,
+        user,
+      });
+    }
+
     if (!token) {
       return c.json({ authenticated: false, authMode }, 401);
     }
@@ -473,6 +508,112 @@ authRoutes.patch('/me', async (c) => {
   } catch (error) {
     console.error('[Auth] Update user error:', error);
     return c.json({ error: 'Update failed' }, 500);
+  }
+});
+
+// =============================================================================
+// ACCESS KEY (local mode protection)
+// =============================================================================
+
+/**
+ * POST /api/auth/verify-access-key
+ * Verify access key and create session (public route, rate limited)
+ */
+authRoutes.post('/verify-access-key', loginLimiter, async (c) => {
+  try {
+    const settings = await getSettingsRaw();
+
+    if (settings.system.authMode !== 'local' || !settings.system.accessKeyHash) {
+      return c.json({ error: 'Access key not configured' }, 400);
+    }
+
+    const parsedBody = await parseJsonBody(c);
+    if (!parsedBody.ok) {
+      return parsedBody.response;
+    }
+
+    const parsed = accessKeySchema.safeParse(parsedBody.body);
+    if (!parsed.success) {
+      return c.json({ error: 'Access key is required' }, 400);
+    }
+
+    const { key } = parsed.data;
+    const result = verifyPassword(key, settings.system.accessKeyHash);
+
+    if (!result.valid) {
+      return c.json({ error: 'Invalid access key' }, 401);
+    }
+
+    // Find admin user to create session
+    const db = getDb();
+    if (!db) {
+      return c.json({ error: 'Database not initialized' }, 500);
+    }
+
+    const admins = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.role, 'admin'))
+      .limit(1);
+
+    if (admins.length === 0) {
+      return c.json({ error: 'No admin user found' }, 500);
+    }
+
+    const session = await createSession(admins[0].id);
+    setCookie(c, 'profclaw_session', session.token, COOKIE_OPTIONS);
+
+    return c.json({ success: true, message: 'Access verified' });
+  } catch (error) {
+    console.error('[Auth] Access key verification error:', error);
+    return c.json({ error: 'Verification failed' }, 500);
+  }
+});
+
+/**
+ * PUT /api/auth/access-key
+ * Set or remove access key (protected, admin only)
+ */
+authRoutes.put('/access-key', async (c) => {
+  try {
+    const user = c.get('user') as User | undefined;
+    if (!user || user.role !== 'admin') {
+      return c.json({ error: 'Admin access required' }, 403);
+    }
+
+    const settings = await getSettingsRaw();
+    if (settings.system.authMode !== 'local') {
+      return c.json({ error: 'Access key is only available in local mode' }, 400);
+    }
+
+    const parsedBody = await parseJsonBody(c);
+    if (!parsedBody.ok) {
+      return parsedBody.response;
+    }
+
+    const parsed = setAccessKeySchema.safeParse(parsedBody.body);
+    if (!parsed.success) {
+      return c.json({ error: 'Invalid input' }, 400);
+    }
+
+    const { key } = parsed.data;
+    const accessKeyHash = key ? hashPassword(key) : undefined;
+
+    await updateSettings({
+      system: { ...settings.system, accessKeyHash },
+    });
+
+    // Invalidate admin cache so middleware picks up the change
+    invalidateLocalAdminCache();
+
+    return c.json({
+      success: true,
+      hasAccessKey: Boolean(accessKeyHash),
+      message: key ? 'Access key set' : 'Access key removed',
+    });
+  } catch (error) {
+    console.error('[Auth] Access key update error:', error);
+    return c.json({ error: 'Failed to update access key' }, 500);
   }
 });
 

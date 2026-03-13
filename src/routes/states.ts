@@ -7,7 +7,7 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { z } from 'zod';
-import { listStates, createState, updateState, deleteState, getState } from '../states/index.js';
+import { listStates, createState, updateState, deleteState } from '../states/index.js';
 
 export const statesRoutes = new Hono();
 

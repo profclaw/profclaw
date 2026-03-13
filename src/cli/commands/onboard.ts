@@ -37,13 +37,17 @@ interface EnvironmentInfo {
   existingDb: boolean;
 }
 
-async function detectEnvironment(): Promise<EnvironmentInfo> {
-  const os = await import('node:os');
+const DETECT_TIMEOUT_MS = 5000;
 
-  const isDocker = existsSync('/.dockerenv') || existsSync('/run/.containerenv');
-  const totalMemoryMb = Math.round(os.totalmem() / (1024 * 1024));
+/** Wrap a detection check with a timeout so a hung service doesn't block onboarding. */
+async function withTimeout<T>(promise: Promise<T>, fallback: T, timeoutMs = DETECT_TIMEOUT_MS): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), timeoutMs)),
+  ]);
+}
 
-  let hasRedis = false;
+async function detectRedis(): Promise<boolean> {
   try {
     const IORedis = (await import('ioredis')).default;
     const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
@@ -55,27 +59,46 @@ async function detectEnvironment(): Promise<EnvironmentInfo> {
     await redis.connect();
     await redis.ping();
     await redis.disconnect();
-    hasRedis = true;
-  } catch { /* no redis */ }
+    return true;
+  } catch {
+    return false;
+  }
+}
 
-  let hasOllama = false;
+async function detectOllama(): Promise<boolean> {
   try {
     const url = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
     const res = await fetch(`${url}/api/tags`, { signal: AbortSignal.timeout(2000) });
-    hasOllama = res.ok;
-  } catch { /* no ollama */ }
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
 
-  let hasClaude = false;
+function detectBinary(name: string): boolean {
   try {
-    execSync('which claude', { stdio: 'ignore' });
-    hasClaude = true;
-  } catch { /* no claude */ }
+    execSync(`which ${name}`, { stdio: 'ignore', timeout: 3000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
-  let hasGit = false;
-  try {
-    execSync('which git', { stdio: 'ignore' });
-    hasGit = true;
-  } catch { /* no git */ }
+async function detectEnvironment(): Promise<EnvironmentInfo> {
+  const os = await import('node:os');
+
+  const isDocker = existsSync('/.dockerenv') || existsSync('/run/.containerenv');
+  const totalMemoryMb = Math.round(os.totalmem() / (1024 * 1024));
+
+  // Run network checks in parallel with timeouts
+  const [hasRedis, hasOllama] = await Promise.all([
+    withTimeout(detectRedis(), false),
+    withTimeout(detectOllama(), false),
+  ]);
+
+  // Binary checks are fast, no timeout needed
+  const hasClaude = detectBinary('claude');
+  const hasGit = detectBinary('git');
 
   return {
     os: `${os.platform()} ${os.release()}`,
@@ -255,8 +278,13 @@ async function runInteractive(): Promise<void> {
       ollamaUrl,
     });
     const envPath = join(process.cwd(), '.env');
-    writeFileSync(envPath, envContent);
-    success('.env file created.');
+    try {
+      writeFileSync(envPath, envContent, { mode: 0o600 });
+      success('.env file created.');
+    } catch (err) {
+      error(`Failed to write .env: ${err instanceof Error ? err.message : 'unknown'}`);
+      info('Create .env manually with the values above.');
+    }
   } else {
     info('.env file already exists. Updating PROFCLAW_MODE...');
     const envPath = join(process.cwd(), '.env');
@@ -276,10 +304,52 @@ async function runInteractive(): Promise<void> {
   console.log(chalk.bold.white('\n  Step 5: Setup\n'));
   info('Launching setup wizard for admin account and provider configuration...\n');
 
-  // Delegate to the setup command
-  const { setupCommand } = await import('./setup.js');
-  const setupCmd = setupCommand();
-  await setupCmd.parseAsync(['node', 'profclaw', 'setup']);
+  try {
+    const { setupCommand } = await import('./setup.js');
+    const setupCmd = setupCommand();
+    await setupCmd.parseAsync(['node', 'profclaw', 'setup']);
+  } catch (err) {
+    error(`Setup wizard failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    info('You can run it again later: profclaw setup');
+    return;
+  }
+
+  // Step 6: Post-setup validation
+  console.log(chalk.bold.white('\n  Step 6: Validation\n'));
+  const postSpin = spinner('Validating installation...');
+  postSpin.start();
+
+  const checks: Array<{ label: string; ok: boolean }> = [];
+
+  // Check .env exists
+  const envExists = existsSync(join(process.cwd(), '.env'));
+  checks.push({ label: '.env file', ok: envExists });
+
+  // Check config exists
+  const configExists = existsSync(join(process.cwd(), 'config', 'settings.yml'));
+  checks.push({ label: 'config/settings.yml', ok: configExists });
+
+  // Check database was created
+  const dbExists = existsSync(join(process.cwd(), 'data', 'profclaw.db'));
+  checks.push({ label: 'Database', ok: dbExists });
+
+  postSpin.stop();
+
+  for (const check of checks) {
+    const icon = check.ok ? chalk.green('  +') : chalk.red('  -');
+    console.log(`${icon} ${check.label}: ${check.ok ? 'OK' : 'missing'}`);
+  }
+
+  const allPassed = checks.every((c) => c.ok);
+  if (allPassed) {
+    console.log('');
+    success('Onboarding complete! Start the server:');
+    console.log(`\n  ${chalk.cyan.bold('profclaw serve')}\n`);
+  } else {
+    console.log('');
+    warn('Some checks did not pass. You may need to run setup again:');
+    console.log(`\n  ${chalk.cyan('profclaw setup')}\n`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -303,17 +373,30 @@ async function runNonInteractive(options: {
 
   // Generate .env if it doesn't exist
   if (!env.existingEnv) {
-    const envContent = generateEnvFile({ mode, port: options.port });
-    writeFileSync(join(process.cwd(), '.env'), envContent);
-    success('.env created');
+    try {
+      const envPath = join(process.cwd(), '.env');
+      const envContent = generateEnvFile({ mode, port: options.port });
+      writeFileSync(envPath, envContent, { mode: 0o600 }); // Restrict permissions
+      success('.env created');
+    } catch (err) {
+      error(`Failed to write .env: ${err instanceof Error ? err.message : 'permission denied'}`);
+      info('Create .env manually with PROFCLAW_MODE=' + mode);
+    }
   }
 
   // Delegate to setup --non-interactive
-  const { setupCommand } = await import('./setup.js');
-  const setupCmd = setupCommand();
-  const args = ['node', 'profclaw', 'setup', '--non-interactive'];
-  if (options.provider) args.push('--ai-provider', options.provider);
-  await setupCmd.parseAsync(args);
+  try {
+    const { setupCommand } = await import('./setup.js');
+    const setupCmd = setupCommand();
+    const args = ['node', 'profclaw', 'setup', '--non-interactive'];
+    if (options.provider) args.push('--ai-provider', options.provider);
+    await setupCmd.parseAsync(args);
+  } catch (err) {
+    error(`Setup failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    info('Run setup manually: profclaw setup');
+  }
+
+  success('Non-interactive onboarding complete.');
 }
 
 // ---------------------------------------------------------------------------

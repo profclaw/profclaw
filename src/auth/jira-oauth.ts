@@ -1,6 +1,19 @@
 import type { Context } from 'hono';
 import { logger } from '../utils/logger.js';
 
+interface JiraOAuthTokenResponse {
+  access_token?: string;
+  refresh_token?: string;
+  error?: string;
+  error_description?: string;
+}
+
+interface JiraAccessibleResource {
+  id: string;
+  name: string;
+  url: string;
+}
+
 const CLIENT_ID = process.env.JIRA_CLIENT_ID || '';
 const CLIENT_SECRET = process.env.JIRA_CLIENT_SECRET || '';
 const REDIRECT_URI = process.env.JIRA_REDIRECT_URI || '';
@@ -55,7 +68,7 @@ export async function handleJiraCallback(c: Context) {
       }),
     });
 
-    const data = await response.json() as any;
+    const data = await response.json() as JiraOAuthTokenResponse;
     
     if (data.error) {
       return c.json({ error: data.error, description: data.error_description }, 400);
@@ -66,7 +79,7 @@ export async function handleJiraCallback(c: Context) {
     const resourcesResponse = await fetch('https://api.atlassian.com/oauth/token/accessible-resources', {
       headers: { 'Authorization': `Bearer ${data.access_token}` },
     });
-    const resources = await resourcesResponse.json() as any[];
+    const resources = await resourcesResponse.json() as JiraAccessibleResource[];
 
     return c.json({
       message: 'Jira connected successfully',

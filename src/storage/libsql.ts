@@ -1052,6 +1052,37 @@ export class LibSQLAdapter implements StorageAdapter {
     await this.client.execute(`
       CREATE INDEX IF NOT EXISTS idx_dead_letter_tasks_task_id ON dead_letter_tasks(task_id)
     `);
+
+    // === EXPERIENCE STORE (Phase 19, Category 5) ===
+
+    await this.client.execute(`
+      CREATE TABLE IF NOT EXISTS experiences (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        intent TEXT NOT NULL,
+        solution TEXT NOT NULL,
+        success_score REAL NOT NULL DEFAULT 1.0,
+        tags TEXT NOT NULL DEFAULT '[]',
+        source_conversation_id TEXT NOT NULL DEFAULT '',
+        user_id TEXT,
+        created_at INTEGER NOT NULL,
+        last_used_at INTEGER NOT NULL,
+        use_count INTEGER NOT NULL DEFAULT 1,
+        weight REAL NOT NULL DEFAULT 1.0
+      )
+    `);
+    await this.client.execute(
+      `CREATE INDEX IF NOT EXISTS idx_experiences_type ON experiences(type)`,
+    );
+    await this.client.execute(
+      `CREATE INDEX IF NOT EXISTS idx_experiences_intent ON experiences(intent)`,
+    );
+    await this.client.execute(
+      `CREATE INDEX IF NOT EXISTS idx_experiences_user ON experiences(user_id)`,
+    );
+    await this.client.execute(
+      `CREATE INDEX IF NOT EXISTS idx_experiences_weight ON experiences(weight)`,
+    );
   }
 
   async disconnect(): Promise<void> {

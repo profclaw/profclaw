@@ -9,7 +9,7 @@
  */
 
 import { z } from 'zod';
-import type { Ticket, TicketComment, ExternalLink, TicketStatus, TicketPriority, TicketType } from '../tickets/types.js';
+import type { Ticket, TicketStatus, TicketPriority, TicketType } from '../tickets/types.js';
 
 // === Sync Direction ===
 

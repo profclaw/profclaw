@@ -9,10 +9,8 @@ import type {
   PluginHealth,
   PluginMetadata,
   SearchProvider,
-  SearchProviderFactory,
   SearchPluginDefinition,
   ToolProvider,
-  ToolProviderFactory,
   ToolPluginDefinition,
   PluginSettingsSchema,
 } from './types.js';

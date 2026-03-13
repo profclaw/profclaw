@@ -17,7 +17,6 @@ import type {
   ProviderConfig,
   ProviderType,
 } from "../providers/index.js";
-import { ProviderType as ProviderTypeSchema } from "../providers/index.js";
 import { logger } from "../utils/logger.js";
 import type {
   ChatContext,
@@ -27,6 +26,7 @@ import type {
 const chatRoutes = new Hono();
 let chatRuntimePromise: Promise<void> | null = null;
 
+let ProviderTypeSchema: typeof import("../providers/index.js")["ProviderType"];
 let aiProvider: typeof import("../providers/index.js")["aiProvider"];
 let MODEL_ALIASES: typeof import("../providers/index.js")["MODEL_ALIASES"];
 let saveProviderConfig: typeof import("../storage/index.js")["saveProviderConfig"];
@@ -51,6 +51,7 @@ let selectModel: typeof import("../chat/index.js")["selectModel"];
 let createChatToolHandler: typeof import("../chat/index.js")["createChatToolHandler"];
 let getDefaultChatTools: typeof import("../chat/index.js")["getDefaultChatTools"];
 let getAllChatTools: typeof import("../chat/index.js")["getAllChatTools"];
+let getChatToolsForModel: typeof import("../chat/index.js")["getChatToolsForModel"];
 let getSessionModel: typeof import("../chat/index.js")["getSessionModel"];
 let streamAgenticChat: typeof import("../chat/index.js")["streamAgenticChat"];
 let getGroupChatManager: typeof import("../chat/index.js")["getGroupChatManager"];
@@ -65,6 +66,7 @@ async function ensureChatRuntime(): Promise<void> {
       import("../costs/token-tracker.js"),
     ])
       .then(([providersModule, storageModule, chatModule, costsModule]) => {
+        ProviderTypeSchema = providersModule.ProviderType;
         aiProvider = providersModule.aiProvider;
         MODEL_ALIASES = providersModule.MODEL_ALIASES;
         saveProviderConfig = storageModule.saveProviderConfig;
@@ -90,6 +92,7 @@ async function ensureChatRuntime(): Promise<void> {
         createChatToolHandler = chatModule.createChatToolHandler;
         getDefaultChatTools = chatModule.getDefaultChatTools;
         getAllChatTools = chatModule.getAllChatTools;
+        getChatToolsForModel = chatModule.getChatToolsForModel;
         getSessionModel = chatModule.getSessionModel;
         streamAgenticChat = chatModule.streamAgenticChat;
         getGroupChatManager = chatModule.getGroupChatManager;
@@ -181,6 +184,22 @@ const ProviderConfigSchema = z.object({
 });
 
 // === Routes ===
+
+/**
+ * GET /api/chat/model-capability
+ * Returns capability tier and tool access level for a given model ID
+ */
+chatRoutes.get("/model-capability", async (c) => {
+  const model = c.req.query("model");
+  if (!model) {
+    return c.json({ capability: "reasoning", tier: "full", maxSchemaTokens: 20000 });
+  }
+  const { getModelRouting } = await import("../chat/execution/model-capability.js");
+  // Resolve alias to full model ID (e.g. "gemini" -> "gemini-1.5-pro")
+  const { MODEL_ALIASES } = await import("../providers/core/models.js");
+  const resolved = MODEL_ALIASES[model.toLowerCase()]?.model ?? model;
+  return c.json(getModelRouting(resolved));
+});
 
 /**
  * POST /api/chat/completions
@@ -1223,9 +1242,12 @@ chatRoutes.post(
         sessionOverride,
       };
 
-      // Get available tools (determine before building prompt)
+      // Get available tools - model-aware when model ID is known
       const enableTools = body.enableTools ?? true;
-      const tools = enableTools ? getDefaultChatTools() : [];
+      const modelId = resolvedRef.model;
+      const tools = enableTools
+        ? getChatToolsForModel(modelId, { conversationId })
+        : [];
 
       // Build system prompt with context and tool mode
       const systemPrompt = await buildSystemPrompt(
@@ -1731,8 +1753,8 @@ chatRoutes.post(
         sessionOverride,
       };
 
-      // Get tools - agentic mode uses all tools (securityMode: full)
-      const tools = getAllChatTools();
+      // Get tools - agentic mode uses model-aware filtering
+      const tools = getChatToolsForModel(resolvedRef.model, { conversationId, includeAll: true });
 
       // Build system prompt with agent mode (uses AGENT_MODE_SUFFIX)
       const systemPrompt = await buildSystemPrompt(conversation.presetId, context, {

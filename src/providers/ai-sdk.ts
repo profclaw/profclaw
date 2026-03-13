@@ -16,6 +16,34 @@ import { z } from 'zod';
 import { logger } from '../utils/logger.js';
 import { normalizeToolSchema } from './schema-utils.js';
 
+// AI provider resilience settings (configurable via env)
+const AI_TIMEOUT_MS = parseInt(process.env['AI_PROVIDER_TIMEOUT_MS'] ?? '120000', 10);
+const AI_MAX_RETRIES = parseInt(process.env['AI_MAX_RETRIES'] ?? '2', 10);
+
+/**
+ * Retry wrapper for transient AI provider failures (429, 503, network errors).
+ * Uses exponential backoff with a 10s cap.
+ */
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = AI_MAX_RETRIES): Promise<T> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      const isRetryable =
+        error instanceof Error &&
+        (/429|503|rate.limit|too.many|service.unavailable|ECONNRESET|ETIMEDOUT|fetch.failed/i.test(error.message));
+      if (!isRetryable || attempt === maxRetries) throw error;
+      const delay = Math.min(1000 * 2 ** attempt, 10000);
+      logger.warn(`[AIProvider] Transient error (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms`, {
+        component: 'AIProvider',
+        error: error.message,
+      });
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw new Error('Unreachable');
+}
+
 // Core types & data — single source of truth in core/
 import {
   ProviderType,
@@ -125,11 +153,12 @@ class AIProviderManager {
       });
     }
 
-    // Google
-    if (process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY) {
+    // Google (supports multiple env var names)
+    const googleKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+    if (googleKey) {
       this.configure('google', {
         type: 'google',
-        apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY,
+        apiKey: googleKey,
         enabled: true,
       });
     }
@@ -221,6 +250,16 @@ class AIProviderManager {
       this.configure('cerebras', {
         type: 'cerebras',
         apiKey: process.env.CEREBRAS_API_KEY,
+        enabled: true,
+      });
+    }
+
+    // Zhipu AI (BigModel / GLM series)
+    const zhipuKey = process.env.BIGMODEL_API_KEY || process.env.ZHIPU_API_KEY;
+    if (zhipuKey) {
+      this.configure('zhipu', {
+        type: 'zhipu',
+        apiKey: zhipuKey,
         enabled: true,
       });
     }
@@ -495,7 +534,9 @@ class AIProviderManager {
       case 'together':
       case 'cerebras':
       case 'fireworks':
-      case 'openrouter': {
+      case 'openrouter':
+      case 'zhipu':
+      case 'moonshot': {
         if (!config?.apiKey) return;
         const { createOpenAI } = await import('@ai-sdk/openai');
         const baseURLs: Record<string, string> = {
@@ -509,6 +550,8 @@ class AIProviderManager {
           cerebras: 'https://api.cerebras.ai/v1',
           fireworks: 'https://api.fireworks.ai/inference/v1',
           openrouter: 'https://openrouter.ai/api/v1',
+          zhipu: 'https://open.bigmodel.cn/api/paas/v4',
+          moonshot: 'https://api.moonshot.cn/v1',
         };
         this.providers[key] = createOpenAI({
           apiKey: config.apiKey,
@@ -773,6 +816,17 @@ class AIProviderManager {
       return instance.chat!(deployment) as unknown as LanguageModel;
     }
 
+    // OpenAI-compatible providers must use .chat() - the default instance() call
+    // uses the Responses API which third-party providers don't support
+    const OPENAI_COMPAT_PROVIDERS = new Set([
+      'openai', 'groq', 'xai', 'mistral', 'cohere', 'perplexity',
+      'deepseek', 'together', 'cerebras', 'fireworks', 'openrouter', 'copilot',
+      'zhipu', 'moonshot',
+    ]);
+    if (OPENAI_COMPAT_PROVIDERS.has(provider) && typeof instance.chat === 'function') {
+      return instance.chat(modelId) as unknown as LanguageModel;
+    }
+
     return instance(modelId) as unknown as LanguageModel;
   }
 
@@ -810,12 +864,13 @@ class AIProviderManager {
     }
 
     try {
-      const result = await generateText({
+      const result = await withRetry(() => generateText({
         model,
         messages,
         temperature: request.temperature ?? 0.7,
         maxOutputTokens: request.maxTokens ?? 4096,
-      });
+        abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS),
+      }));
 
       const duration = Date.now() - startTime;
       const modelInfo = this.getModelInfo(modelRef.model);
@@ -883,6 +938,7 @@ class AIProviderManager {
         messages,
         temperature: request.temperature ?? 0.7,
         maxOutputTokens: request.maxTokens ?? 4096,
+        abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS),
       });
 
       // Collect text with batched chunk emission for better performance
@@ -1018,13 +1074,14 @@ class AIProviderManager {
     }
 
     try {
-      const result = await generateText({
+      const result = await withRetry(() => generateText({
         model,
         messages,
         temperature: request.temperature ?? 0.7,
         maxOutputTokens: request.maxTokens ?? 4096,
         tools: useNativeTools ? aiSdkTools : undefined,
-      });
+        abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS),
+      }));
 
       let finalContent = result.text;
 
@@ -1314,14 +1371,15 @@ class AIProviderManager {
     } // end if (shouldUseTools)
 
     try {
-      const result = await generateText({
+      const result = await withRetry(() => generateText({
         model,
         messages,
         tools: Object.keys(tools).length > 0 ? tools : undefined,
         temperature: request.temperature ?? 0.7,
         maxOutputTokens: request.maxTokens ?? 4096,
         maxSteps: request.maxToolRoundtrips ?? 5,
-      } as any);
+        abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS),
+      } as Parameters<typeof generateText>[0]));
 
       const duration = Date.now() - startTime;
       const modelInfo = this.getModelInfo(modelRef.model);
@@ -1497,7 +1555,8 @@ class AIProviderManager {
         temperature: request.temperature ?? 0.7,
         maxOutputTokens: request.maxTokens ?? 4096,
         maxSteps: request.maxToolRoundtrips ?? 5,
-      } as any);
+        abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS),
+      } as Parameters<typeof streamText>[0]);
 
       let fullText = '';
 

@@ -28,9 +28,10 @@ export const MODEL_ALIASES: Record<string, { provider: ProviderType; model: stri
   'azure-gpt': { provider: 'azure', model: 'default' },
 
   // Google
-  gemini: { provider: 'google', model: 'gemini-1.5-pro' },
-  'gemini-flash': { provider: 'google', model: 'gemini-1.5-flash' },
+  gemini: { provider: 'google', model: 'gemini-2.5-pro' },
+  'gemini-flash': { provider: 'google', model: 'gemini-2.5-flash' },
   'gemini-thinking': { provider: 'google', model: 'gemini-2.0-flash-thinking-exp' },
+  'gemini-2': { provider: 'google', model: 'gemini-2.0-flash' },
 
   // Groq (fast inference)
   groq: { provider: 'groq', model: 'llama-3.3-70b-versatile' },
@@ -71,7 +72,7 @@ export const MODEL_ALIASES: Record<string, { provider: ProviderType; model: stri
   'together-qwen': { provider: 'together', model: 'Qwen/Qwen2.5-72B-Instruct-Turbo' },
 
   // Cerebras
-  cerebras: { provider: 'cerebras', model: 'llama3.1-70b' },
+  cerebras: { provider: 'cerebras', model: 'llama3.1-8b' },
 
   // Fireworks
   fireworks: { provider: 'fireworks', model: 'accounts/fireworks/models/llama-v3p1-70b-instruct' },
@@ -269,28 +270,40 @@ export const MODEL_CATALOG: ModelInfo[] = [
 
   // Google - Gemini supports function calling
   {
-    id: 'gemini-1.5-pro',
-    name: 'Gemini 1.5 Pro',
+    id: 'gemini-2.5-pro',
+    name: 'Gemini 2.5 Pro',
     provider: 'google',
-    contextWindow: 2000000,
+    contextWindow: 1000000,
     maxOutput: 65536,
     supportsVision: true,
     supportsStreaming: true,
     supportsTools: true,
     costPer1MInput: 1.25,
-    costPer1MOutput: 5,
+    costPer1MOutput: 10,
   },
   {
-    id: 'gemini-1.5-flash',
-    name: 'Gemini 1.5 Flash',
+    id: 'gemini-2.5-flash',
+    name: 'Gemini 2.5 Flash',
+    provider: 'google',
+    contextWindow: 1000000,
+    maxOutput: 65536,
+    supportsVision: true,
+    supportsStreaming: true,
+    supportsTools: true,
+    costPer1MInput: 0.15,
+    costPer1MOutput: 0.6,
+  },
+  {
+    id: 'gemini-2.0-flash',
+    name: 'Gemini 2.0 Flash',
     provider: 'google',
     contextWindow: 1000000,
     maxOutput: 8192,
     supportsVision: true,
     supportsStreaming: true,
     supportsTools: true,
-    costPer1MInput: 0.075,
-    costPer1MOutput: 0.3,
+    costPer1MInput: 0.1,
+    costPer1MOutput: 0.4,
   },
   {
     id: 'gemini-2.0-flash-thinking-exp',

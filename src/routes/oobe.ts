@@ -106,6 +106,7 @@ oobe.get('/status', async (c) => {
     return c.json({
       needsSetup: !hasAdmin,
       authMode: settings.system.authMode,
+      hasAccessKey: Boolean(settings.system.accessKeyHash),
     });
   } catch (error) {
     console.error('[OOBE] Status check error:', error);

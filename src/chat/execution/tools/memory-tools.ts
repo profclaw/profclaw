@@ -15,7 +15,6 @@ import {
   getMemoryContent,
   getMemoryStats,
   DEFAULT_MEMORY_CONFIG,
-  type MemoryChunk,
   type SearchResult,
   type MemoryStats,
 } from '../../../memory/memory-service.js';
@@ -75,7 +74,7 @@ The search uses hybrid (vector + text) matching for best results.`,
     { description: 'Recall past work', params: { query: 'changes made to login flow' } },
   ],
 
-  async execute(_context: ToolExecutionContext, params: MemorySearchParams): Promise<ToolResult<MemorySearchResult>> {
+  async execute(context: ToolExecutionContext, params: MemorySearchParams): Promise<ToolResult<MemorySearchResult>> {
     try {
       // Configure search
       const config = {
@@ -97,6 +96,16 @@ The search uses hybrid (vector + text) matching for best results.`,
           if (params.source === 'chat') return c.source === 'chat' || c.path.startsWith('chat://');
           return c.source === params.source;
         });
+      }
+
+      // Context isolation: scope results to allowed memory paths
+      if (context.isolationContext) {
+        const allowedPaths = context.isolationContext.allowedMemoryPaths;
+        if (allowedPaths.length > 0) {
+          filteredChunks = filteredChunks.filter(c =>
+            allowedPaths.some(p => c.path.startsWith(p)),
+          );
+        }
       }
 
       // Get stats
@@ -208,7 +217,21 @@ This tool is read-only and only accesses indexed memory files.`,
     { description: 'Read chat memory', params: { path: 'chat://abc123', from: 1, lines: 50 } },
   ],
 
-  async execute(_context: ToolExecutionContext, params: MemoryGetParams): Promise<ToolResult<MemoryGetResult>> {
+  async execute(context: ToolExecutionContext, params: MemoryGetParams): Promise<ToolResult<MemoryGetResult>> {
+    // Context isolation: check if path is allowed
+    if (context.isolationContext) {
+      const allowedPaths = context.isolationContext.allowedMemoryPaths;
+      if (allowedPaths.length > 0 && !allowedPaths.some(p => params.path.startsWith(p))) {
+        return {
+          success: false,
+          error: {
+            code: 'ISOLATION_BLOCKED',
+            message: `Access to memory path "${params.path}" is restricted by context isolation`,
+          },
+        };
+      }
+    }
+
     try {
       const result = await getMemoryContent(params.path, {
         fromLine: params.from,

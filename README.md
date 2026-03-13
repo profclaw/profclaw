@@ -18,7 +18,7 @@
 
 ---
 
-profClaw is a local-first AI agent that talks to your tools. Connect it to Slack, Discord, Telegram, or any of 8 supported chat channels. Point it at your GitHub, Jira, or Linear. Give it an AI provider (Anthropic, OpenAI, Ollama, or 12+ others). It handles the rest -- executing tasks, managing workflows, and automating your dev life through natural language.
+profClaw is a local-first AI agent that talks to your tools. Connect it to Slack, Discord, Telegram, or any of 22 supported chat channels. Point it at your GitHub, Jira, or Linear. Give it an AI provider (Anthropic, OpenAI, Ollama, or 30+ others). It handles the rest - executing tasks, managing workflows, and automating your dev life through natural language.
 
 Runs on your machine. Your data stays local. No cloud required.
 
@@ -26,14 +26,14 @@ Runs on your machine. Your data stays local. No cloud required.
 
 | | |
 |---|---|
-| **15+ AI providers** | Anthropic, OpenAI, Google, Groq, Ollama, DeepSeek, and more |
-| **8 chat channels** | Slack, Discord, Telegram, WhatsApp, WebChat, Matrix, Google Chat, MS Teams |
-| **51+ built-in tools** | File ops, git, browser automation, cron, web search, system admin |
-| **MCP server** | Native Model Context Protocol -- connect to any MCP-compatible client |
-| **Webhook integrations** | GitHub, Jira, Linear with OAuth and webhook support |
-| **15 built-in skills** | Code review, code gen, debug, git workflow, web research, and more |
-| **Plugin SDK** | Build and share third-party plugins |
-| **3 deployment modes** | Pico (minimal), Mini (dashboard), Pro (everything) |
+| **35 AI providers** | Anthropic, OpenAI, Google, Groq, Ollama, DeepSeek, Bedrock, and more |
+| **22 chat channels** | Slack, Discord, Telegram, WhatsApp, iMessage, Matrix, Teams, and 15 more |
+| **72 built-in tools** | File ops, git, browser automation, cron, web search, canvas, voice |
+| **50 skills** | Coding agent, GitHub issues, Notion, Obsidian, image gen, and more |
+| **MCP server** | Native Model Context Protocol - connect to any MCP-compatible client |
+| **Voice I/O** | STT (Whisper) + TTS (ElevenLabs/OpenAI/system) + Talk Mode |
+| **Plugin SDK** | Build and share third-party plugins via npm or ClawHub |
+| **3 deployment modes** | Pico (~140MB), Mini (~180MB), Pro (full features) |
 
 ## Deployment Modes
 
@@ -41,9 +41,9 @@ profClaw scales from a Raspberry Pi to a full production server:
 
 | Mode | What you get | RAM | Best for |
 |------|-------------|-----|----------|
-| **pico** | Agent + tools + chat. No UI. | ~50MB | IoT, home automation, $10 boards |
-| **mini** | + Dashboard, basic cron, 1-2 channels | ~150MB | Personal dev server, VPS |
-| **pro** | + All channels, Redis queues, plugins, sandbox | ~300MB | Teams, production |
+| **pico** | Agent + tools + chat. No UI. | ~140MB | IoT, home automation, $10 boards |
+| **mini** | + Dashboard, basic cron, 1-2 channels | ~180MB | Personal dev server, VPS |
+| **pro** | + All channels, Redis queues, plugins, sandbox | ~200MB | Teams, production |
 
 Set via `PROFCLAW_MODE=pico|mini|pro` environment variable.
 
@@ -121,7 +121,7 @@ src/
   core/           Deployment modes, feature flags
   integrations/   GitHub, Jira, Linear webhooks
   queue/          BullMQ (pro) + in-memory (pico/mini) task queue
-  providers/      15+ AI SDK providers
+  providers/      35 AI SDK providers
   skills/         Skill loader and registry
   mcp/            MCP server (stdio + SSE)
   types/          Shared TypeScript types
@@ -132,7 +132,7 @@ skills/           Built-in skill definitions
 
 ## AI Providers
 
-Works with any provider supported by the Vercel AI SDK:
+35 providers with 90+ model aliases:
 
 | Provider | Models | Local? |
 |----------|--------|--------|
@@ -140,17 +140,20 @@ Works with any provider supported by the Vercel AI SDK:
 | OpenAI | GPT-4o, o1, o3 | No |
 | Google | Gemini 2.x | No |
 | Ollama | Llama, Mistral, Qwen, ... | Yes |
+| AWS Bedrock | Claude, Titan, Llama | No |
 | Groq | Fast inference | No |
 | DeepSeek | V3, R1 | No |
 | Azure OpenAI | GPT-4o | No |
 | xAI | Grok | No |
+| Zhipu AI | GLM-4, GLM-5 | No |
+| Moonshot | Kimi | No |
+| Qwen API | Qwen 2.5 | No |
 | Together | Open models | No |
 | Fireworks | Open models | No |
-| Cerebras | Fast inference | No |
 | Mistral | Mistral Large, Codestral | No |
-| Cohere | Command R+ | No |
 | OpenRouter | Any model | No |
 | Replicate | Open models | No |
+| ... and 18 more | HuggingFace, NVIDIA NIM, Watsonx, Volcengine, etc. | |
 
 ## Integrations
 

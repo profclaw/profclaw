@@ -458,6 +458,33 @@ export async function retryDeadLetterTask(dlqId: string): Promise<boolean> {
 }
 
 /**
+ * Clean up resolved/discarded DLQ entries older than retention period.
+ * Called from daily cron or on-demand.
+ */
+export async function cleanupDeadLetterQueue(
+  retentionDays = parseInt(process.env['DLQ_RETENTION_DAYS'] ?? '30', 10)
+): Promise<number> {
+  const storage = getStorage();
+  const cutoffSeconds = Math.floor(Date.now() / 1000) - (retentionDays * 86400);
+
+  const result = await storage.execute(
+    `DELETE FROM dead_letter_tasks
+     WHERE status IN ('resolved', 'discarded')
+     AND (resolved_at IS NOT NULL AND resolved_at < ?)`,
+    [cutoffSeconds]
+  );
+
+  // SQLite execute doesn't reliably return affected rows, so count separately
+  const remaining = await storage.query<{ count: number }>(
+    `SELECT COUNT(*) as count FROM dead_letter_tasks WHERE status IN ('resolved', 'discarded')`
+  );
+
+  const remainingCount = remaining[0]?.count ?? 0;
+  console.log(`[FailureHandler] DLQ cleanup: removed entries older than ${retentionDays} days (${remainingCount} resolved/discarded remaining)`);
+  return remainingCount;
+}
+
+/**
  * Get DLQ statistics
  */
 export async function getDeadLetterQueueStats(): Promise<{

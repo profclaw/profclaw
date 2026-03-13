@@ -25,13 +25,18 @@ import {
   Clock,
   Timer,
   Loader2,
+  KeyRound,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import type { ElementType } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { SettingsCard } from '../components/SettingsCard';
 import { ToggleOption } from '../components/ToggleOption';
+import { useAuth } from '@/features/auth/hooks/useAuth';
 
 type SecurityMode = 'deny' | 'sandbox' | 'allowlist' | 'ask' | 'full';
 
@@ -116,9 +121,12 @@ const SECURITY_MODES: {
 
 export function SecuritySection() {
   const queryClient = useQueryClient();
+  const { authMode } = useAuth();
   const [newPattern, setNewPattern] = useState('');
   const [newType, setNewType] = useState<'command' | 'path' | 'url'>('command');
   const [newDescription, setNewDescription] = useState('');
+  const [accessKeyInput, setAccessKeyInput] = useState('');
+  const [showAccessKeyInput, setShowAccessKeyInput] = useState(false);
 
   const {
     data: securityData,
@@ -283,6 +291,53 @@ export function SecuritySection() {
     }
   };
 
+  // Access key management (local mode only)
+  const { data: oobeData } = useQuery({
+    queryKey: ['oobe', 'status'],
+    queryFn: async () => {
+      const res = await fetch('/api/oobe/status');
+      if (!res.ok) return { hasAccessKey: false };
+      return res.json() as Promise<{ hasAccessKey?: boolean }>;
+    },
+    enabled: authMode === 'local',
+  });
+
+  const setAccessKey = useMutation({
+    mutationFn: async (key: string | null) => {
+      const res = await fetch('/api/auth/access-key', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ key }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to update access key');
+      }
+      return res.json() as Promise<{ hasAccessKey: boolean }>;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['oobe', 'status'] });
+      queryClient.invalidateQueries({ queryKey: ['auth'] });
+      setAccessKeyInput('');
+      toast.success(data.hasAccessKey ? 'Access key set' : 'Access key removed');
+    },
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : 'Failed'),
+  });
+
+  const handleSetAccessKey = () => {
+    if (!accessKeyInput.trim()) {
+      toast.error('Access key cannot be empty');
+      return;
+    }
+    setAccessKey.mutate(accessKeyInput.trim());
+  };
+
+  const handleRemoveAccessKey = () => {
+    setAccessKey.mutate(null);
+  };
+
   const handleAddToAllowlist = () => {
     if (!newPattern.trim()) {
       toast.error('Pattern is required');
@@ -297,6 +352,100 @@ export function SecuritySection() {
 
   return (
     <>
+      {/* Access Key (local mode only) */}
+      {authMode === 'local' && (
+        <SettingsCard
+          title="Access Key"
+          description="Protect your instance with a passphrase when exposed publicly"
+        >
+          <div className="space-y-4">
+            <div className={cn(
+              'flex items-center gap-4 p-4 rounded-xl border',
+              oobeData?.hasAccessKey
+                ? 'bg-green-500/5 border-green-500/20'
+                : 'bg-amber-500/5 border-amber-500/20',
+            )}>
+              <div className={cn(
+                'h-12 w-12 rounded-xl flex items-center justify-center',
+                oobeData?.hasAccessKey ? 'bg-green-500/10' : 'bg-amber-500/10',
+              )}>
+                <KeyRound className={cn(
+                  'h-6 w-6',
+                  oobeData?.hasAccessKey ? 'text-green-500' : 'text-amber-500',
+                )} />
+              </div>
+              <div className="flex-1">
+                <h4 className="font-semibold">
+                  {oobeData?.hasAccessKey ? 'Access key is set' : 'No access key set'}
+                </h4>
+                <p className="text-sm text-muted-foreground">
+                  {oobeData?.hasAccessKey
+                    ? 'Visitors must enter the access key to use the dashboard'
+                    : 'Anyone with the URL can access your dashboard'}
+                </p>
+              </div>
+            </div>
+
+            {/* Set/change access key */}
+            <div className="p-4 rounded-xl bg-muted/30 border border-border space-y-3">
+              <div className="flex items-center gap-2">
+                <KeyRound className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">
+                  {oobeData?.hasAccessKey ? 'Change Access Key' : 'Set Access Key'}
+                </span>
+              </div>
+              <div className="flex gap-3">
+                <div className="relative flex-1">
+                  <Input
+                    type={showAccessKeyInput ? 'text' : 'password'}
+                    placeholder="Enter a passphrase"
+                    value={accessKeyInput}
+                    onChange={(e) => setAccessKeyInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSetAccessKey();
+                    }}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAccessKeyInput(!showAccessKeyInput)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showAccessKeyInput ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+                <Button
+                  onClick={handleSetAccessKey}
+                  disabled={setAccessKey.isPending || !accessKeyInput.trim()}
+                  className="rounded-xl"
+                >
+                  {setAccessKey.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    'Set Key'
+                  )}
+                </Button>
+              </div>
+              {oobeData?.hasAccessKey && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRemoveAccessKey}
+                  disabled={setAccessKey.isPending}
+                  className="rounded-xl text-red-400 hover:text-red-500 hover:bg-red-500/10"
+                >
+                  Remove Access Key
+                </Button>
+              )}
+            </div>
+          </div>
+        </SettingsCard>
+      )}
+
       {/* Security Mode Selector */}
       <SettingsCard
         title="Security Mode"

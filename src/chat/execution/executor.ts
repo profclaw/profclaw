@@ -17,7 +17,7 @@ import type {
   ApprovalDecision,
 } from "./types.js";
 import { getToolRegistry } from "./registry.js";
-import { getSecurityManager, type SecurityCheckResult } from "./security.js";
+import { getSecurityManager } from "./security.js";
 import { getSessionManager } from "./session-manager.js";
 import { getSandboxManager } from "./sandbox.js";
 import {
@@ -28,6 +28,7 @@ import {
 } from "./process-pool.js";
 import { getAuditLogger } from "./audit.js";
 import { getRateLimiter } from "./rate-limiter.js";
+import { getPromptGuard } from "../../security/prompt-guard.js";
 import { logger } from "../../utils/logger.js";
 import { randomUUID } from "crypto";
 import {
@@ -35,6 +36,7 @@ import {
   isSecretsDetectionEnabled,
   redactSecrets,
 } from "./secrets.js";
+import { checkSafetyBounds } from "./guardrails.js";
 
 // =============================================================================
 // Constants
@@ -180,6 +182,36 @@ export class ToolExecutor {
 
     const params = parseResult.data as Record<string, unknown>;
 
+    // Check prompt injection guard (input-level defense)
+    const promptGuard = getPromptGuard();
+    if (promptGuard) {
+      const inputText = (params.message ?? params.prompt ?? params.query ?? '') as string;
+      if (inputText) {
+        const guardResult = promptGuard.check(inputText);
+        if (!guardResult.allowed) {
+          auditLogger.logSecurityDenied({
+            toolName: toolCall.name,
+            toolCallId,
+            conversationId: context.conversationId,
+            userId: context.userId,
+            securityMode: 'prompt_guard',
+            reason: guardResult.reason ?? 'Input blocked by prompt guard',
+          });
+          return {
+            toolCallId,
+            toolName: toolCall.name,
+            result: {
+              success: false,
+              error: {
+                code: 'PROMPT_BLOCKED',
+                message: guardResult.reason ?? 'Input blocked by security policy',
+              },
+            },
+          };
+        }
+      }
+    }
+
     // Check security
     const securityManager = getSecurityManager();
     const securityPolicy = securityManager.getPolicy();
@@ -244,6 +276,33 @@ export class ToolExecutor {
             message:
               securityCheck.reason ??
               "Tool execution denied by security policy",
+          },
+        },
+      };
+    }
+
+    // Safety bounds check (guardrails - blocks destructive commands)
+    const safetyCheck = checkSafetyBounds(toolCall.name, params);
+    if (!safetyCheck.safe) {
+      const blockedActions = safetyCheck.blocked.map((b) => b.reason).join('; ');
+      auditLogger.logSecurityDenied({
+        toolName: toolCall.name,
+        toolCallId,
+        conversationId: context.conversationId,
+        userId: context.userId,
+        command: this.extractCommand(params),
+        securityMode: 'guardrails',
+        reason: `Blocked by safety guardrails: ${blockedActions}`,
+      });
+
+      return {
+        toolCallId,
+        toolName: toolCall.name,
+        result: {
+          success: false,
+          error: {
+            code: 'SAFETY_BLOCKED',
+            message: `Action blocked by safety guardrails: ${blockedActions}`,
           },
         },
       };

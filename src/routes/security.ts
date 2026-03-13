@@ -13,7 +13,6 @@ import type {
   PluginAllowlistEntry,
   ChannelPolicy,
 } from '../chat/execution/types.js';
-import { logger } from '../utils/logger.js';
 
 const security = new Hono();
 

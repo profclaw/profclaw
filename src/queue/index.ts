@@ -5,9 +5,8 @@
  * All consumers import from this module instead of task-queue or memory-queue directly.
  */
 
-import type { Task, TaskResult, CreateTaskInput, TaskStatusType } from '../types/task.js';
+import type { Task, CreateTaskInput, TaskStatusType } from '../types/task.js';
 import { shouldUseRedis } from '../core/deployment.js';
-import { logger } from '../utils/logger.js';
 
 // Queue backend interface
 interface QueueBackend {
@@ -46,7 +45,7 @@ async function loadBackend(): Promise<QueueBackend> {
       backendType = 'redis';
       console.log('[Queue] Using Redis-backed BullMQ queue');
       return backend;
-    } catch (error) {
+    } catch {
       if (process.env.PROFCLAW_REQUIRE_REDIS === 'true') {
         console.error('[FATAL] PROFCLAW_REQUIRE_REDIS=true but Redis is unreachable');
         process.exit(1);

@@ -96,6 +96,7 @@ export {
   getChatTools,
   getDefaultChatTools,
   getAllChatTools,
+  getChatToolsForModel,
   type ChatToolHandler,
   type ChatToolHandlerOptions,
 } from './tool-handler.js';

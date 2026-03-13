@@ -60,7 +60,7 @@ function buildNotificationBody(summary: Summary | null, result: TaskResult): str
       body += `### 📦 Artifacts\n`;
       summary.artifacts.forEach(a => {
         const link = a.url ? `([link](${a.url}))` : '';
-        const label = (a as any).title || (a as any).identifier || (a as any).type;
+        const label = a.title || a.identifier || a.type;
         body += `- **${a.type}**: ${label} ${link}\n`;
       });
       body += '\n';

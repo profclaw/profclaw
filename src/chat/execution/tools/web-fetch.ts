@@ -7,6 +7,7 @@
 
 import { z } from 'zod';
 import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.js';
+import { getSsrfGuard } from '../../../security/ssrf-guard.js';
 import { logger } from '../../../utils/logger.js';
 
 // =============================================================================
@@ -75,28 +76,40 @@ Use for: reading documentation, fetching API responses, checking web content.`,
       };
     }
 
-    const hostname = normalizeHostname(url.hostname);
-
-    // Check for blocked hosts (SSRF protection)
-    if (BLOCKED_HOSTS.has(hostname) || hostname.endsWith('.local')) {
-      return {
-        success: false,
-        error: {
-          code: 'BLOCKED_HOST',
-          message: `Access to ${hostname} is not allowed`,
-        },
-      };
-    }
-
-    // Check for private IPs
-    if (isPrivateIP(hostname)) {
-      return {
-        success: false,
-        error: {
-          code: 'PRIVATE_IP',
-          message: 'Access to private IP addresses is not allowed',
-        },
-      };
+    // SSRF Guard (replaces legacy BLOCKED_HOSTS + isPrivateIP checks)
+    const ssrfGuard = getSsrfGuard();
+    if (ssrfGuard) {
+      const ssrfResult = await ssrfGuard.validateUrl(params.url);
+      if (!ssrfResult.allowed) {
+        return {
+          success: false,
+          error: {
+            code: 'SSRF_BLOCKED',
+            message: ssrfResult.reason ?? 'URL blocked by SSRF guard',
+          },
+        };
+      }
+    } else {
+      // Fallback: legacy checks when guard not initialized
+      const hostname = normalizeHostname(url.hostname);
+      if (BLOCKED_HOSTS.has(hostname) || hostname.endsWith('.local')) {
+        return {
+          success: false,
+          error: {
+            code: 'BLOCKED_HOST',
+            message: `Access to ${hostname} is not allowed`,
+          },
+        };
+      }
+      if (isPrivateIP(hostname)) {
+        return {
+          success: false,
+          error: {
+            code: 'PRIVATE_IP',
+            message: 'Access to private IP addresses is not allowed',
+          },
+        };
+      }
     }
 
     try {

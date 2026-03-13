@@ -12,14 +12,29 @@ import type {
   CreateTaskInput,
   TaskStatusType,
 } from '../types/task.js';
-import { getAgentRegistry } from '../adapters/registry.js';
 import { randomUUID } from 'crypto';
-import { postResultToSource } from './notifications.js';
-import { createTaskNotification } from '../notifications/in-app.js';
-import { extractFromTaskResult, createSummary } from '../summaries/index.js';
 import { logger } from '../utils/logger.js';
 import { getStorage, initStorage } from '../storage/index.js';
 import { getConcurrency } from '../core/deployment.js';
+
+// Lazy-loaded heavy modules (deferred to first task execution for lower cold-start footprint)
+async function lazyGetAgentRegistry() {
+  const { getAgentRegistry } = await import('../adapters/registry.js');
+  return getAgentRegistry();
+}
+async function lazyPostResultToSource(task: Task, result: TaskResult) {
+  const { postResultToSource } = await import('./notifications.js');
+  return postResultToSource(task, result);
+}
+async function lazyCreateTaskNotification(event: TaskEvent) {
+  const { createTaskNotification } = await import('../notifications/in-app.js');
+  return createTaskNotification(event);
+}
+async function lazyExtractAndSummarize(result: TaskResult, meta: Record<string, unknown>) {
+  const { extractFromTaskResult, createSummary } = await import('../summaries/index.js');
+  const summaryInput = await extractFromTaskResult(result, meta);
+  await createSummary(summaryInput);
+}
 import {
   handleTaskFailure,
   initDeadLetterQueue,
@@ -34,6 +49,12 @@ let processing = false;
 let activeCount = 0;
 let maxConcurrency = 1;
 let pollInterval: ReturnType<typeof setInterval> | null = null;
+let evictionInterval: ReturnType<typeof setInterval> | null = null;
+
+// Task eviction settings (prevent unbounded memory growth)
+const TASK_EVICTION_TTL_MS = parseInt(process.env['TASK_EVICTION_TTL_MS'] ?? '3600000', 10); // 1 hour
+const TASK_EVICTION_INTERVAL_MS = 300000; // 5 minutes
+const TASK_LOAD_MAX_AGE_MS = 86400000; // 24 hours - only load recent tasks from DB
 
 interface TaskEvent {
   type: 'created' | 'queued' | 'started' | 'progress' | 'completed' | 'failed';
@@ -78,10 +99,23 @@ async function loadTasksFromDB(): Promise<void> {
   try {
     const storage = getStorage();
     const { tasks } = await storage.getTasks({ limit: 10000 });
+    const loadCutoff = Date.now() - TASK_LOAD_MAX_AGE_MS;
+    let loaded = 0;
+
     for (const task of tasks) {
-      taskStore.set(task.id, task);
+      // Only load active tasks or recently updated tasks to bound startup memory
+      const isActive = task.status === 'pending' || task.status === 'queued' ||
+                       task.status === 'in_progress' || task.status === 'assigned';
+      const updatedAt = task.updatedAt instanceof Date
+        ? task.updatedAt.getTime()
+        : new Date(task.updatedAt).getTime();
+
+      if (isActive || updatedAt > loadCutoff) {
+        taskStore.set(task.id, task);
+        loaded++;
+      }
     }
-    logger.info(`[MemQueue] Loaded ${tasks.length} tasks from database`);
+    logger.info(`[MemQueue] Loaded ${loaded} tasks from database (${tasks.length - loaded} older tasks skipped)`);
   } catch (error) {
     logger.warn('[MemQueue] Failed to load tasks from DB, starting fresh:', {
       error,
@@ -131,7 +165,7 @@ function emitEvent(event: TaskEvent): void {
   }
 
   if (event.type === 'completed' || event.type === 'failed') {
-    createTaskNotification(event).then((id: string | null) => {
+    lazyCreateTaskNotification(event).then((id: string | null) => {
       if (id && sseBroadcaster) sseBroadcaster('notification:new', { id });
     }).catch(console.error);
   }
@@ -151,7 +185,7 @@ async function processTask(task: Task): Promise<TaskResult> {
 
   emitEvent({ type: 'started', taskId: task.id, task });
 
-  const registry = getAgentRegistry();
+  const registry = await lazyGetAgentRegistry();
   const adapter = registry.findAdapterForTask(task);
 
   if (!adapter) {
@@ -183,20 +217,19 @@ async function processTask(task: Task): Promise<TaskResult> {
 
       // Create summary
       try {
-        const summaryInput = await extractFromTaskResult(result, {
+        await lazyExtractAndSummarize(result, {
           taskId: task.id,
           agent: adapter.type,
           model: result.metadata?.model as string,
           startedAt: task.startedAt,
         });
-        await createSummary(summaryInput);
       } catch (error) {
         logger.error(`[MemQueue] Failed to create summary for task ${task.id}:`, error as Error);
       }
 
       // Post results back to source
       try {
-        await postResultToSource(task, result);
+        await lazyPostResultToSource(task, result);
       } catch (error) {
         logger.error(`[MemQueue] Failed to post result to source for task ${task.id}:`, error as Error);
       }
@@ -283,6 +316,31 @@ async function processNext(): Promise<void> {
   }
 }
 
+/**
+ * Evict completed/failed/cancelled tasks older than the configured TTL
+ * to prevent unbounded memory growth in long-running instances.
+ */
+function evictStaleTasks(): void {
+  const cutoff = Date.now() - TASK_EVICTION_TTL_MS;
+  let evicted = 0;
+
+  for (const [id, task] of taskStore) {
+    if (task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') {
+      const updatedAt = task.updatedAt instanceof Date
+        ? task.updatedAt.getTime()
+        : new Date(task.updatedAt).getTime();
+      if (updatedAt < cutoff) {
+        taskStore.delete(id);
+        evicted++;
+      }
+    }
+  }
+
+  if (evicted > 0) {
+    logger.info(`[MemQueue] Evicted ${evicted} stale tasks (store size: ${taskStore.size})`);
+  }
+}
+
 // -- Exported interface (matches task-queue.ts) --
 
 export async function initTaskQueue(): Promise<void> {
@@ -299,6 +357,9 @@ export async function initTaskQueue(): Promise<void> {
       processNext().catch(console.error);
     }
   }, 500);
+
+  // Periodic eviction of completed/failed tasks to bound memory
+  evictionInterval = setInterval(evictStaleTasks, TASK_EVICTION_INTERVAL_MS);
 
   console.log(`[MemQueue] In-memory queue initialized (concurrency: ${maxConcurrency})`);
 }
@@ -427,6 +488,10 @@ export async function closeTaskQueue(): Promise<void> {
   if (pollInterval) {
     clearInterval(pollInterval);
     pollInterval = null;
+  }
+  if (evictionInterval) {
+    clearInterval(evictionInterval);
+    evictionInterval = null;
   }
   console.log('[MemQueue] In-memory queue closed');
 }

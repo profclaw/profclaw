@@ -228,7 +228,7 @@ function rowToExternalLink(row: ProjectExternalLinkRow): ProjectExternalLink {
     externalId: row.externalId,
     externalUrl: row.externalUrl || undefined,
     syncEnabled: row.syncEnabled ?? true,
-    syncDirection: (row.syncDirection || 'bidirectional') as 'push' | 'bidirectional' | 'pull',
+    syncDirection: toSyncDirection(row.syncDirection),
     lastSyncedAt: toOptionalISOString(row.lastSyncedAt),
     syncError: row.syncError || undefined,
     createdAt: toISOString(row.createdAt),

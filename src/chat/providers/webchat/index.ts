@@ -24,8 +24,6 @@ import type {
   OutgoingMessage,
   ChatAccountConfig,
 } from '../types.js';
-import { logger } from '../../../utils/logger.js';
-
 // =============================================================================
 // SESSION MANAGEMENT
 // =============================================================================

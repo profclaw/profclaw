@@ -138,13 +138,25 @@ async function handleIncomingMessage(event: ChatEvent, _context: RegistryChatCon
   // Skip if no text content
   if (!message.text?.trim()) return;
 
-  // Concurrency guard (NanoClaw pattern)
+  // Concurrency guard (NanoClaw pattern) - send busy reply instead of silent drop
   if (activeCount >= MAX_CONCURRENT) {
-    logger.warn('[MessageHandler] At concurrency limit, dropping message', {
+    logger.warn('[MessageHandler] At concurrency limit', {
       provider: message.provider,
       chatId: message.chatId,
       activeCount,
     });
+    try {
+      await sendProviderMessage({
+        provider: message.provider,
+        accountId: message.accountId,
+        to: message.chatId,
+        text: "I'm handling many requests right now. Please try again in a moment.",
+        threadId: message.threadId,
+        replyToId: message.id,
+      });
+    } catch {
+      // If we can't even send the busy reply, just log and move on
+    }
     return;
   }
 

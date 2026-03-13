@@ -7,8 +7,8 @@
 
 import { randomUUID } from 'crypto';
 import type { Context } from 'hono';
-import { SessionEndPayloadSchema, type SessionEndPayload } from './schemas.js';
-import type { HookEvent, HookProcessingResult, SessionAggregate } from './types.js';
+import { SessionEndPayloadSchema } from './schemas.js';
+import type { HookProcessingResult, SessionAggregate } from './types.js';
 import { getSessionEvents, clearSessionEvents, getSessionSummary } from './tool-use.js';
 import { aggregateInferences } from '../intelligence/rules.js';
 

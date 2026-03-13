@@ -50,7 +50,7 @@ export class JiraClient {
   /**
    * Internal request helper
    */
-  private async request(path: string, options: RequestInit): Promise<any> {
+  private async request<T = unknown>(path: string, options: RequestInit): Promise<T | null> {
     const url = `${this.baseUrl}${path}`;
     const response = await fetch(url, {
       ...options,
@@ -68,6 +68,6 @@ export class JiraClient {
     }
 
     if (response.status === 204) return null;
-    return await response.json();
+    return await response.json() as T;
   }
 }

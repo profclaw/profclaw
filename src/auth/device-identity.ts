@@ -18,7 +18,7 @@ import {
   randomUUID,
 } from 'crypto';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, chmodSync } from 'fs';
-import { dirname, join } from 'path';
+import { join } from 'path';
 import { homedir } from 'os';
 
 /**

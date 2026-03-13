@@ -13,11 +13,6 @@ import { error, success, spinner, info } from '../utils/output.js';
 
 // === Types ===
 
-interface ChatMessage {
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-}
-
 interface ChatResponse {
   id?: string;
   content?: string;

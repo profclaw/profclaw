@@ -126,7 +126,7 @@ export async function updateLabel(id: string, input: UpdateLabelInput): Promise<
   const db = getDb();
   if (!db) throw new Error('Database not initialized');
 
-  const updates: any = { updatedAt: new Date() };
+  const updates: Partial<typeof labels.$inferInsert> = { updatedAt: new Date() };
   if (input.name !== undefined) updates.name = input.name;
   if (input.description !== undefined) updates.description = input.description;
   if (input.color !== undefined) updates.color = input.color;

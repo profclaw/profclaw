@@ -83,6 +83,7 @@ export const SettingsSchema = z.object({
     registrationMode: z.enum(['open', 'invite']).default('invite'),
     showForgotPassword: z.boolean().default(true),
     authMode: z.enum(['local', 'multi']).default('local'),
+    accessKeyHash: z.string().optional(),
   }).default({}),
 });
 
@@ -131,6 +132,7 @@ const SECRET_FIELDS = [
   'aiProvider.openaiKey',
   'aiProvider.anthropicKey',
   'aiProvider.providerKeys',
+  'system.accessKeyHash',
 ];
 
 // Mask a value for display
@@ -182,7 +184,7 @@ export async function getSettings(): Promise<Settings> {
 
   try {
     // Load settings from storage
-    const rows = await storage.query<{ key: string; value: any; category: string }>(
+    const rows = await storage.query<{ key: string; value: unknown; category: string }>(
       'SELECT key, value, category FROM settings'
     );
 

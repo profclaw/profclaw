@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { api } from '../utils/api.js';
-import { createTable, error, spinner, success } from '../utils/output.js';
+import { createTable, error, spinner } from '../utils/output.js';
 
 interface Agent {
   type: string;
@@ -14,6 +14,18 @@ interface Agent {
     failed: number;
     avgDuration: number;
   };
+}
+
+interface AgentHealthStatus {
+  healthy?: boolean;
+  lastCheck?: string;
+}
+
+interface HealthResponse {
+  version: string;
+  status: string;
+  timestamp: string;
+  agents?: Record<string, AgentHealthStatus>;
 }
 
 export function agentCommands() {
@@ -76,7 +88,7 @@ export function agentCommands() {
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       const spin = spinner('Checking health...').start();
-      const result = await api.get<any>('/health');
+      const result = await api.get<HealthResponse>('/health');
       spin.stop();
 
       if (!result.ok) {
@@ -99,7 +111,7 @@ export function agentCommands() {
         console.log('\n### Agent Status');
         const table = createTable(['Agent', 'Status', 'Last Check']);
 
-        for (const [agent, status] of Object.entries(health.agents) as [string, any][]) {
+        for (const [agent, status] of Object.entries(health.agents)) {
           const isHealthy = status.healthy !== false;
           table.push([
             agent,

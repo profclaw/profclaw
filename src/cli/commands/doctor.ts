@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { api } from '../utils/api.js';
-import { success, error, warn, info, spinner } from '../utils/output.js';
+import { success, error, info, spinner } from '../utils/output.js';
 
 const execFileAsync = promisify(execFile);
 

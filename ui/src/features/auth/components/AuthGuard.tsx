@@ -39,7 +39,7 @@ interface AuthGuardProps {
 }
 
 export function AuthGuard({ children, requireOnboarding = false }: AuthGuardProps) {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading, user, authMode, accessKeyRequired } = useAuth();
   const { data: oobeStatus, isLoading: oobeLoading } = useOOBEStatus();
   const location = useLocation();
 
@@ -60,7 +60,19 @@ export function AuthGuard({ children, requireOnboarding = false }: AuthGuardProp
     return <Navigate to="/oobe" replace />;
   }
 
-  // Redirect to login if not authenticated (only in multi-user mode)
+  // Local mode with access key: redirect to access key page
+  if (!isAuthenticated && authMode === 'local' && accessKeyRequired) {
+    return <Navigate to="/access-key" state={{ from: location }} replace />;
+  }
+
+  // Local mode without access key: user is auto-authenticated by middleware
+  // (isAuthenticated should already be true, but guard against edge cases)
+  if (!isAuthenticated && authMode === 'local' && !accessKeyRequired) {
+    // Auto-auth should have handled this; render children optimistically
+    return <>{children}</>;
+  }
+
+  // Multi mode: redirect to login if not authenticated
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
@@ -81,7 +93,7 @@ export function AuthGuard({ children, requireOnboarding = false }: AuthGuardProp
  * Also redirects to OOBE if setup is needed.
  */
 export function GuestGuard({ children }: { children: ReactNode }) {
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading, user, authMode, accessKeyRequired } = useAuth();
   const { data: oobeStatus, isLoading: oobeLoading } = useOOBEStatus();
   const location = useLocation();
 
@@ -100,6 +112,11 @@ export function GuestGuard({ children }: { children: ReactNode }) {
   // Redirect to OOBE if setup is needed
   if (oobeStatus?.needsSetup) {
     return <Navigate to="/oobe" replace />;
+  }
+
+  // Local mode without access key: never show login/guest pages
+  if (authMode === 'local' && !accessKeyRequired) {
+    return <Navigate to="/" replace />;
   }
 
   // Redirect based on onboarding status if authenticated

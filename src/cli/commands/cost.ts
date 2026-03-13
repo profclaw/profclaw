@@ -2,6 +2,32 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { api } from '../utils/api.js';
 import { createTable, error, spinner, formatCost, formatTokens } from '../utils/output.js';
+import type { UsageSummary } from '../../costs/token-tracker.js';
+import type { StorageAdapter } from '../../storage/adapter.js';
+
+type CostBudgetStatus = {
+  config: {
+    dailyLimit: number;
+    monthlyLimit: number;
+    alerts: number[];
+  };
+  currentUsage: {
+    daily: number;
+    dailyPercent: string;
+  };
+  isExceeded: boolean;
+};
+
+type CostSummaryResponse = UsageSummary & {
+  daily?: Record<string, AnalyticsBucket>;
+};
+
+type CostAnalytics = Awaited<ReturnType<StorageAdapter['getCostAnalytics']>>;
+
+type AnalyticsBucket = {
+  cost: number;
+  tokens: number;
+};
 
 export function costCommands() {
   const cost = new Command('cost')
@@ -15,7 +41,7 @@ export function costCommands() {
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       const spin = spinner('Fetching cost data...').start();
-      const result = await api.get<any>('/api/costs/summary');
+      const result = await api.get<CostSummaryResponse>('/api/costs/summary');
       spin.stop();
 
       if (!result.ok) {
@@ -53,7 +79,7 @@ export function costCommands() {
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       const spin = spinner('Fetching budget...').start();
-      const result = await api.get<any>('/api/costs/budget');
+      const result = await api.get<CostBudgetStatus>('/api/costs/budget');
       spin.stop();
 
       if (!result.ok) {
@@ -70,13 +96,13 @@ export function costCommands() {
 
       console.log('\n## Budget Status\n');
 
-      const spent = budget.spent || 0;
-      const limit = budget.limit || 0;
-      const percentage = budget.percentage || 0;
+      const spent = budget.currentUsage.daily || 0;
+      const limit = budget.config.dailyLimit || 0;
+      const percentage = Number.parseFloat(budget.currentUsage.dailyPercent || '0');
 
       console.log(`Spent:     ${formatCost(spent)}`);
       console.log(`Limit:     ${formatCost(limit)}`);
-      console.log(`Remaining: ${formatCost(budget.remaining || 0)}`);
+      console.log(`Remaining: ${formatCost(Math.max(limit - spent, 0))}`);
       console.log('');
 
       // Progress bar
@@ -91,9 +117,9 @@ export function costCommands() {
       const progressBar = barColor('█'.repeat(filledWidth)) + chalk.dim('░'.repeat(emptyWidth));
       console.log(`[${progressBar}] ${percentage.toFixed(0)}%`);
 
-      if (budget.status === 'exceeded') {
+      if (budget.isExceeded) {
         console.log(chalk.red('\n⚠ Budget exceeded!'));
-      } else if (budget.status === 'warning') {
+      } else if (percentage >= 80) {
         console.log(chalk.yellow('\n⚠ Approaching budget limit'));
       }
     });
@@ -106,7 +132,7 @@ export function costCommands() {
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       const spin = spinner('Fetching analytics...').start();
-      const result = await api.get<any>('/api/costs/analytics');
+      const result = await api.get<CostAnalytics>('/api/costs/analytics');
       spin.stop();
 
       if (!result.ok) {
@@ -128,7 +154,7 @@ export function costCommands() {
       if (data.byModel && Object.keys(data.byModel).length > 0) {
         console.log('\n### By Model');
         const table = createTable(['Model', 'Cost', 'Tokens']);
-        for (const [model, info] of Object.entries(data.byModel) as [string, any][]) {
+        for (const [model, info] of Object.entries(data.byModel) as [string, AnalyticsBucket][]) {
           table.push([model, formatCost(info.cost), formatTokens(info.tokens)]);
         }
         console.log(table.toString());
@@ -137,7 +163,7 @@ export function costCommands() {
       if (data.byAgent && Object.keys(data.byAgent).length > 0) {
         console.log('\n### By Agent');
         const table = createTable(['Agent', 'Cost', 'Tokens']);
-        for (const [agent, info] of Object.entries(data.byAgent) as [string, any][]) {
+        for (const [agent, info] of Object.entries(data.byAgent) as [string, AnalyticsBucket][]) {
           table.push([agent, formatCost(info.cost), formatTokens(info.tokens)]);
         }
         console.log(table.toString());

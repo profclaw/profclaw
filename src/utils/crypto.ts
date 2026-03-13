@@ -3,7 +3,6 @@ import { logger } from './logger.js';
 
 const ALGORITHM: CipherGCMTypes = 'aes-256-gcm';
 const IV_LENGTH = 12; // Recommended for GCM
-const AUTH_TAG_LENGTH = 16;
 
 /**
  * Get the encryption key from environment variable

@@ -59,10 +59,16 @@ const DEFAULT_CPU_LIMIT = '1';
 const CONTAINER_POOL_SIZE = 3;
 const CONTAINER_MAX_AGE_MS = 3600_000; // 1 hour
 const CLEANUP_INTERVAL_MS = 60_000; // 1 minute
+const DEFAULT_SESSION_IDLE_MS = 600_000; // 10 minutes
 
 // =============================================================================
 // Sandbox Manager
 // =============================================================================
+
+interface SessionContainerInfo {
+  container: Dockerode.Container;
+  lastActivity: number;
+}
 
 export class SandboxManager {
   private config: SandboxConfig;
@@ -71,6 +77,9 @@ export class SandboxManager {
   private containerPool: Map<string, ContainerInfo> = new Map();
   private cleanupTimer: NodeJS.Timeout | null = null;
   private initialized = false;
+
+  /** Session-scoped containers (separate from shared pool) */
+  private sessionContainers = new Map<string, SessionContainerInfo>();
 
   constructor(config?: Partial<SandboxConfig>) {
     // Resolve security preset first so derived defaults below can use it
@@ -259,14 +268,240 @@ export class SandboxManager {
       this.cleanupTimer = null;
     }
 
-    // Stop all containers
+    // Stop all pooled containers
     for (const [id] of this.containerPool) {
       await this.stopContainer(id);
     }
     this.containerPool.clear();
 
+    // Stop all session containers
+    for (const [sessionId] of this.sessionContainers) {
+      await this.destroySessionContainer(sessionId);
+    }
+
     this.initialized = false;
     logger.info('[Sandbox] Manager destroyed', { component: 'Sandbox' });
+  }
+
+  // ===========================================================================
+  // Session Isolation Methods
+  // ===========================================================================
+
+  /**
+   * Create an isolated container for a specific session.
+   * The container gets its own workspace volume and is labelled with the session ID
+   * so it can be identified and cleaned up later.
+   * Returns the Docker container ID.
+   */
+  async createSessionContainer(sessionId: string, config?: Partial<SandboxConfig>): Promise<string> {
+    if (!this.isAvailable() || !this.docker) {
+      throw new Error('Sandbox not available (Docker not running)');
+    }
+
+    if (this.sessionContainers.has(sessionId)) {
+      logger.warn(`[Sandbox] Session container already exists for ${sessionId}`, {
+        component: 'Sandbox',
+        sessionId,
+      });
+      return this.sessionContainers.get(sessionId)!.container.id;
+    }
+
+    const mergedConfig = { ...this.config, ...config };
+    const name = `profclaw-session-${sessionId.slice(0, 12)}`;
+    const workdir = mergedConfig.workdir ?? DEFAULT_WORKDIR;
+
+    const binds: string[] = mergedConfig.mounts?.map((m: SandboxMount) => {
+      const mode = m.readonly ? 'ro' : 'rw';
+      return `${m.hostPath}:${m.containerPath}:${mode}`;
+    }) ?? [];
+
+    const secCfg = this.securityConfig;
+    const capDrop: string[] = ['ALL'];
+    const capAdd: string[] = secCfg.level === 'permissive' ? ['NET_BIND_SERVICE'] : [];
+
+    try {
+      const container = await this.docker.createContainer({
+        Image: mergedConfig.image,
+        name,
+        Cmd: ['sleep', 'infinity'],
+        WorkingDir: workdir,
+        Env: Object.entries(mergedConfig.env ?? {}).map(([k, v]) => `${k}=${v}`),
+        Labels: {
+          'profclaw.session': sessionId,
+          'profclaw.managed': 'true',
+        },
+        HostConfig: {
+          Binds: binds,
+          NetworkMode: mergedConfig.networkMode ?? (secCfg.allowNetwork ? 'bridge' : 'none'),
+          Memory: parseMemoryLimit(mergedConfig.memoryLimit),
+          NanoCpus: parseCpuLimit(mergedConfig.cpuLimit),
+          AutoRemove: false,
+          SecurityOpt: ['no-new-privileges'],
+          CapDrop: capDrop,
+          CapAdd: capAdd.length > 0 ? capAdd : undefined,
+          ReadonlyRootfs: secCfg.readOnlyFs,
+        },
+        Tty: false,
+        OpenStdin: false,
+      });
+
+      await container.start();
+
+      this.sessionContainers.set(sessionId, {
+        container,
+        lastActivity: Date.now(),
+      });
+
+      logger.info(`[Sandbox] Created session container ${name}`, {
+        component: 'Sandbox',
+        sessionId,
+        containerId: container.id,
+      });
+
+      return container.id;
+    } catch (error) {
+      logger.error('[Sandbox] Failed to create session container', error instanceof Error ? error : undefined, {
+        sessionId,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Execute a command inside the container belonging to a specific session.
+   * Updates lastActivity so the idle cleanup timer does not reclaim active sessions.
+   */
+  async executeInSession(
+    sessionId: string,
+    command: string[],
+    options?: { timeout?: number; workdir?: string },
+  ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+    const info = this.sessionContainers.get(sessionId);
+    if (!info) {
+      throw new Error(`No container found for session ${sessionId}`);
+    }
+
+    // Refresh idle timer
+    info.lastActivity = Date.now();
+
+    const timeout = options?.timeout ?? this.securityConfig.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+
+    try {
+      const exec = await info.container.exec({
+        Cmd: command,
+        WorkingDir: options?.workdir ?? this.config.workdir,
+        AttachStdout: true,
+        AttachStderr: true,
+        Tty: false,
+      });
+
+      const stream = await exec.start({ hijack: true, stdin: false });
+
+      let stdout = '';
+      let stderr = '';
+
+      const timeoutId = setTimeout(() => {
+        if ('destroy' in stream && typeof stream.destroy === 'function') {
+          (stream as NodeJS.ReadableStream & { destroy(): void }).destroy();
+        }
+      }, timeout);
+
+      await new Promise<void>((resolve, reject) => {
+        stream.on('data', (chunk: Buffer) => {
+          let offset = 0;
+          while (offset < chunk.length) {
+            if (offset + 8 > chunk.length) break;
+            const type = chunk[offset];
+            const size = chunk.readUInt32BE(offset + 4);
+            if (offset + 8 + size > chunk.length) break;
+            const text = chunk.subarray(offset + 8, offset + 8 + size).toString('utf-8');
+            if (type === 1) stdout += text;
+            else if (type === 2) stderr += text;
+            offset += 8 + size;
+          }
+        });
+        stream.on('end', resolve);
+        stream.on('error', reject);
+      });
+
+      clearTimeout(timeoutId);
+
+      const inspection = await exec.inspect();
+      const exitCode = inspection.ExitCode ?? 0;
+
+      logger.debug(`[Sandbox] Session exec completed`, {
+        component: 'Sandbox',
+        sessionId,
+        exitCode,
+      });
+
+      return { stdout, stderr, exitCode };
+    } catch (error) {
+      logger.error('[Sandbox] Session exec failed', error instanceof Error ? error : undefined, { sessionId });
+      throw error;
+    }
+  }
+
+  /**
+   * Stop and remove the container belonging to a session, then free all resources.
+   */
+  async destroySessionContainer(sessionId: string): Promise<void> {
+    const info = this.sessionContainers.get(sessionId);
+    if (!info) {
+      logger.debug(`[Sandbox] No session container to destroy for ${sessionId}`, { component: 'Sandbox' });
+      return;
+    }
+
+    const containerId = info.container.id;
+    this.sessionContainers.delete(sessionId);
+
+    try {
+      await info.container.stop({ t: 5 });
+      await info.container.remove({ force: true });
+      logger.info(`[Sandbox] Destroyed session container`, {
+        component: 'Sandbox',
+        sessionId,
+        containerId,
+      });
+    } catch (error) {
+      logger.warn(`[Sandbox] Error destroying session container ${containerId}`, {
+        component: 'Sandbox',
+        sessionId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
+   * Find and destroy containers that have been idle longer than the threshold.
+   * Uses env var SANDBOX_SESSION_IDLE_MS (default 600 000 ms / 10 min).
+   * Returns the number of containers cleaned up.
+   */
+  async cleanupIdleSessions(maxIdleMs?: number): Promise<number> {
+    const envMs = parseInt(process.env.SANDBOX_SESSION_IDLE_MS ?? '0', 10) || DEFAULT_SESSION_IDLE_MS;
+    const threshold = maxIdleMs ?? envMs;
+
+    const now = Date.now();
+    const idleSessions: string[] = [];
+
+    for (const [sessionId, info] of this.sessionContainers) {
+      if (now - info.lastActivity > threshold) {
+        idleSessions.push(sessionId);
+      }
+    }
+
+    for (const sessionId of idleSessions) {
+      await this.destroySessionContainer(sessionId);
+    }
+
+    if (idleSessions.length > 0) {
+      logger.info(`[Sandbox] Cleaned up ${idleSessions.length} idle session container(s)`, {
+        component: 'Sandbox',
+        count: idleSessions.length,
+      });
+    }
+
+    return idleSessions.length;
   }
 
   // ===========================================================================

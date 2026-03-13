@@ -135,7 +135,7 @@ export function extractFromSession(
     || (session.summary ? generateWhatChanged(filesChanged, artifacts) : 'Session activity');
     
   const taskType = inference?.taskType || (session.summary ? inferTaskType(session.summary, filesChanged) : 'chore');
-  const title = (inference as any)?.commitMessage || generateSmartTitle(whatChanged, filesChanged, artifacts, taskType);
+  const title = inference?.commitMessage || generateSmartTitle(whatChanged, filesChanged, artifacts, taskType);
 
   return {
     sessionId: session.sessionId,

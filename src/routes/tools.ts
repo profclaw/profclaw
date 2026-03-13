@@ -17,7 +17,6 @@ import {
   getProcessPool,
   getSandboxManager,
   getRateLimiter,
-  type SecurityMode,
   type ApprovalDecision,
   type AuditEventType,
 } from "../chat/execution/index.js";

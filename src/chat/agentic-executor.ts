@@ -380,7 +380,33 @@ export async function executeAgenticChat(
     }));
 
     // Extract content - executor's finalize() now handles the 3-tier priority
-    const content = finalState.finalResult?.summary || 'Task completed.';
+    let content = finalState.finalResult?.summary || 'Task completed.';
+
+    // Run guardrails on the final response
+    try {
+      const { runGuardrails } = await import('./execution/guardrails.js');
+      const guardrailResult = await runGuardrails(
+        content,
+        toolCalls.map((tc) => ({ name: tc.name, params: (tc.arguments ?? {}) as Record<string, unknown> })),
+        { userQuery: request.messages.at(-1)?.content ?? '' },
+      );
+      if (guardrailResult.cleanedResponse) {
+        content = guardrailResult.cleanedResponse;
+      }
+      if (!guardrailResult.passed) {
+        logger.warn('[AgenticChat] Guardrails flagged response', {
+          sessionId,
+          validationIssues: guardrailResult.validation.issues.length,
+          hallucinationFlags: guardrailResult.hallucination.flags.length,
+          safetyBlocked: guardrailResult.safety.blocked.length,
+          qualityTier: guardrailResult.quality.tier,
+        });
+      }
+    } catch (guardrailError) {
+      logger.warn('[AgenticChat] Guardrails check failed (non-blocking)', {
+        error: guardrailError instanceof Error ? guardrailError.message : String(guardrailError),
+      });
+    }
 
     logger.info('[AgenticChat] Completed agentic execution', {
       sessionId,

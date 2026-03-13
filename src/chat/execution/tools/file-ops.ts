@@ -9,6 +9,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { glob } from 'glob';
 import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.js';
+import { getFsGuard } from '../../../security/fs-guard.js';
 import { logger } from '../../../utils/logger.js';
 
 // =============================================================================
@@ -76,7 +77,6 @@ export type PatchApplyParams = z.infer<typeof PatchApplyParamsSchema>;
 // =============================================================================
 
 const MAX_FILE_SIZE = 10_000_000; // 10MB
-const MAX_OUTPUT_LINES = 2000;
 const BLOCKED_PATHS = [
   '/etc/passwd',
   '/etc/shadow',
@@ -107,8 +107,17 @@ Can read specific line ranges for large files.`,
   async execute(context: ToolExecutionContext, params: ReadFileParams): Promise<ToolResult<ReadFileResult>> {
     const filePath = resolvePath(params.path, context.workdir);
 
-    // Security check
-    if (isBlockedPath(filePath)) {
+    // Security check (FsGuard with fallback)
+    const fsGuard = getFsGuard();
+    if (fsGuard) {
+      const guardResult = await fsGuard.validatePath(filePath, 'read');
+      if (!guardResult.allowed) {
+        return {
+          success: false,
+          error: { code: 'PATH_BLOCKED', message: guardResult.reason ?? 'Path access denied' },
+        };
+      }
+    } else if (isBlockedPath(filePath)) {
       return {
         success: false,
         error: {
@@ -202,8 +211,17 @@ Use append=true to add to the end of a file.`,
   async execute(context: ToolExecutionContext, params: WriteFileParams): Promise<ToolResult<WriteFileResult>> {
     const filePath = resolvePath(params.path, context.workdir);
 
-    // Security check
-    if (isBlockedPath(filePath)) {
+    // Security check (FsGuard with fallback)
+    const fsGuard = getFsGuard();
+    if (fsGuard) {
+      const guardResult = await fsGuard.validatePath(filePath, 'write');
+      if (!guardResult.allowed) {
+        return {
+          success: false,
+          error: { code: 'PATH_BLOCKED', message: guardResult.reason ?? 'Write access denied' },
+        };
+      }
+    } else if (isBlockedPath(filePath)) {
       return {
         success: false,
         error: {
@@ -430,7 +448,17 @@ Much more efficient than rewriting entire files - only changes what's needed.`,
   async execute(context: ToolExecutionContext, params: EditFileParams): Promise<ToolResult<EditFileResult>> {
     const filePath = resolvePath(params.path, context.workdir);
 
-    if (isBlockedPath(filePath)) {
+    // Security check (FsGuard with fallback)
+    const fsGuard2 = getFsGuard();
+    if (fsGuard2) {
+      const guardResult = await fsGuard2.validatePath(filePath, 'write');
+      if (!guardResult.allowed) {
+        return {
+          success: false,
+          error: { code: 'PATH_BLOCKED', message: guardResult.reason ?? 'Edit access denied' },
+        };
+      }
+    } else if (isBlockedPath(filePath)) {
       return {
         success: false,
         error: { code: 'BLOCKED_PATH', message: 'Editing this file is not allowed' },
@@ -623,7 +651,17 @@ Accepts standard unified diff format (output of git diff or diff -u).`,
   async execute(context: ToolExecutionContext, params: PatchApplyParams): Promise<ToolResult<PatchApplyResult>> {
     const filePath = resolvePath(params.path, context.workdir);
 
-    if (isBlockedPath(filePath)) {
+    // Security check (FsGuard with fallback)
+    const fsGuard3 = getFsGuard();
+    if (fsGuard3) {
+      const guardResult = await fsGuard3.validatePath(filePath, 'write');
+      if (!guardResult.allowed) {
+        return {
+          success: false,
+          error: { code: 'PATH_BLOCKED', message: guardResult.reason ?? 'Patch access denied' },
+        };
+      }
+    } else if (isBlockedPath(filePath)) {
       return {
         success: false,
         error: { code: 'BLOCKED_PATH', message: 'Patching this file is not allowed' },

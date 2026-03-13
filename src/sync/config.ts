@@ -10,7 +10,7 @@
 
 import { z } from 'zod';
 import { loadConfig } from '../utils/config-loader.js';
-import type { SyncEngineConfig, SyncAdapterConfig, ConflictStrategy, SyncDirection } from './types.js';
+import type { SyncEngineConfig, SyncAdapterConfig, ConflictStrategy } from './types.js';
 import { logger } from '../utils/logger.js';
 
 // === Zod Schemas ===
@@ -84,6 +84,7 @@ export type LinearConfig = z.infer<typeof LinearConfigSchema>;
 export type GitHubConfig = z.infer<typeof GitHubConfigSchema>;
 export type JiraConfig = z.infer<typeof JiraConfigSchema>;
 export type PlaneConfig = z.infer<typeof PlaneConfigSchema>;
+type PlatformConfig = LinearConfig | GitHubConfig | JiraConfig | PlaneConfig;
 
 // === Default Configuration ===
 
@@ -106,6 +107,13 @@ interface RawSettings {
 
 let cachedConfig: SyncConfig | null = null;
 let cachedStatusMapping: Record<string, Record<string, string>> | null = null;
+
+function getPlatformSettings(
+  config: SyncConfig,
+  platform: string,
+): PlatformConfig | undefined {
+  return config.platforms[platform as keyof SyncConfig['platforms']];
+}
 
 /**
  * Load sync configuration from settings.yml
@@ -131,9 +139,9 @@ export function loadSyncConfig(): SyncConfig {
 
     logger.info('[SyncConfig] Loaded configuration', {
       enabled: cachedConfig.enabled,
-      platforms: Object.keys(cachedConfig.platforms).filter(
-        p => (cachedConfig!.platforms as any)[p]?.enabled
-      ),
+      platforms: Object.entries(cachedConfig.platforms)
+        .filter(([, platformConfig]) => platformConfig?.enabled)
+        .map(([platform]) => platform),
     });
 
     return cachedConfig;
@@ -248,36 +256,29 @@ export function getEnabledPlatforms(): string[] {
  */
 export function getPlatformConfig(platform: string): SyncAdapterConfig | null {
   const config = loadSyncConfig();
-  const platformConfig = (config.platforms as any)[platform];
+  const platformConfig = getPlatformSettings(config, platform);
 
   if (!platformConfig?.enabled) {
     return null;
   }
 
   switch (platform) {
-    case 'linear':
-      return {
-        apiKey: platformConfig.apiKey,
-        teamId: platformConfig.teamId,
-      };
-    case 'github':
-      return {
-        accessToken: platformConfig.accessToken,
-        owner: platformConfig.owner,
-        repo: platformConfig.repo,
-      };
-    case 'jira':
-      return {
-        baseUrl: platformConfig.baseUrl,
-        apiKey: platformConfig.apiToken,
-      };
-    case 'plane':
-      return {
-        apiKey: platformConfig.apiKey,
-        baseUrl: platformConfig.baseUrl,
-        workspaceId: platformConfig.workspaceId,
-        projectId: platformConfig.projectId,
-      };
+    case 'linear': {
+      const cfg = platformConfig as LinearConfig;
+      return { apiKey: cfg.apiKey, teamId: cfg.teamId };
+    }
+    case 'github': {
+      const cfg = platformConfig as GitHubConfig;
+      return { accessToken: cfg.accessToken, owner: cfg.owner, repo: cfg.repo };
+    }
+    case 'jira': {
+      const cfg = platformConfig as JiraConfig;
+      return { baseUrl: cfg.baseUrl, apiKey: cfg.apiToken };
+    }
+    case 'plane': {
+      const cfg = platformConfig as PlaneConfig;
+      return { apiKey: cfg.apiKey, baseUrl: cfg.baseUrl, workspaceId: cfg.workspaceId, projectId: cfg.projectId };
+    }
     default:
       return null;
   }
@@ -288,7 +289,7 @@ export function getPlatformConfig(platform: string): SyncAdapterConfig | null {
  */
 export function validatePlatformCredentials(platform: string): { valid: boolean; missing: string[] } {
   const config = loadSyncConfig();
-  const platformConfig = (config.platforms as any)[platform];
+  const platformConfig = getPlatformSettings(config, platform);
   const missing: string[] = [];
 
   if (!platformConfig) {
@@ -296,23 +297,31 @@ export function validatePlatformCredentials(platform: string): { valid: boolean;
   }
 
   switch (platform) {
-    case 'linear':
-      if (!platformConfig.apiKey) missing.push('LINEAR_API_KEY');
+    case 'linear': {
+      const cfg = platformConfig as LinearConfig;
+      if (!cfg.apiKey) missing.push('LINEAR_API_KEY');
       break;
-    case 'github':
-      if (!platformConfig.accessToken) missing.push('GITHUB_TOKEN');
-      if (!platformConfig.owner) missing.push('GITHUB_OWNER');
-      if (!platformConfig.repo) missing.push('GITHUB_REPO');
+    }
+    case 'github': {
+      const cfg = platformConfig as GitHubConfig;
+      if (!cfg.accessToken) missing.push('GITHUB_TOKEN');
+      if (!cfg.owner) missing.push('GITHUB_OWNER');
+      if (!cfg.repo) missing.push('GITHUB_REPO');
       break;
-    case 'jira':
-      if (!platformConfig.baseUrl) missing.push('JIRA_BASE_URL');
-      if (!platformConfig.email) missing.push('JIRA_EMAIL');
-      if (!platformConfig.apiToken) missing.push('JIRA_API_TOKEN');
+    }
+    case 'jira': {
+      const cfg = platformConfig as JiraConfig;
+      if (!cfg.baseUrl) missing.push('JIRA_BASE_URL');
+      if (!cfg.email) missing.push('JIRA_EMAIL');
+      if (!cfg.apiToken) missing.push('JIRA_API_TOKEN');
       break;
-    case 'plane':
-      if (!platformConfig.apiKey) missing.push('PLANE_API_KEY');
-      if (!platformConfig.workspaceId) missing.push('PLANE_WORKSPACE_ID');
+    }
+    case 'plane': {
+      const cfg = platformConfig as PlaneConfig;
+      if (!cfg.apiKey) missing.push('PLANE_API_KEY');
+      if (!cfg.workspaceId) missing.push('PLANE_WORKSPACE_ID');
       break;
+    }
   }
 
   return { valid: missing.length === 0, missing };

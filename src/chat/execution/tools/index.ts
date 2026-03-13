@@ -5,7 +5,7 @@
  */
 
 import { getToolRegistry } from '../registry.js';
-import type { ToolDefinition } from '../types.js';
+import type { ToolDefinition, ToolTier } from '../types.js';
 
 // Core tools
 import { execTool } from './exec.js';
@@ -248,8 +248,78 @@ export type {
   BrowserCloseResult,
 } from './browser.js';
 
+// =============================================================================
+// Tool Tier Assignments
+// =============================================================================
+
+/**
+ * Tool tier map: assigns each tool to essential/standard/full tier.
+ *
+ * Essential (10): Core tools any model can use reliably.
+ *   read_file, write_file, edit_file, exec, grep, search_files,
+ *   directory_tree, git_status, web_fetch, complete_task
+ *
+ * Standard (25): Need moderate reasoning. Good for 14B+ models.
+ *   All essential + git ops, memory, system, web_search, profclaw ops, test_run
+ *
+ * Full (72): Everything. Only for frontier models (Claude, GPT-4, etc.)
+ *   All standard + browser, cron, sessions, integrations, media, subagent
+ */
+const TOOL_TIER_MAP: Record<string, ToolTier> = {
+  // Essential tier - works with any model
+  read_file: 'essential',
+  write_file: 'essential',
+  edit_file: 'essential',
+  exec: 'essential',
+  grep: 'essential',
+  search_files: 'essential',
+  directory_tree: 'essential',
+  git_status: 'essential',
+  web_fetch: 'essential',
+  complete_task: 'essential',
+
+  // Standard tier - needs moderate reasoning (14B+)
+  git_diff: 'standard',
+  git_log: 'standard',
+  git_commit: 'standard',
+  git_branch: 'standard',
+  patch_apply: 'standard',
+  web_search: 'standard',
+  memory_search: 'standard',
+  memory_get: 'standard',
+  memory_stats: 'standard',
+  env: 'standard',
+  system_info: 'standard',
+  path_info: 'standard',
+  which: 'standard',
+  create_ticket: 'standard',
+  list_tickets: 'standard',
+  update_ticket: 'standard',
+  get_ticket: 'standard',
+  create_project: 'standard',
+  list_projects: 'standard',
+  test_run: 'standard',
+  image_analyze: 'standard',
+  link_understand: 'standard',
+  github_pr: 'standard',
+  notify: 'standard',
+
+  // Full tier - only for large/frontier models (everything else)
+  // git_stash, git_remote, canvas_render, all session tools,
+  // all browser tools, all cron tools, all integration tools,
+  // all media tools, all channel-specific tools, subagent, maintenance
+};
+
+/** Apply tier assignments to an array of tool definitions */
+function applyTiers(tools: ToolDefinition[]): ToolDefinition[] {
+  return tools.map((tool) => {
+    const tier = TOOL_TIER_MAP[tool.name] ?? 'full';
+    return Object.assign(tool, { tier });
+  });
+}
+
 // All built-in tools (typed as generic ToolDefinition array)
-export const builtinTools = [
+const rawBuiltinTools = [
   // Core tools (11)
   execTool,
   webFetchTool,
@@ -320,8 +390,11 @@ export const builtinTools = [
   telegramActionsTool,
 ] as unknown as ToolDefinition[];
 
+// Apply tier assignments to all tools
+export const builtinTools: ToolDefinition[] = applyTiers(rawBuiltinTools);
+
 /**
- * Register all built-in tools
+ * Register all built-in tools (with tier assignments)
  */
 export function registerBuiltinTools(): void {
   const registry = getToolRegistry();
