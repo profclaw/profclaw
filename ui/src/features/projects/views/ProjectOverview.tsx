@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useParams, useOutletContext } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { ProjectWithRelations, Sprint } from '@/core/types';
 import {
   Calendar,
   Target,
@@ -29,7 +30,7 @@ import { VelocityChart } from '../components/VelocityChart';
 export function ProjectOverview() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
-  const { project } = useOutletContext<{ project: any }>();
+  const { project } = useOutletContext<{ project: ProjectWithRelations }>();
   const [showCreateSprint, setShowCreateSprint] = useState(false);
 
   const { data: sprintsData } = useQuery({
@@ -46,7 +47,7 @@ export function ProjectOverview() {
       toast.success('Sprint started');
       queryClient.invalidateQueries({ queryKey: ['sprints', id] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error instanceof Error ? error.message : 'Failed to start sprint');
     },
   });
@@ -57,7 +58,7 @@ export function ProjectOverview() {
       toast.success('Sprint completed');
       queryClient.invalidateQueries({ queryKey: ['sprints', id] });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast.error(error instanceof Error ? error.message : 'Failed to complete sprint');
     },
   });
@@ -117,13 +118,13 @@ export function ProjectOverview() {
       {/* Charts Section */}
       {sprints.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {sprints.find((s: any) => s.status === 'active') && (
+          {sprints.find((s: Sprint) => s.status === 'active') && (
             <div className="glass-card p-6 rounded-[28px] border border-white/5 shadow-float">
                <div className="flex items-center gap-2 mb-6">
                 <Target className="h-5 w-5 text-primary" />
                 <h3 className="text-sm font-bold uppercase tracking-wider">Burndown Chart</h3>
               </div>
-              <BurndownChart sprintId={sprints.find((s: any) => s.status === 'active')!.id} />
+              <BurndownChart sprintId={sprints.find((s: Sprint) => s.status === 'active')!.id} />
             </div>
           )}
           <div className="glass-card p-6 rounded-[28px] border border-white/5 shadow-float">
@@ -150,7 +151,7 @@ export function ProjectOverview() {
         </div>
 
         <div className="grid grid-cols-1 gap-3">
-          {sprints.map((sprint: any) => (
+          {sprints.map((sprint: Sprint) => (
             <div
               key={sprint.id}
               className="glass-card rounded-[22px] border border-white/5 p-5 hover:border-primary/30 transition-all group shadow-sm"
@@ -233,7 +234,7 @@ export function ProjectOverview() {
         <div className="space-y-4">
           <h2 className="text-sm font-bold uppercase tracking-[0.15em]">Connected Hubs</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {project.externalLinks.map((link: any) => (
+            {project.externalLinks.map((link) => (
               <a
                 key={link.id}
                 href={link.externalUrl}

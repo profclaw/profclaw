@@ -40,6 +40,7 @@ import { getSettingsRaw, updateSettings } from '../settings/index.js';
 import { getDb } from '../storage/index.js';
 import { inviteCodes, users } from '../storage/schema.js';
 import { invalidateLocalAdminCache } from '../auth/middleware.js';
+import { createContextualLogger } from '../utils/logger.js';
 
 // RATE LIMITERS
 
@@ -85,6 +86,7 @@ type AuthVariables = {
 };
 
 export const authRoutes = new Hono<{ Variables: AuthVariables }>();
+const log = createContextualLogger('AuthRoutes');
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
@@ -202,7 +204,7 @@ authRoutes.post('/signup', signupLimiter, async (c) => {
       message: 'Account created successfully',
     });
   } catch (error) {
-    console.error('[Auth] Signup error:', error);
+    log.error('Signup error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Signup failed' }, 500);
   }
 });
@@ -240,7 +242,7 @@ authRoutes.post('/login', loginLimiter, async (c) => {
       message: 'Logged in successfully',
     });
   } catch (error) {
-    console.error('[Auth] Login error:', error);
+    log.error('Login error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Login failed' }, 500);
   }
 });
@@ -260,7 +262,7 @@ authRoutes.post('/logout', async (c) => {
 
     return c.json({ message: 'Logged out successfully' });
   } catch (error) {
-    console.error('[Auth] Logout error:', error);
+    log.error('Logout error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Logout failed' }, 500);
   }
 });
@@ -326,7 +328,7 @@ authRoutes.get('/github/callback', async (c) => {
 
     return c.redirect('/');
   } catch (error) {
-    console.error('[Auth] GitHub callback error:', error);
+    log.error('GitHub callback error', error instanceof Error ? error : new Error(String(error)));
     return c.redirect('/login?error=callback_failed');
   }
 });
@@ -377,7 +379,7 @@ authRoutes.post('/github/token', async (c) => {
       message: 'Logged in with GitHub successfully',
     });
   } catch (error) {
-    console.error('[Auth] GitHub token exchange error:', error);
+    log.error('GitHub token exchange error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Authentication failed' }, 500);
   }
 });
@@ -457,7 +459,7 @@ authRoutes.get('/me', async (c) => {
       },
     });
   } catch (error) {
-    console.error('[Auth] Get user error:', error);
+    log.error('Get user error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ authenticated: false }, 500);
   }
 });
@@ -496,7 +498,7 @@ authRoutes.patch('/me', async (c) => {
 
     return c.json({ user: updatedUser });
   } catch (error) {
-    console.error('[Auth] Update user error:', error);
+    log.error('Update user error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Update failed' }, 500);
   }
 });
@@ -553,7 +555,7 @@ authRoutes.post('/verify-access-key', loginLimiter, async (c) => {
 
     return c.json({ success: true, message: 'Access verified' });
   } catch (error) {
-    console.error('[Auth] Access key verification error:', error);
+    log.error('Access key verification error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Verification failed' }, 500);
   }
 });
@@ -600,7 +602,7 @@ authRoutes.put('/access-key', async (c) => {
       message: key ? 'Access key set' : 'Access key removed',
     });
   } catch (error) {
-    console.error('[Auth] Access key update error:', error);
+    log.error('Access key update error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to update access key' }, 500);
   }
 });

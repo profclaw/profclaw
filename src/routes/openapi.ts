@@ -17,7 +17,7 @@ const spec = {
     version: '0.1.0',
     description:
       'AI-powered task orchestration, ticket management, and chat system. Supports multi-provider AI (Anthropic, OpenAI, Google, Ollama) with agentic tool execution.',
-    contact: { name: 'profClaw', url: 'https://profclaw.dev' },
+    contact: { name: 'profClaw', url: 'https://profclaw.ai' },
     license: { name: 'MIT' },
   },
   servers: [

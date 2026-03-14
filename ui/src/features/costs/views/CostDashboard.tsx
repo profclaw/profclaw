@@ -1,4 +1,5 @@
-import { 
+import type { ComponentType } from 'react';
+import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, BarChart, Bar, Legend
 } from 'recharts';
@@ -243,7 +244,16 @@ export function CostDashboard() {
   );
 }
 
-function StatCard({ title, value, icon: Icon, trend, trendDir, glowColor }: any) {
+interface StatCardProps {
+  title: string;
+  value: string | number;
+  icon: ComponentType<{ className?: string }>;
+  trend?: string;
+  trendDir?: 'up' | 'down';
+  glowColor?: string;
+}
+
+function StatCard({ title, value, icon: Icon, trend, trendDir, glowColor }: StatCardProps) {
   return (
     <Card className="glass hover-lift transition-liquid overflow-hidden relative group border-white/5">
       <div className={cn("absolute -top-12 -right-12 w-24 h-24 rounded-full blur-3xl opacity-10 group-hover:opacity-20 transition-opacity", glowColor)} />
@@ -271,12 +281,19 @@ function StatCard({ title, value, icon: Icon, trend, trendDir, glowColor }: any)
   );
 }
 
-function CustomTooltip({ active, payload, label }: any) {
+type ChartPayloadEntry = { name: string; value: number; payload: { name: string } };
+type CustomTooltipProps = {
+  active?: boolean;
+  payload?: ChartPayloadEntry[];
+  label?: string;
+};
+
+function CustomTooltip({ active, payload, label }: CustomTooltipProps) {
   if (active && payload && payload.length) {
     return (
       <div className="glass-heavy p-3 rounded-2xl border border-white/10 shadow-2xl animate-in zoom-in-95 duration-200">
         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">{label || payload[0].payload.name}</p>
-        {payload.map((p: any, i: number) => (
+        {payload.map((p, i) => (
           <div key={i} className="flex items-center justify-between gap-4 mt-0.5">
             <span className="text-[12px] font-medium text-white/70">{p.name === 'cost' ? 'Spend' : 'Tokens'}:</span>
             <span className="text-[12px] font-bold text-white">

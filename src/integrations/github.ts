@@ -1,6 +1,9 @@
 import type { Context } from 'hono';
 import { createHmac, timingSafeEqual } from 'crypto';
 import type { CreateTaskInput } from '../types/task.js';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('GitHub');
 
 /**
  * GitHub Webhook Integration
@@ -38,7 +41,7 @@ export function verifyGitHubSignature(
   signature: string | undefined
 ): boolean {
   if (!WEBHOOK_SECRET) {
-    console.warn('GITHUB_WEBHOOK_SECRET not set - skipping signature verification');
+    log.warn('GITHUB_WEBHOOK_SECRET not set - skipping signature verification');
     return true;
   }
 
@@ -79,11 +82,11 @@ export async function handleGitHubWebhook(
 
   const payload = JSON.parse(rawBody);
 
-  console.log(`[GitHub Webhook] Event: ${event}, Delivery: ${deliveryId}`);
+  log.info('GitHub webhook received', { event, deliveryId });
 
   switch (event) {
     case 'ping':
-      console.log('[GitHub Webhook] Ping received');
+      log.info('GitHub ping received');
       return null;
 
     case 'issues':
@@ -96,7 +99,7 @@ export async function handleGitHubWebhook(
       return handlePullRequestEvent(payload);
 
     default:
-      console.log(`[GitHub Webhook] Unhandled event: ${event}`);
+      log.info('Unhandled event', { event });
       return null;
   }
 }
@@ -114,7 +117,7 @@ function handleIssueEvent(payload: GitHubIssuePayload): CreateTaskInput | null {
       (l) => l.name === AI_TASK_LABEL || l.name === AI_REVIEW_LABEL
     );
     if (!hasAiLabel) {
-      console.log('[GitHub] Issue opened without AI label, skipping');
+      log.info('Issue opened without AI label, skipping', { issueNumber: issue.number });
       return null;
     }
   } else if (action === 'labeled') {
@@ -166,7 +169,7 @@ function handleIssueCommentEvent(
 
   const prompt = triggerMatch[1].trim();
 
-  console.log(`[GitHub] AI trigger command in issue #${issue.number}: ${prompt.substring(0, 50)}...`);
+  log.info('AI trigger command received', { issueNumber: issue.number, promptPreview: prompt.substring(0, 50) });
 
   return {
     title: `AI Task: ${issue.title}`,

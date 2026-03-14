@@ -28,8 +28,10 @@ import {
 } from '../auth/pairing-codes.js';
 import { generatePairingQR, generatePairingUrl, generateQRSvg } from '../auth/qr-pairing.js';
 import { getStorage } from '../storage/index.js';
+import { createContextualLogger } from '../utils/logger.js';
 
 const app = new Hono();
+const log = createContextualLogger('Devices');
 
 const attestBodySchema = z.object({
   data: z.record(z.string(), z.unknown()).optional(),
@@ -105,7 +107,7 @@ app.get('/identity', async (c) => {
       identity: exportPublicIdentity(identity),
     });
   } catch (error) {
-    console.error('[Devices] Failed to get identity:', error);
+    log.error('Failed to get identity', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         success: false,
@@ -140,7 +142,7 @@ app.post('/attest', async (c) => {
       attestation,
     });
   } catch (error) {
-    console.error('[Devices] Failed to create attestation:', error);
+    log.error('Failed to create attestation', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         success: false,
@@ -177,7 +179,7 @@ app.post('/verify', async (c) => {
       ...result,
     });
   } catch (error) {
-    console.error('[Devices] Failed to verify attestation:', error);
+    log.error('Failed to verify attestation', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         success: false,
@@ -231,7 +233,7 @@ app.post('/pairing/request', async (c) => {
       created: result.created,
     });
   } catch (error) {
-    console.error('[Devices] Failed to request pairing code:', error);
+    log.error('Failed to request pairing code', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         success: false,
@@ -259,7 +261,7 @@ app.get('/pairing/status/:code', async (c) => {
       expiresAt: status.expiresAt?.toISOString(),
     });
   } catch (error) {
-    console.error('[Devices] Failed to check pairing status:', error);
+    log.error('Failed to check pairing status', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         success: false,
@@ -316,7 +318,7 @@ app.post('/pairing/approve', async (c) => {
       token: result.token,
     });
   } catch (error) {
-    console.error('[Devices] Failed to approve pairing code:', error);
+    log.error('Failed to approve pairing code', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         success: false,
@@ -365,7 +367,7 @@ app.post('/pairing/reject', async (c) => {
 
     return c.json({ success: true });
   } catch (error) {
-    console.error('[Devices] Failed to reject pairing code:', error);
+    log.error('Failed to reject pairing code', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         success: false,
@@ -397,7 +399,7 @@ app.get('/pairing/pending', async (c) => {
       count: requests.length,
     });
   } catch (error) {
-    console.error('[Devices] Failed to list pending requests:', error);
+    log.error('Failed to list pending requests', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         success: false,
@@ -432,7 +434,7 @@ app.post('/pairing/validate', async (c) => {
       ...result,
     });
   } catch (error) {
-    console.error('[Devices] Failed to validate token:', error);
+    log.error('Failed to validate token', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         success: false,
@@ -457,7 +459,7 @@ app.post('/pairing/cleanup', async (c) => {
       deleted,
     });
   } catch (error) {
-    console.error('[Devices] Failed to cleanup pairing requests:', error);
+    log.error('Failed to cleanup pairing requests', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         success: false,
@@ -485,7 +487,7 @@ app.get('/pairing/qr/:code', async (c: Context) => {
     const qr = generatePairingQR(code, { baseUrl });
     return c.json({ success: true, ...qr });
   } catch (error) {
-    console.error('[Devices] Failed to generate QR code:', error);
+    log.error('Failed to generate QR code', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to generate QR code' }, 500);
   }
 });
@@ -511,7 +513,7 @@ app.get('/pairing/qr/:code/svg', async (c: Context) => {
     c.header('Cache-Control', 'public, max-age=3600');
     return c.body(svg);
   } catch (error) {
-    console.error('[Devices] Failed to generate QR SVG:', error);
+    log.error('Failed to generate QR SVG', error instanceof Error ? error : new Error(String(error)));
     return c.text('Failed to generate QR', 500);
   }
 });
@@ -560,7 +562,7 @@ app.get('/paired', async (c) => {
       count: devices.length,
     });
   } catch (error) {
-    console.error('[Devices] Failed to list paired devices:', error);
+    log.error('Failed to list paired devices', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         success: false,
@@ -596,11 +598,11 @@ app.delete('/paired/:id', async (c) => {
       id,
     ]);
 
-    console.log(`[Devices] Revoked device ${id}`);
+    log.info('Revoked device', { id });
 
     return c.json({ success: true });
   } catch (error) {
-    console.error('[Devices] Failed to revoke device:', error);
+    log.error('Failed to revoke device', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         success: false,

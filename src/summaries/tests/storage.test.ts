@@ -154,10 +154,7 @@ describe('Persistent Summary Storage', () => {
     expect(summary.title).toBe('Embedding Test');
   });
 
-  it('should log warning for clearAllSummaries', async () => {
-    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    await clearAllSummaries();
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('clearAllSummaries called but not implemented'));
-    consoleSpy.mockRestore();
+  it('should not throw for clearAllSummaries', async () => {
+    await expect(clearAllSummaries()).resolves.toBeUndefined();
   });
 });

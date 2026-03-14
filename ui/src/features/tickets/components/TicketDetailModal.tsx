@@ -52,7 +52,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { api, type Ticket, type TicketStatus, type TicketType, type TicketComment } from '@/core/api/client';
+import { api, type Ticket, type TicketStatus, type TicketType, type TicketPriority, type TicketComment, type CreateTicketInput } from '@/core/api/client';
 import { RichTextEditor, RichTextDisplay } from '@/components/ui/rich-text-editor';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/features/auth/hooks/useAuth';
@@ -160,7 +160,7 @@ export function TicketDetailModal({ ticketId, open, onOpenChange }: TicketDetail
 
   // Update ticket mutation (for title, priority, labels, etc.)
   const updateTicketMutation = useMutation({
-    mutationFn: (data: Partial<Ticket>) => api.tickets.update(ticketId!, data as any),
+    mutationFn: (data: Partial<CreateTicketInput>) => api.tickets.update(ticketId!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
       queryClient.invalidateQueries({ queryKey: ['tickets'] });
@@ -173,7 +173,7 @@ export function TicketDetailModal({ ticketId, open, onOpenChange }: TicketDetail
 
   // Update description mutation
   const updateDescriptionMutation = useMutation({
-    mutationFn: (description: string) => api.tickets.update(ticketId!, { description } as any),
+    mutationFn: (description: string) => api.tickets.update(ticketId!, { description }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
       setIsEditingDescription(false);
@@ -252,7 +252,7 @@ export function TicketDetailModal({ ticketId, open, onOpenChange }: TicketDetail
   });
 
   const handleSprintChange = (newSprintId: string) => {
-    const currentSprintId = (ticketData as any)?.sprintId || null;
+    const currentSprintId = ticketData?.sprintId || null;
     const targetSprintId = newSprintId === 'backlog' ? null : newSprintId;
 
     if (currentSprintId !== targetSprintId) {
@@ -690,7 +690,7 @@ export function TicketDetailModal({ ticketId, open, onOpenChange }: TicketDetail
                       <DetailRow label="Assignee">
                          <Select
                             value={ticketData.assigneeAgent || 'unassigned'}
-                            onValueChange={(v) => updateTicketMutation.mutate({ assigneeAgent: v === 'unassigned' ? null : v } as any)}
+                            onValueChange={(v) => updateTicketMutation.mutate({ assigneeAgent: v === 'unassigned' ? undefined : v })}
                          >
                             <SelectTrigger className="h-8 border-none bg-transparent hover:bg-muted p-1 -m-1 rounded-lg transition-colors w-fit focus:ring-0">
                                <div className="flex items-center gap-2.5">
@@ -724,7 +724,7 @@ export function TicketDetailModal({ ticketId, open, onOpenChange }: TicketDetail
                       <DetailRow label="Priority">
                          <Select
                             value={ticketData.priority}
-                            onValueChange={(v) => updateTicketMutation.mutate({ priority: v as any })}
+                            onValueChange={(v) => updateTicketMutation.mutate({ priority: v as TicketPriority })}
                          >
                             <SelectTrigger className="h-8 border-none bg-transparent hover:bg-muted p-1 -m-1 rounded-lg transition-colors w-fit focus:ring-0">
                                <div className="flex items-center gap-2.5 p-1 -m-1 cursor-pointer rounded-lg transition-colors">

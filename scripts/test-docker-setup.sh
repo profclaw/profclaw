@@ -49,7 +49,7 @@ info "4/7  Running non-interactive setup via docker exec"
 # -------------------------------------------------------------------
 $COMPOSE exec -T profclaw profclaw setup \
   --non-interactive \
-  --admin-email docker-test@profclaw.dev \
+  --admin-email docker-test@profclaw.ai \
   --admin-password TestDocker123 \
   --admin-name "Docker Test" \
   --ai-provider skip \
@@ -66,7 +66,7 @@ info "5/7  Verifying admin can login"
 # -------------------------------------------------------------------
 LOGIN_RESP=$(curl -sf -X POST http://localhost:3000/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"docker-test@profclaw.dev","password":"TestDocker123"}' \
+  -d '{"email":"docker-test@profclaw.ai","password":"TestDocker123"}' \
   -w "\n%{http_code}" 2>/dev/null || echo -e "\n000")
 
 HTTP_CODE=$(echo "$LOGIN_RESP" | tail -1)
@@ -82,7 +82,7 @@ info "6/7  Running setup again (should detect existing admin)"
 # -------------------------------------------------------------------
 RERUN=$($COMPOSE exec -T profclaw profclaw setup \
   --non-interactive \
-  --admin-email docker-test@profclaw.dev \
+  --admin-email docker-test@profclaw.ai \
   --admin-password TestDocker123 \
   --admin-name "Docker Test" \
   --ai-provider skip \

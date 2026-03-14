@@ -7,8 +7,10 @@ import {
   revokeApiToken,
   type TokenScope,
 } from '../auth/api-tokens.js';
+import { createContextualLogger } from '../utils/logger.js';
 
 const tokens = new Hono();
+const log = createContextualLogger('TokensRoutes');
 
 const createTokenBodySchema = z.object({
   name: z.string().min(1),
@@ -67,7 +69,7 @@ tokens.post('/', async (c) => {
       expiresAt: result.token.expiresAt,
     }, 201);
   } catch (error) {
-    console.error('[API] Error creating token:', error);
+    log.error('Error creating token', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to create token' }, 500);
   }
 });
@@ -78,7 +80,7 @@ tokens.get('/', async (c) => {
     const tokenList = await listApiTokens();
     return c.json({ tokens: tokenList });
   } catch (error) {
-    console.error('[API] Error listing tokens:', error);
+    log.error('Error listing tokens', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to list tokens' }, 500);
   }
 });
@@ -90,7 +92,7 @@ tokens.delete('/:id', async (c) => {
     await revokeApiToken(id);
     return c.json({ message: 'Token revoked' });
   } catch (error) {
-    console.error('[API] Error revoking token:', error);
+    log.error('Error revoking token', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to revoke token' }, 500);
   }
 });

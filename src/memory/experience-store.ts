@@ -11,7 +11,9 @@
 
 import { randomUUID } from 'node:crypto';
 import { getClient } from '../storage/index.js';
-import { logger } from '../utils/logger.js';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('ExperienceStore');
 
 // Types
 
@@ -176,7 +178,7 @@ export async function recordExperience(
 
     return id;
   } catch (error) {
-    console.error('[experience-store] Failed to record experience:', error);
+    log.error('Failed to record experience', error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }
@@ -196,7 +198,7 @@ export async function getExperience(id: string): Promise<Experience | null> {
     if (result.rows.length === 0) return null;
     return rowToExperience(result.rows[0] as unknown as ExperienceRow);
   } catch (error) {
-    console.error('[experience-store] Failed to get experience:', error);
+    log.error('Failed to get experience', error instanceof Error ? error : new Error(String(error)));
     return null;
   }
 }
@@ -217,7 +219,7 @@ export async function markUsed(id: string): Promise<void> {
       args: [Date.now(), id],
     });
   } catch (error) {
-    console.error('[experience-store] Failed to mark experience used:', error);
+    log.error('Failed to mark experience used', error instanceof Error ? error : new Error(String(error)));
   }
 }
 
@@ -234,7 +236,7 @@ export async function deleteExperience(id: string): Promise<boolean> {
     });
     return true;
   } catch (error) {
-    console.error('[experience-store] Failed to delete experience:', error);
+    log.error('Failed to delete experience', error instanceof Error ? error : new Error(String(error)));
     return false;
   }
 }
@@ -298,7 +300,7 @@ export async function listExperiences(
       total: Number(total),
     };
   } catch (error) {
-    console.error('[experience-store] Failed to list experiences:', error);
+    log.error('Failed to list experiences', error instanceof Error ? error : new Error(String(error)));
     return { experiences: [], total: 0 };
   }
 }
@@ -367,7 +369,7 @@ export async function findSimilarExperiences(
 
     return results;
   } catch (error) {
-    console.error('[experience-store] Similarity search failed:', error);
+    log.error('Similarity search failed', error instanceof Error ? error : new Error(String(error)));
     return [];
   }
 }
@@ -443,7 +445,7 @@ export async function trackPreference(
       });
     }
   } catch (error) {
-    console.error('[experience-store] Failed to track preference:', error);
+    log.error('Failed to track preference', error instanceof Error ? error : new Error(String(error)));
   }
 }
 
@@ -480,7 +482,7 @@ export async function getUserPreferences(
 
     return grouped;
   } catch (error) {
-    console.error('[experience-store] Failed to get user preferences:', error);
+    log.error('Failed to get user preferences', error instanceof Error ? error : new Error(String(error)));
     return {};
   }
 }
@@ -523,10 +525,10 @@ export async function applyDecay(halfLifeDays = DEFAULT_HALF_LIFE_DAYS): Promise
       updated++;
     }
 
-    logger.info(`[experience-store] Decay applied to ${updated} experiences (halfLife=${halfLifeDays}d)`);
+    log.info('Decay applied', { count: updated, halfLifeDays });
     return updated;
   } catch (error) {
-    console.error('[experience-store] Decay calculation failed:', error);
+    log.error('Decay calculation failed', error instanceof Error ? error : new Error(String(error)));
     return 0;
   }
 }
@@ -553,12 +555,12 @@ export async function pruneExpired(minWeight = 0.05): Promise<number> {
         sql: `DELETE FROM experiences WHERE weight < ?`,
         args: [minWeight],
       });
-      logger.info(`[experience-store] Pruned ${count} expired experiences (minWeight=${minWeight})`);
+      log.info('Pruned expired experiences', { count, minWeight });
     }
 
     return count;
   } catch (error) {
-    console.error('[experience-store] Prune failed:', error);
+    log.error('Prune failed', error instanceof Error ? error : new Error(String(error)));
     return 0;
   }
 }
@@ -603,7 +605,7 @@ export async function getStats(): Promise<ExperienceStats> {
 
     return { total, byType, avgAge: Math.round(avgAge * 10) / 10 };
   } catch (error) {
-    console.error('[experience-store] Failed to get stats:', error);
+    log.error('Failed to get stats', error instanceof Error ? error : new Error(String(error)));
     return { total: 0, byType: {}, avgAge: 0 };
   }
 }

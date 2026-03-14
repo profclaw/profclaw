@@ -149,7 +149,7 @@ git checkout -b <type>/<description>
 ```
 <type>: <description>
 
-Co-Authored-By: profClaw <bot@profclaw.dev>
+Co-Authored-By: profClaw <bot@profclaw.ai>
 ```
 
 Types: `feat`, `fix`, `perf`, `refactor`, `docs`, `test`

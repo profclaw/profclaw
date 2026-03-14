@@ -7,6 +7,9 @@
  */
 
 import { Hono } from 'hono';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('Setup');
 import type { Context } from 'hono';
 import { randomUUID, randomBytes } from 'crypto';
 import { eq } from 'drizzle-orm';
@@ -128,7 +131,7 @@ setup.get('/status', async (c) => {
       showForgotPassword: settings.system?.showForgotPassword ?? true,
     });
   } catch (error) {
-    console.error('[Setup] Status check error:', error);
+    log.error('Status check error', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       configured: false,
       isFirstTimeSetup: true,
@@ -236,7 +239,7 @@ setup.post('/github-oauth/validate', async (c) => {
       });
     } catch (fetchError) {
       // If GitHub API is unreachable, fall back to format validation only
-      console.warn('[Setup] Could not verify credentials with GitHub API:', fetchError);
+      log.warn('Could not verify credentials with GitHub API', { error: fetchError instanceof Error ? fetchError.message : String(fetchError) });
       return c.json({
         valid: true,
         message: 'Credentials format is valid. Could not verify with GitHub API.',
@@ -245,7 +248,7 @@ setup.post('/github-oauth/validate', async (c) => {
       });
     }
   } catch (error) {
-    console.error('[Setup] GitHub OAuth validation error:', error);
+    log.error('GitHub OAuth validation error', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       valid: false,
       error: 'Validation failed',
@@ -296,14 +299,14 @@ setup.post('/github-oauth', async (c) => {
       },
     });
 
-    console.log('[Setup] GitHub OAuth credentials saved to database');
+    log.info('GitHub OAuth credentials saved to database');
 
     return c.json({
       success: true,
       message: 'GitHub OAuth configured successfully.',
     });
   } catch (error) {
-    console.error('[Setup] GitHub OAuth setup error:', error);
+    log.error('GitHub OAuth setup error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to configure GitHub OAuth' }, 500);
   }
 });
@@ -387,7 +390,7 @@ setup.post('/admin', adminCreateLimiter, async (c) => {
     // Create session
     const session = await createSession(userId);
 
-    console.log(`[Setup] Admin user created: ${email}`);
+    log.info('Admin user created', { email });
 
     return c.json({
       success: true,
@@ -406,8 +409,7 @@ setup.post('/admin', adminCreateLimiter, async (c) => {
       message: 'Admin account created. Save your recovery codes - they will not be shown again!',
     });
   } catch (error) {
-    console.error('[Setup] Admin creation error:', error);
-    console.error('[Setup] Error stack:', error instanceof Error ? error.stack : 'No stack');
+    log.error('Admin creation error', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       error: 'Failed to create admin user',
       details: error instanceof Error ? error.message : String(error)
@@ -492,7 +494,7 @@ setup.post('/verify-recovery-code', recoveryLimiter, async (c) => {
       message: 'Recovery code verified. Use the reset token to set a new password.',
     });
   } catch (error) {
-    console.error('[Setup] Recovery code verification error:', error);
+    log.error('Recovery code verification error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to verify recovery code' }, 500);
   }
 });
@@ -557,14 +559,14 @@ setup.post('/reset-password', resetLimiter, async (c) => {
       })
       .where(eq(users.id, user.id));
 
-    console.log(`[Setup] Password reset for user: ${user.email}`);
+    log.info('Password reset for user', { email: user.email });
 
     return c.json({
       success: true,
       message: 'Password has been reset successfully. You can now sign in.',
     });
   } catch (error) {
-    console.error('[Setup] Password reset error:', error);
+    log.error('Password reset error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to reset password' }, 500);
   }
 });

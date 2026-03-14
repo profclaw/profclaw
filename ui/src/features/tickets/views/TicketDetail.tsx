@@ -35,7 +35,7 @@ import {
   MoreVertical,
   Copy,
 } from 'lucide-react';
-import { api, type Ticket, type TicketStatus, type TicketType, type TicketComment, type TicketHistoryEntry, type TicketExternalLink, type TicketRelation } from '@/core/api/client';
+import { api, type Ticket, type TicketStatus, type TicketType, type TicketComment, type TicketHistoryEntry, type TicketExternalLink, type TicketRelation, type CreateTicketInput } from '@/core/api/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -155,8 +155,8 @@ export function TicketDetail() {
 
   // Edit ticket mutation
   const editMutation = useMutation({
-    mutationFn: (data: Partial<{ title: string; description: string; priority: TPriority; type: TType; projectId: string; estimate: number; estimateUnit: string }>) =>
-      api.tickets.update(id!, data as any),
+    mutationFn: (data: Partial<CreateTicketInput>) =>
+      api.tickets.update(id!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ticket', id] });
       queryClient.invalidateQueries({ queryKey: ['tickets'] });
@@ -183,7 +183,7 @@ export function TicketDetail() {
 
   // Move to project mutation
   const moveToProjectMutation = useMutation({
-    mutationFn: (projectId: string) => api.tickets.update(id!, { projectId } as any),
+    mutationFn: (projectId: string) => api.tickets.update(id!, { projectId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ticket', id] });
       queryClient.invalidateQueries({ queryKey: ['tickets'] });

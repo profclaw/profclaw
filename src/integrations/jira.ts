@@ -1,5 +1,8 @@
 import type { Context } from 'hono';
 import type { CreateTaskInput } from '../types/task.js';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('Jira');
 
 /**
  * Jira Webhook Integration
@@ -21,7 +24,7 @@ const WEBHOOK_SECRET = process.env.JIRA_WEBHOOK_SECRET || '';
  */
 export function verifyJiraToken(c: Context): boolean {
   if (!WEBHOOK_SECRET) {
-    console.warn('JIRA_WEBHOOK_SECRET not set - skipping verification');
+    log.warn('JIRA_WEBHOOK_SECRET not set - skipping verification');
     return true;
   }
 
@@ -44,7 +47,7 @@ export async function handleJiraWebhook(
   const payload = JSON.parse(rawBody) as JiraWebhookPayload;
   const { webhookEvent, issue } = payload;
 
-  console.log(`[Jira Webhook] Event: ${webhookEvent}, Issue: ${issue.key}`);
+  log.info('Jira webhook received', { webhookEvent, issueKey: issue.key });
 
   // Only handle created or updated events
   if (webhookEvent !== 'jira:issue_created' && webhookEvent !== 'jira:issue_updated') {
@@ -54,7 +57,7 @@ export async function handleJiraWebhook(
   // Check for AI label
   const hasAiLabel = issue.fields.labels?.includes(JIRA_AI_TASK_LABEL);
   if (!hasAiLabel) {
-    console.log('[Jira] Issue does not have AI label, skipping');
+    log.info('Issue does not have AI label, skipping', { issueKey: issue.key });
     return null;
   }
 

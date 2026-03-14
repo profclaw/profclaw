@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://profclaw.dev/docs"><b>Docs</b></a> &middot;
+  <a href="https://profclaw.ai/docs"><b>Docs</b></a> &middot;
   <a href="https://github.com/profclaw/profclaw/issues"><b>Report Bug</b></a> &middot;
   <a href="https://discord.gg/profclaw"><b>Discord</b></a>
 </p>

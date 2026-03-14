@@ -192,20 +192,28 @@ export function authCommands(): Command {
       try {
         const db = await ensureDb();
 
-        let query = db
-          .select({
-            id: users.id,
-            email: users.email,
-            name: users.name,
-            role: users.role,
-            status: users.status,
-            createdAt: users.createdAt,
-          })
-          .from(users);
-
-        if (options.status) {
-          query = query.where(eq(users.status, options.status));
-        }
+        const query = options.status
+          ? db
+              .select({
+                id: users.id,
+                email: users.email,
+                name: users.name,
+                role: users.role,
+                status: users.status,
+                createdAt: users.createdAt,
+              })
+              .from(users)
+              .where(eq(users.status, options.status))
+          : db
+              .select({
+                id: users.id,
+                email: users.email,
+                name: users.name,
+                role: users.role,
+                status: users.status,
+                createdAt: users.createdAt,
+              })
+              .from(users);
 
         const allUsers = await query.orderBy(users.createdAt);
 

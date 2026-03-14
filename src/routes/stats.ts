@@ -5,6 +5,7 @@ import { Hono } from 'hono';
 import { getDb } from '../storage/index.js';
 import { tasks, tickets, summaries, projects, sprints } from '../storage/schema.js';
 import { eq, and, sql, type InferSelectModel } from 'drizzle-orm';
+import { createContextualLogger } from '../utils/logger.js';
 
 // Infer types from schema
 type Task = InferSelectModel<typeof tasks>;
@@ -14,6 +15,7 @@ type Project = InferSelectModel<typeof projects>;
 type Sprint = InferSelectModel<typeof sprints>;
 
 export const statsRoutes = new Hono();
+const log = createContextualLogger('Stats');
 
 /**
  * GET /api/stats/dashboard - Get comprehensive dashboard statistics
@@ -167,7 +169,7 @@ statsRoutes.get('/dashboard', async (c) => {
       },
     });
   } catch (error) {
-    console.error('Error fetching dashboard stats:', error);
+    log.error('Error fetching dashboard stats', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       tasks: { total: 0, pending: 0, queued: 0, inProgress: 0, completed: 0, failed: 0, cancelled: 0 },
       tickets: { total: 0, open: 0, inProgress: 0, done: 0, byType: {}, byPriority: {}, aiCreated: 0 },
@@ -310,7 +312,7 @@ statsRoutes.get('/sprints/:id/burndown', async (c) => {
       burndown,
     });
   } catch (error) {
-    console.error('Error fetching sprint burndown:', error);
+    log.error('Error fetching sprint burndown', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to fetch sprint burndown' }, 500);
   }
 });
@@ -387,7 +389,7 @@ statsRoutes.get('/projects/:id/velocity', async (c) => {
       sprintCount: velocityData.length,
     });
   } catch (error) {
-    console.error('Error fetching project velocity:', error);
+    log.error('Error fetching project velocity', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to fetch velocity data' }, 500);
   }
 });
@@ -439,7 +441,7 @@ statsRoutes.get('/projects/:id', async (c) => {
       sprints: sprintStats,
     });
   } catch (error) {
-    console.error('Error fetching project stats:', error);
+    log.error('Error fetching project stats', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to fetch project stats' }, 500);
   }
 });

@@ -21,9 +21,10 @@ import { getEmbeddingService } from '../ai/embedding-service.js';
 import { getStorage } from '../storage/index.js';
 import type { StorageAdapter } from '../storage/adapter.js';
 import type { Summary } from '../types/summary.js';
-import { logger as systemLogger } from '../utils/logger.js';
+import { createContextualLogger } from '../utils/logger.js';
 
 const summaries = new Hono();
+const log = createContextualLogger('Summaries');
 type SemanticSearchResult = Awaited<ReturnType<NonNullable<StorageAdapter['searchSimilar']>>>[number];
 
 // Sparse fieldset: default fields for list view (Phase 17 optimization)
@@ -153,7 +154,7 @@ summaries.get('/semantic', async (c) => {
       results: enriched
     });
   } catch (error) {
-    systemLogger.error('[API] Semantic search error:', error as Error);
+    log.error('Semantic search error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Search failed', message: (error as Error).message }, 500);
   }
 });
@@ -316,7 +317,7 @@ summaries.post('/', async (c) => {
       201
     );
   } catch (error) {
-    console.error('[API] Error creating summary:', error);
+    log.error('Error creating summary', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         error: 'Failed to create summary',

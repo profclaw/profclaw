@@ -215,7 +215,7 @@ export function GanttView() {
     setSearchParams(params);
   };
 
-  const selectedProject = projectsData?.projects?.find((p: any) => p.id === projectId);
+  const selectedProject = projectsData?.projects?.find((p) => p.id === projectId);
 
   if (error) {
     return (
@@ -246,7 +246,7 @@ export function GanttView() {
               <DropdownMenuItem onClick={() => handleProjectChange('')}>
                 All Projects
               </DropdownMenuItem>
-              {projectsData?.projects?.map((project: any) => (
+              {projectsData?.projects?.map((project) => (
                 <DropdownMenuItem
                   key={project.id}
                   onClick={() => handleProjectChange(project.id)}

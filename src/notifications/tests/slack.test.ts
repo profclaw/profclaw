@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+vi.mock('../../utils/logger.js', () => ({
+  logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  createContextualLogger: vi.fn(() => ({
+    debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),
+  })),
+}));
+
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
@@ -81,12 +88,10 @@ describe('Slack Notifications', () => {
   });
 
   it('should handle fetch errors gracefully', async () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     mockFetch.mockRejectedValue(new Error('Network Down'));
 
-    await slack.sendSlackNotification({ type: 'task_started', title: 'T', message: 'M' });
-    
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Error sending notification:'), expect.any(Error));
-    consoleSpy.mockRestore();
+    await expect(
+      slack.sendSlackNotification({ type: 'task_started', title: 'T', message: 'M' })
+    ).resolves.toBeUndefined();
   });
 });

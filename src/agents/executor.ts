@@ -19,7 +19,6 @@ import type {
   StopCondition as AiSdkStopCondition,
   ToolSet,
 } from "ai";
-import type { ProviderOptions } from "@ai-sdk/provider-utils";
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import type {
@@ -53,6 +52,14 @@ type ExecutorStep = StepResult<ExecutorTools>;
 type ContextProject = NonNullable<AgentState["context"]["availableProjects"]>[number];
 type ContextTicket = NonNullable<AgentState["context"]["createdTickets"]>[number];
 type AgentArtifact = AgentResult["artifacts"][number];
+type ExecutorProviderOptions = {
+  anthropic?: {
+    thinking?: {
+      type: 'enabled';
+      budgetTokens: number;
+    };
+  };
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -76,6 +83,42 @@ function getStringArray(value: unknown): string[] {
 
 function toToolArgs(input: unknown): Record<string, unknown> {
   return getRecord(input) ?? {};
+}
+
+function getUsageInputTokens(usage: unknown): number {
+  const usageRecord = getRecord(usage);
+  if (!usageRecord) return 0;
+
+  const inputTokens = usageRecord.inputTokens;
+  if (typeof inputTokens === "number") return inputTokens;
+
+  const promptTokens = usageRecord.promptTokens;
+  return typeof promptTokens === "number" ? promptTokens : 0;
+}
+
+function getUsageOutputTokens(usage: unknown): number {
+  const usageRecord = getRecord(usage);
+  if (!usageRecord) return 0;
+
+  const outputTokens = usageRecord.outputTokens;
+  if (typeof outputTokens === "number") return outputTokens;
+
+  const completionTokens = usageRecord.completionTokens;
+  return typeof completionTokens === "number" ? completionTokens : 0;
+}
+
+function getToolCallInput(toolCall: unknown): Record<string, unknown> {
+  const toolCallRecord = getRecord(toolCall);
+  if (!toolCallRecord) return {};
+
+  return toToolArgs(toolCallRecord.input ?? toolCallRecord.args);
+}
+
+function getToolResultOutput(toolResult: unknown): unknown {
+  const toolResultRecord = getRecord(toolResult);
+  if (!toolResultRecord) return undefined;
+
+  return toolResultRecord.output ?? toolResultRecord.result;
 }
 
 function toContextProject(value: Record<string, unknown>): ContextProject | null {
@@ -239,8 +282,8 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
           this.state.updatedAt = Date.now();
 
           // Track token budget (AI SDK v6 uses inputTokens/outputTokens)
-          const stepInput = step.usage?.inputTokens ?? 0;
-          const stepOutput = step.usage?.outputTokens ?? 0;
+          const stepInput = getUsageInputTokens(step.usage);
+          const stepOutput = getUsageOutputTokens(step.usage);
           const tokensUsed = stepInput + stepOutput;
           this.state.usedBudget += tokensUsed;
           this.state.inputTokensUsed += stepInput;
@@ -256,7 +299,7 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
             const record: ToolCallRecord = {
               id: tc.toolCallId ?? randomUUID(),
               name: tc.toolName,
-              args: toToolArgs(tc.input),
+              args: getToolCallInput(tc),
               status: "pending",
               startedAt: Date.now(),
             };
@@ -267,7 +310,7 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
             );
 
             if (tr) {
-              record.result = tr.output;
+              record.result = getToolResultOutput(tr);
               record.completedAt = Date.now();
 
               // Check if the tool result indicates a failure
@@ -331,8 +374,8 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
       // Update budget from total usage (AI SDK v6 uses inputTokens/outputTokens)
       const totalUsage = result.totalUsage;
       if (totalUsage) {
-        const totalInput = totalUsage.inputTokens ?? 0;
-        const totalOutput = totalUsage.outputTokens ?? 0;
+        const totalInput = getUsageInputTokens(totalUsage);
+        const totalOutput = getUsageOutputTokens(totalUsage);
         // totalUsage is the authoritative sum; overwrite our step-by-step estimate
         this.state.usedBudget = totalInput + totalOutput;
         this.state.inputTokensUsed = totalInput;
@@ -406,7 +449,7 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
    * Build provider-specific options based on agent config.
    * For Anthropic models with effort set, enables extended thinking.
    */
-  private buildProviderOptions(providerHint?: string): ProviderOptions | undefined {
+  private buildProviderOptions(providerHint?: string): ExecutorProviderOptions | undefined {
     const effort = this.config.effort;
     if (!effort) return undefined;
 

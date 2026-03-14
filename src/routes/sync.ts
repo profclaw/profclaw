@@ -10,6 +10,9 @@
 
 import { Hono } from 'hono';
 import type { Context } from 'hono';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('Sync');
 import { handleSyncWebhook, pushTicketToExternal, getSyncStatus } from '../sync/integration.js';
 import { hasSyncEngine, getSyncEngine } from '../sync/engine.js';
 import { loadSyncConfig } from '../sync/config.js';
@@ -83,7 +86,7 @@ syncRoutes.post('/webhook/linear', async (c) => {
   // Verify signature if secret is configured
   if (linearConfig.webhookSecret) {
     if (!verifyLinearSignature(rawBody, signature, linearConfig.webhookSecret)) {
-      console.warn('[SyncRoutes] Invalid Linear webhook signature');
+      log.warn('Invalid Linear webhook signature');
       return c.json({ error: 'Invalid signature' }, 401);
     }
   }
@@ -126,7 +129,7 @@ syncRoutes.post('/webhook/github', async (c) => {
   // Verify signature if secret is configured
   if (githubConfig.webhookSecret) {
     if (!verifyGitHubSignature(rawBody, signature, githubConfig.webhookSecret)) {
-      console.warn('[SyncRoutes] Invalid GitHub webhook signature');
+      log.warn('Invalid GitHub webhook signature');
       return c.json({ error: 'Invalid signature' }, 401);
     }
   }
@@ -151,7 +154,7 @@ syncRoutes.post('/webhook/github', async (c) => {
     const ticketSyncResult = await processGitHubWebhookForTicketSync(eventType!, payload);
 
     if (ticketSyncResult.action !== 'ignored') {
-      console.log(`[SyncRoutes] GitHub ticket sync: ${ticketSyncResult.action}`, ticketSyncResult);
+      log.info('GitHub ticket sync', { action: ticketSyncResult.action, result: ticketSyncResult });
       return c.json({
         message: `Ticket sync: ${ticketSyncResult.action}`,
         ticketId: ticketSyncResult.ticketId,
@@ -159,7 +162,7 @@ syncRoutes.post('/webhook/github', async (c) => {
       });
     }
   } catch (error) {
-    console.error('[SyncRoutes] Ticket sync error (falling back to legacy):', error);
+    log.error('Ticket sync error (falling back to legacy)', error instanceof Error ? error : new Error(String(error)));
   }
 
   // Fallback to legacy sync webhook handler (for sync engine)
@@ -227,7 +230,7 @@ syncRoutes.post('/trigger', async (c) => {
       });
     }
   } catch (error) {
-    console.error('[SyncRoutes] Sync trigger failed:', error);
+    log.error('Sync trigger failed', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       error: error instanceof Error ? error.message : 'Sync failed',
     }, 500);

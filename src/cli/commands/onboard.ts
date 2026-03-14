@@ -12,7 +12,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import figlet from 'figlet';
-import { createInterface } from 'readline/promises';
+import { select, search, input, Separator } from '@inquirer/prompts';
 import { existsSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
@@ -131,6 +131,7 @@ function generateEnvFile(opts: {
   anthropicKey?: string;
   openaiKey?: string;
   ollamaUrl?: string;
+  extraEnvVars?: Record<string, string>;
   port?: string;
 }): string {
   const lines: string[] = [
@@ -159,6 +160,14 @@ function generateEnvFile(opts: {
     lines.push('');
   }
 
+  // Write any extra env vars from selected providers
+  if (opts.extraEnvVars) {
+    for (const [key, value] of Object.entries(opts.extraEnvVars)) {
+      lines.push(`${key}=${value}`);
+    }
+    if (Object.keys(opts.extraEnvVars).length > 0) lines.push('');
+  }
+
   if (opts.mode === 'pro') {
     lines.push('# Redis (required for pro mode)');
     lines.push('REDIS_URL=redis://localhost:6379');
@@ -169,29 +178,6 @@ function generateEnvFile(opts: {
 }
 
 // Interactive Onboarding
-
-async function prompt(rl: ReturnType<typeof createInterface>, question: string): Promise<string> {
-  const answer = await rl.question(chalk.bold(question));
-  return answer.trim();
-}
-
-async function promptChoice(
-  rl: ReturnType<typeof createInterface>,
-  question: string,
-  options: { key: string; label: string }[],
-): Promise<string> {
-  console.log('');
-  console.log(chalk.bold(question));
-  for (const opt of options) {
-    console.log(`  ${chalk.cyan(opt.key)}) ${opt.label}`);
-  }
-  const validKeys = options.map(o => o.key);
-  while (true) {
-    const answer = await prompt(rl, `Choice [${validKeys.join('/')}]: `);
-    if (validKeys.includes(answer)) return answer;
-    console.log(chalk.red(`  Invalid choice. Options: ${validKeys.join(', ')}`));
-  }
-}
 
 async function runInteractive(): Promise<void> {
   const banner = figlet.textSync('profClaw', { font: 'Standard' });
@@ -205,32 +191,114 @@ async function runInteractive(): Promise<void> {
   const env = await detectEnvironment();
   spin.stop();
 
-  const mark = (ok: boolean) => (ok ? chalk.green('  +') : chalk.dim('  -'));
-  console.log(`${mark(true)} OS: ${env.os} (${env.arch})`);
-  console.log(`${mark(true)} Node: ${env.nodeVersion}`);
-  console.log(`${mark(true)} RAM: ${env.totalMemoryMb} MB`);
-  console.log(`${mark(env.isDocker)} Docker: ${env.isDocker ? 'yes' : 'no'}`);
-  console.log(`${mark(env.hasRedis)} Redis: ${env.hasRedis ? 'connected' : 'not found'}`);
-  console.log(`${mark(env.hasOllama)} Ollama: ${env.hasOllama ? 'running' : 'not found'}`);
-  console.log(`${mark(env.hasClaude)} Claude CLI: ${env.hasClaude ? 'found' : 'not found'}`);
-  console.log(`${mark(env.hasGit)} Git: ${env.hasGit ? 'found' : 'not found'}`);
+  // Helpers for display
+  const ok = (label: string, value: string) =>
+    console.log(`  ${chalk.green('+')} ${chalk.white(label.padEnd(14))} ${value}`);
+  const no = (label: string, value: string, hint?: string) => {
+    console.log(`  ${chalk.yellow('~')} ${chalk.dim(label.padEnd(14))} ${chalk.dim(value)}`);
+    if (hint) console.log(`    ${chalk.dim('\u2514')} ${chalk.yellow(hint)}`);
+  };
+
+  const ramGb = (env.totalMemoryMb / 1024).toFixed(0);
+  const ramBar = (() => {
+    const total = 16; // bar width
+    const filled = Math.min(total, Math.round((env.totalMemoryMb / 65536) * total));
+    return chalk.green('\u2588'.repeat(filled)) + chalk.dim('\u2591'.repeat(total - filled));
+  })();
+  const ramWarn = env.totalMemoryMb < 512
+    ? chalk.red(' (low - pico mode recommended)')
+    : env.totalMemoryMb < 2048
+      ? chalk.yellow(' (limited - mini mode recommended)')
+      : '';
+
+  // -- System --
+  console.log('');
+  console.log(`  ${chalk.bold.cyan('System')}`);
+  ok('OS', `${env.os} (${env.arch})`);
+  ok('Node', env.nodeVersion);
+  ok('RAM', `${ramGb} GB ${ramBar}${ramWarn}`);
+  if (env.isDocker) {
+    ok('Docker', 'Running in container');
+  }
+
+  // -- Services --
+  console.log('');
+  console.log(`  ${chalk.bold.cyan('Services')}`);
+  if (env.hasRedis) {
+    ok('Redis', chalk.green('connected'));
+  } else {
+    no('Redis', 'not found (optional)',
+      'Install: brew install redis  |  docker run -d -p 6379:6379 redis:alpine');
+  }
+  if (env.hasOllama) {
+    ok('Ollama', chalk.green('running') + ' (free local AI)');
+  } else {
+    no('Ollama', 'not running (optional)',
+      'Install: brew install ollama && ollama serve  |  https://ollama.com/download');
+  }
+
+  // -- Tools --
+  console.log('');
+  console.log(`  ${chalk.bold.cyan('Tools')}`);
+  if (env.hasClaude) {
+    ok('Claude CLI', 'found');
+  } else {
+    no('Claude CLI', 'not found (optional)',
+      'Install: npm install -g @anthropic-ai/claude-code');
+  }
+  if (env.hasGit) {
+    ok('Git', 'found');
+  } else {
+    no('Git', 'not found',
+      'Install: brew install git  |  https://git-scm.com/downloads');
+  }
+
+  // -- Existing Data --
+  if (env.existingEnv || env.existingDb) {
+    console.log('');
+    console.log(`  ${chalk.bold.cyan('Existing Data')}`);
+    if (env.existingEnv) ok('.env', 'found');
+    if (env.existingDb) ok('Database', 'found');
+  }
 
   const recommended = recommendMode(env);
-  console.log(`\n  ${chalk.cyan('Recommended mode:')} ${chalk.bold(recommended)}`);
+  console.log('');
+  console.log(`  ${chalk.cyan('Recommended mode:')} ${chalk.bold(recommended)}`);
 
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-
-  // Step 2: Choose mode
+  // Step 2: Choose mode (arrow keys)
   console.log(chalk.bold.white('\n  Step 2: Deployment Mode\n'));
-  const modeChoice = await promptChoice(rl, '  Select deployment mode:', [
-    { key: '1', label: `Pico -- Agent + tools only, ~50MB RAM${recommended === 'pico' ? chalk.green(' (recommended)') : ''}` },
-    { key: '2', label: `Mini -- + Dashboard, cron, integrations, ~150MB RAM${recommended === 'mini' ? chalk.green(' (recommended)') : ''}` },
-    { key: '3', label: `Pro -- Everything, Redis required, ~300MB RAM${recommended === 'pro' ? chalk.green(' (recommended)') : ''}` },
-  ]);
-  const mode: DeploymentMode = modeChoice === '1' ? 'pico' : modeChoice === '2' ? 'mini' : 'pro';
+
+  let mode: DeploymentMode;
+  try {
+    mode = await select<DeploymentMode>({
+      message: 'Select deployment mode',
+      default: recommended,
+      choices: [
+        {
+          name: `Pico  - Agent + tools only, ~50MB RAM${recommended === 'pico' ? chalk.green(' (recommended)') : ''}`,
+          value: 'pico' as const,
+          description: 'Minimal footprint. CLI agent, tool execution, no web UI.',
+        },
+        {
+          name: `Mini  - Dashboard, cron, integrations, ~150MB RAM${recommended === 'mini' ? chalk.green(' (recommended)') : ''}`,
+          value: 'mini' as const,
+          description: 'Web dashboard, scheduled jobs, GitHub/Jira/Linear webhooks.',
+        },
+        {
+          name: `Pro   - Everything, Redis required, ~300MB RAM${recommended === 'pro' ? chalk.green(' (recommended)') : ''}`,
+          value: 'pro' as const,
+          description: 'BullMQ queues, plugins, sync engine, multi-agent orchestration.',
+        },
+      ],
+      theme: { prefix: '  ', style: { highlight: (text: string) => chalk.cyan.bold(text) } },
+    });
+  } catch {
+    console.log(chalk.dim('\n  Cancelled.'));
+    process.exit(0);
+  }
   success(`Mode: ${mode}`);
 
-  // Step 3: AI Provider
+  // Step 3: AI Provider (searchable list)
   console.log(chalk.bold.white('\n  Step 3: AI Provider\n'));
   let anthropicKey: string | undefined;
   let openaiKey: string | undefined;
@@ -238,26 +306,146 @@ async function runInteractive(): Promise<void> {
 
   const hasExistingProvider = !!process.env.ANTHROPIC_API_KEY || !!process.env.OPENAI_API_KEY;
   if (hasExistingProvider) {
-    info('AI provider already configured from environment.');
+    const which = process.env.ANTHROPIC_API_KEY ? 'Anthropic' : 'OpenAI';
+    info(`AI provider already configured from environment (${which}).`);
   } else {
-    const providerChoice = await promptChoice(rl, '  Select AI provider:', [
-      { key: '1', label: 'Anthropic (Claude) -- recommended' },
-      { key: '2', label: 'OpenAI (GPT-4o)' },
-      { key: '3', label: `Ollama (free, local)${env.hasOllama ? chalk.green(' -- detected!') : ''}` },
-      { key: '4', label: 'Skip for now' },
-    ]);
+    // Provider catalog
+    const providers = [
+      { key: 'anthropic', name: 'Anthropic', models: 'Claude 4.x, 3.5 Sonnet', envVar: 'ANTHROPIC_API_KEY', category: 'Popular', tag: 'recommended' },
+      { key: 'openai', name: 'OpenAI', models: 'GPT-4o, o1, o3', envVar: 'OPENAI_API_KEY', category: 'Popular', tag: '' },
+      { key: 'google', name: 'Google AI', models: 'Gemini 2.x, Flash', envVar: 'GOOGLE_GENERATIVE_AI_API_KEY', category: 'Popular', tag: '' },
+      { key: 'ollama', name: 'Ollama', models: 'Llama, Mistral, Qwen', envVar: 'OLLAMA_BASE_URL', category: 'Popular', tag: env.hasOllama ? 'detected' : 'free, local' },
+      { key: 'groq', name: 'Groq', models: 'Llama, Mixtral', envVar: 'GROQ_API_KEY', category: 'Fast Inference', tag: 'fast' },
+      { key: 'cerebras', name: 'Cerebras', models: 'Llama 3.3 70B', envVar: 'CEREBRAS_API_KEY', category: 'Fast Inference', tag: 'fast' },
+      { key: 'fireworks', name: 'Fireworks', models: 'Llama, Mixtral', envVar: 'FIREWORKS_API_KEY', category: 'Fast Inference', tag: '' },
+      { key: 'together', name: 'Together', models: 'Open models', envVar: 'TOGETHER_API_KEY', category: 'Fast Inference', tag: '' },
+      { key: 'azure', name: 'Azure OpenAI', models: 'GPT-4o', envVar: 'AZURE_OPENAI_API_KEY', category: 'Enterprise', tag: 'enterprise' },
+      { key: 'bedrock', name: 'AWS Bedrock', models: 'Claude, Titan, Llama', envVar: 'AWS_ACCESS_KEY_ID', category: 'Enterprise', tag: 'enterprise' },
+      { key: 'watsonx', name: 'IBM Watsonx', models: 'Granite, Llama', envVar: 'WATSONX_API_KEY', category: 'Enterprise', tag: 'enterprise' },
+      { key: 'deepseek', name: 'DeepSeek', models: 'V3, R1 (reasoning)', envVar: 'DEEPSEEK_API_KEY', category: 'More Providers', tag: '' },
+      { key: 'mistral', name: 'Mistral', models: 'Large, Codestral', envVar: 'MISTRAL_API_KEY', category: 'More Providers', tag: '' },
+      { key: 'xai', name: 'xAI', models: 'Grok', envVar: 'XAI_API_KEY', category: 'More Providers', tag: '' },
+      { key: 'perplexity', name: 'Perplexity', models: 'Sonar (search)', envVar: 'PERPLEXITY_API_KEY', category: 'More Providers', tag: 'search' },
+      { key: 'cohere', name: 'Cohere', models: 'Command R+', envVar: 'COHERE_API_KEY', category: 'More Providers', tag: '' },
+      { key: 'openrouter', name: 'OpenRouter', models: 'Any model (proxy)', envVar: 'OPENROUTER_API_KEY', category: 'Aggregators', tag: 'multi-model' },
+      { key: 'replicate', name: 'Replicate', models: 'Open-source models', envVar: 'REPLICATE_API_TOKEN', category: 'Aggregators', tag: '' },
+      { key: 'github-models', name: 'GitHub Models', models: 'Azure-backed', envVar: 'GITHUB_TOKEN', category: 'Aggregators', tag: '' },
+      { key: 'huggingface', name: 'HuggingFace', models: 'Inference API', envVar: 'HF_TOKEN', category: 'Aggregators', tag: '' },
+      { key: 'nvidia-nim', name: 'NVIDIA NIM', models: 'Llama, Nemotron', envVar: 'NVIDIA_NIM_API_KEY', category: 'Aggregators', tag: '' },
+      { key: 'zhipu', name: 'Zhipu AI', models: 'GLM-4, GLM-5', envVar: 'ZHIPU_API_KEY', category: 'Asia', tag: '' },
+      { key: 'moonshot', name: 'Moonshot', models: 'Kimi (128K context)', envVar: 'MOONSHOT_API_KEY', category: 'Asia', tag: '' },
+      { key: 'qwen', name: 'Qwen', models: 'Qwen Max, Plus', envVar: 'QWEN_API_KEY', category: 'Asia', tag: '' },
+      { key: 'minimax', name: 'MiniMax', models: 'abab series', envVar: 'MINIMAX_API_KEY', category: 'Asia', tag: '' },
+      { key: 'volcengine', name: 'Volcengine', models: 'Doubao (Bytedance)', envVar: 'VOLCENGINE_API_KEY', category: 'Asia', tag: '' },
+      { key: 'qianfan', name: 'Qianfan', models: 'ERNIE (Baidu)', envVar: 'QIANFAN_API_KEY', category: 'Asia', tag: '' },
+    ];
 
-    if (providerChoice === '1') {
-      anthropicKey = await prompt(rl, '  Anthropic API Key: ');
-      if (anthropicKey) success('Anthropic key saved.');
-    } else if (providerChoice === '2') {
-      openaiKey = await prompt(rl, '  OpenAI API Key: ');
-      if (openaiKey) success('OpenAI key saved.');
-    } else if (providerChoice === '3') {
-      ollamaUrl = env.hasOllama
-        ? (process.env.OLLAMA_BASE_URL || 'http://localhost:11434')
-        : await prompt(rl, '  Ollama URL [http://localhost:11434]: ') || 'http://localhost:11434';
-      success(`Ollama: ${ollamaUrl}`);
+    // Check which providers have keys in env
+    const detected = new Set<string>();
+    for (const p of providers) {
+      if (process.env[p.envVar]) detected.add(p.key);
+    }
+    if (env.hasOllama) detected.add('ollama');
+
+    // Build searchable choices grouped by category
+    let chosenProvider: string;
+
+    try {
+      chosenProvider = await search<string>({
+        message: 'Select AI provider (type to filter, arrows to navigate)',
+        source: (term: string | undefined) => {
+          const results: Array<Separator | { name: string; value: string; description: string; short: string }> = [];
+          const filter = (term || '').toLowerCase();
+          let lastCategory = '';
+
+          for (const p of providers) {
+            // Filter by name, key, models, category, or tag
+            if (filter && ![p.name, p.key, p.models, p.category, p.tag]
+              .some(s => s.toLowerCase().includes(filter))) {
+              continue;
+            }
+
+            // Add category separator
+            if (p.category !== lastCategory) {
+              if (results.length > 0) results.push(new Separator());
+              results.push(new Separator(chalk.bold.cyan(` ${p.category} `)));
+              lastCategory = p.category;
+            }
+
+            const det = detected.has(p.key) ? chalk.green(' *') : '';
+            const tag = p.tag ? ` ${chalk.dim(`[${p.tag}]`)}` : '';
+            results.push({
+              name: `${p.name.padEnd(16)} ${chalk.dim(p.models)}${tag}${det}`,
+              value: p.key,
+              description: `${p.envVar}`,
+              short: p.name,
+            });
+          }
+
+          // Always add skip option at the end
+          if (!filter || 'skip'.includes(filter)) {
+            results.push(new Separator());
+            results.push({
+              name: chalk.dim('Skip for now'),
+              value: 'skip',
+              description: 'Configure later with: profclaw provider',
+              short: 'Skip',
+            });
+          }
+
+          return results;
+        },
+        theme: { prefix: '  ', style: { highlight: (text: string) => chalk.cyan.bold(text) } },
+      });
+    } catch {
+      console.log(chalk.dim('\n  Cancelled.'));
+      process.exit(0);
+    }
+
+    if (chosenProvider !== 'skip') {
+      const chosen = providers.find(p => p.key === chosenProvider)!;
+      console.log(`\n  ${chalk.bold(chosen.name)} selected`);
+      console.log(chalk.dim(`  Env var: ${chosen.envVar}`));
+
+      if (chosen.key === 'ollama') {
+        if (env.hasOllama) {
+          ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+        } else {
+          try {
+            ollamaUrl = await input({
+              message: 'Ollama URL',
+              default: 'http://localhost:11434',
+              theme: { prefix: '  ' },
+            });
+          } catch {
+            ollamaUrl = 'http://localhost:11434';
+          }
+        }
+        success(`Ollama: ${ollamaUrl}`);
+      } else if (detected.has(chosen.key)) {
+        success(`${chosen.name} already configured from ${chosen.envVar}`);
+      } else {
+        try {
+          const keyInput = await input({
+            message: chosen.envVar,
+            theme: { prefix: '  ' },
+          });
+          if (keyInput) {
+            if (chosen.key === 'anthropic') anthropicKey = keyInput;
+            else if (chosen.key === 'openai') openaiKey = keyInput;
+            else {
+              process.env[chosen.envVar] = keyInput;
+            }
+            success(`${chosen.name} configured.`);
+          } else {
+            warn('No key provided, skipping.');
+          }
+        } catch {
+          warn('Input cancelled, skipping provider.');
+        }
+      }
+    } else {
+      info('AI provider skipped. Configure later: profclaw provider');
     }
   }
 
@@ -291,8 +479,6 @@ async function runInteractive(): Promise<void> {
     writeFileSync(envPath, content);
     success(`PROFCLAW_MODE=${mode} set in .env`);
   }
-
-  rl.close();
 
   // Step 5: Run setup wizard
   console.log(chalk.bold.white('\n  Step 5: Setup\n'));

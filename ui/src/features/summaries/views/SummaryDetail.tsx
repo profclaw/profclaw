@@ -1,3 +1,4 @@
+import type { ComponentType } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -292,7 +293,7 @@ Created: ${new Date(summary.createdAt).toLocaleString()}
   );
 }
 
-function MetaItem({ icon: Icon, label, value, isLink }: { icon: any; label: string; value: string; isLink?: boolean }) {
+function MetaItem({ icon: Icon, label, value, isLink }: { icon: ComponentType<{ className?: string }>; label: string; value: string; isLink?: boolean }) {
   return (
     <div className="flex items-center gap-2 group/meta">
       <div className="h-8 w-8 rounded-lg glass-heavy flex items-center justify-center border-white/5">

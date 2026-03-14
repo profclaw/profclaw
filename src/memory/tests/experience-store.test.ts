@@ -274,6 +274,12 @@ vi.mock('../../utils/logger.js', () => ({
     warn: vi.fn(),
     error: vi.fn(),
   },
+  createContextualLogger: vi.fn(() => ({
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  })),
 }));
 
 // Must be imported AFTER the mocks are in place

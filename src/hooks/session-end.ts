@@ -11,6 +11,9 @@ import { SessionEndPayloadSchema } from './schemas.js';
 import type { HookProcessingResult, SessionAggregate } from './types.js';
 import { getSessionEvents, clearSessionEvents, getSessionSummary } from './tool-use.js';
 import { aggregateInferences } from '../intelligence/rules.js';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('SessionEnd');
 
 // Session aggregates storage
 const sessionAggregates = new Map<string, SessionAggregate>();
@@ -35,7 +38,7 @@ export async function handleSessionEnd(c: Context): Promise<HookProcessingResult
 
     const parsed = SessionEndPayloadSchema.safeParse(payload);
     if (!parsed.success) {
-      console.error('[Hook] Session end validation failed:', parsed.error.flatten());
+      log.error('Session end validation failed', new Error(parsed.error.message));
       return {
         success: false,
         eventId: '',
@@ -78,10 +81,12 @@ export async function handleSessionEnd(c: Context): Promise<HookProcessingResult
     sessionAggregates.set(sessionId, aggregate);
 
     // Log session summary
-    console.log(`[Hook] Session ended: ${sessionId}`);
-    console.log(`[Hook] Files modified: ${aggregate.filesModified.length}`);
-    console.log(`[Hook] Files created: ${aggregate.filesCreated.length}`);
-    console.log(`[Hook] Total tool uses: ${Object.values(summary.toolUseCounts).reduce((a, b) => a + b, 0)}`);
+    log.info('Session ended', {
+      sessionId,
+      filesModified: aggregate.filesModified.length,
+      filesCreated: aggregate.filesCreated.length,
+      totalToolUses: Object.values(summary.toolUseCounts).reduce((a, b) => a + b, 0),
+    });
 
     // Clear in-memory events (we have the aggregate now)
     clearSessionEvents(sessionId);
@@ -92,7 +97,7 @@ export async function handleSessionEnd(c: Context): Promise<HookProcessingResult
       inference: aggregatedInference.confidence > 0 ? aggregatedInference : undefined,
     };
   } catch (error) {
-    console.error('[Hook] Error processing session end:', error);
+    log.error('Error processing session end', error instanceof Error ? error : new Error(String(error)));
     return {
       success: false,
       eventId: '',

@@ -95,7 +95,7 @@ export function CreateProjectModal({ open, onOpenChange, onSuccess }: CreateProj
       resetForm();
       onSuccess?.();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       if (error.message?.includes('already exists')) {
         setKeyError('This project key is already taken');
       } else {

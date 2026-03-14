@@ -5,6 +5,9 @@
  */
 
 import { Hono, Context } from 'hono';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('Users');
 import { getCookie } from 'hono/cookie';
 import { eq } from 'drizzle-orm';
 import { randomUUID, randomBytes, createHash } from 'crypto';
@@ -782,7 +785,7 @@ userRoutes.post('/me/recovery-codes/regenerate', async (c) => {
       message: 'New recovery codes generated. Save these codes securely - they will not be shown again!',
     });
   } catch (error) {
-    console.error('[Users] Recovery code regeneration error:', error);
+    log.error('Recovery code regeneration error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to regenerate recovery codes' }, 500);
   }
 });
@@ -816,7 +819,7 @@ userRoutes.get('/me/recovery-codes/count', async (c) => {
       hasRecoveryCodes: count > 0,
     });
   } catch (error) {
-    console.error('[Users] Recovery code count error:', error);
+    log.error('Recovery code count error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to get recovery code count' }, 500);
   }
 });
@@ -860,7 +863,7 @@ userRoutes.get('/admin/list', requireAdmin, async (c) => {
 
     return c.json({ users: allUsers, total: allUsers.length });
   } catch (error) {
-    console.error('[Admin] List users error:', error);
+    log.error('List users error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to list users' }, 500);
   }
 });
@@ -910,7 +913,7 @@ userRoutes.post('/admin/invites', requireAdmin, async (c) => {
       message: `Generated ${count} invite code(s)`,
     });
   } catch (err) {
-    console.error('[Admin] Generate invites error:', err);
+    log.error('Generate invites error', err instanceof Error ? err : new Error(String(err)));
     return c.json({ error: 'Failed to generate invite codes' }, 500);
   }
 });
@@ -939,7 +942,7 @@ userRoutes.get('/admin/invites', requireAdmin, async (c) => {
 
     return c.json({ invites: allInvites, total: allInvites.length });
   } catch (err) {
-    console.error('[Admin] List invites error:', err);
+    log.error('List invites error', err instanceof Error ? err : new Error(String(err)));
     return c.json({ error: 'Failed to list invite codes' }, 500);
   }
 });
@@ -968,7 +971,7 @@ userRoutes.delete('/admin/invites/:id', requireAdmin, async (c) => {
 
     return c.json({ message: 'Invite code deleted' });
   } catch (err) {
-    console.error('[Admin] Delete invite error:', err);
+    log.error('Delete invite error', err instanceof Error ? err : new Error(String(err)));
     return c.json({ error: 'Failed to delete invite code' }, 500);
   }
 });
@@ -984,7 +987,7 @@ userRoutes.get('/admin/registration-mode', requireAdmin, async (c) => {
     const settings = await getSettingsRaw();
     return c.json({ mode: settings.system.registrationMode });
   } catch (err) {
-    console.error('[Admin] Get registration mode error:', err);
+    log.error('Get registration mode error', err instanceof Error ? err : new Error(String(err)));
     return c.json({ error: 'Failed to get registration mode' }, 500);
   }
 });
@@ -1008,7 +1011,7 @@ userRoutes.patch('/admin/registration-mode', requireAdmin, async (c) => {
 
     return c.json({ mode, message: `Registration mode set to ${mode}` });
   } catch (err) {
-    console.error('[Admin] Set registration mode error:', err);
+    log.error('Set registration mode error', err instanceof Error ? err : new Error(String(err)));
     return c.json({ error: 'Failed to set registration mode' }, 500);
   }
 });
@@ -1053,7 +1056,7 @@ userRoutes.get('/admin/:userId', requireAdmin, async (c) => {
 
     return c.json({ user: result[0], activeSessions: userSessions.length });
   } catch (error) {
-    console.error('[Admin] Get user error:', error);
+    log.error('Get user error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to get user' }, 500);
   }
 });
@@ -1093,7 +1096,7 @@ userRoutes.patch('/admin/:userId', requireAdmin, async (c) => {
 
     return c.json({ message: 'User updated' });
   } catch (error) {
-    console.error('[Admin] Update user error:', error);
+    log.error('Update user error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to update user' }, 500);
   }
 });
@@ -1135,7 +1138,7 @@ userRoutes.post('/admin/:userId/reset-password', requireAdmin, async (c) => {
       note: 'User must change password on next login. All sessions have been revoked.',
     });
   } catch (error) {
-    console.error('[Admin] Reset password error:', error);
+    log.error('Reset password error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to reset password' }, 500);
   }
 });
@@ -1170,7 +1173,7 @@ userRoutes.delete('/admin/:userId', requireAdmin, async (c) => {
 
     return c.json({ message: 'User deleted' });
   } catch (error) {
-    console.error('[Admin] Delete user error:', error);
+    log.error('Delete user error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to delete user' }, 500);
   }
 });

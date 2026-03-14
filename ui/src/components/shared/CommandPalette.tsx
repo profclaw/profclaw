@@ -187,7 +187,7 @@ export function CommandPalette() {
   )
 }
 
-function CommandItem({ children, icon: Icon, onSelect }: { children: React.ReactNode, icon: any, onSelect?: () => void }) {
+function CommandItem({ children, icon: Icon, onSelect }: { children: React.ReactNode, icon: React.ComponentType<{ className?: string }>, onSelect?: () => void }) {
   return (
     <Command.Item
       onSelect={onSelect}

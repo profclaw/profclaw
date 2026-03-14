@@ -15,7 +15,7 @@
 Instead, please report security issues via:
 
 1. **GitHub Security Advisories**: [Report a vulnerability](https://github.com/profclaw/profclaw/security/advisories/new)
-2. **Email**: security@profclaw.dev
+2. **Email**: security@profclaw.ai
 
 ### What to Include
 

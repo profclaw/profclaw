@@ -66,6 +66,12 @@ vi.mock("../../../utils/logger.js", () => ({
     error: vi.fn(),
     debug: vi.fn(),
   },
+  createContextualLogger: vi.fn(() => ({
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  })),
 }));
 
 vi.mock("../secrets.js", () => ({

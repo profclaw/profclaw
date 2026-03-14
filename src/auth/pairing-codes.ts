@@ -13,6 +13,9 @@
 
 import { randomBytes, randomUUID } from 'crypto';
 import { getStorage } from '../storage/index.js';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('PairingCodes');
 
 // Code generation alphabet (no ambiguous chars: 0O1I)
 const PAIRING_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -186,7 +189,7 @@ export async function requestPairingCode(params: {
     ]
   );
 
-  console.log(`[Pairing] Created code ${code} for requester ${params.requesterId}`);
+  log.info('Created pairing code', { code, requesterId: params.requesterId });
 
   return {
     code,
@@ -221,7 +224,7 @@ export async function approvePairingCode(params: {
   );
 
   if (rows.length === 0) {
-    console.log(`[Pairing] Code ${params.code} not found or expired`);
+    log.info('Code not found or expired', { code: params.code });
     return null;
   }
 
@@ -237,7 +240,7 @@ export async function approvePairingCode(params: {
     [params.approvedBy, now, token, row.id]
   );
 
-  console.log(`[Pairing] Code ${params.code} approved by ${params.approvedBy}`);
+  log.info('Code approved', { code: params.code, approvedBy: params.approvedBy });
 
   return {
     request: {
@@ -285,7 +288,7 @@ export async function rejectPairingCode(params: {
     [params.rejectedBy, now, params.code.toUpperCase()]
   );
 
-  console.log(`[Pairing] Code ${params.code} rejected by ${params.rejectedBy}`);
+  log.info('Code rejected', { code: params.code, rejectedBy: params.rejectedBy });
   return true;
 }
 

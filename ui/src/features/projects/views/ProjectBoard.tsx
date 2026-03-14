@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useParams, useOutletContext } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import type { ProjectWithRelations, Sprint } from '@/core/types';
 import { api } from '@/core/api/client';
 import { SprintBoard } from '../components/SprintBoard';
 
 export function ProjectBoard() {
   const { id } = useParams<{ id: string }>();
-  const { project } = useOutletContext<{ project: any }>();
+  const { project } = useOutletContext<{ project: ProjectWithRelations }>();
   const [selectedSprintId, setSelectedSprintId] = useState<string | undefined>();
 
   const { data: sprintsData } = useQuery({
@@ -33,7 +34,7 @@ export function ProjectBoard() {
               style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M19 9l-7 7-7-7' /%3E%3C/svg%3E")`, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '14px' }}
             >
               <option value="" className="bg-background">All Project Tickets</option>
-              {sprints.map((sprint: any) => (
+              {sprints.map((sprint: Sprint) => (
                 <option key={sprint.id} value={sprint.id} className="bg-background">
                   {sprint.name} {sprint.status === 'active' ? '●' : ''}
                 </option>

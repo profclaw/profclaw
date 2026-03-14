@@ -13,6 +13,9 @@ import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { freemem, totalmem } from 'node:os';
 import { statfs } from 'node:fs/promises';
+import { createContextualLogger } from '../../utils/logger.js';
+
+const log = createContextualLogger('Proactive');
 
 // 6.1 - Event-Driven Triggers
 
@@ -108,19 +111,19 @@ function executeAction(
 
   switch (action.type) {
     case 'notify':
-      console.error(`[proactive] notify target=${action.target ?? 'broadcast'} msg=${message}`);
+      log.info('Notify action', { target: action.target ?? 'broadcast', message });
       return `notified ${action.target ?? 'broadcast'}: ${message}`;
 
     case 'message':
-      console.error(`[proactive] message target=${action.target} msg=${message}`);
+      log.info('Message action', { target: action.target, message });
       return `message sent to ${action.target}: ${message}`;
 
     case 'workflow':
-      console.error(`[proactive] workflow id=${action.workflowId} triggered`);
+      log.info('Workflow triggered', { workflowId: action.workflowId });
       return `workflow ${action.workflowId} triggered`;
 
     case 'log':
-      console.error(`[proactive] log: ${message}`);
+      log.info('Log action', { message });
       return `logged: ${message}`;
   }
 }
@@ -195,7 +198,7 @@ export class TriggerManager {
         this.cooldowns.set(rule.id, now);
         results.push({ ruleId: rule.id, executed: true, output });
       } catch (error) {
-        console.error(`[proactive] TriggerManager action failed for rule ${rule.id}:`, error);
+        log.error('TriggerManager action failed', error instanceof Error ? error : new Error(String(error)), { ruleId: rule.id });
         results.push({
           ruleId: rule.id,
           executed: false,
@@ -551,7 +554,7 @@ export class HealthMonitor extends EventEmitter {
         const isNowBad = result.status === 'degraded' || result.status === 'down';
 
         if (wasOk && isNowBad) {
-          console.error(`[proactive] health degraded: ${service} - ${result.message ?? result.status}`);
+          log.warn('Health degraded', { service, message: result.message ?? result.status });
           this.emit('degraded', result);
         }
       } catch (error) {
@@ -562,7 +565,7 @@ export class HealthMonitor extends EventEmitter {
           message: `Checker threw: ${error instanceof Error ? error.message : 'Unknown'}`,
         };
         this.latest.set(service, bad);
-        console.error(`[proactive] health check error for ${service}:`, error);
+        log.error('Health check error', error instanceof Error ? error : new Error(String(error)), { service });
         this.emit('degraded', bad);
       }
     }
@@ -689,7 +692,7 @@ async function gatherFileContext(keywords: string[]): Promise<ContextSource[]> {
     }
     return sources;
   } catch (error) {
-    console.error('[proactive] gatherFileContext failed:', error);
+    log.error('gatherFileContext failed', error instanceof Error ? error : new Error(String(error)));
     return [];
   }
 }
@@ -907,7 +910,7 @@ export class BackgroundResearcher {
       }
 
       const terms = extractSearchTerms(query);
-      console.error(`[proactive] research started id=${id} terms=[${terms.join(', ')}]`);
+      log.info('Research started', { id, terms });
 
       // Build placeholder results; real results injected via inject()
       const pending = buildPendingResults(query, terms);
@@ -927,11 +930,11 @@ export class BackgroundResearcher {
         completedAt: Date.now(),
       });
 
-      console.error(`[proactive] research completed id=${id} results=${pending.length}`);
+      log.info('Research completed', { id, resultCount: pending.length });
     } catch (error) {
       const current = this.tasks.get(id);
       if (!current) return;
-      console.error(`[proactive] research failed id=${id}:`, error);
+      log.error('Research failed', error instanceof Error ? error : new Error(String(error)), { id });
       this.tasks.set(id, {
         ...current,
         status: 'failed',

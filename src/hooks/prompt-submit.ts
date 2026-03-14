@@ -16,6 +16,9 @@ import { randomUUID } from 'crypto';
 import type { Context } from 'hono';
 import { UserPromptSubmitPayloadSchema } from './schemas.js';
 import type { HookProcessingResult } from './types.js';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('PromptSubmit');
 
 // In-memory storage for prompt events
 const promptEvents = new Map<string, PromptEvent[]>();
@@ -53,7 +56,7 @@ export async function handlePromptSubmit(c: Context): Promise<HookProcessingResu
 
     const parsed = UserPromptSubmitPayloadSchema.safeParse(payload);
     if (!parsed.success) {
-      console.error('[Hook] Prompt submit validation failed:', parsed.error.flatten());
+      log.error('Prompt submit validation failed', new Error(parsed.error.message));
       return {
         success: false,
         eventId: '',
@@ -78,17 +81,14 @@ export async function handlePromptSubmit(c: Context): Promise<HookProcessingResu
 
     // Log for debugging
     const promptPreview = event.prompt.slice(0, 50) + (event.prompt.length > 50 ? '...' : '');
-    console.log(`[Hook] UserPromptSubmit: "${promptPreview}"`);
-    if (event.context?.file) {
-      console.log(`[Hook] Context file: ${event.context.file}`);
-    }
+    log.info('UserPromptSubmit', { promptPreview, contextFile: event.context?.file });
 
     return {
       success: true,
       eventId: event.id,
     };
   } catch (error) {
-    console.error('[Hook] Error processing prompt submit:', error);
+    log.error('Error processing prompt submit', error instanceof Error ? error : new Error(String(error)));
     return {
       success: false,
       eventId: '',

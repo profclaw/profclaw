@@ -705,7 +705,7 @@ export interface PluginHealth {
 // Extended/API-specific Types
 // ================================
 
-export type ExternalPlatform = 'github' | 'jira' | 'linear';
+export type ExternalPlatform = 'github' | 'jira' | 'linear' | 'plane';
 
 export interface TicketWithRelations extends Ticket {
   externalLinks: TicketExternalLink[];

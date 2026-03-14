@@ -31,8 +31,22 @@ interface RootLayoutProps {
   children: ReactNode;
 }
 
+type SidebarNavItem = {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  shortcut?: string;
+  hasBadge?: 'pending' | 'dlq';
+};
+
+type SidebarNavGroup = {
+  id: string;
+  label: string;
+  items: SidebarNavItem[];
+};
+
 // Navigation grouped by category with collapsible support (inspired by Plane.so)
-const navGroups = [
+const navGroups: SidebarNavGroup[] = [
   {
     id: 'home',
     label: 'Home',
@@ -85,7 +99,7 @@ const navGroups = [
   },
 ];
 
-const adminNav = {
+const adminNav: SidebarNavGroup = {
   id: 'admin',
   label: 'Admin',
   items: [
@@ -155,7 +169,7 @@ function NavGroupHeader({ label, collapsed, isOpen, onToggle, itemCount }: NavGr
 
 // Nav item component with tooltip and badge support
 interface NavItemProps {
-  item: { name: string; href: string; icon: React.ComponentType<{ className?: string }>; shortcut?: string };
+  item: { name: string; href: string; icon: React.ComponentType<{ className?: string }>; shortcut?: string; hasBadge?: 'pending' | 'dlq' };
   isActive: boolean;
   collapsed: boolean;
   onClick: () => void;
@@ -488,8 +502,8 @@ export function RootLayout({ children }: RootLayoutProps) {
 
                       // Get badge count based on item config
                       let badge: number | undefined;
-                      if ((item as any).hasBadge === 'pending') badge = stats?.pending;
-                      if ((item as any).hasBadge === 'dlq') badge = dlqStats?.total;
+                      if (item.hasBadge === 'pending') badge = stats?.pending;
+                      if (item.hasBadge === 'dlq') badge = dlqStats?.total;
 
                       return (
                         <NavItem

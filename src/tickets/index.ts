@@ -179,7 +179,7 @@ export async function createTicket(input: CreateTicketInput): Promise<Ticket> {
     estimateUnit: parsed.estimateUnit,
   };
 
-  await db.insert(tickets).values({
+  const ticketRow: typeof tickets.$inferInsert = {
     id: ticket.id,
     sequence: ticket.sequence,
     projectId: ticket.projectId,
@@ -198,11 +198,13 @@ export async function createTicket(input: CreateTicketInput): Promise<Ticket> {
     aiAgent: ticket.aiAgent,
     aiSessionId: ticket.aiSessionId,
     aiTaskId: ticket.aiTaskId,
-    startDate: ticket.startDate,
-    dueDate: ticket.dueDate,
+    startDate: ticket.startDate ? new Date(ticket.startDate) : undefined,
+    dueDate: ticket.dueDate ? new Date(ticket.dueDate) : undefined,
     estimate: ticket.estimate,
     estimateUnit: ticket.estimateUnit,
-  });
+  };
+
+  await db.insert(tickets).values(ticketRow);
 
   // Record creation in history
   await recordHistory(id, "created", undefined, "created", {
@@ -1557,7 +1559,7 @@ export async function createTicketFromSync(
     sequence,
   };
 
-  await db.insert(tickets).values({
+  const ticketRow: typeof tickets.$inferInsert = {
     id: newTicket.id,
     sequence: newTicket.sequence,
     title: newTicket.title,
@@ -1575,11 +1577,13 @@ export async function createTicketFromSync(
     aiAgent: newTicket.aiAgent,
     aiSessionId: newTicket.aiSessionId,
     aiTaskId: newTicket.aiTaskId,
-    startDate: newTicket.startDate,
-    dueDate: newTicket.dueDate,
+    startDate: newTicket.startDate ? new Date(newTicket.startDate) : undefined,
+    dueDate: newTicket.dueDate ? new Date(newTicket.dueDate) : undefined,
     estimate: newTicket.estimate,
     estimateUnit: newTicket.estimateUnit,
-  });
+  };
+
+  await db.insert(tickets).values(ticketRow);
 
   // Create external link
   await createExternalLink(id, link);

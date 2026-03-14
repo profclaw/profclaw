@@ -648,7 +648,7 @@ export function SprintBoard({ projectId, sprintId }: SprintBoardProps) {
       const previousData = queryClient.getQueryData(['tickets', 'board', projectId, sprintId]);
 
       // Optimistically update
-      queryClient.setQueryData(['tickets', 'board', projectId, sprintId], (old: any) => {
+      queryClient.setQueryData(['tickets', 'board', projectId, sprintId], (old: { tickets: Ticket[] } | undefined) => {
         if (!old?.tickets) return old;
         return {
           ...old,

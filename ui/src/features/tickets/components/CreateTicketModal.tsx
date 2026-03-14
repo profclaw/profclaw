@@ -83,7 +83,7 @@ export function CreateTicketModal({ defaultProjectId, defaultParentId }: CreateT
     queryFn: () =>
       api.tickets.list({
         projectId: projectId || undefined,
-        type: ['epic', 'story'] as any,
+        type: ['epic', 'story'] as TicketType[],
         limit: 50,
       }),
     enabled: open, // Only fetch when modal is open

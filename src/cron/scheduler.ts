@@ -779,16 +779,16 @@ export class JobScheduler {
       // Execute based on job type
       switch (job.jobType) {
         case 'http':
-          result = await this.executeHttpJob(job.payload as HttpJobPayload);
+          result = await this.executeHttpJob(job.payload as unknown as HttpJobPayload);
           break;
         case 'tool':
-          result = await this.executeToolJob(job.payload as ToolJobPayload);
+          result = await this.executeToolJob(job.payload as unknown as ToolJobPayload);
           break;
         case 'script':
-          result = await this.executeScriptJob(job.payload as ScriptJobPayload);
+          result = await this.executeScriptJob(job.payload as unknown as ScriptJobPayload);
           break;
         case 'message':
-          result = await this.executeMessageJob(job.payload as MessageJobPayload);
+          result = await this.executeMessageJob(job.payload as unknown as MessageJobPayload);
           break;
         default:
           result = { success: false, error: `Unknown job type: ${job.jobType}`, durationMs: 0 };

@@ -9,6 +9,7 @@ import { ReactRenderer } from '@tiptap/react';
 import Mention from '@tiptap/extension-mention';
 import tippy from 'tippy.js';
 import type { Instance as TippyInstance } from 'tippy.js';
+import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion';
 import { MentionSuggestion } from './mention-suggestion';
 import type { MentionSuggestionRef, MentionItem } from './mention-suggestion';
 
@@ -57,7 +58,7 @@ export function createMentionExtension() {
         let popup: TippyInstance[] | null = null;
 
         return {
-          onStart: (props: any) => {
+          onStart: (props: SuggestionProps<MentionItem>) => {
             component = new ReactRenderer(MentionSuggestion, {
               props,
               editor: props.editor,
@@ -68,7 +69,7 @@ export function createMentionExtension() {
             }
 
             popup = tippy('body', {
-              getReferenceClientRect: props.clientRect,
+              getReferenceClientRect: props.clientRect as () => DOMRect,
               appendTo: () => document.body,
               content: component.element,
               showOnCreate: true,
@@ -83,7 +84,7 @@ export function createMentionExtension() {
             });
           },
 
-          onUpdate(props: any) {
+          onUpdate(props: SuggestionProps<MentionItem>) {
             component?.updateProps(props);
 
             if (!props.clientRect) {
@@ -91,11 +92,11 @@ export function createMentionExtension() {
             }
 
             popup?.[0]?.setProps({
-              getReferenceClientRect: props.clientRect,
+              getReferenceClientRect: props.clientRect as () => DOMRect,
             });
           },
 
-          onKeyDown(props: any) {
+          onKeyDown(props: SuggestionKeyDownProps) {
             if (props.event.key === 'Escape') {
               popup?.[0]?.hide();
               return true;

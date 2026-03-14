@@ -1,5 +1,8 @@
 import { Hono } from "hono";
 import { validateFileUpload, sanitizeFilename } from "../utils/security.js";
+import { createContextualLogger } from "../utils/logger.js";
+
+const log = createContextualLogger('Tickets');
 import {
   createTicket,
   getTicket,
@@ -209,7 +212,7 @@ ticketsRouter.get("/", async (c) => {
       sparse: !includeFull, // Indicate if response is sparse
     });
   } catch (error) {
-    console.error("[API] Error querying tickets:", error);
+    log.error('Error querying tickets', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to query tickets" }, 500);
   }
 });
@@ -241,7 +244,7 @@ ticketsRouter.post("/", async (c) => {
       201,
     );
   } catch (error) {
-    console.error("[API] Error creating ticket:", error);
+    log.error('Error creating ticket', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         error: "Failed to create ticket",
@@ -277,7 +280,7 @@ ticketsRouter.post("/bulk-update", async (c) => {
       failed: result.failed,
     });
   } catch (error) {
-    console.error("[API] Error bulk updating tickets:", error);
+    log.error('Error bulk updating tickets', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to bulk update tickets" }, 500);
   }
 });
@@ -305,7 +308,7 @@ ticketsRouter.post("/bulk-delete", async (c) => {
       failed: result.failed,
     });
   } catch (error) {
-    console.error("[API] Error bulk deleting tickets:", error);
+    log.error('Error bulk deleting tickets', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to bulk delete tickets" }, 500);
   }
 });
@@ -327,7 +330,7 @@ ticketsRouter.get("/:id", async (c) => {
 
     return c.json({ ticket });
   } catch (error) {
-    console.error("[API] Error fetching ticket:", error);
+    log.error('Error fetching ticket', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to fetch ticket" }, 500);
   }
 });
@@ -362,7 +365,7 @@ ticketsRouter.patch("/:id", async (c) => {
       ticket,
     });
   } catch (error) {
-    console.error("[API] Error updating ticket:", error);
+    log.error('Error updating ticket', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         error: "Failed to update ticket",
@@ -386,7 +389,7 @@ ticketsRouter.delete("/:id", async (c) => {
 
     return c.json({ message: "Ticket deleted" });
   } catch (error) {
-    console.error("[API] Error deleting ticket:", error);
+    log.error('Error deleting ticket', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to delete ticket" }, 500);
   }
 });
@@ -405,7 +408,7 @@ ticketsRouter.get("/:id/links", async (c) => {
     const links = await getExternalLinks(id);
     return c.json({ ticketId: id, links, count: links.length });
   } catch (error) {
-    console.error("[API] Error fetching links:", error);
+    log.error('Error fetching links', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to fetch links" }, 500);
   }
 });
@@ -440,7 +443,7 @@ ticketsRouter.post("/:id/links", async (c) => {
       201,
     );
   } catch (error) {
-    console.error("[API] Error creating link:", error);
+    log.error('Error creating link', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to create link" }, 500);
   }
 });
@@ -459,7 +462,7 @@ ticketsRouter.get("/:id/comments", async (c) => {
     const comments = await getComments(id);
     return c.json({ ticketId: id, comments, count: comments.length });
   } catch (error) {
-    console.error("[API] Error fetching comments:", error);
+    log.error('Error fetching comments', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to fetch comments" }, 500);
   }
 });
@@ -495,7 +498,7 @@ ticketsRouter.post("/:id/comments", async (c) => {
       201,
     );
   } catch (error) {
-    console.error("[API] Error adding comment:", error);
+    log.error('Error adding comment', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to add comment" }, 500);
   }
 });
@@ -514,7 +517,7 @@ ticketsRouter.get("/:id/history", async (c) => {
     const history = await getHistory(id);
     return c.json({ ticketId: id, history, count: history.length });
   } catch (error) {
-    console.error("[API] Error fetching history:", error);
+    log.error('Error fetching history', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to fetch history" }, 500);
   }
 });
@@ -533,7 +536,7 @@ ticketsRouter.get("/:id/relations", async (c) => {
     const relations = await getTicketRelations(id);
     return c.json({ ticketId: id, relations, count: relations.length });
   } catch (error) {
-    console.error("[API] Error fetching relations:", error);
+    log.error('Error fetching relations', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to fetch relations" }, 500);
   }
 });
@@ -587,7 +590,7 @@ ticketsRouter.post("/:id/relations", async (c) => {
       201,
     );
   } catch (error) {
-    console.error("[API] Error creating relation:", error);
+    log.error('Error creating relation', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to create relation" }, 500);
   }
 });
@@ -609,7 +612,7 @@ ticketsRouter.delete("/:id/relations/:relationId", async (c) => {
 
     return c.json({ message: "Relation deleted" });
   } catch (error) {
-    console.error("[API] Error deleting relation:", error);
+    log.error('Error deleting relation', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to delete relation" }, 500);
   }
 });
@@ -628,7 +631,7 @@ ticketsRouter.get("/:id/watchers", async (c) => {
     const watchers = await getTicketWatchers(id);
     return c.json({ ticketId: id, watchers, count: watchers.length });
   } catch (error) {
-    console.error("[API] Error fetching watchers:", error);
+    log.error('Error fetching watchers', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to fetch watchers" }, 500);
   }
 });
@@ -652,7 +655,7 @@ ticketsRouter.post("/:id/watchers", async (c) => {
     const watcher = await addTicketWatcher(id, userId);
     return c.json({ message: "Watcher added", watcher }, 201);
   } catch (error) {
-    console.error("[API] Error adding watcher:", error);
+    log.error('Error adding watcher', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to add watcher" }, 500);
   }
 });
@@ -674,7 +677,7 @@ ticketsRouter.delete("/:id/watchers/:userId", async (c) => {
 
     return c.json({ message: "Watcher removed" });
   } catch (error) {
-    console.error("[API] Error removing watcher:", error);
+    log.error('Error removing watcher', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to remove watcher" }, 500);
   }
 });
@@ -693,7 +696,7 @@ ticketsRouter.get("/:id/assignees", async (c) => {
     const assignees = await getTicketAssignees(id);
     return c.json({ ticketId: id, assignees, count: assignees.length });
   } catch (error) {
-    console.error("[API] Error fetching assignees:", error);
+    log.error('Error fetching assignees', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to fetch assignees" }, 500);
   }
 });
@@ -717,7 +720,7 @@ ticketsRouter.post("/:id/assignees", async (c) => {
     const assignee = await addTicketAssignee(id, userId);
     return c.json({ message: "Assignee added", assignee }, 201);
   } catch (error) {
-    console.error("[API] Error adding assignee:", error);
+    log.error('Error adding assignee', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to add assignee" }, 500);
   }
 });
@@ -739,7 +742,7 @@ ticketsRouter.delete("/:id/assignees/:userId", async (c) => {
 
     return c.json({ message: "Assignee removed" });
   } catch (error) {
-    console.error("[API] Error removing assignee:", error);
+    log.error('Error removing assignee', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to remove assignee" }, 500);
   }
 });
@@ -758,7 +761,7 @@ ticketsRouter.get("/:id/mentions", async (c) => {
     const mentions = await getTicketMentions(id);
     return c.json({ ticketId: id, mentions, count: mentions.length });
   } catch (error) {
-    console.error("[API] Error fetching mentions:", error);
+    log.error('Error fetching mentions', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to fetch mentions" }, 500);
   }
 });
@@ -792,7 +795,7 @@ ticketsRouter.post("/:id/mentions", async (c) => {
 
     return c.json({ message: "Mention added", mention }, 201);
   } catch (error) {
-    console.error("[API] Error adding mention:", error);
+    log.error('Error adding mention', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to add mention" }, 500);
   }
 });
@@ -811,7 +814,7 @@ ticketsRouter.get("/:id/attachments", async (c) => {
     const attachments = await getTicketAttachments(id);
     return c.json({ ticketId: id, attachments, count: attachments.length });
   } catch (error) {
-    console.error("[API] Error fetching attachments:", error);
+    log.error('Error fetching attachments', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to fetch attachments" }, 500);
   }
 });
@@ -865,7 +868,7 @@ ticketsRouter.post("/:id/attachments", async (c) => {
 
     return c.json({ message: "Attachment added", attachment }, 201);
   } catch (error) {
-    console.error("[API] Error adding attachment:", error);
+    log.error('Error adding attachment', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to add attachment" }, 500);
   }
 });
@@ -887,7 +890,7 @@ ticketsRouter.delete("/:id/attachments/:attachmentId", async (c) => {
 
     return c.json({ message: "Attachment deleted" });
   } catch (error) {
-    console.error("[API] Error deleting attachment:", error);
+    log.error('Error deleting attachment', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to delete attachment" }, 500);
   }
 });
@@ -906,7 +909,7 @@ ticketsRouter.get("/:id/reactions", async (c) => {
     const reactions = await getTicketReactions(id);
     return c.json({ ticketId: id, reactions, count: reactions.length });
   } catch (error) {
-    console.error("[API] Error fetching reactions:", error);
+    log.error('Error fetching reactions', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to fetch reactions" }, 500);
   }
 });
@@ -935,7 +938,7 @@ ticketsRouter.post("/:id/reactions", async (c) => {
 
     return c.json({ message: "Reaction added", reaction }, 201);
   } catch (error) {
-    console.error("[API] Error adding reaction:", error);
+    log.error('Error adding reaction', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to add reaction" }, 500);
   }
 });
@@ -957,7 +960,7 @@ ticketsRouter.delete("/:id/reactions/:reactionId", async (c) => {
 
     return c.json({ message: "Reaction deleted" });
   } catch (error) {
-    console.error("[API] Error deleting reaction:", error);
+    log.error('Error deleting reaction', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to delete reaction" }, 500);
   }
 });
@@ -1003,7 +1006,7 @@ ticketsRouter.post("/:id/transition", async (c) => {
       ticket,
     });
   } catch (error) {
-    console.error("[API] Error transitioning ticket:", error);
+    log.error('Error transitioning ticket', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to transition ticket" }, 500);
   }
 });
@@ -1032,7 +1035,7 @@ ticketsRouter.post("/:id/assign-agent", async (c) => {
       ticket,
     });
   } catch (error) {
-    console.error("[API] Error assigning agent:", error);
+    log.error('Error assigning agent', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to assign agent" }, 500);
   }
 });
@@ -1104,7 +1107,7 @@ ticketsRouter.post("/ai/categorize", async (c) => {
       durationMs: result.durationMs,
     });
   } catch (error) {
-    console.error("[API] Error categorizing ticket:", error);
+    log.error('Error categorizing ticket', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to categorize ticket" }, 500);
   }
 });
@@ -1138,7 +1141,7 @@ ticketsRouter.post("/ai/suggest", async (c) => {
       durationMs: result.durationMs,
     });
   } catch (error) {
-    console.error("[API] Error getting suggestions:", error);
+    log.error('Error getting suggestions', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to get suggestions" }, 500);
   }
 });
@@ -1179,7 +1182,7 @@ ticketsRouter.get("/:id/ai/summary", async (c) => {
       durationMs: result.durationMs,
     });
   } catch (error) {
-    console.error("[API] Error summarizing ticket:", error);
+    log.error('Error summarizing ticket', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to summarize ticket" }, 500);
   }
 });
@@ -1239,7 +1242,7 @@ ticketsRouter.get("/:id/similar", async (c) => {
       count: similarities.length,
     });
   } catch (error) {
-    console.error("[API] Error finding similar tickets:", error);
+    log.error('Error finding similar tickets', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to find similar tickets" }, 500);
   }
 });
@@ -1352,7 +1355,7 @@ ticketsRouter.post("/:id/comments/ai-respond", async (c) => {
       durationMs: result.durationMs,
     });
   } catch (error) {
-    console.error("[API] Error generating AI response:", error);
+    log.error('Error generating AI response', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to generate AI response" }, 500);
   }
 });
@@ -1402,7 +1405,7 @@ ticketsRouter.post("/:id/ai/analyze-comment", async (c) => {
       durationMs: result.durationMs,
     });
   } catch (error) {
-    console.error("[API] Error analyzing comment:", error);
+    log.error('Error analyzing comment', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: "Failed to analyze comment" }, 500);
   }
 });

@@ -1,5 +1,8 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('Gateway');
 import type { GatewayRequest, WorkflowType } from '../gateway/index.js';
 import type { GatewayContext } from '../gateway/types.js';
 import { CreateTaskSchema } from '../types/task.js';
@@ -112,7 +115,7 @@ gateway.post('/execute', async (c) => {
       metrics: response.metrics,
     });
   } catch (error) {
-    console.error('[Gateway] Execute error:', error);
+    log.error('Execute error', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       error: 'Gateway execution failed',
       message: error instanceof Error ? error.message : 'Unknown error',

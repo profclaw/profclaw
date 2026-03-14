@@ -1,5 +1,8 @@
 import { Context } from 'hono';
 import { getGitHubOAuthConfig } from '../settings/index.js';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('OAuth');
 
 interface GitHubOAuthTokenResponse {
   access_token?: string;
@@ -70,7 +73,7 @@ export async function handleGitHubCallback(c: Context) {
       scope: data.scope as string,
     });
   } catch (error) {
-    console.error('[GitHub Auth] Callback error:', error);
+    log.error('GitHub callback error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Internal server error' }, 500);
   }
 }

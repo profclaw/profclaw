@@ -44,7 +44,7 @@ pnpm lint       # Only before committing
 git add <specific-files>    # Never git add -A blindly
 git commit -m "<type>: <description>
 
-Co-Authored-By: profClaw <bot@profclaw.dev>"
+Co-Authored-By: profClaw <bot@profclaw.ai>"
 ```
 
 ### 5. Push and PR

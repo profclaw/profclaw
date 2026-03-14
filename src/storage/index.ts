@@ -1,6 +1,12 @@
 import { LibSQLAdapter } from "./libsql.js";
 import type { StorageAdapter } from "./adapter.js";
+import type { LibSQLDatabase } from "drizzle-orm/libsql";
+import type { Client, Row } from "@libsql/client";
 import { loadConfig } from "../utils/config-loader.js";
+import * as schema from "./schema.js";
+import { createContextualLogger } from "../utils/logger.js";
+
+const log = createContextualLogger('Storage');
 
 interface SettingsYaml {
   storage?: {
@@ -41,11 +47,9 @@ export async function initStorage(): Promise<StorageAdapter> {
   if (tier === "local") {
     const dbPath = dbPathOverride || process.env.DB_PATH || settings.storage?.dbPath;
     storage = new LibSQLAdapter({ dbPath });
-    console.log(
-      `[Storage] Initializing LibSQL storage at ${dbPath || "default path"}`,
-    );
+    log.info('Initializing LibSQL storage', { dbPath: dbPath || 'default path' });
   } else {
-    console.log("[Storage] Initializing in-memory storage (LibSQL in-memory)");
+    log.info('Initializing in-memory storage (LibSQL in-memory)');
     storage = new LibSQLAdapter({ dbPath: ":memory:" });
   }
 
@@ -66,22 +70,21 @@ export function getStorage(): StorageAdapter {
 /**
  * Get the raw drizzle database instance for advanced queries
  */
-export function getDb(): any {
+export function getDb(): LibSQLDatabase<typeof schema> {
   if (!storage) {
     throw new Error("Storage not initialized. Call initStorage() first.");
   }
-  // Access the internal db property
-  return (storage as any).db;
+  return (storage as LibSQLAdapter).getDb();
 }
 
 /**
  * Get the raw libsql client for executing raw SQL
  */
-export function getClient(): any {
+export function getClient(): Client {
   if (!storage) {
     throw new Error("Storage not initialized. Call initStorage() first.");
   }
-  return (storage as any).client;
+  return (storage as LibSQLAdapter).getClient();
 }
 
 export * from "./adapter.js";
@@ -157,9 +160,13 @@ export async function loadAllProviderConfigs(): Promise<SavedProviderConfig[]> {
   });
 
   return result.rows
-    .map((row: { value: unknown }) => {
+    .map((row: Row) => {
+      const value = row.value;
+      if (typeof value !== "string") {
+        return null;
+      }
       try {
-        return JSON.parse(row.value as string) as SavedProviderConfig;
+        return JSON.parse(value) as SavedProviderConfig;
       } catch {
         return null;
       }

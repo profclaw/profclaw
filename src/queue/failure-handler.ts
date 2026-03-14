@@ -12,6 +12,9 @@ import { sendSlackNotification } from '../notifications/slack.js';
 import { getStorage } from '../storage/index.js';
 import { randomUUID } from 'crypto';
 import type { Queue } from 'bullmq';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('FailureHandler');
 
 // Reference to the task queue (set during init)
 let taskQueueRef: Queue<Task> | null = null;
@@ -144,14 +147,14 @@ export async function initDeadLetterQueue(): Promise<void> {
  * Handle a failed task
  */
 export async function handleTaskFailure(task: Task, error: Error): Promise<void> {
-  console.error(`[FailureHandler] Task ${task.id} failed: ${error.message}`);
+  log.error(`Task ${task.id} failed`, new Error(error.message));
 
   task.attempts = (task.attempts || 0) + 1;
 
   // Check if we should retry
   if (task.attempts < task.maxAttempts) {
     const delay = calculateBackoffWithJitter(task.attempts);
-    console.log(`[FailureHandler] Scheduling retry ${task.attempts}/${task.maxAttempts} in ${Math.round(delay / 1000)}s`);
+    log.info('Scheduling retry', { taskId: task.id, attempt: task.attempts, maxAttempts: task.maxAttempts, delaySeconds: Math.round(delay / 1000) });
 
     // Actually retry with BullMQ delay
     if (taskQueueRef) {
@@ -164,9 +167,9 @@ export async function handleTaskFailure(task: Task, error: Error): Promise<void>
           jobId: `${task.id}-retry-${task.attempts}`,
         }
       );
-      console.log(`[FailureHandler] Task ${task.id} requeued with ${delay}ms delay`);
+      log.info('Task requeued with delay', { taskId: task.id, delayMs: delay });
     } else {
-      console.warn('[FailureHandler] Task queue not available, cannot retry');
+      log.warn('Task queue not available, cannot retry');
     }
 
     await sendSlackNotification({
@@ -175,13 +178,13 @@ export async function handleTaskFailure(task: Task, error: Error): Promise<void>
       message: `Attempt ${task.attempts}/${task.maxAttempts} failed. Retrying in ${Math.round(delay / 60000)} minutes.\nError: ${error.message}`,
       task,
       severity: 'info',
-    }).catch(console.error);
+    }).catch((err: unknown) => log.error('Slack notification failed', err instanceof Error ? err : new Error(String(err))));
 
     return;
   }
 
   // Max retries reached - move to dead letter queue
-  console.error(`[FailureHandler] Task ${task.id} exceeded max retries, moving to dead letter queue`);
+  log.error(`Task ${task.id} exceeded max retries, moving to dead letter queue`, new Error('MAX_RETRIES_EXCEEDED'));
 
   task.status = 'failed';
   task.result = {
@@ -207,7 +210,7 @@ export async function handleTaskFailure(task: Task, error: Error): Promise<void>
     message: `Task failed after ${task.maxAttempts} attempts and moved to dead letter queue.\n\nLast error: ${error.message}\n\nSource: ${task.sourceUrl || 'N/A'}`,
     task,
     severity: 'error',
-  }).catch(console.error);
+  }).catch((err: unknown) => log.error('Slack notification failed', err instanceof Error ? err : new Error(String(err))));
 }
 
 /**
@@ -264,7 +267,7 @@ async function addToDeadLetterQueue(task: Task, error: Error): Promise<void> {
     ]
   );
 
-  console.log(`[FailureHandler] Task ${task.id} persisted to DLQ with ID ${id}`);
+  log.info('Task persisted to DLQ', { taskId: task.id, dlqId: id });
 }
 
 /**
@@ -320,7 +323,7 @@ This task has been moved to the dead letter queue for manual review. Please:
       }
     );
   } catch (err) {
-    console.error('[FailureHandler] Failed to post GitHub comment:', err);
+    log.error('Failed to post GitHub comment', err instanceof Error ? err : new Error(String(err)));
   }
 }
 
@@ -429,7 +432,7 @@ export async function discardFromDeadLetterQueue(
  */
 export async function retryDeadLetterTask(dlqId: string): Promise<boolean> {
   if (!taskQueueRef) {
-    console.error('[FailureHandler] Task queue not available, cannot retry');
+    log.error('Task queue not available, cannot retry', new Error('QUEUE_NOT_INITIALIZED'));
     return false;
   }
 
@@ -442,7 +445,7 @@ export async function retryDeadLetterTask(dlqId: string): Promise<boolean> {
   );
 
   if (rows.length === 0) {
-    console.error(`[FailureHandler] DLQ entry ${dlqId} not found or not pending`);
+    log.error(`DLQ entry not found or not pending`, new Error(`DLQ entry ${dlqId} not found`));
     return false;
   }
 
@@ -492,7 +495,7 @@ export async function retryDeadLetterTask(dlqId: string): Promise<boolean> {
     [dlqId]
   );
 
-  console.log(`[FailureHandler] Task ${task.id} moved from DLQ back to main queue`);
+  log.info('Task moved from DLQ back to main queue', { taskId: task.id, dlqId });
   return true;
 }
 
@@ -519,7 +522,7 @@ export async function cleanupDeadLetterQueue(
   );
 
   const remainingCount = remaining[0]?.count ?? 0;
-  console.log(`[FailureHandler] DLQ cleanup: removed entries older than ${retentionDays} days (${remainingCount} resolved/discarded remaining)`);
+  log.info('DLQ cleanup complete', { retentionDays, remainingResolved: remainingCount });
   return remainingCount;
 }
 

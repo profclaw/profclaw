@@ -1,3 +1,4 @@
+import type { ComponentType } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -219,7 +220,7 @@ export function TaskDetail() {
   );
 }
 
-function TaskMeta({ label, value, icon: Icon, href }: { label: string, value: string, icon: any, href?: string }) {
+function TaskMeta({ label, value, icon: Icon, href }: { label: string, value: string, icon: ComponentType<{ className?: string }>, href?: string }) {
   const content = (
     <div className="flex items-center gap-2 group/meta cursor-default">
       <div className="h-8 w-8 rounded-lg glass-heavy flex items-center justify-center border-white/5">

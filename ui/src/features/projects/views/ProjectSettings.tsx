@@ -1,3 +1,4 @@
+import type { ComponentType } from 'react';
 import { Settings, Shield, Zap, Github } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -36,7 +37,7 @@ export function ProjectSettings() {
   );
 }
 
-function SettingsCard({ icon: Icon, title, description }: { icon: any, title: string, description: string }) {
+function SettingsCard({ icon: Icon, title, description }: { icon: ComponentType<{ className?: string }>, title: string, description: string }) {
   return (
     <div className="glass-card p-6 rounded-[28px] border border-white/5 hover:border-primary/30 transition-all group flex items-start gap-4">
       <div className="p-3 rounded-2xl bg-white/5 group-hover:scale-110 transition-transform shadow-inner">

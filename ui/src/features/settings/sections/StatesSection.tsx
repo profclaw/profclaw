@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import { SettingsCard } from '../components';
 import { StateModal } from '../../projects/components/StateModal';
 import { toast } from 'sonner';
-import type { StateGroup } from '@/core/types';
+import type { State, StateGroup } from '@/core/types';
 
 const GROUP_LABELS: Record<StateGroup, string> = {
   backlog: 'Backlog',
@@ -27,7 +27,7 @@ const GROUP_LABELS: Record<StateGroup, string> = {
 
 export function StatesSection() {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingState, setEditingState] = useState<any>(null);
+  const [editingState, setEditingState] = useState<State | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const queryClient = useQueryClient();
 
@@ -65,7 +65,7 @@ export function StatesSection() {
     GROUP_LABELS[s.stateGroup as StateGroup].toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleEdit = (state: any) => {
+  const handleEdit = (state: State) => {
     setEditingState(state);
     setIsModalOpen(true);
   };
@@ -215,7 +215,7 @@ export function StatesSection() {
         open={isModalOpen}
         onOpenChange={setIsModalOpen}
         projectId={projectId}
-        state={editingState}
+        state={editingState ?? undefined}
       />
     </>
   );

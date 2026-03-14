@@ -1,4 +1,7 @@
 import type { ToolResult } from '../types.js';
+import { createContextualLogger } from '../../../utils/logger.js';
+
+const log = createContextualLogger('Workflow');
 import type {
   WorkflowDefinition,
   WorkflowExecution,
@@ -277,7 +280,7 @@ export class WorkflowExecutor {
           timeoutPromise,
         ]);
       } catch (error) {
-        console.error(`[workflow] Step "${step.id}" timed out:`, error);
+        log.error('Step timed out', error instanceof Error ? error : new Error(String(error)), { stepId: step.id });
         return {
           success: false,
           error: {
@@ -291,7 +294,7 @@ export class WorkflowExecutor {
     try {
       return await context.toolExecutor(step.tool, params);
     } catch (error) {
-      console.error(`[workflow] Step "${step.id}" threw:`, error);
+      log.error('Step threw error', error instanceof Error ? error : new Error(String(error)), { stepId: step.id });
       return {
         success: false,
         error: {

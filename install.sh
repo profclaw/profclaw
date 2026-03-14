@@ -172,7 +172,7 @@ print_next_steps() {
     fi
 
     echo ""
-    echo "  Documentation:  https://profclaw.dev/docs"
+    echo "  Documentation:  https://profclaw.ai/docs"
     echo "  Report issues:  https://github.com/profclaw/profclaw/issues"
     echo ""
 }

@@ -10,6 +10,10 @@
  * 8.4 Quality Scoring
  */
 
+import { createContextualLogger } from '../../utils/logger.js';
+
+const log = createContextualLogger('Guardrails');
+
 // Shared Context Type
 
 export interface GuardrailContext {
@@ -708,7 +712,7 @@ export async function runGuardrails(
   }
 
   if (!passed) {
-    console.error('[guardrails] Guardrail check failed', {
+    log.warn('Guardrail check failed', {
       validationIssues: validation.issues.length,
       hallucinationFlags: hallucination.flags.length,
       safetyBlocked: safety.blocked.length,

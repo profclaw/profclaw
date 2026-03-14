@@ -1089,12 +1089,10 @@ class AIProviderManager {
     } else if (request.tools && request.tools.length > 0) {
       // Fallback: Manual tool prompting
       const toolDescriptions = request.tools.map((t) => {
-        const params = t.parameters;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const shape = (params as any)?._def?.shape || (params as any)?.shape || {};
+        const params = t.parameters as { _def?: { shape?: Record<string, { _def?: { description?: string } }> }; shape?: Record<string, { _def?: { description?: string } }> };
+        const shape: Record<string, { _def?: { description?: string } }> = params?._def?.shape ?? params?.shape ?? {};
         const paramList = Object.entries(shape)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .map(([key, val]: [string, any]) => `  - ${key}: ${val?._def?.description || 'string'}`)
+          .map(([key, val]) => `  - ${key}: ${val?._def?.description || 'string'}`)
           .join('\n');
         return `**${t.name}**: ${t.description}\nParameters:\n${paramList}`;
       }).join('\n\n');

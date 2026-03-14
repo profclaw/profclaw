@@ -13,7 +13,9 @@ import type {
   TaskStatusType,
 } from '../types/task.js';
 import { randomUUID } from 'crypto';
-import { logger } from '../utils/logger.js';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('MemoryQueue');
 import { getStorage, initStorage } from '../storage/index.js';
 import { getConcurrency } from '../core/deployment.js';
 
@@ -88,10 +90,7 @@ async function persistTask(task: Task): Promise<void> {
       await storage.createTask(taskWithDates);
     }
   } catch (error) {
-    logger.error('[MemQueue] Failed to persist task to DB:', {
-      taskId: task.id,
-      error,
-    });
+    log.error('Failed to persist task to DB', { taskId: task.id, error: error instanceof Error ? error.message : String(error) });
   }
 }
 
@@ -115,11 +114,9 @@ async function loadTasksFromDB(): Promise<void> {
         loaded++;
       }
     }
-    logger.info(`[MemQueue] Loaded ${loaded} tasks from database (${tasks.length - loaded} older tasks skipped)`);
+    log.info('Loaded tasks from database', { loaded, skipped: tasks.length - loaded });
   } catch (error) {
-    logger.warn('[MemQueue] Failed to load tasks from DB, starting fresh:', {
-      error,
-    });
+    log.warn('Failed to load tasks from DB, starting fresh', { error: error instanceof Error ? error.message : String(error) });
   }
 }
 
@@ -131,7 +128,7 @@ function emitEvent(event: TaskEvent): void {
     try {
       callback(event);
     } catch (error) {
-      console.error('[MemQueue] Error in event callback:', error);
+      log.error('Error in event callback', error instanceof Error ? error : new Error(String(error)));
     }
   }
 
@@ -160,14 +157,14 @@ function emitEvent(event: TaskEvent): void {
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
-      console.error('[MemQueue] Error broadcasting SSE event:', error);
+      log.error('Error broadcasting SSE event', error instanceof Error ? error : new Error(String(error)));
     }
   }
 
   if (event.type === 'completed' || event.type === 'failed') {
     lazyCreateTaskNotification(event).then((id: string | null) => {
       if (id && sseBroadcaster) sseBroadcaster('notification:new', { id });
-    }).catch(console.error);
+    }).catch((err: unknown) => log.error('Notification creation failed', err instanceof Error ? err : new Error(String(err))));
   }
 }
 
@@ -175,7 +172,7 @@ function emitEvent(event: TaskEvent): void {
  * Process a single task (same logic as BullMQ worker).
  */
 async function processTask(task: Task): Promise<TaskResult> {
-  console.log(`[MemQueue] Processing task ${task.id}: ${task.title}`);
+  log.info('Processing task', { taskId: task.id, title: task.title });
 
   task.status = 'in_progress';
   task.startedAt = new Date();
@@ -203,7 +200,7 @@ async function processTask(task: Task): Promise<TaskResult> {
     return result;
   }
 
-  console.log(`[MemQueue] Using adapter: ${adapter.name}`);
+  log.info('Using adapter', { adapter: adapter.name });
 
   try {
     const result = await adapter.executeTask(task);
@@ -224,14 +221,14 @@ async function processTask(task: Task): Promise<TaskResult> {
           startedAt: task.startedAt,
         });
       } catch (error) {
-        logger.error(`[MemQueue] Failed to create summary for task ${task.id}:`, error as Error);
+        log.error('Failed to create summary', { taskId: task.id, error: error instanceof Error ? error.message : String(error) });
       }
 
       // Post results back to source
       try {
         await lazyPostResultToSource(task, result);
       } catch (error) {
-        logger.error(`[MemQueue] Failed to post result to source for task ${task.id}:`, error as Error);
+        log.error('Failed to post result to source', { taskId: task.id, error: error instanceof Error ? error.message : String(error) });
       }
 
       emitEvent({ type: 'completed', taskId: task.id, task, result });
@@ -241,7 +238,7 @@ async function processTask(task: Task): Promise<TaskResult> {
         task.status = 'queued';
         taskStore.set(task.id, task);
         await persistTask(task);
-        console.log(`[MemQueue] Task ${task.id} failed, retrying (${task.attempts}/${task.maxAttempts})`);
+        log.info('Task failed, retrying', { taskId: task.id, attempt: task.attempts, maxAttempts: task.maxAttempts });
       } else {
         task.status = 'failed';
         task.completedAt = new Date();
@@ -253,7 +250,7 @@ async function processTask(task: Task): Promise<TaskResult> {
         try {
           await handleTaskFailure(task, new Error(result.error?.message || 'Task failed'));
         } catch (dlqError) {
-          logger.error(`[MemQueue] DLQ error for task ${task.id}:`, dlqError as Error);
+          log.error('DLQ error', { taskId: task.id, error: dlqError instanceof Error ? dlqError.message : String(dlqError) });
         }
       }
     }
@@ -271,7 +268,7 @@ async function processTask(task: Task): Promise<TaskResult> {
       task.status = 'queued';
       taskStore.set(task.id, task);
       await persistTask(task);
-      console.log(`[MemQueue] Task ${task.id} errored, retrying (${task.attempts}/${task.maxAttempts})`);
+      log.info('Task errored, retrying', { taskId: task.id, attempt: task.attempts, maxAttempts: task.maxAttempts });
     } else {
       task.status = 'failed';
       task.completedAt = new Date();
@@ -283,7 +280,7 @@ async function processTask(task: Task): Promise<TaskResult> {
       try {
         await handleTaskFailure(task, new Error(errorMessage));
       } catch (dlqError) {
-        logger.error(`[MemQueue] DLQ error for task ${task.id}:`, dlqError as Error);
+        log.error('DLQ error', { taskId: task.id, error: dlqError instanceof Error ? dlqError.message : String(dlqError) });
       }
     }
 
@@ -312,7 +309,7 @@ async function processNext(): Promise<void> {
   } finally {
     activeCount--;
     // Check for more work
-    processNext().catch(console.error);
+    processNext().catch((err: unknown) => log.error('processNext error', err instanceof Error ? err : new Error(String(err))));
   }
 }
 
@@ -337,7 +334,7 @@ function evictStaleTasks(): void {
   }
 
   if (evicted > 0) {
-    logger.info(`[MemQueue] Evicted ${evicted} stale tasks (store size: ${taskStore.size})`);
+    log.info('Evicted stale tasks', { evicted, storeSize: taskStore.size });
   }
 }
 
@@ -354,14 +351,14 @@ export async function initTaskQueue(): Promise<void> {
   // Poll for queued tasks every 500ms
   pollInterval = setInterval(() => {
     if (processing) {
-      processNext().catch(console.error);
+      processNext().catch((err: unknown) => log.error('processNext error', err instanceof Error ? err : new Error(String(err))));
     }
   }, 500);
 
   // Periodic eviction of completed/failed tasks to bound memory
   evictionInterval = setInterval(evictStaleTasks, TASK_EVICTION_INTERVAL_MS);
 
-  console.log(`[MemQueue] In-memory queue initialized (concurrency: ${maxConcurrency})`);
+  log.info('In-memory queue initialized', { concurrency: maxConcurrency });
 }
 
 export async function addTask(input: CreateTaskInput): Promise<Task> {
@@ -389,10 +386,10 @@ export async function addTask(input: CreateTaskInput): Promise<Task> {
 
   emitEvent({ type: 'queued', taskId: task.id, task });
 
-  console.log(`[MemQueue] Task ${task.id} added to queue`);
+  log.info('Task added to queue', { taskId: task.id });
 
   // Trigger processing
-  processNext().catch(console.error);
+  processNext().catch((err: unknown) => log.error('processNext error', err instanceof Error ? err : new Error(String(err))));
 
   return task;
 }
@@ -493,5 +490,5 @@ export async function closeTaskQueue(): Promise<void> {
     clearInterval(evictionInterval);
     evictionInterval = null;
   }
-  console.log('[MemQueue] In-memory queue closed');
+  log.info('In-memory queue closed');
 }

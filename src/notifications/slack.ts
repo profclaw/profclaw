@@ -5,6 +5,9 @@
  */
 
 import type { Task } from '../types/task.js';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('SlackNotify');
 
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL || '';
 const SLACK_CHANNEL = process.env.SLACK_CHANNEL || '';
@@ -105,10 +108,10 @@ export async function sendSlackNotification(notification: SlackNotification): Pr
     });
 
     if (!response.ok) {
-      console.error(`[Slack] Failed to send notification: ${response.status}`);
+      log.error('Failed to send notification', new Error(`HTTP ${response.status}`));
     }
   } catch (error) {
-    console.error('[Slack] Error sending notification:', error);
+    log.error('Error sending notification', error instanceof Error ? error : new Error(String(error)));
   }
 }
 

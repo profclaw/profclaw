@@ -20,8 +20,10 @@ import {
 import { getCookie } from 'hono/cookie';
 import { validateSession } from '../auth/auth-service.js';
 import { createProject, createProjectExternalLink, createSprint } from '../projects/index.js';
+import { createContextualLogger } from '../utils/logger.js';
 
 export const importRoutes = new Hono();
+const log = createContextualLogger('ImportRoutes');
 
 // Types
 interface ImportExecuteRequest {
@@ -192,7 +194,7 @@ importRoutes.post('/github/validate-token', async (c) => {
       stored: store,
     });
   } catch (error) {
-    console.error('[Import] Token validation error:', error);
+    log.error('Token validation error', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       valid: false,
       error: error instanceof Error ? error.message : 'Validation failed',
@@ -225,7 +227,7 @@ importRoutes.get('/github/status', async (c) => {
       error: validation.error,
     });
   } catch (error) {
-    console.error('[Import] Status check error:', error);
+    log.error('Status check error', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       connected: false,
       error: error instanceof Error ? error.message : 'Status check failed',
@@ -255,7 +257,7 @@ importRoutes.get('/github/projects', async (c) => {
       count: projects.length,
     });
   } catch (error) {
-    console.error('[Import] List projects error:', error);
+    log.error('List projects error', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       error: error instanceof Error ? error.message : 'Failed to list projects',
     }, 500);
@@ -282,7 +284,7 @@ importRoutes.get('/github/projects/:projectId/preview', async (c) => {
 
     return c.json(preview);
   } catch (error) {
-    console.error('[Import] Project preview error:', error);
+    log.error('Project preview error', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       error: error instanceof Error ? error.message : 'Failed to get project preview',
     }, 500);
@@ -424,7 +426,7 @@ importRoutes.post('/github/projects/:projectId/dry-run', async (c) => {
       fieldMappings,
     });
   } catch (error) {
-    console.error('[Import] Dry run error:', error);
+    log.error('Dry run error', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       error: error instanceof Error ? error.message : 'Dry run failed',
     }, 500);
@@ -595,7 +597,7 @@ importRoutes.post('/github/projects/:projectId/execute', async (c) => {
       tickets: createdTickets.slice(0, 10), // First 10 for preview
     });
   } catch (error: unknown) {
-    console.error('[Import] Execute error:', error);
+    log.error('Execute error', error instanceof Error ? error : new Error(String(error)));
 
     // Check for unique constraint violation
     if (error instanceof Error && error.message.includes('UNIQUE constraint failed')) {
@@ -636,7 +638,7 @@ importRoutes.get('/github/repos', async (c) => {
       archivedCount: repos.length - activeRepos.length,
     });
   } catch (error) {
-    console.error('[Import] List repos error:', error);
+    log.error('List repos error', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       error: error instanceof Error ? error.message : 'Failed to list repositories',
     }, 500);
@@ -659,7 +661,7 @@ importRoutes.delete('/github/disconnect', async (c) => {
       message: 'GitHub disconnected',
     });
   } catch (error) {
-    console.error('[Import] Disconnect error:', error);
+    log.error('Disconnect error', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       error: error instanceof Error ? error.message : 'Disconnect failed',
     }, 500);

@@ -1,5 +1,16 @@
-import { sqliteTable, text, integer, blob } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, blob, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
+import type { TaskResult } from "../types/task.js";
+import type {
+  ArtifactReference,
+  Blocker,
+  Cost,
+  Decision,
+  FileChange,
+  TokenUsage,
+} from "../types/summary.js";
+
+type JsonObject = Record<string, unknown>;
 
 /**
  * Tasks Table
@@ -33,10 +44,10 @@ export const tasks = sqliteTable("tasks", {
   startedAt: integer("started_at", { mode: "timestamp" }),
   completedAt: integer("completed_at", { mode: "timestamp" }),
   metadata: text("metadata", { mode: "json" })
-    .$type<Record<string, any>>()
+    .$type<JsonObject>()
     .notNull()
     .default(sql`'{}'`),
-  result: text("result", { mode: "json" }).$type<any>(),
+  result: text("result", { mode: "json" }).$type<TaskResult>(),
   attempts: integer("attempts").notNull().default(0),
   maxAttempts: integer("max_attempts").notNull().default(3),
 });
@@ -56,23 +67,23 @@ export const summaries = sqliteTable("summaries", {
   whyChanged: text("why_changed"),
   howChanged: text("how_changed"),
   filesChanged: text("files_changed", { mode: "json" })
-    .$type<any[]>()
+    .$type<FileChange[]>()
     .notNull()
     .default(sql`'[]'`),
   decisions: text("decisions", { mode: "json" })
-    .$type<any[]>()
+    .$type<Decision[]>()
     .notNull()
     .default(sql`'[]'`),
   blockers: text("blockers", { mode: "json" })
-    .$type<any[]>()
+    .$type<Blocker[]>()
     .notNull()
     .default(sql`'[]'`),
   artifacts: text("artifacts", { mode: "json" })
-    .$type<any[]>()
+    .$type<ArtifactReference[]>()
     .notNull()
     .default(sql`'[]'`),
-  tokensUsed: text("tokens_used", { mode: "json" }).$type<any>(),
-  cost: text("cost", { mode: "json" }).$type<any>(),
+  tokensUsed: text("tokens_used", { mode: "json" }).$type<TokenUsage>(),
+  cost: text("cost", { mode: "json" }).$type<Cost>(),
   taskType: text("task_type"),
   component: text("component"),
   labels: text("labels", { mode: "json" })
@@ -88,7 +99,7 @@ export const summaries = sqliteTable("summaries", {
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
-  metadata: text("metadata", { mode: "json" }).$type<Record<string, any>>(),
+  metadata: text("metadata", { mode: "json" }).$type<JsonObject>(),
 });
 
 /**
@@ -126,7 +137,7 @@ export const embeddings = sqliteTable("embeddings", {
  */
 export const settings = sqliteTable("settings", {
   key: text("key").primaryKey(),
-  value: text("value", { mode: "json" }).$type<any>().notNull(),
+  value: text("value", { mode: "json" }).$type<unknown>().notNull(),
   category: text("category").notNull(), // 'appearance' | 'integrations' | 'notifications' | 'system'
   isSecret: integer("is_secret", { mode: "boolean" }).notNull().default(false),
   updatedAt: integer("updated_at", { mode: "timestamp" })
@@ -182,7 +193,7 @@ export const taskEvents = sqliteTable("task_events", {
   type: text("type").notNull(), // 'created' | 'queued' | 'assigned' | 'started' | 'progress' | 'completed' | 'failed' | 'cancelled' | 'retried'
   agentId: text("agent_id"),
   message: text("message"),
-  metadata: text("metadata", { mode: "json" }).$type<Record<string, any>>(),
+  metadata: text("metadata", { mode: "json" }).$type<JsonObject>(),
   timestamp: integer("timestamp", { mode: "timestamp" })
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
@@ -216,8 +227,8 @@ export const taskArchives = sqliteTable("task_archives", {
   archivedAt: integer("archived_at", { mode: "timestamp" })
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
-  result: text("result", { mode: "json" }).$type<any>(),
-  metadata: text("metadata", { mode: "json" }).$type<Record<string, any>>(),
+  result: text("result", { mode: "json" }).$type<TaskResult>(),
+  metadata: text("metadata", { mode: "json" }).$type<JsonObject>(),
   durationMs: integer("duration_ms"), // Pre-computed for analytics
 });
 
@@ -251,7 +262,7 @@ export const tickets = sqliteTable("tickets", {
   assigneeAgent: text("assignee_agent"), // AI agent: claude, openclaw, ollama
 
   // Relationships
-  parentId: text("parent_id").references((): any => tickets.id),
+  parentId: text("parent_id").references((): AnySQLiteColumn => tickets.id),
   linkedPRs: text("linked_prs", { mode: "json" })
     .$type<string[]>()
     .notNull()
@@ -427,7 +438,7 @@ export const ticketComments = sqliteTable("ticket_comments", {
   isAiResponse: integer("is_ai_response", { mode: "boolean" })
     .notNull()
     .default(false),
-  respondingTo: text("responding_to").references((): any => ticketComments.id),
+  respondingTo: text("responding_to").references((): AnySQLiteColumn => ticketComments.id),
 
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
@@ -690,7 +701,7 @@ export const oauthAccounts = sqliteTable("oauth_accounts", {
 
   // Metadata from provider
   providerData: text("provider_data", { mode: "json" }).$type<
-    Record<string, any>
+    JsonObject
   >(),
 
   // Timestamps
@@ -772,7 +783,7 @@ export const userPreferences = sqliteTable("user_preferences", {
 
   // Extra JSON settings
   extraSettings: text("extra_settings", { mode: "json" })
-    .$type<Record<string, any>>()
+    .$type<JsonObject>()
     .default(sql`'{}'`),
 
   // Timestamps
@@ -827,7 +838,7 @@ export const labels = sqliteTable("labels", {
   color: text("color").notNull().default("#6B7280"),
 
   // Hierarchy
-  parentId: text("parent_id").references((): any => labels.id),
+  parentId: text("parent_id").references((): AnySQLiteColumn => labels.id),
 
   // Ordering
   sortOrder: integer("sort_order").notNull().default(65535),
@@ -942,13 +953,13 @@ export const scheduledJobs = sqliteTable("scheduled_jobs", {
   // Event triggers (for event-driven jobs)
   eventTrigger: text("event_trigger", { mode: "json" }).$type<{
     type: "webhook" | "ticket" | "file" | "github";
-    config: Record<string, any>;
+    config: JsonObject;
   } | null>(),
 
   // Job type and payload
   jobType: text("job_type").notNull(), // 'http' | 'tool' | 'script' | 'message'
   payload: text("payload", { mode: "json" })
-    .$type<Record<string, any>>()
+    .$type<JsonObject>()
     .notNull(),
   templateId: text("template_id"),
 
@@ -1058,7 +1069,7 @@ export const deadLetterTasks = sqliteTable("dead_letter_tasks", {
 
   // Metadata
   metadata: text("metadata", { mode: "json" })
-    .$type<Record<string, any>>()
+    .$type<JsonObject>()
     .notNull()
     .default(sql`'{}'`),
 
@@ -1091,7 +1102,7 @@ export const jobRunHistory = sqliteTable("job_run_history", {
 
   // Trigger info
   triggeredBy: text("triggered_by").notNull().default("schedule"), // schedule, manual, event
-  eventData: text("event_data", { mode: "json" }).$type<Record<string, any>>(),
+  eventData: text("event_data", { mode: "json" }).$type<JsonObject>(),
 });
 
 /**
@@ -1111,7 +1122,7 @@ export const jobTemplates = sqliteTable("job_templates", {
   // Job configuration
   jobType: text("job_type").notNull(), // http, tool, script, message
   payloadTemplate: text("payload_template", { mode: "json" })
-    .$type<Record<string, any>>()
+    .$type<JsonObject>()
     .notNull(),
 
   // Suggested schedule
@@ -1154,7 +1165,7 @@ export const jobTemplates = sqliteTable("job_templates", {
 export const agentSessions = sqliteTable("agent_sessions", {
   id: text("id").primaryKey(),
   parentSessionId: text("parent_session_id").references(
-    (): any => agentSessions.id,
+    (): AnySQLiteColumn => agentSessions.id,
   ),
   conversationId: text("conversation_id").notNull(),
 
@@ -1177,7 +1188,7 @@ export const agentSessions = sqliteTable("agent_sessions", {
 
   // Result
   finalResult: text("final_result", { mode: "json" }).$type<
-    Record<string, any>
+    JsonObject
   >(),
   stopReason: text("stop_reason"), // 'completed' | 'budget_exceeded' | 'max_steps' | 'cancelled' | 'error'
 
@@ -1197,7 +1208,7 @@ export const agentSessions = sqliteTable("agent_sessions", {
 
   // Metadata
   metadata: text("metadata", { mode: "json" })
-    .$type<Record<string, any>>()
+    .$type<JsonObject>()
     .default(sql`'{}'`),
 });
 
@@ -1236,7 +1247,7 @@ export const sessionMessages = sqliteTable("session_messages", {
   type: text("type").notNull().default("message"), // message, result, request, notification, error
   subject: text("subject"),
   content: text("content", { mode: "json" })
-    .$type<Record<string, any>>()
+    .$type<JsonObject>()
     .notNull(),
 
   // Priority 1-10 (10 = highest)
@@ -1247,7 +1258,7 @@ export const sessionMessages = sqliteTable("session_messages", {
 
   // Threading
   replyToMessageId: text("reply_to_message_id").references(
-    (): any => sessionMessages.id,
+    (): AnySQLiteColumn => sessionMessages.id,
   ),
 
   // TTL

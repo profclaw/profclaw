@@ -64,6 +64,9 @@ export interface LoggerConfig {
   
   /** Include timestamps */
   includeTimestamp: boolean;
+
+  /** Output stream for log entries */
+  stream: 'stdout' | 'stderr';
   
   /** Additional context to include in all logs */
   defaultContext?: LogContext;
@@ -87,6 +90,7 @@ export class Logger {
       level: (process.env.LOG_LEVEL as LogLevel) || LogLevel.INFO,
       pretty: process.env.NODE_ENV !== 'production',
       includeTimestamp: true,
+      stream: 'stdout',
       ...config,
     };
   }
@@ -210,21 +214,21 @@ export class Logger {
       output += ` ${color}[${entry.context.correlationId}]${reset}`;
     }
 
-    console.log(output);
+    this.writeLine(output);
 
     // Print context
     if (entry.context && Object.keys(entry.context).length > 0) {
       const { correlationId: _correlationId, ...otherContext } = entry.context;
       if (Object.keys(otherContext).length > 0) {
-        console.log('  Context:', otherContext);
+        this.writeLine(`  Context: ${this.formatValue(otherContext)}`);
       }
     }
 
     // Print error details
     if (entry.error) {
-      console.log(`  ${color}Error:${reset}`, entry.error.message);
+      this.writeLine(`  ${color}Error:${reset} ${entry.error.message}`);
       if (entry.error.stack) {
-        console.log('  Stack:', entry.error.stack);
+        this.writeLine(`  Stack: ${entry.error.stack}`);
       }
     }
   }
@@ -233,7 +237,7 @@ export class Logger {
    * JSON print for production
    */
   private jsonPrint(entry: LogEntry): void {
-    console.log(JSON.stringify(entry));
+    this.writeLine(JSON.stringify(entry));
   }
 
   /**
@@ -248,6 +252,23 @@ export class Logger {
    */
   getConfig(): LoggerConfig {
     return { ...this.config };
+  }
+
+  private writeLine(message: string): void {
+    const stream = this.config.stream === 'stderr' ? process.stderr : process.stdout;
+    stream.write(`${message}\n`);
+  }
+
+  private formatValue(value: unknown): string {
+    if (typeof value === 'string') {
+      return value;
+    }
+
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
   }
 }
 
@@ -304,10 +325,10 @@ export function getCorrelationMetadata(): Record<string, unknown> | undefined {
 /**
  * Create a logger that automatically includes correlation context
  */
-export function createContextualLogger(name?: string): Logger {
+export function createContextualLogger(name?: string, config?: Partial<LoggerConfig>): Logger {
   const baseContext: LogContext = name ? { component: name } : {};
 
-  const contextualLogger = new Logger({ defaultContext: baseContext });
+  const contextualLogger = new Logger({ ...config, defaultContext: baseContext });
 
   const mergeContext = (context?: LogContext): LogContext => {
     const correlationId = getCorrelationId();

@@ -1,5 +1,8 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('Settings');
 import {
   getSettings,
   updateSettings,
@@ -38,7 +41,7 @@ settings.get('/', async (c) => {
     const currentSettings = await getSettings();
     return c.json({ settings: currentSettings });
   } catch (error) {
-    console.error('[API] Error fetching settings:', error);
+    log.error('Error fetching settings', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         error: 'Failed to fetch settings',
@@ -76,7 +79,7 @@ settings.patch('/', async (c) => {
       settings: updated,
     });
   } catch (error) {
-    console.error('[API] Error updating settings:', error);
+    log.error('Error updating settings', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         error: 'Failed to update settings',
@@ -96,7 +99,7 @@ settings.post('/reset', async (c) => {
       settings: resetResult,
     });
   } catch (error) {
-    console.error('[API] Error resetting settings:', error);
+    log.error('Error resetting settings', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         error: 'Failed to reset settings',
@@ -113,7 +116,7 @@ settings.get('/plugins/health', async (c) => {
     const health = await getPluginHealth();
     return c.json({ plugins: health });
   } catch (error) {
-    console.error('[API] Error checking plugin health:', error);
+    log.error('Error checking plugin health', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         error: 'Failed to check plugin health',
@@ -142,7 +145,7 @@ settings.post('/plugins/:id/toggle', async (c) => {
       settings: result,
     });
   } catch (error) {
-    console.error('[API] Error toggling plugin:', error);
+    log.error('Error toggling plugin', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         error: 'Failed to toggle plugin',

@@ -7,7 +7,7 @@
 
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
-import { getClient } from '../storage/index.js';
+import { getDb } from '../storage/index.js';
 import { projects, tickets, sprints } from '../storage/schema.js';
 import { eq, sql, type InferSelectModel } from 'drizzle-orm';
 import { logger } from '../utils/logger.js';
@@ -288,7 +288,7 @@ function getProviderDisplayName(provider: string): string {
  */
 async function executeCreateProject(input: CreateProjectInput): Promise<ToolResult> {
   try {
-    const db = getClient();
+    const db = getDb();
     const id = randomUUID();
     const key = input.key.toUpperCase();
 
@@ -343,7 +343,7 @@ async function executeCreateProject(input: CreateProjectInput): Promise<ToolResu
  */
 async function executeCreateTicket(input: CreateTicketInput): Promise<ToolResult> {
   try {
-    const db = getClient();
+    const db = getDb();
 
     // Find the project by key
     const project = await db
@@ -372,18 +372,19 @@ async function executeCreateTicket(input: CreateTicketInput): Promise<ToolResult
     const ticketKey = `${project.key}-${sequence}`;
 
     // Create the ticket
-    await db.insert(tickets).values({
-      id,
-      projectId: project.id,
-      sequence,
-      title: input.title,
-      description: input.description || '',
-      type: input.type || 'task',
-      status: 'backlog',
-      priority: input.priority || 'medium',
-      labels: input.labels || [],
-      storyPoints: input.storyPoints,
-    });
+      await db.insert(tickets).values({
+        id,
+        projectId: project.id,
+        sequence,
+        title: input.title,
+        description: input.description || '',
+        type: input.type || 'task',
+        status: 'backlog',
+        priority: input.priority || 'medium',
+        labels: input.labels || [],
+        estimate: input.storyPoints,
+        estimateUnit: input.storyPoints !== undefined ? 'points' : undefined,
+      });
 
     logger.info(`[ChatTools] Created ticket: ${ticketKey}`, { component: 'ChatTools' });
 
@@ -414,7 +415,7 @@ async function executeCreateTicket(input: CreateTicketInput): Promise<ToolResult
  */
 async function executeCreateSprint(input: CreateSprintInput): Promise<ToolResult> {
   try {
-    const db = getClient();
+    const db = getDb();
 
     // Find the project by key
     const project = await db
@@ -481,7 +482,7 @@ async function executeCreateSprint(input: CreateSprintInput): Promise<ToolResult
  */
 async function executeListProjects(input: ListProjectsInput): Promise<ToolResult> {
   try {
-    const db = getClient();
+    const db = getDb();
 
     let query = db.select().from(projects);
 
@@ -519,7 +520,7 @@ async function executeListProjects(input: ListProjectsInput): Promise<ToolResult
  */
 async function executeSearchTickets(input: SearchTicketsInput): Promise<ToolResult> {
   try {
-    const db = getClient();
+    const db = getDb();
 
     let ticketList = await db.select().from(tickets).limit(input.limit).all();
 

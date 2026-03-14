@@ -7,6 +7,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  type LegendType,
 } from 'recharts';
 import type { VelocityDataPoint } from '@/core/types';
 
@@ -81,7 +82,7 @@ export function VelocityChart({ data, title, showLegend = true, colors }: Veloci
                 return (
                   <div className="glass-heavy px-3 py-2 rounded-lg text-sm border border-white/10">
                     <p className="font-medium mb-1">{label}</p>
-                    {payload.map((entry: any) => (
+                    {payload.map((entry: { name: string; value: number; color: string; type?: LegendType }) => (
                       <p key={entry.name} style={{ color: entry.color }}>
                         {entry.name}: {entry.value}
                       </p>

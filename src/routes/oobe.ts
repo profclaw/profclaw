@@ -17,8 +17,10 @@ import { createSession } from '../auth/auth-service.js';
 import { setCookie } from 'hono/cookie';
 import { hashPassword, validatePasswordStrength } from '../auth/password.js';
 import { invalidateLocalAdminCache } from '../auth/middleware.js';
+import { createContextualLogger } from '../utils/logger.js';
 
 const oobe = new Hono();
+const log = createContextualLogger('OOBE');
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
@@ -105,7 +107,7 @@ oobe.get('/status', async (c) => {
       hasAccessKey: Boolean(settings.system.accessKeyHash),
     });
   } catch (error) {
-    console.error('[OOBE] Status check error:', error);
+    log.error('Status check error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ needsSetup: true, authMode: 'local' });
   }
 });
@@ -199,7 +201,7 @@ oobe.post('/setup', async (c) => {
     // Invalidate cached admin in middleware
     invalidateLocalAdminCache();
 
-    console.log(`[OOBE] Local admin created: ${name}`);
+    log.info(`Local admin created: ${name}`);
 
     return c.json({
       success: true,
@@ -211,7 +213,7 @@ oobe.post('/setup', async (c) => {
       },
     });
   } catch (error) {
-    console.error('[OOBE] Setup error:', error);
+    log.error('Setup error', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       error: 'Setup failed',
       details: error instanceof Error ? error.message : 'Unknown',
@@ -359,7 +361,7 @@ oobe.post('/validate-ai', async (c) => {
 
     return c.json({ valid: false, error: 'API key is required' }, 400);
   } catch (error) {
-    console.error('[OOBE] AI validation error:', error);
+    log.error('AI validation error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ valid: false, error: 'Validation failed' }, 500);
   }
 });
@@ -439,14 +441,14 @@ oobe.post('/enable-multiuser', async (c) => {
     // Invalidate cached admin
     invalidateLocalAdminCache();
 
-    console.log(`[OOBE] Multi-user mode enabled for: ${email}`);
+    log.info(`Multi-user mode enabled for: ${email}`);
 
     return c.json({
       success: true,
       message: 'Multi-user authentication enabled',
     });
   } catch (error) {
-    console.error('[OOBE] Enable multi-user error:', error);
+    log.error('Enable multi-user error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to enable multi-user mode' }, 500);
   }
 });

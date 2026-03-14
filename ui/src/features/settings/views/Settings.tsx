@@ -1487,10 +1487,10 @@ function AccountSection() {
               </p>
             </div>
             <a
-              href="mailto:support@profclaw.dev"
+              href="mailto:support@profclaw.ai"
               className="text-sm text-primary hover:underline flex items-center gap-1"
             >
-              support@profclaw.dev
+              support@profclaw.ai
               <ExternalLink className="h-3 w-3" />
             </a>
           </div>
@@ -1502,12 +1502,12 @@ function AccountSection() {
               </p>
             </div>
             <a
-              href="https://docs.profclaw.dev"
+              href="https://docs.profclaw.ai"
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-primary hover:underline flex items-center gap-1"
             >
-              docs.profclaw.dev
+              docs.profclaw.ai
               <ExternalLink className="h-3 w-3" />
             </a>
           </div>
@@ -1522,10 +1522,10 @@ function AccountSection() {
                 </p>
               </div>
               <a
-                href="mailto:support@profclaw.dev"
+                href="mailto:support@profclaw.ai"
                 className="text-sm text-red-600 dark:text-red-400 hover:underline flex items-center gap-1"
               >
-                support@profclaw.dev
+                support@profclaw.ai
                 <ExternalLink className="h-3 w-3" />
               </a>
             </div>
@@ -3237,13 +3237,21 @@ function PluginsSection() {
   );
 }
 
+interface StorageSectionProps {
+  isExporting: boolean;
+  isImporting: boolean;
+  handleExport: () => void;
+  handleImport: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
+}
+
 function StorageSection({
   isExporting,
   isImporting,
   handleExport,
   handleImport,
   fileInputRef,
-}: any) {
+}: StorageSectionProps) {
   return (
     <>
       <SettingsCard title="Database" description="Local storage configuration">
@@ -3309,12 +3317,19 @@ function StorageSection({
   );
 }
 
+interface SystemSectionProps {
+  settings?: SettingsType;
+  handleToggle: (category: keyof SettingsType, key: string, currentValue: boolean) => void;
+  updateSettings: { mutate: (updates: Partial<SettingsType>) => void; isPending: boolean };
+  resetSettings: { mutate: () => void; isPending: boolean };
+}
+
 function SystemSection({
   settings,
   handleToggle,
   updateSettings,
   resetSettings,
-}: any) {
+}: SystemSectionProps) {
   return (
     <>
       <SettingsCard
@@ -3346,7 +3361,15 @@ function SystemSection({
               value={settings?.system?.maxConcurrentTasks ?? 3}
               onChange={(e) =>
                 updateSettings.mutate({
-                  system: { maxConcurrentTasks: parseInt(e.target.value) },
+                  system: {
+                    autonomousExecution: settings?.system?.autonomousExecution ?? false,
+                    telemetry: settings?.system?.telemetry ?? true,
+                    debugMode: settings?.system?.debugMode ?? false,
+                    maxConcurrentTasks: parseInt(e.target.value),
+                    registrationMode: settings?.system?.registrationMode ?? 'invite',
+                    showForgotPassword: settings?.system?.showForgotPassword ?? true,
+                    authMode: settings?.system?.authMode ?? 'local',
+                  },
                 })
               }
               className="field py-1.5"

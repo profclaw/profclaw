@@ -12,7 +12,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import figlet from 'figlet';
-import { createInterface } from 'readline/promises';
+import { select, input, password as passwordPrompt, confirm } from '@inquirer/prompts';
 import { randomUUID } from 'crypto';
 import { eq } from 'drizzle-orm';
 import { initStorage, getDb, saveProviderConfig } from '../../storage/index.js';
@@ -39,45 +39,8 @@ function showBanner(): void {
   console.log(chalk.dim('  Setup Wizard\n'));
 }
 
-async function prompt(rl: ReturnType<typeof createInterface>, question: string): Promise<string> {
-  const answer = await rl.question(chalk.bold(question));
-  return answer.trim();
-}
-
-async function promptPassword(rl: ReturnType<typeof createInterface>, question: string): Promise<string> {
-  // readline/promises doesn't natively hide input, but for a CLI wizard this is acceptable
-  const answer = await rl.question(chalk.bold(question));
-  return answer.trim();
-}
-
-async function promptChoice(
-  rl: ReturnType<typeof createInterface>,
-  question: string,
-  options: { key: string; label: string }[],
-): Promise<string> {
-  console.log('');
-  console.log(chalk.bold(question));
-  for (const opt of options) {
-    console.log(`  ${chalk.cyan(opt.key)}) ${opt.label}`);
-  }
-  const validKeys = options.map((o) => o.key);
-  while (true) {
-    const answer = await prompt(rl, `Choice [${validKeys.join('/')}]: `);
-    if (validKeys.includes(answer)) return answer;
-    console.log(chalk.red(`  Invalid choice. Options: ${validKeys.join(', ')}`));
-  }
-}
-
-async function promptYesNo(
-  rl: ReturnType<typeof createInterface>,
-  question: string,
-  defaultYes = false,
-): Promise<boolean> {
-  const hint = defaultYes ? 'Y/n' : 'y/N';
-  const answer = await prompt(rl, `${question} [${hint}]: `);
-  if (!answer) return defaultYes;
-  return answer.toLowerCase().startsWith('y');
-}
+// Inquirer theme for consistent prefix
+const theme = { prefix: '  ', style: { highlight: (text: string) => chalk.cyan.bold(text) } };
 
 async function checkRedis(): Promise<boolean> {
   try {
@@ -223,48 +186,60 @@ async function stepSystemCheck(db: ReturnType<typeof getDb>): Promise<{
 // Step 2: AI Provider
 
 async function stepAiProvider(
-  rl: ReturnType<typeof createInterface>,
   status: { hasAnthropicKey: boolean; hasOpenAIKey: boolean },
 ): Promise<string> {
   if (status.hasAnthropicKey || status.hasOpenAIKey) {
     const provider = status.hasAnthropicKey ? 'Anthropic' : 'OpenAI';
     info(`AI provider already configured (${provider} from env).`);
-    const reconfigure = await promptYesNo(rl, '  Reconfigure AI provider?', false);
-    if (!reconfigure) return 'skip';
+    try {
+      const reconfigure = await confirm({
+        message: 'Reconfigure AI provider?',
+        default: false,
+        theme,
+      });
+      if (!reconfigure) return 'skip';
+    } catch { return 'skip'; }
   }
 
-  const choice = await promptChoice(rl, '  Select AI Provider:', [
-    { key: '1', label: 'Anthropic API Key (recommended)' },
-    { key: '2', label: 'OpenAI API Key' },
-    { key: '3', label: 'Ollama (free, local AI)' },
-    { key: '4', label: 'Skip for now' },
-  ]);
+  let choice: string;
+  try {
+    choice = await select<string>({
+      message: 'Select AI Provider',
+      choices: [
+        { name: `Anthropic ${chalk.green('(recommended)')}`, value: 'anthropic', description: 'Claude 4.x, 3.5 Sonnet' },
+        { name: 'OpenAI', value: 'openai', description: 'GPT-4o, o1, o3' },
+        { name: `Ollama ${chalk.cyan('(free, local)')}`, value: 'ollama', description: 'Llama, Mistral, Qwen - runs on your machine' },
+        { name: chalk.dim('Skip for now'), value: 'skip', description: 'Configure later in Settings' },
+      ],
+      theme,
+    });
+  } catch {
+    return 'skip';
+  }
 
-  if (choice === '4') {
+  if (choice === 'skip') {
     info('AI provider skipped. You can configure it later in Settings.');
     return 'skip';
   }
 
-  if (choice === '1') {
-    const apiKey = await prompt(rl, '  Anthropic API Key: ');
-    if (!apiKey) {
-      warn('No key provided, skipping.');
-      return 'skip';
-    }
-    await saveProviderConfig({ type: 'anthropic', apiKey, enabled: true });
-    success('Anthropic provider configured.');
-    return 'anthropic';
+  if (choice === 'anthropic') {
+    try {
+      const apiKey = await input({ message: 'Anthropic API Key', theme });
+      if (!apiKey) { warn('No key provided, skipping.'); return 'skip'; }
+      await saveProviderConfig({ type: 'anthropic', apiKey, enabled: true });
+      success('Anthropic provider configured.');
+      return 'anthropic';
+    } catch { return 'skip'; }
   }
 
-  if (choice === '2') {
-    const apiKey = await prompt(rl, '  OpenAI API Key: ');
-    if (!apiKey) {
-      warn('No key provided, skipping.');
-      return 'skip';
-    }
-    await saveProviderConfig({ type: 'openai', apiKey, enabled: true });
-    success('OpenAI provider configured.');
-    return 'openai';
+  if (choice === 'openai') {
+    try {
+      const apiKey = await input({ message: 'OpenAI API Key', theme });
+      if (!apiKey) { warn('No key provided, skipping.'); return 'skip'; }
+      await saveProviderConfig({ type: 'openai', apiKey, enabled: true });
+      success('OpenAI provider configured.');
+      return 'openai';
+    } catch { return 'skip'; }
   }
 
   // Ollama
@@ -330,7 +305,6 @@ function showRecoveryCodes(codes: string[]): void {
 }
 
 async function stepAdminAccount(
-  rl: ReturnType<typeof createInterface>,
   db: ReturnType<typeof getDb>,
 ): Promise<string | null> {
   if (!db) {
@@ -345,41 +319,53 @@ async function stepAdminAccount(
   if (existingAdmins.length > 0) {
     console.log(chalk.dim('  Existing admin accounts:'));
     for (const admin of existingAdmins) {
-      console.log(`    ${chalk.green('•')} ${admin.name} ${chalk.dim(`<${admin.email}>`)}`);
+      console.log(`    ${chalk.green('\u2022')} ${admin.name} ${chalk.dim(`<${admin.email}>`)}`);
     }
     console.log('');
-    console.log('  What would you like to do?');
-    console.log(`    ${chalk.bold('1)')} Keep existing — no changes`);
-    console.log(`    ${chalk.bold('2)')} Reset password for an existing admin`);
-    console.log(`    ${chalk.bold('3)')} Create an additional admin`);
-    console.log('');
 
-    const choice = await prompt(rl, '  Choice [1]: ');
-    const picked = choice || '1';
+    let picked: string;
+    try {
+      picked = await select<string>({
+        message: 'What would you like to do?',
+        choices: [
+          { name: 'Keep existing - no changes', value: 'keep' },
+          { name: 'Reset password for an existing admin', value: 'reset' },
+          { name: 'Create an additional admin', value: 'create' },
+        ],
+        theme,
+      });
+    } catch { return existingAdmins[0].email; }
 
-    if (picked === '1') {
+    if (picked === 'keep') {
       success(`Keeping ${existingAdmins.length} existing admin(s).`);
       return existingAdmins[0].email;
     }
 
-    if (picked === '2') {
-      // Reset password for existing admin
+    if (picked === 'reset') {
       let targetAdmin = existingAdmins[0];
       if (existingAdmins.length > 1) {
-        console.log('');
-        for (let i = 0; i < existingAdmins.length; i++) {
-          console.log(`    ${chalk.bold(`${i + 1})`)} ${existingAdmins[i].email}`);
-        }
-        const idx = await prompt(rl, `  Which admin? [1]: `);
-        const n = parseInt(idx || '1', 10) - 1;
-        if (n >= 0 && n < existingAdmins.length) {
-          targetAdmin = existingAdmins[n];
-        }
+        try {
+          const adminId = await select<string>({
+            message: 'Which admin?',
+            choices: existingAdmins.map(a => ({
+              name: `${a.name} ${chalk.dim(`<${a.email}>`)}`,
+              value: a.id,
+            })),
+            theme,
+          });
+          targetAdmin = existingAdmins.find(a => a.id === adminId) || existingAdmins[0];
+        } catch { return existingAdmins[0].email; }
       }
 
       let newPassword = '';
       while (true) {
-        newPassword = await promptPassword(rl, '  New password (min 8 chars, 1 letter, 1 number): ');
+        try {
+          newPassword = await passwordPrompt({
+            message: 'New password (min 8 chars, 1 letter, 1 number)',
+            mask: '*',
+            theme,
+          });
+        } catch { return existingAdmins[0].email; }
         const strengthError = validatePasswordStrength(newPassword);
         if (!strengthError) break;
         console.log(chalk.red(`  ${strengthError}`));
@@ -402,22 +388,29 @@ async function stepAdminAccount(
       return targetAdmin.email;
     }
 
-    // picked === '3' — fall through to create new admin
+    // picked === 'create' - fall through to create new admin
     console.log('');
   }
 
   // Create new admin
-  const name = await prompt(rl, '  Name: ');
+  let name: string;
+  try {
+    name = await input({ message: 'Name', theme });
+  } catch { return existingAdmins.length > 0 ? existingAdmins[0].email : null; }
+
   if (!name) {
     warn('Admin account creation skipped.');
     return existingAdmins.length > 0 ? existingAdmins[0].email : null;
   }
 
-  const email = await prompt(rl, '  Email: ');
-  if (!email || !email.includes('@')) {
-    error('Invalid email address.');
-    return existingAdmins.length > 0 ? existingAdmins[0].email : null;
-  }
+  let email: string;
+  try {
+    email = await input({
+      message: 'Email',
+      validate: (val) => val.includes('@') || 'Must be a valid email address',
+      theme,
+    });
+  } catch { return existingAdmins.length > 0 ? existingAdmins[0].email : null; }
 
   // Check email uniqueness
   const existing = await db
@@ -430,10 +423,16 @@ async function stepAdminAccount(
     return existingAdmins.length > 0 ? existingAdmins[0].email : null;
   }
 
-  let password = '';
+  let pw = '';
   while (true) {
-    password = await promptPassword(rl, '  Password (min 8 chars, 1 letter, 1 number): ');
-    const strengthError = validatePasswordStrength(password);
+    try {
+      pw = await passwordPrompt({
+        message: 'Password (min 8 chars, 1 letter, 1 number)',
+        mask: '*',
+        theme,
+      });
+    } catch { return existingAdmins.length > 0 ? existingAdmins[0].email : null; }
+    const strengthError = validatePasswordStrength(pw);
     if (!strengthError) break;
     console.log(chalk.red(`  ${strengthError}`));
   }
@@ -441,7 +440,7 @@ async function stepAdminAccount(
   // Prefer server API (avoids cross-process LibSQL issues in Docker)
   const serverUrl = await getServerBaseUrl();
   if (serverUrl) {
-    const apiResult = await createAdminViaApi(serverUrl, email, password, name);
+    const apiResult = await createAdminViaApi(serverUrl, email, pw, name);
     if (apiResult) {
       success(`Admin account created: ${apiResult.email}`);
       showRecoveryCodes(apiResult.recoveryCodes);
@@ -450,7 +449,7 @@ async function stepAdminAccount(
   }
 
   // Fall back to direct DB
-  const result = await createAdminUser(db, name, email, password);
+  const result = await createAdminUser(db, name, email, pw);
   success(`Admin account created: ${result.email}`);
   showRecoveryCodes(result.recoveryCodes);
   return result.email;
@@ -459,17 +458,22 @@ async function stepAdminAccount(
 // Step 4: Registration Mode
 
 async function stepRegistrationMode(
-  rl: ReturnType<typeof createInterface>,
   db: ReturnType<typeof getDb>,
 ): Promise<{ mode: string; codes: string[] }> {
   console.log(chalk.bold.white('\n  Step 4: Registration Mode\n'));
 
-  const choice = await promptChoice(rl, '  How should new users register?', [
-    { key: '1', label: 'Invite only (default, more secure)' },
-    { key: '2', label: 'Open registration' },
-  ]);
+  let mode: string;
+  try {
+    mode = await select<string>({
+      message: 'How should new users register?',
+      choices: [
+        { name: 'Invite only (more secure)', value: 'invite', description: 'Users need an invite code to sign up' },
+        { name: 'Open registration', value: 'open', description: 'Anyone can create an account' },
+      ],
+      theme,
+    });
+  } catch { mode = 'invite'; }
 
-  const mode = choice === '1' ? 'invite' : 'open';
   await updateSettings({
     system: { registrationMode: mode } as Settings['system'],
   });
@@ -479,7 +483,15 @@ async function stepRegistrationMode(
   const codes: string[] = [];
 
   if (mode === 'invite' && db) {
-    const generate = await promptYesNo(rl, '  Generate 3 invite codes now?', true);
+    let generate: boolean;
+    try {
+      generate = await confirm({
+        message: 'Generate 3 invite codes now?',
+        default: true,
+        theme,
+      });
+    } catch { generate = false; }
+
     if (generate) {
       for (let i = 0; i < 3; i++) {
         const code = generateInviteCode();
@@ -508,10 +520,18 @@ async function stepRegistrationMode(
 
 // Step 5: GitHub OAuth (optional)
 
-async function stepGitHubOAuth(rl: ReturnType<typeof createInterface>): Promise<boolean> {
+async function stepGitHubOAuth(): Promise<boolean> {
   console.log(chalk.bold.white('\n  Step 5: GitHub OAuth (Optional)\n'));
 
-  const configure = await promptYesNo(rl, '  Configure GitHub OAuth login?', false);
+  let configure: boolean;
+  try {
+    configure = await confirm({
+      message: 'Configure GitHub OAuth login?',
+      default: false,
+      theme,
+    });
+  } catch { return false; }
+
   if (!configure) {
     info('GitHub OAuth skipped. Configure later in Settings.');
     return false;
@@ -523,8 +543,12 @@ async function stepGitHubOAuth(rl: ReturnType<typeof createInterface>): Promise<
   info('Create a GitHub OAuth App at: https://github.com/settings/developers');
   console.log('');
 
-  const clientId = await prompt(rl, '  GitHub Client ID: ');
-  const clientSecret = await prompt(rl, '  GitHub Client Secret: ');
+  let clientId: string;
+  let clientSecret: string;
+  try {
+    clientId = await input({ message: 'GitHub Client ID', theme });
+    clientSecret = await input({ message: 'GitHub Client Secret', theme });
+  } catch { return false; }
 
   if (!clientId || !clientSecret) {
     warn('Incomplete credentials, skipping GitHub OAuth.');
@@ -749,26 +773,21 @@ export function setupCommand(): Command {
           process.exit(1);
         }
 
-        // Create a single readline interface for all steps
-        const rl = createInterface({ input: process.stdin, output: process.stdout });
-
         // Step 1: System Check
         const status = await stepSystemCheck(db);
 
         // Step 2: AI Provider
         console.log(chalk.bold.white('\n  Step 2: AI Provider\n'));
-        const aiProvider = await stepAiProvider(rl, status);
+        const aiProvider = await stepAiProvider(status);
 
         // Step 3: Admin Account
-        const adminEmail = await stepAdminAccount(rl, db);
+        const adminEmail = await stepAdminAccount(db);
 
         // Step 4: Registration Mode
-        const regResult = await stepRegistrationMode(rl, db);
+        const regResult = await stepRegistrationMode(db);
 
         // Step 5: GitHub OAuth
-        const githubOAuth = await stepGitHubOAuth(rl);
-
-        rl.close();
+        const githubOAuth = await stepGitHubOAuth();
 
         // Step 6: Summary
         showSummary({

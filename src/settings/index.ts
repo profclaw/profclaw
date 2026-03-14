@@ -1,5 +1,8 @@
 import { z } from 'zod';
 import { getStorage } from '../storage/index.js';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('Settings');
 
 // Plugin status enum
 export const PluginStatusSchema = z.enum(['enabled', 'disabled', 'error', 'checking']);
@@ -218,7 +221,7 @@ export async function getSettings(): Promise<Settings> {
 
     return maskSecrets(settingsCache);
   } catch (error) {
-    console.warn('[Settings] Failed to load settings, using defaults:', error);
+    log.warn('Failed to load settings, using defaults', { error: error instanceof Error ? error.message : String(error) });
     settingsCache = { ...DEFAULT_SETTINGS };
     return maskSecrets(settingsCache);
   }

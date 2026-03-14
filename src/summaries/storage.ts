@@ -11,6 +11,9 @@ import type {
   SummaryStats,
 } from '../types/summary.js';
 import { getStorage } from '../storage/index.js';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('Summaries');
 
 import { getEmbeddingService } from '../ai/embedding-service.js';
 import { logger } from '../utils/logger.js';
@@ -133,5 +136,5 @@ export async function deleteSummary(id: string): Promise<boolean> {
  */
 export async function clearAllSummaries(): Promise<void> {
   // Not implemented in production storage for safety
-  console.warn('[Storage] clearAllSummaries called but not implemented for persistent storage');
+  log.warn('clearAllSummaries called but not implemented for persistent storage');
 }

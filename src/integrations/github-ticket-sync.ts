@@ -16,6 +16,9 @@ import {
   githubCommentSyncs,
 } from '../storage/schema.js';
 import { findOrCreateLabel, setTicketLabels } from '../labels/index.js';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('GitHubSync');
 
 // Types
 export interface GitHubWebhookResult {
@@ -270,7 +273,7 @@ export async function handleIssueEvent(
       }
       await setTicketLabels(ticketId, labelIds);
     } catch (e) {
-      console.warn('[GitHub Sync] Failed to sync labels:', e);
+      log.warn('Failed to sync labels', { error: e instanceof Error ? e.message : String(e) });
     }
   }
 
@@ -280,7 +283,7 @@ export async function handleIssueEvent(
     syncError: null,
   }).where(eq(ticketExternalLinks.ticketId, ticketId));
 
-  console.log(`[GitHub Sync] Updated ticket ${ticketId} from issue #${issue.number}: ${changes.map(c => c.field).join(', ')}`);
+  log.info('Updated ticket from issue', { ticketId, issueNumber: issue.number, fields: changes.map(c => c.field) });
 
   return { action: 'updated', ticketId };
 }
@@ -364,7 +367,7 @@ export async function handleCommentCreated(
     createdAt: now,
   });
 
-  console.log(`[GitHub Sync] Created comment ${commentId} from GitHub comment #${comment.id}`);
+  log.info('Created comment from GitHub', { commentId, githubCommentId: comment.id });
 
   return { action: 'comment_created', ticketId, commentId };
 }
@@ -404,7 +407,7 @@ export async function handleCommentEdited(
     updatedAt: new Date(),
   }).where(eq(ticketComments.id, syncRecord[0].commentId));
 
-  console.log(`[GitHub Sync] Updated comment ${syncRecord[0].commentId} from GitHub comment #${comment.id}`);
+  log.info('Updated comment from GitHub', { commentId: syncRecord[0].commentId, githubCommentId: comment.id });
 
   return { action: 'comment_updated', ticketId: synced.ticketId, commentId: syncRecord[0].commentId };
 }
@@ -441,7 +444,7 @@ export async function handleCommentDeleted(
   await db.delete(githubCommentSyncs).where(eq(githubCommentSyncs.id, syncRecord[0].id));
   await db.delete(ticketComments).where(eq(ticketComments.id, syncRecord[0].commentId));
 
-  console.log(`[GitHub Sync] Deleted comment ${syncRecord[0].commentId}`);
+  log.info('Deleted comment', { commentId: syncRecord[0].commentId });
 
   return { action: 'comment_deleted', ticketId: synced.ticketId };
 }
@@ -494,7 +497,7 @@ export async function processGitHubWebhookForTicketSync(
 
     return { action: 'ignored', reason: `unhandled_event: ${event}` };
   } catch (error) {
-    console.error('[GitHub Sync] Error processing webhook:', error);
+    log.error('Error processing webhook', error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }

@@ -260,8 +260,7 @@ export function InlineTicketEditor({ ticketId, onClose, className }: InlineTicke
     return PRIORITY_OPTIONS.find(p => p.value === priority) || PRIORITY_OPTIONS[4];
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const currentProject = projects.find((p: any) => p.id === ticket?.projectId);
+  const currentProject = projects.find((p) => p.id === ticket?.projectId);
 
   // Loading state
   if (isLoading) {

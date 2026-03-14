@@ -5,8 +5,10 @@ import { CreateTaskSchema, TaskStatus } from '../types/task.js';
 import type { Task, TaskStatusType } from '../types/task.js';
 import { getStorage } from '../storage/index.js';
 import type { TaskFilterOptions } from '../storage/adapter.js';
+import { createContextualLogger } from '../utils/logger.js';
 
 const tasks = new Hono();
+const log = createContextualLogger('TasksRoutes');
 const validTaskStatuses = new Set<string>(Object.values(TaskStatus));
 
 async function parseJsonBody(c: Context): Promise<
@@ -147,7 +149,10 @@ tasks.get('/', async (c) => {
         sparse: !includeFull,
       });
     } catch (error) {
-      console.error('[API] Error loading tasks from DB, falling back to in-memory:', error);
+      log.error(
+        'Error loading tasks from DB, falling back to in-memory',
+        error instanceof Error ? error : new Error(String(error)),
+      );
     }
   }
 
@@ -206,7 +211,7 @@ tasks.post('/', async (c) => {
       201
     );
   } catch (error) {
-    console.error('[API] Error creating task:', error);
+    log.error('Error creating task', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         error: 'Failed to create task',
@@ -229,7 +234,7 @@ tasks.get('/analytics', async (c) => {
     const analytics = await storage.getTaskAnalytics();
     return c.json(analytics);
   } catch (error) {
-    console.error('[API] Error getting task analytics:', error);
+    log.error('Error getting task analytics', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       error: 'Failed to get analytics',
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -303,7 +308,7 @@ tasks.get('/filter', async (c) => {
       offset: options.offset,
     });
   } catch (error) {
-    console.error('[API] Error filtering tasks:', error);
+    log.error('Error filtering tasks', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       error: 'Failed to filter tasks',
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -331,7 +336,7 @@ tasks.get('/archived', async (c) => {
       offset,
     });
   } catch (error) {
-    console.error('[API] Error getting archived tasks:', error);
+    log.error('Error getting archived tasks', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       error: 'Failed to get archived tasks',
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -366,7 +371,7 @@ tasks.post('/archive', async (c) => {
       archived: result.archived,
     });
   } catch (error) {
-    console.error('[API] Error archiving tasks:', error);
+    log.error('Error archiving tasks', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       error: 'Failed to archive tasks',
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -469,7 +474,7 @@ tasks.post('/import', async (c) => {
       results,
     });
   } catch (error) {
-    console.error('[API] Error importing tasks:', error);
+    log.error('Error importing tasks', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       error: 'Import failed',
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -511,7 +516,7 @@ tasks.get('/:id/events', async (c) => {
       count: events.length,
     });
   } catch (error) {
-    console.error('[API] Error getting task events:', error);
+    log.error('Error getting task events', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       error: 'Failed to get task events',
       message: error instanceof Error ? error.message : 'Unknown error',

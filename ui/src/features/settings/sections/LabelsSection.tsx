@@ -10,6 +10,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { api } from '@/core/api/client';
+import type { Label } from '@/core/api/client';
 import { Button } from '@/components/ui/button';
 import { SettingsCard } from '../components';
 import { LabelModal } from '../../labels/components/LabelModal';
@@ -17,7 +18,7 @@ import { toast } from 'sonner';
 
 export function LabelsSection() {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingLabel, setEditingLabel] = useState<any>(null);
+  const [editingLabel, setEditingLabel] = useState<Label | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const queryClient = useQueryClient();
 
@@ -54,7 +55,7 @@ export function LabelsSection() {
     l.description?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleEdit = (label: any) => {
+  const handleEdit = (label: Label) => {
     setEditingLabel(label);
     setIsModalOpen(true);
   };
@@ -181,7 +182,7 @@ export function LabelsSection() {
         open={isModalOpen}
         onOpenChange={setIsModalOpen}
         projectId={projectId}
-        label={editingLabel}
+        label={editingLabel ?? undefined}
       />
     </>
   );

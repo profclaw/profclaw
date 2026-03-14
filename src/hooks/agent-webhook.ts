@@ -9,6 +9,9 @@ import { randomUUID } from 'crypto';
 import { createHmac, timingSafeEqual } from 'crypto';
 import type { Context } from 'hono';
 import { z } from 'zod';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('AgentWebhook');
 
 // Schemas
 
@@ -94,7 +97,7 @@ function verifySignature(
 
   // Skip verification if no secret configured
   if (!secret) {
-    console.warn(`[Webhook] No secret configured for ${agent}, skipping verification`);
+    log.warn('No secret configured for agent, skipping verification', { agent });
     return true;
   }
 
@@ -145,7 +148,7 @@ export async function handleOpenClawWebhook(c: Context): Promise<AgentReport | n
 
   const parsed = OpenClawCompletionSchema.safeParse(payload);
   if (!parsed.success) {
-    console.error('[Webhook] OpenClaw validation failed:', parsed.error.flatten());
+    log.error('OpenClaw validation failed', new Error(parsed.error.message));
     throw new Error(`Validation failed: ${parsed.error.message}`);
   }
 
@@ -175,7 +178,7 @@ export async function handleGenericAgentWebhook(c: Context): Promise<AgentReport
 
   const parsed = AgentCompletionSchema.safeParse(payload);
   if (!parsed.success) {
-    console.error('[Webhook] Agent validation failed:', parsed.error.flatten());
+    log.error('Agent validation failed', new Error(parsed.error.message));
     throw new Error(`Validation failed: ${parsed.error.message}`);
   }
 
@@ -209,10 +212,11 @@ function processAgentCompletion(completion: AgentCompletion): AgentReport {
   }
 
   // Log
-  console.log(`[Webhook] Agent ${completion.agent} reported: ${completion.status}`);
-  if (completion.artifacts?.length) {
-    console.log(`[Webhook] Artifacts: ${completion.artifacts.length} items`);
-  }
+  log.info('Agent reported completion', {
+    agent: completion.agent,
+    status: completion.status,
+    artifacts: completion.artifacts?.length,
+  });
 
   return report;
 }

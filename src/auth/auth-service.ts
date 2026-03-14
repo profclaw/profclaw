@@ -20,6 +20,9 @@ import {
 } from '../storage/schema.js';
 import { getGitHubOAuthConfig, getSettingsRaw, type GitHubOAuthConfig } from '../settings/index.js';
 import { hashPassword, verifyPassword as verifyPw } from './password.js';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('AuthService');
 
 /**
  * Hash a session token for secure storage.
@@ -95,7 +98,7 @@ async function upgradePasswordHash(userId: string, password: string): Promise<vo
     .update(users)
     .set({ passwordHash: newHash, updatedAt: new Date() })
     .where(eq(users.id, userId));
-  console.log(`[Auth] Upgraded password hash to scrypt for user ${userId}`);
+  log.info(`Upgraded password hash to scrypt for user ${userId}`);
 }
 
 // SESSION MANAGEMENT
@@ -288,7 +291,7 @@ export async function signInWithEmail(
   // Transparently upgrade legacy SHA256 hash to scrypt
   if (needsUpgrade) {
     upgradePasswordHash(user.id, password).catch((err) => {
-      console.error('[Auth] Failed to upgrade password hash:', err);
+      log.error('Failed to upgrade password hash', err instanceof Error ? err : new Error(String(err)));
     });
   }
 
@@ -366,7 +369,7 @@ export async function exchangeGitHubCode(code: string): Promise<{
   };
 
   if (data.error || !data.access_token) {
-    console.error('[Auth] GitHub token exchange failed:', data.error);
+    log.error('GitHub token exchange failed', { error: data.error });
     return null;
   }
 
@@ -386,7 +389,7 @@ export async function getGitHubUser(accessToken: string): Promise<GitHubUser | n
   });
 
   if (!response.ok) {
-    console.error('[Auth] Failed to fetch GitHub user:', response.status);
+    log.error('Failed to fetch GitHub user', { status: response.status });
     return null;
   }
 
@@ -407,7 +410,7 @@ export async function getGitHubPrimaryEmail(accessToken: string): Promise<string
     });
 
     if (!response.ok) {
-      console.error('[Auth] Failed to fetch GitHub emails:', response.status);
+      log.error('Failed to fetch GitHub emails', { status: response.status });
       return null;
     }
 
@@ -426,7 +429,7 @@ export async function getGitHubPrimaryEmail(accessToken: string): Promise<string
 
     return primaryEmail || null;
   } catch (error) {
-    console.error('[Auth] Error fetching GitHub emails:', error);
+    log.error('Error fetching GitHub emails', error instanceof Error ? error : new Error(String(error)));
     return null;
   }
 }

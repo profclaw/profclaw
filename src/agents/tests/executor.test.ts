@@ -9,6 +9,13 @@ vi.mock('ai', () => ({
   hasToolCall: vi.fn(() => () => false),
 }));
 
+vi.mock('../../utils/logger.js', () => ({
+  logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  createContextualLogger: vi.fn(() => ({
+    debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),
+  })),
+}));
+
 describe('AgentExecutor', () => {
   let executor: AgentExecutor;
   const sessionId = 'session-123';

@@ -50,6 +50,7 @@ import {
   type GitHubProjectPreview,
   type FieldMappings,
   type ImportSummary,
+  type ImportPreviewItem,
 } from './import';
 
 interface ImportWizardProps {
@@ -117,7 +118,7 @@ export function ImportWizardEnhanced({ open, onOpenChange, onSuccess }: ImportWi
   // Dry run result
   const [dryRunResult, setDryRunResult] = useState<{
     summary: ImportSummary;
-    items: any[];
+    items: ImportPreviewItem[];
   } | null>(null);
 
   // Configuration

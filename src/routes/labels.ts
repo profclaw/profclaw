@@ -18,8 +18,10 @@ import {
   removeLabelFromTicket,
   setTicketLabels,
 } from '../labels/index.js';
+import { createContextualLogger } from '../utils/logger.js';
 
 export const labelsRoutes = new Hono();
+const log = createContextualLogger('LabelsRoutes');
 
 function getErrorMessage(error: unknown): string | undefined {
   return error instanceof Error ? error.message : undefined;
@@ -77,7 +79,7 @@ labelsRoutes.get('/projects/:projectId/labels', async (c) => {
       count: labelsList.length,
     });
   } catch (error) {
-    console.error('[Labels] List error:', error);
+    log.error('List error', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       { error: error instanceof Error ? error.message : 'Failed to list labels' },
       500
@@ -114,7 +116,7 @@ labelsRoutes.post('/projects/:projectId/labels', async (c) => {
 
     return c.json(label, 201);
   } catch (error: unknown) {
-    console.error('[Labels] Create error:', error);
+    log.error('Create error', error instanceof Error ? error : new Error(String(error)));
 
     if (getErrorMessage(error)?.includes('UNIQUE constraint')) {
       return c.json({ error: 'A label with this name already exists' }, 409);
@@ -142,7 +144,7 @@ labelsRoutes.get('/labels/:id', async (c) => {
 
     return c.json(label);
   } catch (error) {
-    console.error('[Labels] Get error:', error);
+    log.error('Get error', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       { error: error instanceof Error ? error.message : 'Failed to get label' },
       500
@@ -179,7 +181,7 @@ labelsRoutes.patch('/labels/:id', async (c) => {
 
     return c.json(label);
   } catch (error: unknown) {
-    console.error('[Labels] Update error:', error);
+    log.error('Update error', error instanceof Error ? error : new Error(String(error)));
 
     if (getErrorMessage(error)?.includes('not found')) {
       return c.json({ error: 'Label not found' }, 404);
@@ -202,7 +204,7 @@ labelsRoutes.delete('/labels/:id', async (c) => {
     await deleteLabel(id);
     return c.json({ success: true });
   } catch (error) {
-    console.error('[Labels] Delete error:', error);
+    log.error('Delete error', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       { error: error instanceof Error ? error.message : 'Failed to delete label' },
       500
@@ -226,7 +228,7 @@ labelsRoutes.get('/tickets/:ticketId/labels', async (c) => {
       count: labelsList.length,
     });
   } catch (error) {
-    console.error('[Labels] Get ticket labels error:', error);
+    log.error('Get ticket labels error', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       { error: error instanceof Error ? error.message : 'Failed to get ticket labels' },
       500
@@ -260,7 +262,7 @@ labelsRoutes.put('/tickets/:ticketId/labels', async (c) => {
       count: labels.length,
     });
   } catch (error) {
-    console.error('[Labels] Set ticket labels error:', error);
+    log.error('Set ticket labels error', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       { error: error instanceof Error ? error.message : 'Failed to set ticket labels' },
       500
@@ -281,7 +283,7 @@ labelsRoutes.post('/tickets/:ticketId/labels/:labelId', async (c) => {
 
     return c.json({ success: true });
   } catch (error) {
-    console.error('[Labels] Add label to ticket error:', error);
+    log.error('Add label to ticket error', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       { error: error instanceof Error ? error.message : 'Failed to add label' },
       500
@@ -302,7 +304,7 @@ labelsRoutes.delete('/tickets/:ticketId/labels/:labelId', async (c) => {
 
     return c.json({ success: true });
   } catch (error) {
-    console.error('[Labels] Remove label from ticket error:', error);
+    log.error('Remove label from ticket error', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       { error: error instanceof Error ? error.message : 'Failed to remove label' },
       500

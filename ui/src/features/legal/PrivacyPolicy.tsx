@@ -154,10 +154,10 @@ export function PrivacyPolicy() {
             <p className="text-muted-foreground leading-relaxed">
               For questions about this Privacy Policy, contact us at:{" "}
               <a
-                href="mailto:support@profclaw.dev"
+                href="mailto:support@profclaw.ai"
                 className="text-primary hover:underline"
               >
-                support@profclaw.dev
+                support@profclaw.ai
               </a>
             </p>
           </section>

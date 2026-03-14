@@ -1,4 +1,7 @@
 import { Hono } from 'hono';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('Webhooks');
 import { handleGitHubWebhook } from '../integrations/github.js';
 import { handleJiraWebhook } from '../integrations/jira.js';
 import { handleLinearWebhook } from '../integrations/linear.js';
@@ -22,7 +25,7 @@ webhooks.post('/github', async (c) => {
       task,
     });
   } catch (error) {
-    console.error('[Webhook] GitHub error:', error);
+    log.error('GitHub webhook error', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         error: 'Webhook processing failed',
@@ -49,7 +52,7 @@ webhooks.post('/jira', async (c) => {
       task,
     });
   } catch (error) {
-    console.error('[Webhook] Jira error:', error);
+    log.error('Jira webhook error', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         error: 'Webhook processing failed',
@@ -76,7 +79,7 @@ webhooks.post('/linear', async (c) => {
       task,
     });
   } catch (error) {
-    console.error('[Webhook] Linear error:', error);
+    log.error('Linear webhook error', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         error: 'Webhook processing failed',

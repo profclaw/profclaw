@@ -29,6 +29,9 @@ import {
   type CallToolResult,
 } from '@modelcontextprotocol/sdk/types.js';
 import { BROWSER_TOOLS, handleBrowserTool } from './browser-tools.js';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('MCPServer', { stream: 'stderr' });
 
 // MCP Server configuration
 const PROFCLAW_API_URL = process.env.PROFCLAW_API_URL || process.env.PROFCLAW_API_URL || 'http://localhost:3000';
@@ -525,11 +528,11 @@ export async function handleLogTask(args: LogTaskArgs): Promise<CallToolResult> 
     });
 
     if (!response.ok) {
-      console.error('[MCP] Failed to report to profClaw:', response.statusText);
+      log.error('[MCP] Failed to report to profClaw', { statusText: response.statusText });
     }
   } catch (error) {
     // Silently fail - don't block the agent
-    console.error('[MCP] Failed to connect to profClaw:', error);
+    log.error('[MCP] Failed to connect to profClaw', error instanceof Error ? error : { error });
   }
 
   return {
@@ -571,10 +574,10 @@ export async function handleCompleteTask(args: CompleteTaskArgs): Promise<CallTo
     });
 
     if (!response.ok) {
-      console.error('[MCP] Failed to report completion to profClaw:', response.statusText);
+      log.error('[MCP] Failed to report completion to profClaw', { statusText: response.statusText });
     }
   } catch (error) {
-    console.error('[MCP] Failed to connect to profClaw:', error);
+    log.error('[MCP] Failed to connect to profClaw', error instanceof Error ? error : { error });
   }
 
   // Clear current task
@@ -648,7 +651,7 @@ async function handleGetContext(args: GetContextArgs): Promise<CallToolResult> {
       };
     }
   } catch (error) {
-    console.error('[MCP] Failed to fetch context from profClaw:', error);
+    log.error('[MCP] Failed to fetch context from profClaw', error instanceof Error ? error : { error });
   }
 
   // Fallback if API unavailable
@@ -997,12 +1000,13 @@ async function main() {
   await server.connect(transport);
 
   // Log startup to stderr (stdout is for MCP protocol)
-  console.error('[profClaw MCP] Server started');
-  console.error(`[profClaw MCP] Session ID: ${sessionState.sessionId}`);
-  console.error(`[profClaw MCP] API URL: ${PROFCLAW_API_URL}`);
+  log.info('[profClaw MCP] Server started', {
+    apiUrl: PROFCLAW_API_URL,
+    sessionId: sessionState.sessionId,
+  });
 }
 
 main().catch((error) => {
-  console.error('[profClaw MCP] Fatal error:', error);
+  log.error('[profClaw MCP] Fatal error', error instanceof Error ? error : { error });
   process.exit(1);
 });

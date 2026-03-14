@@ -5,7 +5,7 @@
  * Uses react-markdown with rehype-highlight for code blocks.
  */
 
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { type Components } from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import remarkGfm from 'remark-gfm';
@@ -93,7 +93,7 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
       className={cn('prose prose-invert prose-sm max-w-none wrap-anywhere', className)}
       remarkPlugins={[remarkGfm]}
       components={{
-        code: CodeBlock as any,
+        code: CodeBlock as Components['code'],
         // Style other elements - add word wrapping
         p: ({ children }) => <p className="mb-3 last:mb-0 wrap-anywhere">{children}</p>,
         ul: ({ children }) => <ul className="list-disc pl-4 mb-3 space-y-1">{children}</ul>,

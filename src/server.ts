@@ -6,6 +6,9 @@ import { createServer } from 'net';
 
 // Core imports - keep static only for truly essential boot utilities
 import { loadConfig } from './utils/config-loader.js';
+import { createContextualLogger } from './utils/logger.js';
+
+const appLog = createContextualLogger('Server');
 import { validateEnvironment, getConfiguredIntegrations, getConfiguredAIProviders } from './utils/env-validator.js';
 import { initApiTokensTable, tokenAuthMiddleware } from './auth/api-tokens.js';
 import { authMiddleware } from './auth/middleware.js';
@@ -513,14 +516,12 @@ async function main() {
   const appSettings = getAppSettings();
   const PORT = getPort();
   const ENABLE_CRON = isCronEnabled();
-  console.log(`[profClaw] v${VERSION} starting in ${getModeLabel()} mode...`);
+  appLog.info('profClaw starting', { version: VERSION, mode: getModeLabel() });
 
   // Early port conflict detection
   const portAvailable = await checkPortAvailable(PORT);
   if (!portAvailable) {
-    console.error(`[FATAL] Port ${PORT} is already in use.`);
-    console.error(`  Try: PORT=${PORT + 1} profclaw serve`);
-    console.error(`  Or:  lsof -ti:${PORT} | xargs kill`);
+    appLog.error(`Port ${PORT} is already in use`, new Error(`EADDRINUSE: Port ${PORT}`));
     process.exit(1);
   }
 
@@ -531,7 +532,7 @@ async function main() {
   });
 
   if (!envResult.valid && process.env.NODE_ENV === 'production') {
-    console.error('\n[FATAL] Cannot start in production with invalid environment.');
+    appLog.error('Cannot start in production with invalid environment');
     process.exit(1);
   }
 
@@ -539,33 +540,33 @@ async function main() {
   const aiProviders = getConfiguredAIProviders();
   const integrations = getConfiguredIntegrations();
   if (aiProviders.length > 0) {
-    console.log(`[OK] AI Providers: ${aiProviders.join(', ')}`);
+    appLog.info('AI providers configured', { providers: aiProviders });
   }
   if (integrations.length > 0) {
-    console.log(`[OK] Integrations: ${integrations.join(', ')}`);
+    appLog.info('Integrations configured', { integrations });
   }
 
   // Initialize storage FIRST (queue needs it for persistence)
   try {
     const { initStorage } = await import('./storage/index.js');
     await initStorage();
-    console.log('[OK] Storage initialized');
+    appLog.info('Storage initialized');
 
     await initApiTokensTable();
-    console.log('[OK] API tokens table initialized');
+    appLog.info('API tokens table initialized');
 
     // Initialize conversation tables for chat history
     if (hasCapability('chat_channels') || hasCapability('web_ui')) {
       const { initConversationTables } = await import('./chat/conversations.js');
       await initConversationTables();
-      console.log('[OK] Chat conversations initialized');
+      appLog.info('Chat conversations initialized');
     }
 
     // Register messenger-to-AI pipeline (only if chat channels enabled)
     if (hasCapability('chat_channels')) {
       const { registerMessageHandler } = await import('./chat/message-handler.js');
       registerMessageHandler();
-      console.log('[OK] Messenger AI handler registered');
+      appLog.info('Messenger AI handler registered');
     }
 
     // Load saved AI provider configurations from database (skip in pico - loaded on first use)
@@ -576,7 +577,7 @@ async function main() {
       ]);
       const loadedProviders = await aiProvider.loadSavedConfigs(loadAllProviderConfigs);
       if (loadedProviders > 0) {
-        console.log(`[OK] Loaded ${loadedProviders} saved AI provider configs`);
+        appLog.info('Loaded saved AI provider configs', { count: loadedProviders });
       }
     }
 
@@ -587,14 +588,14 @@ async function main() {
         const skillsRegistry = await initializeSkillsRegistry({
           workspaceDir: process.cwd(),
         });
-        console.log(`[OK] Skills loaded: ${skillsRegistry.getLoadedSkillNames().length} skills`);
+        appLog.info('Skills loaded', { count: skillsRegistry.getLoadedSkillNames().length });
       } catch (error) {
-        console.error('[WARN] Skills initialization failed:', error);
+        appLog.warn('Skills initialization failed', { error: error instanceof Error ? error.message : String(error) });
       }
     }
   } catch (error) {
-    console.error('[ERROR] Failed to initialize storage:', error);
-    console.log('[WARN] Running with in-memory storage only');
+    appLog.error('Failed to initialize storage', error instanceof Error ? error : new Error(String(error)));
+    appLog.warn('Running with in-memory storage only');
   }
 
   // Initialize task queue (Redis or in-memory based on mode)
@@ -603,11 +604,11 @@ async function main() {
     await initQueue();
     registerSSEBroadcaster(broadcastEvent);
     const { getQueueType } = await import('./queue/index.js');
-    console.log(`[OK] Task queue initialized (${getQueueType()})`);
-    console.log('[OK] SSE event stream registered');
+    appLog.info('Task queue initialized', { queueType: getQueueType() });
+    appLog.info('SSE event stream registered');
   } catch (error) {
-    console.error('[ERROR] Failed to initialize task queue:', error);
-    console.log('[WARN] Tasks will not be processed');
+    appLog.error('Failed to initialize task queue', error instanceof Error ? error : new Error(String(error)));
+    appLog.warn('Tasks will not be processed');
   }
 
   // Initialize sync engine (pro mode or if explicitly configured)
@@ -616,12 +617,12 @@ async function main() {
       const { initSyncIntegration } = await import('./sync/index.js');
       const syncEngine = await initSyncIntegration();
       if (syncEngine) {
-        console.log('[OK] Sync engine initialized');
+        appLog.info('Sync engine initialized');
       } else {
-        console.log('[INFO] Sync engine disabled (enable in config/settings.yml)');
+        appLog.info('Sync engine disabled (enable in config/settings.yml)');
       }
     } catch (error) {
-      console.error('[WARN] Sync engine initialization failed:', error);
+      appLog.warn('Sync engine initialization failed', { error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -629,7 +630,7 @@ async function main() {
   if (getMode() !== 'pico') {
     const { initTokenTracker } = await import('./costs/token-tracker.js');
     initTokenTracker();
-    console.log('[OK] Token tracker initialized');
+    appLog.info('Token tracker initialized');
   }
 
   // Initialize agents from config
@@ -646,12 +647,12 @@ async function main() {
     for (const agentDef of agentsConfig.agents) {
       try {
         if (agentDef.type === 'openclaw' && !agentDef.config?.token) {
-          console.log(`[INFO] Skipping agent ${agentDef.id}: Missing OPENCLAW_GATEWAY_TOKEN`);
+          appLog.info('Skipping agent: missing OPENCLAW_GATEWAY_TOKEN', { agentId: agentDef.id });
           continue;
         }
 
         if (agentDef.type === 'claude-code' && !agentDef.config?.workingDir) {
-          console.log(`[INFO] Skipping agent ${agentDef.id}: Missing CLAUDE_WORKING_DIR`);
+          appLog.info('Skipping agent: missing CLAUDE_WORKING_DIR', { agentId: agentDef.id });
           continue;
         }
 
@@ -661,19 +662,19 @@ async function main() {
           try {
             const resp = await fetch(`${ollamaUrl}/api/tags`, { signal: AbortSignal.timeout(2000) });
             if (!resp.ok) {
-              console.log(`[INFO] Skipping agent ${agentDef.id}: Ollama not responding at ${ollamaUrl}`);
+              appLog.info('Skipping agent: Ollama not responding', { agentId: agentDef.id, url: ollamaUrl });
               continue;
             }
           } catch {
-            console.log(`[INFO] Skipping agent ${agentDef.id}: Ollama not running at ${ollamaUrl}`);
+            appLog.info('Skipping agent: Ollama not running', { agentId: agentDef.id, url: ollamaUrl });
             continue;
           }
         }
 
         registry.createAdapter(agentDef);
-        console.log(`[OK] Agent ${agentDef.id} (${agentDef.type}) configured`);
+        appLog.info('Agent configured', { agentId: agentDef.id, type: agentDef.type });
       } catch (error) {
-        console.error(`[ERROR] Failed to configure agent ${agentDef.id}:`, error);
+        appLog.error(`Failed to configure agent ${agentDef.id}`, error instanceof Error ? error : new Error(String(error)));
       }
     }
   }
@@ -699,7 +700,7 @@ async function main() {
           workingDir: process.env.CLAUDE_WORKING_DIR || process.cwd(),
         },
       });
-      console.log('[OK] Claude Code adapter auto-discovered (CLI found)');
+      appLog.info('Claude Code adapter auto-discovered (CLI found)');
     } catch {
       // CLI not found
     }
@@ -724,7 +725,7 @@ async function main() {
             model: process.env.OLLAMA_MODEL || 'llama3.2',
           },
         });
-        console.log('[OK] Ollama adapter auto-discovered (server running)');
+        appLog.info('Ollama adapter auto-discovered (server running)');
       }
     } catch {
       // Ollama not running
@@ -735,11 +736,11 @@ async function main() {
   if (ENABLE_CRON && hasCapability('cron')) {
     const { startAllCronJobs } = await import('./cron/index.js');
     startAllCronJobs();
-    console.log('[OK] Cron jobs started (autonomous mode)');
+    appLog.info('Cron jobs started (autonomous mode)');
   } else if (!hasCapability('cron')) {
-    console.log('[INFO] Cron jobs not available in pico mode');
+    appLog.info('Cron jobs not available in pico mode');
   } else {
-    console.log('[INFO] Cron jobs disabled (ENABLE_CRON=false)');
+    appLog.info('Cron jobs disabled (ENABLE_CRON=false)');
   }
 
   // Start proactive health monitor (Phase 19)
@@ -747,12 +748,12 @@ async function main() {
     const { HealthMonitor } = await import('./chat/proactive/index.js');
     const healthMonitor = new HealthMonitor(5 * 60_000); // 5-minute interval
     healthMonitor.on('degraded', (check: { service: string; message?: string }) => {
-      console.warn(`[HEALTH] Service degraded: ${check.service} - ${check.message ?? 'unknown'}`);
+      appLog.warn('Service degraded', { service: check.service, reason: check.message ?? 'unknown' });
     });
     healthMonitor.start();
-    console.log('[OK] Health monitor started (5-min interval)');
+    appLog.info('Health monitor started', { intervalMs: 5 * 60_000 });
   } catch {
-    console.log('[INFO] Health monitor unavailable');
+    appLog.info('Health monitor unavailable');
   }
 
   // Static UI serving (mini/pro modes)
@@ -784,7 +785,7 @@ async function main() {
         }
       });
 
-      console.log('[OK] Static UI serving enabled');
+      appLog.info('Static UI serving enabled');
     }
   }
 
@@ -794,29 +795,18 @@ async function main() {
     port: PORT,
   });
 
-  console.log(`\n[READY] profClaw running on http://localhost:${PORT} (${getModeLabel()})`);
-  console.log(`\nEndpoints:`);
-  console.log(`  Health:   http://localhost:${PORT}/health`);
-  console.log(`  Tasks:    http://localhost:${PORT}/api/tasks`);
-  console.log(`  Agents:   http://localhost:${PORT}/api/agents`);
-  console.log(`  Chat:     http://localhost:${PORT}/api/chat`);
-  console.log(`  Gateway:  http://localhost:${PORT}/api/gateway/execute`);
-  if (hasCapability('web_ui')) {
-    console.log(`  DLQ:      http://localhost:${PORT}/api/dlq`);
-  }
-  if (hasCapability('integrations')) {
-    console.log(`  Webhooks: http://localhost:${PORT}/webhooks/github`);
-  }
+  appLog.info(`profClaw ready on http://localhost:${PORT}`, { port: PORT, mode: getModeLabel() });
 
   if (ENABLE_CRON) {
     const heartbeatMs = parseInt(process.env.POLL_INTERVAL_HEARTBEAT || '30000', 10);
     const issuesMs = parseInt(process.env.POLL_INTERVAL_ISSUES || '120000', 10);
     const staleMs = parseInt(process.env.POLL_INTERVAL_STALE || '60000', 10);
-    console.log(`\nAutonomous Features (configurable via env):`);
-    console.log(`  Heartbeat: ${Math.round(heartbeatMs / 1000)}s (POLL_INTERVAL_HEARTBEAT)`);
-    console.log(`  Issue Poller: ${Math.round(issuesMs / 1000)}s (POLL_INTERVAL_ISSUES)`);
-    console.log(`  Stale Checker: ${Math.round(staleMs / 1000)}s (POLL_INTERVAL_STALE)`);
-    console.log(`  Log Level: ${process.env.LOG_LEVEL || 'INFO'} (LOG_LEVEL)`);
+    appLog.info('Autonomous features active', {
+      heartbeatSec: Math.round(heartbeatMs / 1000),
+      issuePollerSec: Math.round(issuesMs / 1000),
+      staleCheckerSec: Math.round(staleMs / 1000),
+      logLevel: process.env.LOG_LEVEL || 'INFO',
+    });
   }
 
   // First-time setup banner
@@ -834,12 +824,7 @@ async function main() {
         .where(eq(users.role, 'admin'))
         .limit(1);
       if (adminCount.length === 0) {
-        console.log('\n' + '='.repeat(56));
-        console.log('  profClaw needs initial setup!');
-        console.log('');
-        console.log(`  Visit: http://localhost:${PORT}`);
-        console.log('  (The setup wizard will start automatically)');
-        console.log('='.repeat(56) + '\n');
+        appLog.info('First-time setup required - visit the UI to complete setup', { url: `http://localhost:${PORT}` });
       }
     }
   } catch { /* ignore - DB may not be ready */ }
@@ -861,11 +846,11 @@ async function gracefulShutdown(signal: string): Promise<void> {
   if (isShuttingDown) return;
   isShuttingDown = true;
 
-  console.log(`\n[SHUTDOWN] ${signal} received, shutting down gracefully...`);
+  appLog.info('Shutting down gracefully', { signal });
 
   // Force exit after timeout to prevent hanging
   const forceExitTimer = setTimeout(() => {
-    console.error('[SHUTDOWN] Force exit after timeout');
+    appLog.error('Force exit after shutdown timeout');
     process.exit(1);
   }, SHUTDOWN_TIMEOUT_MS);
   forceExitTimer.unref();
@@ -884,13 +869,13 @@ async function gracefulShutdown(signal: string): Promise<void> {
   }
   sseConnections.clear();
   clearInterval(sseCleanupInterval);
-  console.log('[SHUTDOWN] SSE connections closed');
+  appLog.info('SSE connections closed');
 
   // 2. Stop cron jobs
   try {
     const { stopAllCronJobs } = await import('./cron/index.js');
     stopAllCronJobs();
-    console.log('[SHUTDOWN] Cron jobs stopped');
+    appLog.info('Cron jobs stopped');
   } catch {
     // Cron may not be initialized
   }
@@ -899,7 +884,7 @@ async function gracefulShutdown(signal: string): Promise<void> {
   try {
     const { closeQueue } = await import('./queue/index.js');
     await closeQueue();
-    console.log('[SHUTDOWN] Task queue drained');
+    appLog.info('Task queue drained');
   } catch {
     // Queue may not be initialized
   }
@@ -908,12 +893,12 @@ async function gracefulShutdown(signal: string): Promise<void> {
   try {
     apiRateLimiter.destroy();
     authRateLimiter.destroy();
-    console.log('[SHUTDOWN] Rate limiters destroyed');
+    appLog.info('Rate limiters destroyed');
   } catch {
     // Rate limiters may not be initialized
   }
 
-  console.log('[SHUTDOWN] Clean exit.');
+  appLog.info('Clean exit');
   clearTimeout(forceExitTimer);
   process.exit(0);
 }
@@ -923,18 +908,18 @@ process.on('SIGTERM', () => { gracefulShutdown('SIGTERM'); });
 
 // Catch unhandled errors to log before crashing
 process.on('uncaughtException', (err) => {
-  console.error('[FATAL] Uncaught exception:', err);
+  appLog.error('Uncaught exception', err);
   // Let the process crash (daemon/serve will restart it)
   process.exit(1);
 });
 
 process.on('unhandledRejection', (reason) => {
-  console.error('[FATAL] Unhandled rejection:', reason);
+  appLog.error('Unhandled rejection', reason instanceof Error ? reason : new Error(String(reason)));
   // Don't exit for unhandled rejections - log and continue
   // This prevents a single failed promise from taking down the server
 });
 
 main().catch((err) => {
-  console.error('[FATAL] Startup failed:', err);
+  appLog.error('Startup failed', err instanceof Error ? err : new Error(String(err)));
   process.exit(1);
 });

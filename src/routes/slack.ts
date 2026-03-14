@@ -12,6 +12,9 @@ import { createHmac, timingSafeEqual, randomUUID } from "crypto";
 import { getDb } from "../storage/index.js";
 import { tickets, projects } from "../storage/schema.js";
 import { eq, desc, like } from "drizzle-orm";
+import { createContextualLogger } from "../utils/logger.js";
+
+const log = createContextualLogger('Slack');
 import {
   getWebhookDedupValue,
   isDuplicateWebhookEvent,
@@ -107,7 +110,7 @@ function verifySlackSignature(
   // Check timestamp is within 5 minutes
   const fiveMinutesAgo = Math.floor(Date.now() / 1000) - 60 * 5;
   if (parseInt(timestamp, 10) < fiveMinutesAgo) {
-    console.warn("[Slack] Request timestamp too old");
+    log.warn('Request timestamp too old');
     return false;
   }
 
@@ -201,7 +204,7 @@ function extractInlineCommand(text: string): string | null {
 
 async function postSlackResponse(options: SlackPostOptions): Promise<void> {
   if (!SLACK_BOT_TOKEN) {
-    console.warn("[Slack] Missing SLACK_BOT_TOKEN for inline command response");
+    log.warn('Missing SLACK_BOT_TOKEN for inline command response');
     return;
   }
 
@@ -235,7 +238,7 @@ async function postSlackResponse(options: SlackPostOptions): Promise<void> {
   });
 
   if (!res.ok) {
-    console.warn(`[Slack] Failed to post response: ${res.status}`);
+    log.warn('Failed to post response', { status: res.status });
   }
 }
 
@@ -315,20 +318,18 @@ async function handleTicketList(
     const limit = parseInt(args.limit || "5", 10);
     const status = args.status;
 
-    let query = db
-      .select()
-      .from(tickets)
-      .orderBy(desc(tickets.createdAt))
-      .limit(limit);
-
-    if (status) {
-      query = db
-        .select()
-        .from(tickets)
-        .where(eq(tickets.status, status))
-        .orderBy(desc(tickets.createdAt))
-        .limit(limit);
-    }
+    const query = status
+      ? db
+          .select()
+          .from(tickets)
+          .where(eq(tickets.status, status))
+          .orderBy(desc(tickets.createdAt))
+          .limit(limit)
+      : db
+          .select()
+          .from(tickets)
+          .orderBy(desc(tickets.createdAt))
+          .limit(limit);
 
     const results = await query;
 
@@ -375,7 +376,7 @@ async function handleTicketList(
       ],
     };
   } catch (error) {
-    console.error("[Slack] Error listing tickets:", error);
+    log.error('Error listing tickets', error instanceof Error ? error : new Error(String(error)));
     return {
       response_type: resolveDefaultResponseType(),
       text: "❌ Failed to list tickets",
@@ -416,8 +417,11 @@ async function handleTicketCreate(
     const nextSequence = (lastTicket[0]?.sequence || 0) + 1;
 
     // Map priority
-    const priorityMap: Record<string, string> = {
-      urgent: "urgent",
+    const priorityMap: Record<
+      string,
+      "critical" | "high" | "medium" | "low" | "none"
+    > = {
+      urgent: "critical",
       high: "high",
       medium: "medium",
       low: "low",
@@ -427,11 +431,14 @@ async function handleTicketCreate(
       priorityMap[args.priority?.toLowerCase() || "medium"] || "medium";
 
     // Map type
-    const typeMap: Record<string, string> = {
+    const typeMap: Record<
+      string,
+      "bug" | "feature" | "task" | "epic" | "story" | "subtask"
+    > = {
       bug: "bug",
       feature: "feature",
       task: "task",
-      improvement: "improvement",
+      improvement: "feature",
       epic: "epic",
     };
     const type = typeMap[args.type?.toLowerCase() || "task"] || "task";
@@ -439,7 +446,7 @@ async function handleTicketCreate(
     const ticketId = randomUUID();
     const now = new Date();
 
-    await db.insert(tickets).values({
+    const ticketRow: typeof tickets.$inferInsert = {
       id: ticketId,
       sequence: nextSequence,
       title,
@@ -447,11 +454,12 @@ async function handleTicketCreate(
       status: "backlog",
       priority,
       type,
-      createdBy: `slack:${userId}`,
-      createdByName: userName,
+      createdBy: "human",
       createdAt: now,
       updatedAt: now,
-    });
+    };
+
+    await db.insert(tickets).values(ticketRow);
 
     return {
       response_type: SLACK_SLASH_EPHEMERAL ? "ephemeral" : "in_channel",
@@ -477,7 +485,7 @@ async function handleTicketCreate(
       ],
     };
   } catch (error) {
-    console.error("[Slack] Error creating ticket:", error);
+    log.error('Error creating ticket', error instanceof Error ? error : new Error(String(error)), { userId, userName });
     return {
       response_type: resolveDefaultResponseType(),
       text: "❌ Failed to create ticket",
@@ -574,7 +582,7 @@ async function handleTicketShow(ticketRef: string): Promise<SlackResponse> {
       ],
     };
   } catch (error) {
-    console.error("[Slack] Error showing ticket:", error);
+    log.error('Error showing ticket', error instanceof Error ? error : new Error(String(error)));
     return {
       response_type: resolveDefaultResponseType(),
       text: "❌ Failed to fetch ticket",
@@ -638,7 +646,7 @@ async function handleTicketSearch(query: string): Promise<SlackResponse> {
       ],
     };
   } catch (error) {
-    console.error("[Slack] Error searching tickets:", error);
+    log.error('Error searching tickets', error instanceof Error ? error : new Error(String(error)));
     return {
       response_type: resolveDefaultResponseType(),
       text: "❌ Failed to search tickets",
@@ -695,7 +703,7 @@ async function handleProjectList(): Promise<SlackResponse> {
       ],
     };
   } catch (error) {
-    console.error("[Slack] Error listing projects:", error);
+    log.error('Error listing projects', error instanceof Error ? error : new Error(String(error)));
     return {
       response_type: resolveDefaultResponseType(),
       text: "❌ Failed to list projects",
@@ -782,7 +790,7 @@ async function handleProjectShow(projectKey: string): Promise<SlackResponse> {
       ],
     };
   } catch (error) {
-    console.error("[Slack] Error showing project:", error);
+    log.error('Error showing project', error instanceof Error ? error : new Error(String(error)));
     return {
       response_type: resolveDefaultResponseType(),
       text: "❌ Failed to fetch project",
@@ -907,7 +915,7 @@ slack.post("/commands", async (c) => {
       rawBody,
     );
     if (!isValid) {
-      console.warn("[Slack] Invalid signature");
+      log.warn('Invalid signature');
       return c.json({ error: "Invalid signature" }, 401);
     }
   }
@@ -929,9 +937,7 @@ slack.post("/commands", async (c) => {
     api_app_id: params.get("api_app_id") || "",
   };
 
-  console.log(
-    `[Slack] Command: ${command.command} ${command.text} from @${command.user_name}`,
-  );
+  log.info('Command received', { command: command.command, text: command.text, user: command.user_name });
 
   const commandName = normalizeSlackCommandName(command.command);
   if (commandName !== SLACK_COMMAND_NAME.toLowerCase()) {
@@ -1030,7 +1036,7 @@ slack.post("/commands", async (c) => {
         response = await handleHelp();
     }
   } catch (error) {
-    console.error("[Slack] Command error:", error);
+    log.error('Command error', error instanceof Error ? error : new Error(String(error)));
     response = {
       response_type: resolveDefaultResponseType(),
       text: "❌ An error occurred processing your command",
@@ -1077,9 +1083,7 @@ slack.post("/interactive", async (c) => {
     return c.json(cachedResponse);
   }
 
-  console.log(
-    `[Slack] Interactive: ${payload.type} - ${payload.actions?.[0]?.action_id}`,
-  );
+  log.info('Interactive event received', { type: payload.type, actionId: payload.actions?.[0]?.action_id });
 
   // Handle different interaction types
   if (payload.type === "block_actions") {

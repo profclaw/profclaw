@@ -1,5 +1,5 @@
-import { drizzle } from "drizzle-orm/libsql";
-import { createClient } from "@libsql/client";
+import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql";
+import { createClient, type Client, type InValue } from "@libsql/client";
 import {
   eq,
   and,
@@ -30,9 +30,72 @@ import type {
   SummaryStats,
 } from "../types/summary.js";
 
+type SummaryRow = typeof schema.summaries.$inferSelect;
+type EmbeddingRow = typeof schema.embeddings.$inferSelect;
+type AgentStatsRow = {
+  agent: string | null;
+  status: string;
+  count: number;
+  avgDuration: number | null;
+  lastActivity: number | null;
+};
+type AgentStorageStats = {
+  completed: number;
+  failed: number;
+  avgDuration: number;
+  lastActivity?: Date;
+};
+type CostAggregate = { cost: number; tokens: number };
+type TaskArchiveRow = typeof schema.taskArchives.$inferSelect;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function getNumber(value: unknown, key: string): number {
+  if (!isRecord(value)) return 0;
+  const candidate = value[key];
+  return typeof candidate === "number" ? candidate : 0;
+}
+
+function toInValues(params?: readonly unknown[]): InValue[] {
+  return (params ?? []) as InValue[];
+}
+
+function toSummary(row: SummaryRow): Summary {
+  return {
+    id: row.id,
+    taskId: row.taskId ?? undefined,
+    sessionId: row.sessionId ?? undefined,
+    createdAt: row.createdAt,
+    agent: row.agent,
+    model: row.model ?? undefined,
+    title: row.title,
+    whatChanged: row.whatChanged,
+    whyChanged: row.whyChanged ?? undefined,
+    howChanged: row.howChanged ?? undefined,
+    filesChanged: row.filesChanged as Summary["filesChanged"],
+    decisions: row.decisions as Summary["decisions"],
+    blockers: row.blockers as Summary["blockers"],
+    artifacts: row.artifacts as Summary["artifacts"],
+    tokensUsed: row.tokensUsed as Summary["tokensUsed"],
+    cost: row.cost as Summary["cost"],
+    taskType: row.taskType ?? undefined,
+    component: row.component ?? undefined,
+    labels: row.labels ?? [],
+    linkedIssue: row.linkedIssue ?? undefined,
+    linkedPr: row.linkedPr ?? undefined,
+    repository: row.repository ?? undefined,
+    branch: row.branch ?? undefined,
+    rawOutput: row.rawOutput ?? undefined,
+    hasBlobOutput: row.hasBlobOutput ?? undefined,
+    metadata: row.metadata ?? undefined,
+  };
+}
+
 export class LibSQLAdapter implements StorageAdapter {
-  private db: any;
-  private client: any;
+  private _db: LibSQLDatabase<typeof schema> | null = null;
+  private _client: Client | null = null;
   private readonly dbUrl: string;
 
   constructor(config: { dbPath?: string } = {}) {
@@ -48,8 +111,8 @@ export class LibSQLAdapter implements StorageAdapter {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    this.client = createClient({ url: this.dbUrl });
-    this.db = drizzle(this.client, { schema });
+    this._client = createClient({ url: this.dbUrl });
+    this._db = drizzle(this.client, { schema });
 
     // Ensure tables exist (POC auto-migration)
     await this.initDatabase();
@@ -1084,22 +1147,44 @@ export class LibSQLAdapter implements StorageAdapter {
     );
   }
 
+  private get db(): LibSQLDatabase<typeof schema> {
+    if (!this._db) throw new Error("Database not connected. Call connect() first.");
+    return this._db;
+  }
+
+  private get client(): Client {
+    if (!this._client)
+      throw new Error("Client not connected. Call connect() first.");
+    return this._client;
+  }
+
+  getDb(): LibSQLDatabase<typeof schema> {
+    return this.db;
+  }
+
+  getClient(): Client {
+    return this.client;
+  }
+
   async disconnect(): Promise<void> {
-    if (this.client) {
-      await this.client.close();
+    if (this._client) {
+      await this._client.close();
+      this._client = null;
+      this._db = null;
     }
   }
 
   // === Tasks ===
 
   async createTask(input: CreateTaskInput): Promise<Task> {
-    const id = (input as any).id || randomUUID();
+    const id = ('id' in input && typeof input.id === 'string') ? input.id : randomUUID();
+    const status = ('status' in input && typeof input.status === 'string') ? input.status : 'pending';
     const now = new Date();
 
-    const newTask = {
+    const newTask: Task = {
       ...input,
       id,
-      status: (input as any).status || "pending",
+      status: status as Task['status'],
       createdAt: now,
       updatedAt: now,
       attempts: 0,
@@ -1107,7 +1192,7 @@ export class LibSQLAdapter implements StorageAdapter {
     };
 
     await this.db.insert(schema.tasks).values(newTask);
-    return newTask as Task;
+    return newTask;
   }
 
   async getTask(id: string): Promise<Task | null> {
@@ -1203,7 +1288,11 @@ export class LibSQLAdapter implements StorageAdapter {
       });
     }
 
-    return { ...newSummary, createdAt: now, rawOutput: undefined } as Summary;
+    return toSummary({
+      ...newSummary,
+      createdAt: now,
+      rawOutput: null,
+    } as SummaryRow);
   }
 
   async getSummary(
@@ -1214,7 +1303,7 @@ export class LibSQLAdapter implements StorageAdapter {
       .select()
       .from(schema.summaries)
       .where(eq(schema.summaries.id, id));
-    const summary = results[0] as Summary | undefined;
+    const summary = results[0];
 
     if (!summary) return null;
 
@@ -1227,16 +1316,16 @@ export class LibSQLAdapter implements StorageAdapter {
         .limit(1);
 
       if (blob[0]) {
-        return { ...summary, rawOutput: blob[0].rawOutput } as Summary;
+        return { ...toSummary(summary), rawOutput: blob[0].rawOutput };
       }
     }
 
     // Strip rawOutput from response if not requested (for backward compat with old data)
     if (!includeRawOutput) {
-      return { ...summary, rawOutput: undefined } as Summary;
+      return { ...toSummary(summary), rawOutput: undefined };
     }
 
-    return summary;
+    return toSummary(summary);
   }
 
   /**
@@ -1265,11 +1354,12 @@ export class LibSQLAdapter implements StorageAdapter {
   }
 
   async getTaskSummaries(taskId: string): Promise<Summary[]> {
-    return await this.db
+    const summaries = await this.db
       .select()
       .from(schema.summaries)
       .where(eq(schema.summaries.taskId, taskId))
       .orderBy(desc(schema.summaries.createdAt));
+    return summaries.map(toSummary);
   }
 
   async querySummaries(
@@ -1362,7 +1452,7 @@ export class LibSQLAdapter implements StorageAdapter {
       .where(whereClause);
 
     return {
-      summaries: summaries as Summary[],
+      summaries: summaries.map(toSummary),
       total: totalRes[0].value,
     };
   }
@@ -1474,15 +1564,14 @@ export class LibSQLAdapter implements StorageAdapter {
       .where(sql`${schema.tasks.assignedAgent} IS NOT NULL`)
       .groupBy(schema.tasks.assignedAgent, schema.tasks.status);
 
-    const stats: Record<string, any> = {};
-    for (const row of results as any[]) {
+    const stats: Record<string, AgentStorageStats> = {};
+    for (const row of results as AgentStatsRow[]) {
       if (!row.agent) continue;
       if (!stats[row.agent]) {
         stats[row.agent] = {
           completed: 0,
           failed: 0,
           avgDuration: 0,
-          lastActivity: null,
         };
       }
       if (row.status === "completed") {
@@ -1492,13 +1581,14 @@ export class LibSQLAdapter implements StorageAdapter {
         stats[row.agent].failed = row.count;
       }
 
-      if (row.lastActivity) {
+      const agentStats = stats[row.agent];
+      if (row.lastActivity !== null) {
         const lastActivity = new Date(row.lastActivity);
         if (
-          !stats[row.agent].lastActivity ||
-          lastActivity > stats[row.agent].lastActivity
+          !agentStats.lastActivity ||
+          lastActivity > agentStats.lastActivity
         ) {
-          stats[row.agent].lastActivity = lastActivity;
+          agentStats.lastActivity = lastActivity;
         }
       }
     }
@@ -1512,9 +1602,9 @@ export class LibSQLAdapter implements StorageAdapter {
     totalCost: number;
     totalTokens: number;
   }> {
-    const daily: Record<string, { cost: number; tokens: number }> = {};
-    const byModel: Record<string, { cost: number; tokens: number }> = {};
-    const byAgent: Record<string, { cost: number; tokens: number }> = {};
+    const daily: Record<string, CostAggregate> = {};
+    const byModel: Record<string, CostAggregate> = {};
+    const byAgent: Record<string, CostAggregate> = {};
     let totalCost = 0;
     let totalTokens = 0;
 
@@ -1543,8 +1633,8 @@ export class LibSQLAdapter implements StorageAdapter {
       const date = s.createdAt.toISOString().split("T")[0];
       const model = s.model || "unknown";
       const agent = s.agent || "unknown";
-      const cost = (s.cost as any)?.amount || 0;
-      const tokens = (s.tokensUsed as any)?.total || 0;
+      const cost = getNumber(s.cost, "amount");
+      const tokens = getNumber(s.tokensUsed, "total");
       accumulate(date, model, agent, cost, tokens);
     }
 
@@ -1598,7 +1688,7 @@ export class LibSQLAdapter implements StorageAdapter {
       id,
       entityType,
       entityId,
-      embedding: buffer as any,
+      embedding: buffer,
       model,
       createdAt: new Date(),
     });
@@ -1620,11 +1710,12 @@ export class LibSQLAdapter implements StorageAdapter {
 
     const targetVector = new Float32Array(embedding);
 
-    const results = allEmbeddings.map((row: any) => {
+    const results = allEmbeddings.map((row: EmbeddingRow) => {
+      const embeddingBuffer = row.embedding as Buffer;
       const rowVector = new Float32Array(
-        row.embedding.buffer,
-        row.embedding.byteOffset,
-        row.embedding.byteLength / 4,
+        embeddingBuffer.buffer,
+        embeddingBuffer.byteOffset,
+        embeddingBuffer.byteLength / 4,
       );
       const distance = this.cosineSimilarity(targetVector, rowVector);
       return {
@@ -1634,7 +1725,7 @@ export class LibSQLAdapter implements StorageAdapter {
     });
 
     // Sort by descending similarity (1.0 is identical)
-    results.sort((a: any, b: any) => b.distance - a.distance);
+    results.sort((a, b) => b.distance - a.distance);
 
     return results.slice(0, limit);
   }
@@ -1664,7 +1755,7 @@ export class LibSQLAdapter implements StorageAdapter {
   ): Promise<T[]> {
     const result = await this.client.execute({
       sql,
-      args: params || [],
+      args: toInValues(params),
     });
     return result.rows as T[];
   }
@@ -1672,7 +1763,7 @@ export class LibSQLAdapter implements StorageAdapter {
   async execute(sql: string, params?: unknown[]): Promise<void> {
     await this.client.execute({
       sql,
-      args: params || [],
+      args: toInValues(params),
     });
   }
 
@@ -1698,14 +1789,15 @@ export class LibSQLAdapter implements StorageAdapter {
       .where(eq(schema.taskEvents.taskId, taskId))
       .orderBy(asc(schema.taskEvents.timestamp));
 
-    return results.map((row: any) => ({
+    type TaskEventRow = typeof schema.taskEvents.$inferSelect;
+    return results.map((row: TaskEventRow) => ({
       id: row.id,
       taskId: row.taskId,
-      type: row.type,
+      type: row.type as TaskEvent["type"],
       timestamp: row.timestamp,
-      agentId: row.agentId,
-      message: row.message,
-      metadata: row.metadata,
+      agentId: row.agentId ?? undefined,
+      message: row.message ?? undefined,
+      metadata: row.metadata ?? undefined,
     }));
   }
 
@@ -2014,7 +2106,8 @@ export class LibSQLAdapter implements StorageAdapter {
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     // Determine sort column and order
-    let orderByColumn: any = schema.tasks.createdAt;
+    type TaskColumn = typeof schema.tasks.createdAt | typeof schema.tasks.updatedAt | typeof schema.tasks.priority | typeof schema.tasks.completedAt;
+    let orderByColumn: TaskColumn = schema.tasks.createdAt;
     if (options.sortBy === "updatedAt") orderByColumn = schema.tasks.updatedAt;
     else if (options.sortBy === "priority")
       orderByColumn = schema.tasks.priority;
@@ -2077,11 +2170,11 @@ export class LibSQLAdapter implements StorageAdapter {
         const startTime =
           task.startedAt instanceof Date
             ? task.startedAt.getTime()
-            : new Date(task.startedAt as any).getTime();
+            : new Date(String(task.startedAt)).getTime();
         const endTime =
           task.completedAt instanceof Date
             ? task.completedAt.getTime()
-            : new Date(task.completedAt as any).getTime();
+            : new Date(String(task.completedAt)).getTime();
         durationMs = endTime - startTime;
       }
 
@@ -2135,7 +2228,7 @@ export class LibSQLAdapter implements StorageAdapter {
       .from(schema.taskArchives);
 
     // Map archived tasks back to Task format
-    const tasks = archived.map((a: any) => ({
+    const tasks = archived.map((a: TaskArchiveRow) => ({
       id: a.originalId,
       title: a.title,
       description: a.description,

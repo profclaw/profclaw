@@ -110,7 +110,7 @@ ${issue.body || 'No description provided.'}
 
 Closes #${issue.number}
 
-Co-Authored-By: profClaw <bot@profclaw.dev>"
+Co-Authored-By: profClaw <bot@profclaw.ai>"
 8. Push: git push -u origin HEAD
 9. Create PR: gh pr create --title "<title>" --body "Closes #${issue.number}"
 

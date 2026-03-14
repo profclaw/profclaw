@@ -7,6 +7,9 @@
  */
 
 import { AppError, ErrorCategory, ErrorSeverity } from '../types/errors.js';
+import { createContextualLogger } from './logger.js';
+
+const log = createContextualLogger('CircuitBreaker');
 
 /**
  * Circuit breaker states
@@ -184,12 +187,12 @@ export class CircuitBreaker {
       }
     }
 
-    console.error(
-      `[CircuitBreaker:${this.config.name}] Failure recorded. ` +
-        `Count: ${this.failures.length}/${this.config.failureThreshold} ` +
-        `State: ${this.state}`,
-      error
-    );
+    log.error('Failure recorded', error instanceof Error ? error : new Error(String(error)), {
+      name: this.config.name,
+      failureCount: this.failures.length,
+      threshold: this.config.failureThreshold,
+      state: this.state,
+    });
   }
 
   /**
@@ -220,9 +223,7 @@ export class CircuitBreaker {
       }, this.config.resetTimeout);
     }
 
-    console.log(
-      `[CircuitBreaker:${this.config.name}] State changed: ${oldState} → ${newState}`
-    );
+    log.info('State changed', { name: this.config.name, from: oldState, to: newState });
   }
 
   /**
@@ -252,7 +253,7 @@ export class CircuitBreaker {
     this.successCount = 0;
     this.failures = [];
     this.stateChangedAt = new Date();
-    console.log(`[CircuitBreaker:${this.config.name}] Manually reset`);
+    log.info('Manually reset', { name: this.config.name });
   }
 
   /**

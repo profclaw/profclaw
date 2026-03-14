@@ -7,6 +7,9 @@
 
 import type { Task, CreateTaskInput, TaskStatusType } from '../types/task.js';
 import { shouldUseRedis } from '../core/deployment.js';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('Queue');
 
 // Queue backend interface
 interface QueueBackend {
@@ -43,21 +46,21 @@ async function loadBackend(): Promise<QueueBackend> {
 
       backend = await import('./task-queue.js') as unknown as QueueBackend;
       backendType = 'redis';
-      console.log('[Queue] Using Redis-backed BullMQ queue');
+      log.info('Using Redis-backed BullMQ queue');
       return backend;
     } catch {
       if (process.env.PROFCLAW_REQUIRE_REDIS === 'true') {
-        console.error('[FATAL] PROFCLAW_REQUIRE_REDIS=true but Redis is unreachable');
+        log.error('PROFCLAW_REQUIRE_REDIS=true but Redis is unreachable', new Error('REDIS_UNREACHABLE'));
         process.exit(1);
       }
-      console.log('[Queue] Redis unavailable, falling back to in-memory queue');
+      log.warn('Redis unavailable, falling back to in-memory queue');
     }
   }
 
   // Fallback: in-memory queue
   backend = await import('./memory-queue.js') as unknown as QueueBackend;
   backendType = 'memory';
-  console.log('[Queue] Using in-memory queue (no Redis)');
+  log.info('Using in-memory queue (no Redis)');
   return backend;
 }
 
