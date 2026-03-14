@@ -353,6 +353,7 @@ async function runInteractive(): Promise<void> {
     try {
       chosenProvider = await search<string>({
         message: 'Select AI provider (type to filter, arrows to navigate)',
+        pageSize: 15,
         source: (term: string | undefined) => {
           const results: Array<Separator | { name: string; value: string; description: string; short: string }> = [];
           const filter = (term || '').toLowerCase();
@@ -449,8 +450,29 @@ async function runInteractive(): Promise<void> {
     }
   }
 
+  // Collect extra env vars that were set during provider selection
+  const extraEnvVars: Record<string, string> = {};
+  if (!anthropicKey && !openaiKey && !ollamaUrl) {
+    // Check if a non-standard provider key was set via process.env
+    const providers = [
+      'GOOGLE_GENERATIVE_AI_API_KEY', 'GROQ_API_KEY', 'CEREBRAS_API_KEY',
+      'FIREWORKS_API_KEY', 'TOGETHER_API_KEY', 'AZURE_OPENAI_API_KEY',
+      'AWS_ACCESS_KEY_ID', 'WATSONX_API_KEY', 'DEEPSEEK_API_KEY',
+      'MISTRAL_API_KEY', 'XAI_API_KEY', 'PERPLEXITY_API_KEY',
+      'COHERE_API_KEY', 'OPENROUTER_API_KEY', 'REPLICATE_API_TOKEN',
+      'GITHUB_TOKEN', 'HF_TOKEN', 'NVIDIA_NIM_API_KEY',
+      'ZHIPU_API_KEY', 'MOONSHOT_API_KEY', 'QWEN_API_KEY',
+      'MINIMAX_API_KEY', 'VOLCENGINE_API_KEY', 'QIANFAN_API_KEY',
+    ];
+    for (const key of providers) {
+      if (process.env[key]) extraEnvVars[key] = process.env[key]!;
+    }
+  }
+
   // Step 4: Generate .env
   console.log(chalk.bold.white('\n  Step 4: Configuration\n'));
+
+  const envPath = join(process.cwd(), '.env');
 
   if (!env.existingEnv) {
     const envContent = generateEnvFile({
@@ -458,8 +480,8 @@ async function runInteractive(): Promise<void> {
       anthropicKey,
       openaiKey,
       ollamaUrl,
+      extraEnvVars,
     });
-    const envPath = join(process.cwd(), '.env');
     try {
       writeFileSync(envPath, envContent, { mode: 0o600 });
       success('.env file created.');
@@ -468,16 +490,36 @@ async function runInteractive(): Promise<void> {
       info('Create .env manually with the values above.');
     }
   } else {
-    info('.env file already exists. Updating PROFCLAW_MODE...');
-    const envPath = join(process.cwd(), '.env');
     let content = readFileSync(envPath, 'utf-8');
+
+    // Update mode
     if (content.includes('PROFCLAW_MODE=')) {
       content = content.replace(/PROFCLAW_MODE=\w+/, `PROFCLAW_MODE=${mode}`);
     } else {
       content += `\nPROFCLAW_MODE=${mode}\n`;
     }
+
+    // Add provider keys to existing .env
+    const keysToWrite: Record<string, string> = { ...extraEnvVars };
+    if (anthropicKey) keysToWrite['ANTHROPIC_API_KEY'] = anthropicKey;
+    if (openaiKey) keysToWrite['OPENAI_API_KEY'] = openaiKey;
+    if (ollamaUrl) keysToWrite['OLLAMA_BASE_URL'] = ollamaUrl;
+
+    for (const [key, value] of Object.entries(keysToWrite)) {
+      if (content.includes(`${key}=`)) {
+        content = content.replace(new RegExp(`${key}=.*`), `${key}=${value}`);
+      } else {
+        content += `${key}=${value}\n`;
+      }
+    }
+
     writeFileSync(envPath, content);
-    success(`PROFCLAW_MODE=${mode} set in .env`);
+    const keyCount = Object.keys(keysToWrite).length;
+    if (keyCount > 0) {
+      success(`PROFCLAW_MODE=${mode} + ${keyCount} provider key(s) saved to .env`);
+    } else {
+      success(`PROFCLAW_MODE=${mode} set in .env`);
+    }
   }
 
   // Step 5: Run setup wizard

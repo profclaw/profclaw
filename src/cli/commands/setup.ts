@@ -223,23 +223,35 @@ async function stepAiProvider(
   }
 
   if (choice === 'anthropic') {
+    let apiKey: string;
     try {
-      const apiKey = await input({ message: 'Anthropic API Key', theme });
-      if (!apiKey) { warn('No key provided, skipping.'); return 'skip'; }
+      apiKey = await input({ message: 'Anthropic API Key', theme });
+    } catch { return 'skip'; }
+    if (!apiKey) { warn('No key provided, skipping.'); return 'skip'; }
+    try {
       await saveProviderConfig({ type: 'anthropic', apiKey, enabled: true });
       success('Anthropic provider configured.');
       return 'anthropic';
-    } catch { return 'skip'; }
+    } catch (err) {
+      error(`Failed to save: ${err instanceof Error ? err.message : 'unknown'}`);
+      return 'skip';
+    }
   }
 
   if (choice === 'openai') {
+    let apiKey: string;
     try {
-      const apiKey = await input({ message: 'OpenAI API Key', theme });
-      if (!apiKey) { warn('No key provided, skipping.'); return 'skip'; }
+      apiKey = await input({ message: 'OpenAI API Key', theme });
+    } catch { return 'skip'; }
+    if (!apiKey) { warn('No key provided, skipping.'); return 'skip'; }
+    try {
       await saveProviderConfig({ type: 'openai', apiKey, enabled: true });
       success('OpenAI provider configured.');
       return 'openai';
-    } catch { return 'skip'; }
+    } catch (err) {
+      error(`Failed to save: ${err instanceof Error ? err.message : 'unknown'}`);
+      return 'skip';
+    }
   }
 
   // Ollama
