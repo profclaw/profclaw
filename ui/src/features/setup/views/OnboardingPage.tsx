@@ -49,7 +49,7 @@ export function OnboardingPage() {
     },
     onSuccess: async () => {
       await refetch();
-      toast.success('Welcome to GLINR!');
+      toast.success('Welcome to profClaw!');
       navigate('/');
     },
     onError: () => {
@@ -72,7 +72,7 @@ export function OnboardingPage() {
               <Logo className="h-10 w-10 text-primary-foreground" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold mb-2">Welcome to GLINR</h1>
+          <h1 className="text-3xl font-bold mb-2">Welcome to profClaw</h1>
           <p className="text-muted-foreground text-lg">
             Your AI agent orchestration platform is ready. Here's what you can do:
           </p>

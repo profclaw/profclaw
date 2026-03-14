@@ -7,11 +7,11 @@
 
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
-import { getClient } from '../storage/index.js';
+import { getDb } from '../storage/index.js';
 import { projects, tickets, sprints } from '../storage/schema.js';
 import { eq, sql, type InferSelectModel } from 'drizzle-orm';
 import { logger } from '../utils/logger.js';
-import { aiProvider } from '../providers/index.js';
+// aiProvider is lazily imported inside executeConfigureProvider to avoid loading AI SDKs at startup
 
 // Type aliases for schema models
 type Project = InferSelectModel<typeof projects>;
@@ -28,7 +28,7 @@ export const CreateProjectToolSchema = z.object({
 });
 
 export const CreateTicketToolSchema = z.object({
-  projectKey: z.string().describe('Project key to create ticket in (e.g., "GLINR")'),
+  projectKey: z.string().describe('Project key to create ticket in (e.g., "PC")'),
   title: z.string().min(1).describe('Ticket title'),
   description: z.string().optional().describe('Detailed ticket description'),
   type: z.enum(['task', 'bug', 'story', 'epic', 'subtask']).default('task').describe('Ticket type'),
@@ -88,7 +88,7 @@ export const CHAT_TOOLS = {
   },
   createProject: {
     name: 'createProject',
-    description: 'Create a new project in GLINR. Projects organize tickets with a unique key prefix.',
+    description: 'Create a new project in profClaw. Projects organize tickets with a unique key prefix.',
     parameters: CreateProjectToolSchema,
   },
   createTicket: {
@@ -170,7 +170,8 @@ async function executeConfigureProvider(input: ConfigureProviderInput): Promise<
       };
     }
 
-    // Configure the provider
+    // Configure the provider (lazy import to avoid loading AI SDKs at startup)
+    const { aiProvider } = await import('../providers/index.js');
     aiProvider.configure(provider, {
       type: provider,
       apiKey,
@@ -287,7 +288,7 @@ function getProviderDisplayName(provider: string): string {
  */
 async function executeCreateProject(input: CreateProjectInput): Promise<ToolResult> {
   try {
-    const db = getClient();
+    const db = getDb();
     const id = randomUUID();
     const key = input.key.toUpperCase();
 
@@ -342,7 +343,7 @@ async function executeCreateProject(input: CreateProjectInput): Promise<ToolResu
  */
 async function executeCreateTicket(input: CreateTicketInput): Promise<ToolResult> {
   try {
-    const db = getClient();
+    const db = getDb();
 
     // Find the project by key
     const project = await db
@@ -371,18 +372,19 @@ async function executeCreateTicket(input: CreateTicketInput): Promise<ToolResult
     const ticketKey = `${project.key}-${sequence}`;
 
     // Create the ticket
-    await db.insert(tickets).values({
-      id,
-      projectId: project.id,
-      sequence,
-      title: input.title,
-      description: input.description || '',
-      type: input.type || 'task',
-      status: 'backlog',
-      priority: input.priority || 'medium',
-      labels: input.labels || [],
-      storyPoints: input.storyPoints,
-    });
+      await db.insert(tickets).values({
+        id,
+        projectId: project.id,
+        sequence,
+        title: input.title,
+        description: input.description || '',
+        type: input.type || 'task',
+        status: 'backlog',
+        priority: input.priority || 'medium',
+        labels: input.labels || [],
+        estimate: input.storyPoints,
+        estimateUnit: input.storyPoints !== undefined ? 'points' : undefined,
+      });
 
     logger.info(`[ChatTools] Created ticket: ${ticketKey}`, { component: 'ChatTools' });
 
@@ -413,7 +415,7 @@ async function executeCreateTicket(input: CreateTicketInput): Promise<ToolResult
  */
 async function executeCreateSprint(input: CreateSprintInput): Promise<ToolResult> {
   try {
-    const db = getClient();
+    const db = getDb();
 
     // Find the project by key
     const project = await db
@@ -480,7 +482,7 @@ async function executeCreateSprint(input: CreateSprintInput): Promise<ToolResult
  */
 async function executeListProjects(input: ListProjectsInput): Promise<ToolResult> {
   try {
-    const db = getClient();
+    const db = getDb();
 
     let query = db.select().from(projects);
 
@@ -518,7 +520,7 @@ async function executeListProjects(input: ListProjectsInput): Promise<ToolResult
  */
 async function executeSearchTickets(input: SearchTicketsInput): Promise<ToolResult> {
   try {
-    const db = getClient();
+    const db = getDb();
 
     let ticketList = await db.select().from(tickets).limit(input.limit).all();
 

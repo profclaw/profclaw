@@ -8,9 +8,7 @@
 import { EventEmitter } from 'events';
 import { logger } from '../../utils/logger.js';
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface PoolConfig {
   maxConcurrent: number;       // Max concurrent executions
@@ -60,9 +58,7 @@ export interface PoolStatus {
   config: PoolConfig;
 }
 
-// =============================================================================
 // Constants (configurable via environment variables)
-// =============================================================================
 
 // Pool limits for I/O-bound chat tool executions
 // Override via POOL_MAX_CONCURRENT, POOL_MAX_QUEUE_SIZE, POOL_TIMEOUT_MS, POOL_QUEUE_TIMEOUT_MS
@@ -71,9 +67,7 @@ const DEFAULT_MAX_QUEUE_SIZE = parseInt(process.env.POOL_MAX_QUEUE_SIZE || '200'
 const DEFAULT_TIMEOUT_MS = parseInt(process.env.POOL_TIMEOUT_MS || '300000', 10); // 5 minutes
 const QUEUE_TIMEOUT_MS = parseInt(process.env.POOL_QUEUE_TIMEOUT_MS || '30000', 10); // 30 seconds
 
-// =============================================================================
 // Process Pool
-// =============================================================================
 
 export class ProcessPool extends EventEmitter {
   private config: PoolConfig;
@@ -221,9 +215,7 @@ export class ProcessPool extends EventEmitter {
     return count;
   }
 
-  // ===========================================================================
   // Private Methods
-  // ===========================================================================
 
   private async executeNow<T>(
     id: string,
@@ -386,9 +378,7 @@ export class ProcessPool extends EventEmitter {
   }
 }
 
-// =============================================================================
 // Error Classes
-// =============================================================================
 
 export class PoolFullError extends Error {
   constructor(message: string) {
@@ -411,9 +401,7 @@ export class QueueTimeoutError extends Error {
   }
 }
 
-// =============================================================================
 // Singleton
-// =============================================================================
 
 let processPool: ProcessPool | null = null;
 

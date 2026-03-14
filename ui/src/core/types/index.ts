@@ -1,5 +1,5 @@
 /**
- * Core Types for GLINR Task Manager UI
+ * Core Types for profClaw Task Manager UI
  *
  * All shared types are exported from this file for easy import.
  * Usage: import { Task, Ticket, ChatMessage } from '@/core/types';
@@ -202,7 +202,7 @@ export interface Ticket {
   estimateUnit?: 'points' | 'hours' | 'days';
   // Project association
   projectId?: string;
-  projectKey?: string;  // Populated from project (e.g., "GLINR", "MOBILE")
+  projectKey?: string;  // Populated from project (e.g., "PROFCLAW", "MOBILE")
   projectName?: string; // Populated from project
 }
 
@@ -215,7 +215,7 @@ export interface TicketComment {
     name: string;
     type: 'user' | 'ai';
   };
-  source: 'glinr' | 'github' | 'jira' | 'linear';
+  source: 'profclaw' | 'github' | 'jira' | 'linear';
   sourceId?: string;
   createdAt: string;
   updatedAt: string;
@@ -682,6 +682,9 @@ export interface Settings {
     telemetry: boolean;
     debugMode: boolean;
     maxConcurrentTasks: number;
+    registrationMode: 'open' | 'invite';
+    showForgotPassword: boolean;
+    authMode: 'local' | 'multi';
   };
 }
 
@@ -702,7 +705,7 @@ export interface PluginHealth {
 // Extended/API-specific Types
 // ================================
 
-export type ExternalPlatform = 'github' | 'jira' | 'linear';
+export type ExternalPlatform = 'github' | 'jira' | 'linear' | 'plane';
 
 export interface TicketWithRelations extends Ticket {
   externalLinks: TicketExternalLink[];
@@ -768,7 +771,7 @@ export interface Project {
   id: string;
   sequence: number;
   workspaceId?: string;
-  key: string;              // "GLINR", "MOBILE", "API"
+  key: string;              // "PROFCLAW", "MOBILE", "API"
   name: string;
   description?: string;
   icon: string;

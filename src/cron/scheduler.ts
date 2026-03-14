@@ -17,14 +17,13 @@
 import { Queue, Worker, Job } from 'bullmq';
 import { getDb } from '../storage/index.js';
 import { scheduledJobs, jobRunHistory } from '../storage/schema.js';
-import { eq, and, isNull, lte } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { createContextualLogger } from '../utils/logger.js';
+import type { SessionManager, ToolExecutionContext } from '../chat/execution/types.js';
 
 const log = createContextualLogger('Scheduler');
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export type JobType = 'http' | 'tool' | 'script' | 'message';
 export type JobStatus = 'active' | 'paused' | 'completed' | 'failed' | 'archived';
@@ -35,7 +34,7 @@ export type DeliveryChannelType = 'slack' | 'webhook' | 'email';
 /** Event trigger configuration */
 export interface EventTrigger {
   type: EventTriggerType;
-  config: Record<string, any>;
+  config: Record<string, unknown>;
 }
 
 /** Delivery channel for job output */
@@ -73,7 +72,7 @@ export interface ScheduledJob {
   eventTrigger?: EventTrigger;
   // Execution
   jobType: JobType;
-  payload: Record<string, any>;
+  payload: Record<string, unknown>;
   templateId?: string;
   // Labels for organization
   labels: string[];
@@ -123,7 +122,7 @@ export interface CreateJobParams {
   eventTrigger?: EventTrigger;
   // Execution
   jobType: JobType;
-  payload: Record<string, any>;
+  payload: Record<string, unknown>;
   templateId?: string;
   // Labels for organization
   labels?: string[];
@@ -160,7 +159,7 @@ export interface HttpJobPayload {
 
 export interface ToolJobPayload {
   tool: string;
-  params: Record<string, any>;
+  params: Record<string, unknown>;
   conversationId?: string;
 }
 
@@ -176,11 +175,40 @@ export interface MessageJobPayload {
   content: string;
 }
 
-// =============================================================================
 // Singleton Scheduler
-// =============================================================================
 
 let schedulerInstance: JobScheduler | null = null;
+
+type ScheduledJobRow = typeof scheduledJobs.$inferSelect;
+type EmptyToolSession = ReturnType<SessionManager['create']>;
+
+function getStringValue(record: Record<string, unknown>, key: string): string | undefined {
+  const value = record[key];
+  return typeof value === 'string' ? value : undefined;
+}
+
+function getProcessEnv(): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(process.env).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+  );
+}
+
+function createNoopSessionManager(): SessionManager {
+  return {
+    create(session): EmptyToolSession {
+      return {
+        ...session,
+        id: crypto.randomUUID(),
+        createdAt: Date.now(),
+      };
+    },
+    get: () => undefined,
+    update: () => {},
+    list: () => [],
+    kill: async () => {},
+    cleanup: () => {},
+  };
+}
 
 export function getScheduler(): JobScheduler {
   if (!schedulerInstance) {
@@ -189,9 +217,7 @@ export function getScheduler(): JobScheduler {
   return schedulerInstance;
 }
 
-// =============================================================================
 // JobScheduler Class
-// =============================================================================
 
 export class JobScheduler {
   private queue: Queue | null = null;
@@ -349,6 +375,10 @@ export class JobScheduler {
       userId: params.userId ?? null,
       projectId: params.projectId ?? null,
       createdBy: params.createdBy ?? 'human',
+      lastRunAt: null,
+      lastRunStatus: null,
+      lastRunError: null,
+      lastRunDurationMs: null,
       nextRunAt: nextRunAt,
       runCount: 0,
       successCount: 0,
@@ -368,6 +398,7 @@ export class JobScheduler {
       createdAt: now,
       updatedAt: now,
       expiresAt: params.expiresAt ?? null,
+      archivedAt: null,
     };
 
     await db.insert(scheduledJobs).values(jobData);
@@ -430,10 +461,9 @@ export class JobScheduler {
     limit?: number;
   }): Promise<ScheduledJob[]> {
     const db = await getDb();
-    let query = db.select().from(scheduledJobs);
 
     // Apply filters
-    const conditions: any[] = [];
+    const conditions: Array<ReturnType<typeof eq>> = [];
     if (filters?.status) {
       conditions.push(eq(scheduledJobs.status, filters.status));
     }
@@ -447,11 +477,10 @@ export class JobScheduler {
       conditions.push(eq(scheduledJobs.jobType, filters.jobType));
     }
 
-    if (conditions.length > 0) {
-      query = query.where(and(...conditions)) as any;
-    }
-
-    const jobs = await query.limit(filters?.limit ?? 100);
+    const query = db.select().from(scheduledJobs);
+    const jobs = conditions.length > 0
+      ? await query.where(and(...conditions)).limit(filters?.limit ?? 100)
+      : await query.limit(filters?.limit ?? 100);
 
     return jobs.map((j: typeof scheduledJobs.$inferSelect) => this.mapToScheduledJob(j));
   }
@@ -657,9 +686,7 @@ export class JobScheduler {
     }));
   }
 
-  // =============================================================================
   // Private Methods
-  // =============================================================================
 
   /**
    * Schedule a job in BullMQ
@@ -671,7 +698,7 @@ export class JobScheduler {
   ): Promise<void> {
     if (!this.queue) return;
 
-    const repeatOpts: any = {};
+    const repeatOpts: { pattern?: string; every?: number } = {};
 
     if (cronExpression) {
       repeatOpts.pattern = cronExpression;
@@ -752,16 +779,16 @@ export class JobScheduler {
       // Execute based on job type
       switch (job.jobType) {
         case 'http':
-          result = await this.executeHttpJob(job.payload as HttpJobPayload);
+          result = await this.executeHttpJob(job.payload as unknown as HttpJobPayload);
           break;
         case 'tool':
-          result = await this.executeToolJob(job.payload as ToolJobPayload);
+          result = await this.executeToolJob(job.payload as unknown as ToolJobPayload);
           break;
         case 'script':
-          result = await this.executeScriptJob(job.payload as ScriptJobPayload);
+          result = await this.executeScriptJob(job.payload as unknown as ScriptJobPayload);
           break;
         case 'message':
-          result = await this.executeMessageJob(job.payload as MessageJobPayload);
+          result = await this.executeMessageJob(job.payload as unknown as MessageJobPayload);
           break;
         default:
           result = { success: false, error: `Unknown job type: ${job.jobType}`, durationMs: 0 };
@@ -1038,20 +1065,13 @@ export class JobScheduler {
       }
 
       // Create minimal execution context
-      const context = {
+      const context: ToolExecutionContext = {
         toolCallId: crypto.randomUUID(),
         conversationId: payload.conversationId || 'scheduled-job',
         workdir: process.cwd(),
-        env: process.env as Record<string, string>,
+        env: getProcessEnv(),
         securityPolicy: { mode: 'full' as const },
-        sessionManager: {
-          create: () => ({} as any),
-          get: () => undefined,
-          update: () => {},
-          list: () => [],
-          kill: async () => {},
-          cleanup: () => {},
-        },
+        sessionManager: createNoopSessionManager(),
       };
 
       const result = await tool.execute(context, payload.params);
@@ -1187,7 +1207,7 @@ export class JobScheduler {
   /**
    * Map database row to ScheduledJob type
    */
-  private mapToScheduledJob(row: any): ScheduledJob {
+  private mapToScheduledJob(row: ScheduledJobRow): ScheduledJob {
     return {
       id: row.id,
       name: row.name,
@@ -1198,15 +1218,15 @@ export class JobScheduler {
       runAt: row.runAt ? new Date(row.runAt) : undefined,
       timezone: row.timezone || 'UTC',
       // Event trigger
-      eventTrigger: row.eventTrigger || undefined,
+      eventTrigger: (row.eventTrigger as EventTrigger | null) || undefined,
       // Execution
       jobType: row.jobType as JobType,
-      payload: row.payload as Record<string, any>,
+      payload: row.payload as Record<string, unknown>,
       templateId: row.templateId || undefined,
       // Labels
       labels: row.labels || [],
       // Delivery
-      delivery: row.delivery || undefined,
+      delivery: (row.delivery as DeliveryConfig | null) || undefined,
       // Status
       status: row.status as JobStatus,
       userId: row.userId || undefined,
@@ -1245,7 +1265,7 @@ export class JobScheduler {
    */
   async triggerByEvent(
     eventType: EventTriggerType,
-    eventData: Record<string, any>
+    eventData: Record<string, unknown>
   ): Promise<{ triggered: string[] }> {
     const db = await getDb();
     const triggered: string[] = [];
@@ -1283,29 +1303,35 @@ export class JobScheduler {
   /**
    * Check if event data matches a trigger config
    */
-  private matchesEventTrigger(trigger: EventTrigger, eventData: Record<string, any>): boolean {
+  private matchesEventTrigger(trigger: EventTrigger, eventData: Record<string, unknown>): boolean {
     const config = trigger.config;
+    const source = getStringValue(config, 'source');
+    const eventType = getStringValue(config, 'eventType');
+    const pathPattern = getStringValue(config, 'pathPattern');
+    const eventSource = getStringValue(eventData, 'source');
+    const triggeredEventType = getStringValue(eventData, 'eventType');
+    const eventPath = getStringValue(eventData, 'path');
 
     switch (trigger.type) {
       case 'webhook':
         // Match by webhook secret or source
-        return !config.source || config.source === eventData.source;
+        return !source || source === eventSource;
 
       case 'ticket':
         // Match by ticket event type (created, updated, status_changed)
-        return !config.eventType || config.eventType === eventData.eventType;
+        return !eventType || eventType === triggeredEventType;
 
       case 'file':
         // Match by file path pattern
-        if (config.pathPattern && eventData.path) {
-          const regex = new RegExp(config.pathPattern);
-          return regex.test(eventData.path);
+        if (pathPattern && eventPath) {
+          const regex = new RegExp(pathPattern);
+          return regex.test(eventPath);
         }
         return true;
 
       case 'github':
         // Match by GitHub event type (push, pull_request, issue)
-        return !config.eventType || config.eventType === eventData.eventType;
+        return !eventType || eventType === triggeredEventType;
 
       default:
         return true;

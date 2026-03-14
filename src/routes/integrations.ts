@@ -31,9 +31,7 @@ import { logger } from '../utils/logger.js';
 
 const integrations = new Hono();
 
-// =============================================================================
 // Web Search Integration
-// =============================================================================
 
 /**
  * GET /api/integrations/web-search
@@ -133,7 +131,7 @@ integrations.patch('/web-search', async (c) => {
 
     // Update settings
     // TODO: Add webSearch to main settings schema
-    await updateSettings({ integrations: {} } as any); // Stub - webSearch not in settings yet
+    await updateSettings({ integrations: {} }); // Stub - webSearch not in settings yet
 
     // Reload the web search tool config
     const fullConfig = WebSearchConfigSchema.parse(updatedWebSearch);
@@ -202,9 +200,7 @@ integrations.post('/web-search/test', async (c) => {
   }
 });
 
-// =============================================================================
 // Helpers
-// =============================================================================
 
 function maskApiKey(key?: string): string | undefined {
   if (!key) return undefined;

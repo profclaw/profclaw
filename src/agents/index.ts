@@ -1,12 +1,10 @@
 /**
- * GLINR Agent System
+ * profClaw Agent System
  *
  * Public exports for the agentic loop system.
  */
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export type {
   AgentStatus,
@@ -25,15 +23,11 @@ export type {
 
 export { EFFORT_BUDGET_MAP } from './types.js';
 
-// =============================================================================
 // Executor
-// =============================================================================
 
 export { AgentExecutor, createAgent, createSimpleAgent, createComplexAgent } from './executor.js';
 
-// =============================================================================
 // Stop Conditions
-// =============================================================================
 
 export {
   // Step conditions

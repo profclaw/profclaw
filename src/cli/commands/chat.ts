@@ -1,7 +1,7 @@
 /**
  * Chat CLI Command
  *
- * Provides interactive and single-shot chat with GLINR AI.
+ * Provides interactive and single-shot chat with profClaw AI.
  * Following OpenClaw patterns for CLI agent invocation.
  */
 
@@ -12,11 +12,6 @@ import { api } from '../utils/api.js';
 import { error, success, spinner, info } from '../utils/output.js';
 
 // === Types ===
-
-interface ChatMessage {
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-}
 
 interface ChatResponse {
   id?: string;
@@ -148,7 +143,7 @@ async function executeSingleShot(message: string, options: ChatOptions): Promise
 
     // Print response
     console.log('');
-    console.log(chalk.cyan('GLINR') + chalk.dim(` (${data.model || 'unknown'})`) + ':');
+    console.log(chalk.cyan('profClaw') + chalk.dim(` (${data.model || 'unknown'})`) + ':');
     console.log(data.content || data.message?.content || '(no response)');
 
     if (data.usage) {
@@ -174,7 +169,7 @@ async function executeSingleShotWithTools(message: string, options: ChatOptions)
       {
         messages: [{ role: 'user', content: message }],
         model: options.model,
-        presetId: options.agentic ? 'agentic' : 'glinr-assistant',
+        presetId: options.agentic ? 'agentic' : 'profclaw-assistant',
         enableAllTools: options.agentic,
         securityMode: options.agentic ? 'full' : 'ask',
       }
@@ -205,7 +200,7 @@ async function executeSingleShotWithTools(message: string, options: ChatOptions)
 
     // Print response
     console.log('');
-    console.log(chalk.cyan('GLINR') + chalk.dim(` (${data.model || 'unknown'})`) + ':');
+    console.log(chalk.cyan('profClaw') + chalk.dim(` (${data.model || 'unknown'})`) + ':');
     console.log(data.content || data.message?.content || '(no response)');
 
     if (data.usage) {
@@ -224,8 +219,8 @@ async function executeSingleShotWithTools(message: string, options: ChatOptions)
  */
 async function startREPL(options: ChatOptions): Promise<void> {
   console.log('');
-  console.log(chalk.cyan.bold('GLINR Chat'));
-  console.log(chalk.dim('Interactive AI assistant with GLINR intelligence'));
+  console.log(chalk.cyan.bold('profClaw Chat'));
+  console.log(chalk.dim('Interactive AI assistant with profClaw intelligence'));
   console.log(chalk.dim('Type /help for commands, /exit to quit'));
   console.log('');
 
@@ -236,7 +231,7 @@ async function startREPL(options: ChatOptions): Promise<void> {
     const spin = spinner('Starting session...').start();
 
     const result = await api.post<ConversationResponse>('/api/chat/conversations', {
-      presetId: options.agentic ? 'agentic' : 'glinr-assistant',
+      presetId: options.agentic ? 'agentic' : 'profclaw-assistant',
       mode: options.agentic ? 'agentic' : 'chat',
     });
 
@@ -310,7 +305,7 @@ async function startREPL(options: ChatOptions): Promise<void> {
 
       // Print response
       console.log('');
-      console.log(chalk.cyan('GLINR') + (data.assistantMessage.model ? chalk.dim(` (${data.assistantMessage.model})`) : '') + ':');
+      console.log(chalk.cyan('profClaw') + (data.assistantMessage.model ? chalk.dim(` (${data.assistantMessage.model})`) : '') + ':');
       console.log(data.assistantMessage.content || '(no response)');
 
       if (data.usage) {
@@ -410,7 +405,7 @@ async function startREPL(options: ChatOptions): Promise<void> {
 
 export function chatCommands() {
   const chat = new Command('chat')
-    .description('AI chat with GLINR intelligence')
+    .description('AI chat with profClaw intelligence')
     .argument('[message]', 'Message to send (single-shot mode)')
     .option('-m, --model <model>', 'AI model to use (e.g., sonnet, opus, gpt-4)')
     .option('-t, --tools', 'Enable tool calling')
@@ -497,7 +492,7 @@ export function chatCommands() {
       }
 
       console.log('');
-      console.log(chalk.dim(`Resume with: glinr chat -s <session-id>`));
+      console.log(chalk.dim(`Resume with: profclaw chat -s <session-id>`));
     });
 
   return chat;

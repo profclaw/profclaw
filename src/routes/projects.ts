@@ -5,6 +5,9 @@
  */
 
 import { Hono } from 'hono';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('Projects');
 import {
   // Projects
   createProject,
@@ -30,7 +33,6 @@ import {
   cancelSprint,
   deleteSprint,
   querySprints,
-  getProjectSprints,
   getActiveSprint,
   // Sprint-Tickets
   addTicketsToSprint,
@@ -40,18 +42,31 @@ import {
   // Schemas
   CreateProjectSchema,
   UpdateProjectSchema,
-  ProjectQuerySchema,
   CreateSprintSchema,
   UpdateSprintSchema,
-  SprintQuerySchema,
   AddTicketsToSprintSchema,
 } from '../projects/index.js';
 
 const projectsRouter = new Hono();
 
-// =============================================================================
+function getErrorMessage(error: unknown): string | undefined {
+  return error instanceof Error ? error.message : undefined;
+}
+
+function getErrorCode(error: unknown): string | undefined {
+  if (!error || typeof error !== 'object') {
+    return undefined;
+  }
+
+  const code = Reflect.get(error, 'code');
+  return typeof code === 'string' ? code : undefined;
+}
+
+function errorMessageIncludes(error: unknown, snippet: string): boolean {
+  return getErrorMessage(error)?.includes(snippet) ?? false;
+}
+
 // PROJECTS ROUTES
-// =============================================================================
 
 /**
  * GET /projects - List all projects
@@ -86,7 +101,7 @@ projectsRouter.get('/', async (c) => {
       offset: queryParams.offset || 0,
     });
   } catch (error) {
-    console.error('[API] Error querying projects:', error);
+    log.error('Error querying projects', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to query projects' }, 500);
   }
 });
@@ -112,11 +127,11 @@ projectsRouter.post('/', async (c) => {
       message: 'Project created',
       project,
     }, 201);
-  } catch (error: any) {
-    console.error('[API] Error creating project:', error);
+  } catch (error: unknown) {
+    log.error('Error creating project', error instanceof Error ? error : new Error(String(error)));
 
     // Check for unique constraint violation
-    if (error.message?.includes('UNIQUE constraint failed') || error.code === 'SQLITE_CONSTRAINT') {
+    if (errorMessageIncludes(error, 'UNIQUE constraint failed') || getErrorCode(error) === 'SQLITE_CONSTRAINT') {
       return c.json({
         error: 'Project key already exists',
         message: 'Please choose a different project key',
@@ -125,7 +140,7 @@ projectsRouter.post('/', async (c) => {
 
     return c.json({
       error: 'Failed to create project',
-      message: error instanceof Error ? error.message : 'Unknown error',
+      message: getErrorMessage(error) ?? 'Unknown error',
     }, 500);
   }
 });
@@ -138,7 +153,7 @@ projectsRouter.get('/default', async (c) => {
     const project = await getOrCreateDefaultProject();
     return c.json({ project });
   } catch (error) {
-    console.error('[API] Error getting default project:', error);
+    log.error('Error getting default project', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to get default project' }, 500);
   }
 });
@@ -154,7 +169,7 @@ projectsRouter.post('/migrate', async (c) => {
       migrated: result.migrated,
     });
   } catch (error) {
-    console.error('[API] Error migrating tickets:', error);
+    log.error('Error migrating tickets', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to migrate tickets' }, 500);
   }
 });
@@ -172,7 +187,7 @@ projectsRouter.get('/by-key/:key', async (c) => {
     }
     return c.json({ project });
   } catch (error) {
-    console.error('[API] Error getting project by key:', error);
+    log.error('Error getting project by key', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to get project' }, 500);
   }
 });
@@ -191,7 +206,7 @@ projectsRouter.get('/by-external/:platform/:externalId', async (c) => {
     }
     return c.json({ project });
   } catch (error) {
-    console.error('[API] Error finding project by external ID:', error);
+    log.error('Error finding project by external ID', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to find project' }, 500);
   }
 });
@@ -214,7 +229,7 @@ projectsRouter.get('/:id', async (c) => {
 
     return c.json({ project });
   } catch (error) {
-    console.error('[API] Error getting project:', error);
+    log.error('Error getting project', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to get project' }, 500);
   }
 });
@@ -242,16 +257,16 @@ projectsRouter.patch('/:id', async (c) => {
       message: 'Project updated',
       project,
     });
-  } catch (error: any) {
-    console.error('[API] Error updating project:', error);
+  } catch (error: unknown) {
+    log.error('Error updating project', error instanceof Error ? error : new Error(String(error)));
 
-    if (error.message?.includes('not found')) {
+    if (errorMessageIncludes(error, 'not found')) {
       return c.json({ error: 'Project not found' }, 404);
     }
 
     return c.json({
       error: 'Failed to update project',
-      message: error instanceof Error ? error.message : 'Unknown error',
+      message: getErrorMessage(error) ?? 'Unknown error',
     }, 500);
   }
 });
@@ -268,10 +283,10 @@ projectsRouter.post('/:id/archive', async (c) => {
       message: 'Project archived',
       project,
     });
-  } catch (error: any) {
-    console.error('[API] Error archiving project:', error);
+  } catch (error: unknown) {
+    log.error('Error archiving project', error instanceof Error ? error : new Error(String(error)));
 
-    if (error.message?.includes('not found')) {
+    if (errorMessageIncludes(error, 'not found')) {
       return c.json({ error: 'Project not found' }, 404);
     }
 
@@ -289,7 +304,7 @@ projectsRouter.delete('/:id', async (c) => {
     await deleteProject(id);
     return c.json({ message: 'Project deleted' });
   } catch (error) {
-    console.error('[API] Error deleting project:', error);
+    log.error('Error deleting project', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to delete project' }, 500);
   }
 });
@@ -306,7 +321,7 @@ projectsRouter.get('/:id/external-links', async (c) => {
     const links = await getProjectExternalLinks(id);
     return c.json({ externalLinks: links });
   } catch (error) {
-    console.error('[API] Error getting external links:', error);
+    log.error('Error getting external links', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to get external links' }, 500);
   }
 });
@@ -335,14 +350,12 @@ projectsRouter.post('/:id/external-links', async (c) => {
       externalLink: link,
     }, 201);
   } catch (error) {
-    console.error('[API] Error creating external link:', error);
+    log.error('Error creating external link', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to create external link' }, 500);
   }
 });
 
-// =============================================================================
 // SPRINTS ROUTES (nested under /projects/:projectId/sprints)
-// =============================================================================
 
 /**
  * GET /projects/:projectId/sprints - List sprints for a project
@@ -374,7 +387,7 @@ projectsRouter.get('/:projectId/sprints', async (c) => {
       offset: queryParams.offset || 0,
     });
   } catch (error) {
-    console.error('[API] Error querying sprints:', error);
+    log.error('Error querying sprints', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to query sprints' }, 500);
   }
 });
@@ -402,16 +415,16 @@ projectsRouter.post('/:projectId/sprints', async (c) => {
       message: 'Sprint created',
       sprint,
     }, 201);
-  } catch (error: any) {
-    console.error('[API] Error creating sprint:', error);
+  } catch (error: unknown) {
+    log.error('Error creating sprint', error instanceof Error ? error : new Error(String(error)));
 
-    if (error.message?.includes('not found')) {
+    if (errorMessageIncludes(error, 'not found')) {
       return c.json({ error: 'Project not found' }, 404);
     }
 
     return c.json({
       error: 'Failed to create sprint',
-      message: error instanceof Error ? error.message : 'Unknown error',
+      message: getErrorMessage(error) ?? 'Unknown error',
     }, 500);
   }
 });
@@ -429,7 +442,7 @@ projectsRouter.get('/:projectId/sprints/active', async (c) => {
     }
     return c.json({ sprint });
   } catch (error) {
-    console.error('[API] Error getting active sprint:', error);
+    log.error('Error getting active sprint', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to get active sprint' }, 500);
   }
 });
@@ -452,7 +465,7 @@ projectsRouter.get('/:projectId/sprints/:sprintId', async (c) => {
 
     return c.json({ sprint });
   } catch (error) {
-    console.error('[API] Error getting sprint:', error);
+    log.error('Error getting sprint', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to get sprint' }, 500);
   }
 });
@@ -480,16 +493,16 @@ projectsRouter.patch('/:projectId/sprints/:sprintId', async (c) => {
       message: 'Sprint updated',
       sprint,
     });
-  } catch (error: any) {
-    console.error('[API] Error updating sprint:', error);
+  } catch (error: unknown) {
+    log.error('Error updating sprint', error instanceof Error ? error : new Error(String(error)));
 
-    if (error.message?.includes('not found')) {
+    if (errorMessageIncludes(error, 'not found')) {
       return c.json({ error: 'Sprint not found' }, 404);
     }
 
     return c.json({
       error: 'Failed to update sprint',
-      message: error instanceof Error ? error.message : 'Unknown error',
+      message: getErrorMessage(error) ?? 'Unknown error',
     }, 500);
   }
 });
@@ -506,14 +519,14 @@ projectsRouter.post('/:projectId/sprints/:sprintId/start', async (c) => {
       message: 'Sprint started',
       sprint,
     });
-  } catch (error: any) {
-    console.error('[API] Error starting sprint:', error);
+  } catch (error: unknown) {
+    log.error('Error starting sprint', error instanceof Error ? error : new Error(String(error)));
 
-    if (error.message?.includes('not found')) {
+    if (errorMessageIncludes(error, 'not found')) {
       return c.json({ error: 'Sprint not found' }, 404);
     }
-    if (error.message?.includes('cannot be started')) {
-      return c.json({ error: error.message }, 400);
+    if (errorMessageIncludes(error, 'cannot be started')) {
+      return c.json({ error: getErrorMessage(error) }, 400);
     }
 
     return c.json({ error: 'Failed to start sprint' }, 500);
@@ -532,14 +545,14 @@ projectsRouter.post('/:projectId/sprints/:sprintId/complete', async (c) => {
       message: 'Sprint completed',
       sprint,
     });
-  } catch (error: any) {
-    console.error('[API] Error completing sprint:', error);
+  } catch (error: unknown) {
+    log.error('Error completing sprint', error instanceof Error ? error : new Error(String(error)));
 
-    if (error.message?.includes('not found')) {
+    if (errorMessageIncludes(error, 'not found')) {
       return c.json({ error: 'Sprint not found' }, 404);
     }
-    if (error.message?.includes('cannot be completed')) {
-      return c.json({ error: error.message }, 400);
+    if (errorMessageIncludes(error, 'cannot be completed')) {
+      return c.json({ error: getErrorMessage(error) }, 400);
     }
 
     return c.json({ error: 'Failed to complete sprint' }, 500);
@@ -558,10 +571,10 @@ projectsRouter.post('/:projectId/sprints/:sprintId/cancel', async (c) => {
       message: 'Sprint cancelled',
       sprint,
     });
-  } catch (error: any) {
-    console.error('[API] Error cancelling sprint:', error);
+  } catch (error: unknown) {
+    log.error('Error cancelling sprint', error instanceof Error ? error : new Error(String(error)));
 
-    if (error.message?.includes('not found')) {
+    if (errorMessageIncludes(error, 'not found')) {
       return c.json({ error: 'Sprint not found' }, 404);
     }
 
@@ -579,7 +592,7 @@ projectsRouter.delete('/:projectId/sprints/:sprintId', async (c) => {
     await deleteSprint(sprintId);
     return c.json({ message: 'Sprint deleted' });
   } catch (error) {
-    console.error('[API] Error deleting sprint:', error);
+    log.error('Error deleting sprint', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to delete sprint' }, 500);
   }
 });
@@ -596,7 +609,7 @@ projectsRouter.get('/:projectId/sprints/:sprintId/tickets', async (c) => {
     const ticketIds = await getSprintTickets(sprintId);
     return c.json({ ticketIds });
   } catch (error) {
-    console.error('[API] Error getting sprint tickets:', error);
+    log.error('Error getting sprint tickets', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to get sprint tickets' }, 500);
   }
 });
@@ -624,10 +637,10 @@ projectsRouter.post('/:projectId/sprints/:sprintId/tickets', async (c) => {
       message: 'Tickets added to sprint',
       assignments,
     }, 201);
-  } catch (error: any) {
-    console.error('[API] Error adding tickets to sprint:', error);
+  } catch (error: unknown) {
+    log.error('Error adding tickets to sprint', error instanceof Error ? error : new Error(String(error)));
 
-    if (error.message?.includes('not found')) {
+    if (errorMessageIncludes(error, 'not found')) {
       return c.json({ error: 'Sprint not found' }, 404);
     }
 
@@ -646,7 +659,7 @@ projectsRouter.delete('/:projectId/sprints/:sprintId/tickets/:ticketId', async (
     await removeTicketFromSprint(sprintId, ticketId);
     return c.json({ message: 'Ticket removed from sprint' });
   } catch (error) {
-    console.error('[API] Error removing ticket from sprint:', error);
+    log.error('Error removing ticket from sprint', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to remove ticket from sprint' }, 500);
   }
 });
@@ -668,7 +681,7 @@ projectsRouter.put('/:projectId/sprints/:sprintId/tickets/reorder', async (c) =>
 
     return c.json({ message: 'Tickets reordered' });
   } catch (error) {
-    console.error('[API] Error reordering sprint tickets:', error);
+    log.error('Error reordering sprint tickets', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to reorder tickets' }, 500);
   }
 });

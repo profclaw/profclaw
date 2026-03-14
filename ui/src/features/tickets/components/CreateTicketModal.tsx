@@ -83,7 +83,7 @@ export function CreateTicketModal({ defaultProjectId, defaultParentId }: CreateT
     queryFn: () =>
       api.tickets.list({
         projectId: projectId || undefined,
-        type: ['epic', 'story'] as any,
+        type: ['epic', 'story'] as TicketType[],
         limit: 50,
       }),
     enabled: open, // Only fetch when modal is open
@@ -156,7 +156,7 @@ export function CreateTicketModal({ defaultProjectId, defaultParentId }: CreateT
     mutationFn: (data: CreateTicketInput) => api.tickets.create(data),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['tickets'] });
-      toast.success(`Ticket GLINR-${result.ticket.sequence} created`);
+      toast.success(`Ticket PROFCLAW-${result.ticket.sequence} created`);
       handleClose();
     },
     onError: (err: Error) => {
@@ -337,7 +337,7 @@ export function CreateTicketModal({ defaultProjectId, defaultParentId }: CreateT
                             <BookOpen className="h-3.5 w-3.5 text-cyan-400" />
                           )}
                           <span className="text-[10px] font-mono text-muted-foreground">
-                            {ticket.projectKey || 'GLINR'}-{ticket.sequence}
+                            {ticket.projectKey || 'PROFCLAW'}-{ticket.sequence}
                           </span>
                           <span className="truncate max-w-[140px]">{ticket.title}</span>
                         </span>

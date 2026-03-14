@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import type { ComponentType } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, GitBranch, Check, CircleDashed, Circle, CircleDot, CheckCircle2, XCircle } from 'lucide-react';
 import { api } from '@/core/api/client';
@@ -22,7 +23,7 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import type { StateGroup } from '@/core/types';
+import type { State, StateGroup } from '@/core/types';
 
 const PRESET_COLORS = [
   '#94a3b8', // Gray
@@ -35,7 +36,7 @@ const PRESET_COLORS = [
   '#06b6d4', // Cyan
 ];
 
-const STATE_GROUPS: { id: StateGroup; label: string; icon: any }[] = [
+const STATE_GROUPS: { id: StateGroup; label: string; icon: ComponentType<{ className?: string }> }[] = [
   { id: 'backlog', label: 'Backlog', icon: CircleDashed },
   { id: 'unstarted', label: 'Todo', icon: Circle },
   { id: 'started', label: 'In Progress', icon: CircleDot },
@@ -47,8 +48,8 @@ interface StateModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: string;
-  state?: any; // The state object being edited
-  onSuccess?: (state: any) => void;
+  state?: State; // The state object being edited
+  onSuccess?: (state: State) => void;
 }
 
 export function StateModal({
@@ -83,8 +84,10 @@ export function StateModal({
     }
   }, [existingState, open]);
 
+  type StateFormData = { name: string; description?: string; color: string; stateGroup: StateGroup; isDefault: boolean };
+
   const mutation = useMutation({
-    mutationFn: (data: any) => {
+    mutationFn: (data: StateFormData) => {
       if (isEditing && existingState) {
         return api.states.update(existingState.id, data);
       }

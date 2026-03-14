@@ -6,7 +6,7 @@
  * Configurable via POLL_INTERVAL_STALE env var (default: 60s).
  */
 
-import { getTasks } from '../queue/task-queue.js';
+import { getTasks } from '../queue/index.js';
 import { handleTaskFailure } from '../queue/failure-handler.js';
 import { createContextualLogger } from '../utils/logger.js';
 

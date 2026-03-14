@@ -8,6 +8,7 @@
  */
 
 import { useEditor, EditorContent } from '@tiptap/react';
+import type { Extensions } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
@@ -120,8 +121,7 @@ export function RichTextEditor({
 
   // Build extensions list
   const extensions = useMemo(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const baseExtensions: any[] = [
+    const baseExtensions: Extensions = [
       StarterKit.configure({
         codeBlock: false, // We use CodeBlockLowlight instead
         heading: {

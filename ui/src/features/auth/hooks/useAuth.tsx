@@ -31,7 +31,7 @@ export interface User {
 // Last User Persistence
 // ============================================================================
 
-const LAST_USER_KEY = 'glinr_last_user';
+const LAST_USER_KEY = 'profclaw_last_user';
 
 export interface LastUser {
   email: string;
@@ -83,8 +83,11 @@ interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  authMode: 'local' | 'multi';
+  accessKeyRequired: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, name: string) => Promise<void>;
+  verifyAccessKey: (key: string) => Promise<void>;
   loginWithGitHub: () => void;
   logout: () => Promise<void>;
   refetch: () => void;
@@ -105,10 +108,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryFn: async () => {
       const res = await fetch('/api/auth/me', { credentials: 'include' });
       if (!res.ok) {
-        if (res.status === 401) return { authenticated: false };
+        if (res.status === 401) return { authenticated: false, authMode: 'local' as const };
         throw new Error('Failed to fetch auth status');
       }
-      return res.json() as Promise<{ authenticated: boolean; user?: User }>;
+      return res.json() as Promise<{
+        authenticated: boolean;
+        authMode?: 'local' | 'multi';
+        accessKeyRequired?: boolean;
+        user?: User;
+      }>;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: false,
@@ -161,6 +169,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  // Access key verification mutation
+  const verifyAccessKeyMutation = useMutation({
+    mutationFn: async ({ key }: { key: string }) => {
+      const res = await fetch('/api/auth/verify-access-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ key }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Verification failed');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['auth'] });
+    },
+  });
+
   // Logout mutation
   const logoutMutation = useMutation({
     mutationFn: async () => {
@@ -185,6 +213,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await signupMutation.mutateAsync({ email, password, name });
   };
 
+  const verifyAccessKey = async (key: string) => {
+    await verifyAccessKeyMutation.mutateAsync({ key });
+  };
+
   const loginWithGitHub = () => {
     window.location.href = '/api/auth/github';
   };
@@ -197,8 +229,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user: authData?.user || null,
     isLoading,
     isAuthenticated: authData?.authenticated ?? false,
+    authMode: authData?.authMode ?? 'local',
+    accessKeyRequired: authData?.accessKeyRequired ?? false,
     login,
     signup,
+    verifyAccessKey,
     loginWithGitHub,
     logout,
     refetch,

@@ -20,7 +20,6 @@ import {
   buildPingResponse,
   isPingInteraction,
   buildDeferredResponse,
-  sendFollowupMessage,
   registerSlashCommands,
   InteractionType,
   type DiscordConfig,
@@ -29,6 +28,7 @@ import {
 import { getChatRegistry } from '../chat/providers/registry.js';
 import type { DiscordAccountConfig } from '../chat/providers/types.js';
 import { logger } from '../utils/logger.js';
+import { isDuplicateWebhookEvent } from './webhook-dedup.js';
 
 // Re-export formatToolResult for channel response formatting
 // Usage: formatToolResult(toolName, result, 'discord') → { summary, detail, fields }
@@ -36,14 +36,11 @@ export { formatToolResult } from '../chat/format/index.js';
 
 const discord = new Hono();
 
-// =============================================================================
 // CONFIGURATION
-// =============================================================================
 
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || '';
 const DISCORD_APPLICATION_ID = process.env.DISCORD_APPLICATION_ID || '';
 const DISCORD_PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY || '';
-const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || '';
 const DISCORD_ALLOWED_GUILDS = (process.env.DISCORD_ALLOWED_GUILDS || '')
   .split(',')
   .map(v => v.trim())
@@ -90,9 +87,7 @@ function getConfig(): DiscordConfig | null {
   return null;
 }
 
-// =============================================================================
 // INTERACTIONS ENDPOINT
-// =============================================================================
 
 /**
  * POST /interactions - Main Discord interactions endpoint
@@ -146,6 +141,10 @@ discord.post('/interactions', async (c) => {
   if (isPingInteraction(interaction)) {
     logger.debug('[Discord] PING received, responding with PONG');
     return c.json(buildPingResponse());
+  }
+
+  if (isDuplicateWebhookEvent('discord:interaction', interaction.id)) {
+    return c.json(buildDeferredResponse());
   }
 
   // Check allowlists
@@ -252,9 +251,7 @@ discord.post('/interactions', async (c) => {
   }
 });
 
-// =============================================================================
 // OAUTH ROUTES
-// =============================================================================
 
 /**
  * GET /oauth/url - Get OAuth authorization URL for adding bot to server
@@ -333,9 +330,7 @@ discord.get('/oauth/callback', async (c) => {
   });
 });
 
-// =============================================================================
 // STATUS & HEALTH
-// =============================================================================
 
 /**
  * GET /status - Bot status and health check
@@ -426,9 +421,7 @@ discord.post('/test', async (c) => {
   return c.json({ error: result.error || 'Failed to send message' }, 500);
 });
 
-// =============================================================================
 // SLASH COMMAND MANAGEMENT
-// =============================================================================
 
 /**
  * POST /commands/register - Register slash commands
@@ -521,14 +514,12 @@ discord.get('/commands', async (c) => {
 
     const commands = await response.json();
     return c.json({ commands, scope: guildId ? `guild:${guildId}` : 'global' });
-  } catch (error) {
+  } catch {
     return c.json({ error: 'Failed to fetch commands' }, 500);
   }
 });
 
-// =============================================================================
 // CONFIGURATION MANAGEMENT
-// =============================================================================
 
 /**
  * GET /config - Get current configuration (redacted)

@@ -91,7 +91,11 @@ import {
   SkillsSection,
   ToolsSection,
   MessagingSection,
+  PWASection,
+  VoiceSection,
+  TunnelsSection,
 } from "../sections";
+import { MarketplaceSection } from "../sections/MarketplaceSection";
 import { SyncStatus } from "@/features/sync/components/SyncStatus";
 import { SETTINGS_SECTIONS, API_BASE, type SectionId } from "../constants";
 
@@ -262,7 +266,7 @@ export function Settings() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `glinr-tasks-${new Date().toISOString().split("T")[0]}.json`;
+      a.download = `profclaw-tasks-${new Date().toISOString().split("T")[0]}.json`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -356,6 +360,8 @@ export function Settings() {
         return <SecuritySection />;
       case "plugins":
         return <PluginsSection />;
+      case "marketplace":
+        return <MarketplaceSection />;
       case "storage":
         return (
           <StorageSection
@@ -366,6 +372,12 @@ export function Settings() {
             fileInputRef={fileInputRef}
           />
         );
+      case "voice":
+        return <VoiceSection />;
+      case "pwa":
+        return <PWASection />;
+      case "tunnels":
+        return <TunnelsSection />;
       case "system":
         return (
           <SystemSection
@@ -1454,7 +1466,7 @@ function AccountSection() {
                 <p className="font-medium text-foreground/80">Forgot your password?</p>
                 <p>Ask an admin to reset it, or run this on the server:</p>
                 <code className="block mt-1 px-2 py-1.5 bg-muted/40 rounded-lg font-mono text-[11px] break-all">
-                  glinr auth reset-password {profile?.user?.email || "your@email.com"}
+                  profclaw auth reset-password {profile?.user?.email || "your@email.com"}
                 </code>
               </div>
             </div>
@@ -1475,10 +1487,10 @@ function AccountSection() {
               </p>
             </div>
             <a
-              href="mailto:support@glincker.com"
+              href="mailto:support@profclaw.ai"
               className="text-sm text-primary hover:underline flex items-center gap-1"
             >
-              support@glincker.com
+              support@profclaw.ai
               <ExternalLink className="h-3 w-3" />
             </a>
           </div>
@@ -1490,12 +1502,12 @@ function AccountSection() {
               </p>
             </div>
             <a
-              href="https://docs.glinr.dev"
+              href="https://docs.profclaw.ai"
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-primary hover:underline flex items-center gap-1"
             >
-              docs.glinr.dev
+              docs.profclaw.ai
               <ExternalLink className="h-3 w-3" />
             </a>
           </div>
@@ -1510,10 +1522,10 @@ function AccountSection() {
                 </p>
               </div>
               <a
-                href="mailto:support@glincker.com"
+                href="mailto:support@profclaw.ai"
                 className="text-sm text-red-600 dark:text-red-400 hover:underline flex items-center gap-1"
               >
-                support@glincker.com
+                support@profclaw.ai
                 <ExternalLink className="h-3 w-3" />
               </a>
             </div>
@@ -2660,20 +2672,20 @@ function RecoveryCodesSection() {
 
   const handleDownloadTxt = () => {
     const content = [
-      "GLINR Recovery Codes",
+      "profClaw Recovery Codes",
       `Generated: ${new Date().toISOString()}`,
       "",
       "Keep these codes in a safe place. Each code can only be used once.",
       "",
       ...newCodes.map((code, i) => `${i + 1}. ${code}`),
     ].join("\n");
-    downloadFile(content, "glinr-recovery-codes.txt", "text/plain");
+    downloadFile(content, "profclaw-recovery-codes.txt", "text/plain");
   };
 
   const handleDownloadJson = () => {
     const content = JSON.stringify(
       {
-        app: "GLINR",
+        app: "profClaw",
         type: "recovery_codes",
         generatedAt: new Date().toISOString(),
         codes: newCodes,
@@ -2682,7 +2694,7 @@ function RecoveryCodesSection() {
       null,
       2
     );
-    downloadFile(content, "glinr-recovery-codes.json", "application/json");
+    downloadFile(content, "profclaw-recovery-codes.json", "application/json");
   };
 
   const handleDownloadCsv = () => {
@@ -2690,7 +2702,7 @@ function RecoveryCodesSection() {
       "index,code,status",
       ...newCodes.map((code, i) => `${i + 1},${code},unused`),
     ].join("\n");
-    downloadFile(content, "glinr-recovery-codes.csv", "text/csv");
+    downloadFile(content, "profclaw-recovery-codes.csv", "text/csv");
   };
 
   const handleCloseDialog = (forceClose = false) => {
@@ -2999,7 +3011,7 @@ function PluginsSection() {
       {/* Core Plugins */}
       <SettingsCard
         title="Core Plugins"
-        description="Essential GLINR extensions"
+        description="Essential profClaw extensions"
       >
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
@@ -3120,7 +3132,7 @@ function PluginsSection() {
       {/* CLI Quick Reference */}
       <SettingsCard
         title="CLI & MCP Commands"
-        description="Control GLINR from your terminal"
+        description="Control profClaw from your terminal"
       >
         {/* Terminal Window */}
         <div className="rounded-xl overflow-hidden border border-border">
@@ -3145,15 +3157,15 @@ function PluginsSection() {
               </p>
               <div className="space-y-1">
                 <CommandLine
-                  command="glinr task list"
+                  command="profclaw task list"
                   description="List all tasks"
                 />
                 <CommandLine
-                  command="glinr task create"
+                  command="profclaw task create"
                   description="Create a new task"
                 />
                 <CommandLine
-                  command="glinr task get <id>"
+                  command="profclaw task get <id>"
                   description="Get task details"
                 />
               </div>
@@ -3166,11 +3178,11 @@ function PluginsSection() {
               </p>
               <div className="space-y-1">
                 <CommandLine
-                  command="glinr config get"
+                  command="profclaw config get"
                   description="View settings"
                 />
                 <CommandLine
-                  command="glinr config set --key value"
+                  command="profclaw config set --key value"
                   description="Update settings"
                 />
               </div>
@@ -3183,11 +3195,11 @@ function PluginsSection() {
               </p>
               <div className="space-y-1">
                 <CommandLine
-                  command="glinr serve --port 3000"
+                  command="profclaw serve --port 3000"
                   description="Start API server"
                 />
                 <CommandLine
-                  command="npx glinr-mcp"
+                  command="npx profclaw-mcp"
                   description="Run MCP server for AI agents"
                   highlight
                 />
@@ -3202,7 +3214,7 @@ function PluginsSection() {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium">Install CLI Globally</p>
             <p className="text-xs text-muted-foreground">
-              npm install -g @glincker/task-manager
+              npm install -g @profclaw/task-manager
             </p>
           </div>
           <Button
@@ -3211,7 +3223,7 @@ function PluginsSection() {
             className="rounded-lg text-xs"
             onClick={() =>
               window.open(
-                "https://github.com/GLINCKER/glinr-task-manager",
+                "https://github.com/profclaw/profclaw-task-manager",
                 "_blank",
               )
             }
@@ -3225,20 +3237,28 @@ function PluginsSection() {
   );
 }
 
+interface StorageSectionProps {
+  isExporting: boolean;
+  isImporting: boolean;
+  handleExport: () => void;
+  handleImport: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
+}
+
 function StorageSection({
   isExporting,
   isImporting,
   handleExport,
   handleImport,
   fileInputRef,
-}: any) {
+}: StorageSectionProps) {
   return (
     <>
       <SettingsCard title="Database" description="Local storage configuration">
         <div className="flex items-center justify-between p-3 rounded-xl bg-muted/50">
           <div>
             <p className="text-sm font-medium">Local SQLite</p>
-            <p className="text-xs text-muted-foreground">/data/glinr.db</p>
+            <p className="text-xs text-muted-foreground">/data/profclaw.db</p>
           </div>
           <span className="text-xs font-bold px-2 py-1 rounded-full bg-green-500/10 text-green-500">
             CONNECTED
@@ -3297,12 +3317,19 @@ function StorageSection({
   );
 }
 
+interface SystemSectionProps {
+  settings?: SettingsType;
+  handleToggle: (category: keyof SettingsType, key: string, currentValue: boolean) => void;
+  updateSettings: { mutate: (updates: Partial<SettingsType>) => void; isPending: boolean };
+  resetSettings: { mutate: () => void; isPending: boolean };
+}
+
 function SystemSection({
   settings,
   handleToggle,
   updateSettings,
   resetSettings,
-}: any) {
+}: SystemSectionProps) {
   return (
     <>
       <SettingsCard
@@ -3334,7 +3361,15 @@ function SystemSection({
               value={settings?.system?.maxConcurrentTasks ?? 3}
               onChange={(e) =>
                 updateSettings.mutate({
-                  system: { maxConcurrentTasks: parseInt(e.target.value) },
+                  system: {
+                    autonomousExecution: settings?.system?.autonomousExecution ?? false,
+                    telemetry: settings?.system?.telemetry ?? true,
+                    debugMode: settings?.system?.debugMode ?? false,
+                    maxConcurrentTasks: parseInt(e.target.value),
+                    registrationMode: settings?.system?.registrationMode ?? 'invite',
+                    showForgotPassword: settings?.system?.showForgotPassword ?? true,
+                    authMode: settings?.system?.authMode ?? 'local',
+                  },
                 })
               }
               className="field py-1.5"
@@ -3356,7 +3391,7 @@ function SystemSection({
         <div className="space-y-4">
           <ToggleOption
             label="Usage Telemetry"
-            description="Help improve GLINR with anonymous usage data"
+            description="Help improve profClaw with anonymous usage data"
             checked={settings?.system?.telemetry ?? true}
             onChange={() =>
               handleToggle(

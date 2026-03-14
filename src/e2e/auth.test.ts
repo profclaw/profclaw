@@ -41,7 +41,7 @@ describe('E2E: Authentication', () => {
     
     // Check cookie
     const cookie = res.headers.get('Set-Cookie');
-    expect(cookie).toContain('glinr_session');
+    expect(cookie).toContain('profclaw_session');
   });
 
   it('should fail login with wrong password', async () => {
@@ -71,7 +71,7 @@ describe('E2E: Authentication', () => {
     const res = await app.request('/api/auth/me', {
       method: 'GET',
       headers: { 
-        'Cookie': `glinr_session=${sessionToken}`
+        'Cookie': `profclaw_session=${sessionToken}`
       }
     });
 
@@ -95,7 +95,7 @@ describe('E2E: Authentication', () => {
     const logoutRes = await app.request('/api/auth/logout', {
       method: 'POST',
       headers: { 
-        'Cookie': `glinr_session=${sessionToken}`
+        'Cookie': `profclaw_session=${sessionToken}`
       }
     });
     expect(logoutRes.status).toBe(200);
@@ -104,7 +104,7 @@ describe('E2E: Authentication', () => {
     const meRes = await app.request('/api/auth/me', {
       method: 'GET',
       headers: { 
-        'Cookie': `glinr_session=${sessionToken}`
+        'Cookie': `profclaw_session=${sessionToken}`
       }
     });
     expect(meRes.status).toBe(401);

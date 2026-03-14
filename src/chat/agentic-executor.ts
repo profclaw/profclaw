@@ -13,34 +13,96 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { tool as createTool, jsonSchema } from 'ai';
+import { tool as createTool, jsonSchema, type ToolSet } from 'ai';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { z } from 'zod';
 import { AgentExecutor, type AgentState, type AgentConfig, type ToolCallRecord } from '../agents/index.js';
-import { aiProvider, MODEL_ALIASES, type ChatMessage, type ProviderType } from '../providers/index.js';
+import { MODEL_ALIASES } from '../providers/core/models.js';
+import type { ChatMessage, ProviderType } from '../providers/core/types.js';
 import { normalizeToolSchema } from '../providers/schema-utils.js';
 import { logger } from '../utils/logger.js';
 import type { ChatToolHandler } from './tool-handler.js';
 import {
   runWithModelFallback,
   getUserFriendlyErrorMessage,
-  isProviderInCooldown,
   getProvidersInCooldown,
   describeFailoverError,
-  coerceToFailoverError,
   type FallbackAttempt,
   type ModelResolver,
 } from './failover/index.js';
 
-// =============================================================================
+type AIProviderManager = Awaited<
+  typeof import('../providers/ai-sdk.js')
+>['aiProvider'];
+
+type JsonSchemaInput = Parameters<typeof jsonSchema>[0];
+
+interface AgentStepSummary {
+  text?: string;
+  steps?: Array<{
+    toolCalls?: unknown[];
+  }>;
+}
+
+const passthroughValidate = (value: unknown) => ({
+  success: true as const,
+  value: value as Record<string, unknown>,
+});
+
+function asJsonSchemaInput(schema: unknown): JsonSchemaInput {
+  return schema as JsonSchemaInput;
+}
+
+function getAgentStepSummary(result: unknown): AgentStepSummary {
+  if (!result || typeof result !== 'object') {
+    return {};
+  }
+
+  return result as AgentStepSummary;
+}
+
+function createAiSdkTool(
+  description: string,
+  schema: JsonSchemaInput,
+  execute?: (args: Record<string, unknown>) => Promise<unknown>,
+) {
+  const inputSchema = jsonSchema<Record<string, unknown>>(schema, {
+    validate: passthroughValidate,
+  });
+
+  if (execute) {
+    return createTool<Record<string, unknown>, unknown>({
+      description,
+      inputSchema,
+      execute,
+    });
+  }
+
+  return createTool<Record<string, unknown>>({
+    description,
+    inputSchema,
+  });
+}
+
+let aiProviderPromise: Promise<AIProviderManager> | null = null;
+
+async function getAIProvider(): Promise<AIProviderManager> {
+  if (!aiProviderPromise) {
+    aiProviderPromise = import('../providers/ai-sdk.js').then(
+      ({ aiProvider }) => aiProvider,
+    );
+  }
+
+  return aiProviderPromise;
+}
+
 // Model Resolution Helper
-// =============================================================================
 
 /**
  * Create a model resolver that uses aiProvider to get configured models.
  * This ensures Azure deployments and other provider-specific configs are used.
  */
-function createModelResolver(): ModelResolver {
+function createModelResolver(aiProvider: AIProviderManager): ModelResolver {
   return (provider: ProviderType): string | undefined => {
     try {
       // Use resolveModel with the provider name to get the configured default model
@@ -56,9 +118,7 @@ function createModelResolver(): ModelResolver {
   };
 }
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface AgenticChatRequest {
   conversationId: string;
@@ -116,9 +176,7 @@ export interface AgenticChatResponse {
   };
 }
 
-// =============================================================================
 // Shared Tool Schema Conversion
-// =============================================================================
 
 /**
  * Convert tool definitions (with Zod parameters) to AI SDK format.
@@ -130,17 +188,9 @@ function convertToolsToAiSdk(
   provider: string,
   logPrefix: string,
   onToolExecute?: (name: string, args: Record<string, unknown>) => Promise<unknown>,
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-): Record<string, any> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const aiSdkTools: Record<string, any> = {};
+): ToolSet {
+  const aiSdkTools: ToolSet = {};
   const isAzure = provider === 'azure';
-
-  // Passthrough validator - accepts any value the model returns
-  const passthroughValidate = (value: unknown) => ({
-    success: true as const,
-    value: value as Record<string, unknown>,
-  });
 
   if (isAzure) {
     logger.info(`[${logPrefix}] Azure detected - normalizing ${toolDefs.length} tool schemas`);
@@ -166,18 +216,17 @@ function convertToolsToAiSdk(
           normalized.properties = {};
         }
          
-        aiSdkTools[toolDef.name] = createTool({
-          description: toolDef.description,
-          inputSchema: jsonSchema(normalized as any, { validate: passthroughValidate }),
+        aiSdkTools[toolDef.name] = createAiSdkTool(
+          toolDef.description,
+          asJsonSchemaInput(normalized),
           execute,
-        } as any);
+        );
       } else {
-         
-        aiSdkTools[toolDef.name] = createTool({
-          description: toolDef.description,
-          inputSchema: jsonSchema(rawJsonSchema as any, { validate: passthroughValidate }),
+        aiSdkTools[toolDef.name] = createAiSdkTool(
+          toolDef.description,
+          asJsonSchemaInput(rawJsonSchema),
           execute,
-        } as any);
+        );
       }
     } catch (schemaError) {
       logger.warn(`[${logPrefix}] Failed to create tool ${toolDef.name}, using minimal schema`, {
@@ -188,13 +237,11 @@ function convertToolsToAiSdk(
         ? async (args: Record<string, unknown>) => onToolExecute(toolDef.name, args)
         : undefined;
 
-       
-      aiSdkTools[toolDef.name] = createTool({
-        description: toolDef.description,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        inputSchema: jsonSchema({ type: 'object', properties: {} } as any, { validate: passthroughValidate }),
+      aiSdkTools[toolDef.name] = createAiSdkTool(
+        toolDef.description,
+        asJsonSchemaInput({ type: 'object', properties: {} }),
         execute,
-      } as any);
+      );
     }
   }
 
@@ -205,9 +252,7 @@ function convertToolsToAiSdk(
   return aiSdkTools;
 }
 
-// =============================================================================
 // Agentic Chat Executor
-// =============================================================================
 
 /**
  * Execute an agentic chat conversation.
@@ -218,6 +263,7 @@ export async function executeAgenticChat(
   request: AgenticChatRequest
 ): Promise<AgenticChatResponse> {
   const sessionId = randomUUID();
+  const aiProvider = await getAIProvider();
 
   // Extract the user's goal from the last user message
   const lastUserMessage = [...request.messages].reverse().find((m) => m.role === 'user');
@@ -295,10 +341,10 @@ export async function executeAgenticChat(
       primaryProvider,
       primaryModel,
       configuredProviders,
-      modelResolver: createModelResolver(),
+      modelResolver: createModelResolver(aiProvider),
       run: async (provider, model) => {
         // Get the model instance for this provider
-        const modelInstance = aiProvider.getModel(provider, model);
+        const modelInstance = await aiProvider.getModel(provider, model);
 
         // Convert tool definitions to AI SDK format with execute wrappers
         const aiSdkTools = convertToolsToAiSdk(toolDefinitions, provider, 'AgenticChat', onToolExecute);
@@ -362,7 +408,33 @@ export async function executeAgenticChat(
     }));
 
     // Extract content - executor's finalize() now handles the 3-tier priority
-    const content = finalState.finalResult?.summary || 'Task completed.';
+    let content = finalState.finalResult?.summary || 'Task completed.';
+
+    // Run guardrails on the final response
+    try {
+      const { runGuardrails } = await import('./execution/guardrails.js');
+      const guardrailResult = await runGuardrails(
+        content,
+        toolCalls.map((tc) => ({ name: tc.name, params: (tc.arguments ?? {}) as Record<string, unknown> })),
+        { userQuery: request.messages.at(-1)?.content ?? '' },
+      );
+      if (guardrailResult.cleanedResponse) {
+        content = guardrailResult.cleanedResponse;
+      }
+      if (!guardrailResult.passed) {
+        logger.warn('[AgenticChat] Guardrails flagged response', {
+          sessionId,
+          validationIssues: guardrailResult.validation.issues.length,
+          hallucinationFlags: guardrailResult.hallucination.flags.length,
+          safetyBlocked: guardrailResult.safety.blocked.length,
+          qualityTier: guardrailResult.quality.tier,
+        });
+      }
+    } catch (guardrailError) {
+      logger.warn('[AgenticChat] Guardrails check failed (non-blocking)', {
+        error: guardrailError instanceof Error ? guardrailError.message : String(guardrailError),
+      });
+    }
 
     logger.info('[AgenticChat] Completed agentic execution', {
       sessionId,
@@ -432,9 +504,7 @@ export async function executeAgenticChat(
   }
 }
 
-// =============================================================================
 // Streaming Event Types
-// =============================================================================
 
 export interface AgenticStreamEvent {
   type:
@@ -465,9 +535,7 @@ export interface StreamAgenticChatRequest extends AgenticChatRequest {
   // effort is inherited from AgenticChatRequest
 }
 
-// =============================================================================
 // Streaming Agentic Chat Implementation
-// =============================================================================
 
 /**
  * Execute an agentic chat with streaming updates.
@@ -489,6 +557,7 @@ export async function* streamAgenticChat(
   request: StreamAgenticChatRequest
 ): AsyncGenerator<AgenticStreamEvent> {
   const sessionId = randomUUID();
+  const aiProvider = await getAIProvider();
   const showThinking = request.showThinking ?? true;
 
   // Extract the user's goal from the last user message
@@ -623,7 +692,7 @@ export async function* streamAgenticChat(
         primaryProvider,
         primaryModel,
         configuredProviders,
-        modelResolver: createModelResolver(),
+        modelResolver: createModelResolver(aiProvider),
         run: async (provider, model) => {
           // Notify if we're using a fallback
           if (provider !== primaryProvider || model !== primaryModel) {
@@ -657,7 +726,7 @@ export async function* streamAgenticChat(
           actualModel = model;
 
           // Get the model instance for this provider
-          const modelInstance = aiProvider.getModel(provider, model);
+          const modelInstance = await aiProvider.getModel(provider, model);
 
           // Create the agent executor
           const agent = new AgentExecutor(sessionId, request.conversationId, goal, agentConfig);
@@ -689,13 +758,14 @@ export async function* streamAgenticChat(
           });
 
           agent.on('step:complete', (state, result) => {
+            const stepSummary = getAgentStepSummary(result);
             if (showThinking) {
               pushEvent({
                 type: 'thinking:end',
                 data: {
                   step: state.currentStep,
                   message: `Step ${state.currentStep} completed`,
-                  text: (result as any)?.text?.substring(0, 200),
+                  text: stepSummary.text?.substring(0, 200),
                 },
                 timestamp: Date.now(),
               });
@@ -708,7 +778,7 @@ export async function* streamAgenticChat(
                 usedBudget: state.usedBudget,
                 budgetRemaining: state.maxBudget - state.usedBudget,
                 stepsRemaining: (agentConfig.maxSteps ?? 50) - state.currentStep,
-                toolCallsInStep: (result as any)?.steps?.[0]?.toolCalls?.length ?? 0,
+                toolCallsInStep: stepSummary.steps?.[0]?.toolCalls?.length ?? 0,
               },
               timestamp: Date.now(),
             });

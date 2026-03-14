@@ -8,6 +8,7 @@
 import { z } from 'zod';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { logger } from '../../../utils/logger.js';
+import { chunkForPlatform } from '../../format/chunk.js';
 import type {
   ChatProvider,
   SlackAccountConfig,
@@ -25,9 +26,7 @@ import type {
   CommandResponse,
 } from '../types.js';
 
-// =============================================================================
 // CONFIGURATION
-// =============================================================================
 
 const SlackAccountConfigSchema = z.object({
   id: z.string(),
@@ -44,9 +43,7 @@ const SlackAccountConfigSchema = z.object({
   teamName: z.string().optional(),
 }) satisfies z.ZodType<SlackAccountConfig>;
 
-// =============================================================================
 // CONSTANTS
-// =============================================================================
 
 const SLACK_API_BASE = 'https://slack.com/api';
 const SLACK_OAUTH_AUTHORIZE = 'https://slack.com/oauth/v2/authorize';
@@ -59,9 +56,7 @@ const SLACK_REDIRECT_URI = process.env.SLACK_REDIRECT_URI || '';
 const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN || '';
 const SLACK_SIGNING_SECRET = process.env.SLACK_SIGNING_SECRET || '';
 
-// =============================================================================
 // SLACK API RESPONSE TYPES
-// =============================================================================
 
 interface SlackApiResponse {
   ok: boolean;
@@ -82,9 +77,7 @@ interface SlackApiResponse {
   bot_id?: string;
 }
 
-// =============================================================================
 // METADATA
-// =============================================================================
 
 const meta: ChatProviderMeta = {
   id: 'slack',
@@ -96,9 +89,7 @@ const meta: ChatProviderMeta = {
   color: '#4A154B',
 };
 
-// =============================================================================
 // CAPABILITIES
-// =============================================================================
 
 const capabilities: ChatProviderCapabilities = {
   chatTypes: ['direct', 'channel', 'thread'],
@@ -117,9 +108,7 @@ const capabilities: ChatProviderCapabilities = {
   realtime: true, // Socket Mode
 };
 
-// =============================================================================
 // AUTH ADAPTER
-// =============================================================================
 
 const authAdapter: AuthAdapter = {
   getAuthUrl(state: string, scopes?: string[]): string {
@@ -208,9 +197,7 @@ const authAdapter: AuthAdapter = {
   },
 };
 
-// =============================================================================
 // OUTBOUND ADAPTER
-// =============================================================================
 
 const outboundAdapter: OutboundAdapter = {
   async send(message: OutgoingMessage): Promise<SendResult> {
@@ -220,50 +207,63 @@ const outboundAdapter: OutboundAdapter = {
     }
 
     try {
-      const payload: Record<string, unknown> = {
-        channel: message.to,
-      };
+      const textChunks = message.text
+        ? chunkForPlatform(message.text, 'slack', { mode: 'newline' }).chunks
+        : [];
+      const chunks = textChunks.length > 0 ? textChunks : [undefined];
+      let firstResponse: SlackApiResponse | undefined;
+      let firstMessageId: string | undefined;
+      let threadId = message.threadId;
 
-      // Add text content
-      if (message.text) {
-        payload.text = message.text;
-      }
+      for (const [index, chunk] of chunks.entries()) {
+        const payload: Record<string, unknown> = {
+          channel: message.to,
+        };
 
-      // Add blocks
-      if (message.blocks) {
-        payload.blocks = message.blocks;
-      }
+        if (chunk !== undefined) {
+          payload.text = chunk;
+        }
+        if (message.blocks && index === 0) {
+          payload.blocks = message.blocks;
+        }
+        if (threadId) {
+          payload.thread_ts = threadId;
+        }
 
-      // Add thread
-      if (message.threadId) {
-        payload.thread_ts = message.threadId;
-      }
+        const endpoint = message.ephemeral
+          ? `${SLACK_API_BASE}/chat.postEphemeral`
+          : `${SLACK_API_BASE}/chat.postMessage`;
 
-      // Ephemeral messages use different endpoint
-      const endpoint = message.ephemeral
-        ? `${SLACK_API_BASE}/chat.postEphemeral`
-        : `${SLACK_API_BASE}/chat.postMessage`;
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${botToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
 
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${botToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
+        const data = (await response.json()) as SlackApiResponse;
 
-      const data = (await response.json()) as SlackApiResponse;
+        if (!data.ok) {
+          return { success: false, error: data.error, raw: data };
+        }
 
-      if (!data.ok) {
-        return { success: false, error: data.error, raw: data };
+        if (!firstResponse) {
+          firstResponse = data;
+          firstMessageId = data.ts;
+          threadId = data.message?.thread_ts || data.ts || threadId;
+        }
       }
 
       return {
         success: true,
-        messageId: data.ts,
-        threadId: data.message?.thread_ts,
-        raw: data,
+        messageId: firstMessageId,
+        threadId,
+        raw: {
+          ...(firstResponse ?? {}),
+          chunkCount: chunks.length,
+        },
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -390,9 +390,7 @@ const outboundAdapter: OutboundAdapter = {
   },
 };
 
-// =============================================================================
 // INBOUND ADAPTER
-// =============================================================================
 
 const inboundAdapter: InboundAdapter = {
   parseMessage(payload: unknown): IncomingMessage | null {
@@ -509,9 +507,7 @@ const inboundAdapter: InboundAdapter = {
   },
 };
 
-// =============================================================================
 // STATUS ADAPTER
-// =============================================================================
 
 const statusAdapter: StatusAdapter = {
   isConfigured(config: SlackAccountConfig): boolean {
@@ -573,9 +569,7 @@ const statusAdapter: StatusAdapter = {
   },
 };
 
-// =============================================================================
 // PROVIDER EXPORT
-// =============================================================================
 
 export const slackProvider: ChatProvider<SlackAccountConfig> = {
   meta,
@@ -592,9 +586,7 @@ export const slackProvider: ChatProvider<SlackAccountConfig> = {
   status: statusAdapter,
 };
 
-// =============================================================================
 // HELPER EXPORTS
-// =============================================================================
 
 export { SlackAccountConfigSchema };
 export type { SlackAccountConfig };

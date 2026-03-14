@@ -10,7 +10,7 @@
  */
 
 import { z } from 'zod';
-import { createHmac, timingSafeEqual } from 'crypto';
+import { timingSafeEqual } from 'crypto';
 import type {
   ChatProvider,
   TelegramAccountConfig,
@@ -28,10 +28,9 @@ import type {
   OutgoingMessage,
 } from '../types.js';
 import { logger } from '../../../utils/logger.js';
+import { chunkForPlatform } from '../../format/chunk.js';
 
-// =============================================================================
 // TELEGRAM API TYPES
-// =============================================================================
 
 interface TelegramUser {
   id: number;
@@ -92,9 +91,7 @@ interface TelegramInlineKeyboardMarkup {
   inline_keyboard: TelegramInlineKeyboardButton[][];
 }
 
-// =============================================================================
 // CONFIGURATION
-// =============================================================================
 
 const TelegramAccountConfigSchema = z.object({
   id: z.string(),
@@ -115,9 +112,7 @@ const TelegramAccountConfigSchema = z.object({
 
 type TelegramConfig = z.infer<typeof TelegramAccountConfigSchema>;
 
-// =============================================================================
 // METADATA
-// =============================================================================
 
 const meta: ChatProviderMeta = {
   id: 'telegram',
@@ -129,9 +124,7 @@ const meta: ChatProviderMeta = {
   color: '#0088CC',
 };
 
-// =============================================================================
 // CAPABILITIES
-// =============================================================================
 
 const capabilities: ChatProviderCapabilities = {
   chatTypes: ['direct', 'group', 'channel'],
@@ -150,9 +143,7 @@ const capabilities: ChatProviderCapabilities = {
   realtime: true, // Long polling available
 };
 
-// =============================================================================
 // HELPER FUNCTIONS
-// =============================================================================
 
 const TELEGRAM_API_BASE = 'https://api.telegram.org';
 
@@ -201,9 +192,7 @@ function formatUserName(user: TelegramUser): string {
   return parts.join(' ') || `User ${user.id}`;
 }
 
-// =============================================================================
 // AUTH ADAPTER
-// =============================================================================
 
 const authAdapter: AuthAdapter = {
   getAuthUrl(): string {
@@ -283,9 +272,7 @@ export function isTelegramSenderAllowed(
   return { allowed: true };
 }
 
-// =============================================================================
 // OUTBOUND ADAPTER
-// =============================================================================
 
 let currentConfig: TelegramConfig | null = null;
 
@@ -303,46 +290,55 @@ const outboundAdapter: OutboundAdapter = {
       return { success: false, error: 'Bot token not configured' };
     }
 
-    const params: Record<string, unknown> = {
-      chat_id: message.to,
-      parse_mode: 'HTML',
-    };
+    const textChunks = message.text
+      ? chunkForPlatform(message.text, 'telegram', { mode: 'newline' }).chunks
+      : [];
+    const chunks = textChunks.length > 0 ? textChunks : [undefined];
+    let replyToId = message.replyToId ? parseInt(message.replyToId, 10) : undefined;
+    let firstMessage: TelegramMessage | undefined;
 
-    // Text content
-    if (message.text) {
-      params.text = message.text;
-    }
+    for (const [index, chunk] of chunks.entries()) {
+      const params: Record<string, unknown> = {
+        chat_id: message.to,
+        parse_mode: 'HTML',
+      };
 
-    // Reply to specific message (threading)
-    if (message.replyToId) {
-      params.reply_to_message_id = parseInt(message.replyToId, 10);
-    }
+      if (chunk !== undefined) {
+        params.text = chunk;
+      }
+      if (replyToId) {
+        params.reply_to_message_id = replyToId;
+      }
+      if (message.blocks && Array.isArray(message.blocks) && index === 0) {
+        const firstBlock = message.blocks[0] as Record<string, unknown> | undefined;
+        if (firstBlock && 'inline_keyboard' in firstBlock) {
+          params.reply_markup = firstBlock as unknown as TelegramInlineKeyboardMarkup;
+        }
+      }
 
-    // Inline keyboard from blocks
-    if (message.blocks && Array.isArray(message.blocks)) {
-      // Check if blocks contain a keyboard structure
-      const firstBlock = message.blocks[0] as Record<string, unknown> | undefined;
-      if (firstBlock && 'inline_keyboard' in firstBlock) {
-        params.reply_markup = firstBlock as unknown as TelegramInlineKeyboardMarkup;
+      const result = await callTelegramApi<TelegramMessage>(
+        currentConfig.botToken,
+        'sendMessage',
+        params
+      );
+
+      if (!result.ok || !result.result) {
+        return {
+          success: false,
+          error: result.description || 'Failed to send message',
+        };
+      }
+
+      if (!firstMessage) {
+        firstMessage = result.result;
+        replyToId = result.result.message_id;
       }
     }
 
-    const result = await callTelegramApi<TelegramMessage>(
-      currentConfig.botToken,
-      'sendMessage',
-      params
-    );
-
-    if (result.ok && result.result) {
-      return {
-        success: true,
-        messageId: String(result.result.message_id),
-      };
-    }
-
     return {
-      success: false,
-      error: result.description || 'Failed to send message',
+      success: true,
+      messageId: firstMessage ? String(firstMessage.message_id) : undefined,
+      raw: { chunkCount: chunks.length },
     };
   },
 
@@ -437,9 +433,7 @@ const outboundAdapter: OutboundAdapter = {
   },
 };
 
-// =============================================================================
 // INBOUND ADAPTER
-// =============================================================================
 
 const inboundAdapter: InboundAdapter = {
   parseMessage(payload: unknown): IncomingMessage | null {
@@ -573,9 +567,7 @@ function parseAttachments(message: TelegramMessage) {
   return attachments.length > 0 ? attachments : undefined;
 }
 
-// =============================================================================
 // STATUS ADAPTER
-// =============================================================================
 
 const statusAdapter: StatusAdapter = {
   isConfigured(config: TelegramAccountConfig): boolean {
@@ -622,9 +614,7 @@ const statusAdapter: StatusAdapter = {
   },
 };
 
-// =============================================================================
 // WEBHOOK MANAGEMENT
-// =============================================================================
 
 /**
  * Set webhook URL for the bot
@@ -715,9 +705,7 @@ export async function answerTelegramCallbackQuery(
   return { success: result.ok };
 }
 
-// =============================================================================
 // PROVIDER EXPORT
-// =============================================================================
 
 export const telegramProvider: ChatProvider<TelegramAccountConfig> = {
   meta,

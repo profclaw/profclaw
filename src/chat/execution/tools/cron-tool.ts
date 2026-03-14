@@ -13,7 +13,6 @@ import {
   createScheduledJob,
   getScheduledJob,
   listScheduledJobs,
-  updateScheduledJob,
   pauseScheduledJob,
   resumeScheduledJob,
   deleteScheduledJob,
@@ -25,9 +24,7 @@ import {
   type JobType,
 } from '../../../cron/scheduler.js';
 
-// =============================================================================
 // Cron Create Tool
-// =============================================================================
 
 const CronCreateParamsSchema = z.object({
   name: z.string().min(1).max(100)
@@ -46,11 +43,11 @@ const CronCreateParamsSchema = z.object({
     .describe('For HTTP jobs: HTTP method (default: GET)'),
   headers: z.record(z.string()).optional()
     .describe('For HTTP jobs: Headers to include'),
-  body: z.any().optional()
+  body: z.unknown().optional()
     .describe('For HTTP jobs: Request body (will be JSON-encoded)'),
   tool: z.string().optional()
     .describe('For tool jobs: Name of the tool to execute'),
-  toolParams: z.record(z.any()).optional()
+  toolParams: z.record(z.unknown()).optional()
     .describe('For tool jobs: Parameters to pass to the tool'),
   command: z.string().optional()
     .describe('For script jobs: Shell command to run'),
@@ -77,7 +74,7 @@ export const cronCreateTool: ToolDefinition<CronCreateParams, CronCreateResult> 
 
 Supports three job types:
 - **http**: Call a webhook URL on schedule
-- **tool**: Execute a GLINR tool on schedule
+- **tool**: Execute a profClaw tool on schedule
 - **script**: Run a shell command on schedule
 
 Cron expressions use standard 5-field format:
@@ -128,7 +125,7 @@ Or use \`interval\` for fixed millisecond intervals.`,
       }
 
       // Build payload based on type
-      let payload: Record<string, any> = {};
+      let payload: Record<string, unknown> = {};
 
       switch (params.type) {
         case 'http':
@@ -239,9 +236,7 @@ Or use \`interval\` for fixed millisecond intervals.`,
   },
 };
 
-// =============================================================================
 // Cron List Tool
-// =============================================================================
 
 const CronListParamsSchema = z.object({
   status: z.enum(['active', 'paused', 'completed', 'failed', 'archived']).optional()
@@ -332,9 +327,7 @@ Filter by status (active, paused, completed, failed) or type (http, tool, script
   },
 };
 
-// =============================================================================
 // Cron Trigger Tool
-// =============================================================================
 
 const CronTriggerParamsSchema = z.object({
   id: z.string().uuid()
@@ -404,9 +397,7 @@ This does not affect the regular schedule.`,
   },
 };
 
-// =============================================================================
 // Cron Pause Tool
-// =============================================================================
 
 const CronPauseParamsSchema = z.object({
   id: z.string().uuid()
@@ -489,9 +480,7 @@ Use this to temporarily disable a job without deleting it.`,
   },
 };
 
-// =============================================================================
 // Cron Delete Tool
-// =============================================================================
 
 const CronDeleteParamsSchema = z.object({
   id: z.string().uuid()
@@ -561,9 +550,7 @@ Run history is preserved for audit purposes.`,
   },
 };
 
-// =============================================================================
 // Cron Archive Tool
-// =============================================================================
 
 const CronArchiveParamsSchema = z.object({
   id: z.string().uuid()
@@ -664,9 +651,7 @@ Use this instead of delete when you might want to restore the job.`,
   },
 };
 
-// =============================================================================
 // Cron History Tool
-// =============================================================================
 
 const CronHistoryParamsSchema = z.object({
   id: z.string().uuid()
@@ -767,9 +752,7 @@ Shows recent executions with their status, duration, and any errors.`,
   },
 };
 
-// =============================================================================
 // Export All Cron Tools
-// =============================================================================
 
 export const cronTools = [
   cronCreateTool,
@@ -781,9 +764,7 @@ export const cronTools = [
   cronHistoryTool,
 ];
 
-// =============================================================================
 // Helpers
-// =============================================================================
 
 function formatStatus(status: string): string {
   switch (status) {

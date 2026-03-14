@@ -1,5 +1,15 @@
 import { Context } from 'hono';
 import { getGitHubOAuthConfig } from '../settings/index.js';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('OAuth');
+
+interface GitHubOAuthTokenResponse {
+  access_token?: string;
+  scope?: string;
+  error?: string;
+  error_description?: string;
+}
 
 /**
  * Redirect user to GitHub for OAuth
@@ -23,7 +33,7 @@ export async function redirectToGitHub(c: Context) {
  */
 export async function handleGitHubCallback(c: Context) {
   const code = c.req.query('code');
-  const state = c.req.query('state');
+  const _state = c.req.query('state');
 
   const config = await getGitHubOAuthConfig();
   if (!config?.clientId || !config?.clientSecret) {
@@ -49,7 +59,7 @@ export async function handleGitHubCallback(c: Context) {
       }),
     });
 
-    const data = await response.json() as any;
+    const data = await response.json() as GitHubOAuthTokenResponse;
 
     if (data.error) {
       return c.json({ error: data.error, description: data.error_description }, 400);
@@ -63,7 +73,7 @@ export async function handleGitHubCallback(c: Context) {
       scope: data.scope as string,
     });
   } catch (error) {
-    console.error('[GitHub Auth] Callback error:', error);
+    log.error('GitHub callback error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Internal server error' }, 500);
   }
 }

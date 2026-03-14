@@ -5,6 +5,8 @@
  */
 
 import { Hono } from 'hono';
+import type { Context } from 'hono';
+import { z } from 'zod';
 import {
   createLabel,
   getLabel,
@@ -16,12 +18,52 @@ import {
   removeLabelFromTicket,
   setTicketLabels,
 } from '../labels/index.js';
+import { createContextualLogger } from '../utils/logger.js';
 
 export const labelsRoutes = new Hono();
+const log = createContextualLogger('LabelsRoutes');
 
-// =============================================================================
+function getErrorMessage(error: unknown): string | undefined {
+  return error instanceof Error ? error.message : undefined;
+}
+
+const createLabelBodySchema = z.object({
+  name: z.string().min(1),
+  description: z.string().optional(),
+  color: z.string().optional(),
+  parentId: z.string().optional(),
+});
+
+const updateLabelBodySchema = z.object({
+  name: z.string().optional(),
+  description: z.string().optional(),
+  color: z.string().optional(),
+  parentId: z.string().nullable().optional(),
+  sortOrder: z.number().optional(),
+});
+
+async function parseJsonBody(c: Context): Promise<
+  { ok: true; body: Record<string, unknown> } | { ok: false; response: Response }
+> {
+  try {
+    const body = await c.req.json();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return {
+        ok: false,
+        response: c.json({ error: 'Request body must be a JSON object' }, 400),
+      };
+    }
+
+    return { ok: true, body: body as Record<string, unknown> };
+  } catch {
+    return {
+      ok: false,
+      response: c.json({ error: 'Invalid JSON body' }, 400),
+    };
+  }
+}
+
 // PROJECT LABELS
-// =============================================================================
 
 /**
  * GET /api/projects/:projectId/labels
@@ -37,7 +79,7 @@ labelsRoutes.get('/projects/:projectId/labels', async (c) => {
       count: labelsList.length,
     });
   } catch (error) {
-    console.error('[Labels] List error:', error);
+    log.error('List error', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       { error: error instanceof Error ? error.message : 'Failed to list labels' },
       500
@@ -52,11 +94,17 @@ labelsRoutes.get('/projects/:projectId/labels', async (c) => {
 labelsRoutes.post('/projects/:projectId/labels', async (c) => {
   try {
     const projectId = c.req.param('projectId');
-    const body = await c.req.json();
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
 
-    if (!body.name) {
+    const bodyParse = createLabelBodySchema.safeParse(parsed.body);
+    if (!bodyParse.success) {
       return c.json({ error: 'name is required' }, 400);
     }
+
+    const body = bodyParse.data;
 
     const label = await createLabel({
       projectId,
@@ -67,15 +115,15 @@ labelsRoutes.post('/projects/:projectId/labels', async (c) => {
     });
 
     return c.json(label, 201);
-  } catch (error: any) {
-    console.error('[Labels] Create error:', error);
+  } catch (error: unknown) {
+    log.error('Create error', error instanceof Error ? error : new Error(String(error)));
 
-    if (error.message?.includes('UNIQUE constraint')) {
+    if (getErrorMessage(error)?.includes('UNIQUE constraint')) {
       return c.json({ error: 'A label with this name already exists' }, 409);
     }
 
     return c.json(
-      { error: error instanceof Error ? error.message : 'Failed to create label' },
+      { error: getErrorMessage(error) ?? 'Failed to create label' },
       500
     );
   }
@@ -96,7 +144,7 @@ labelsRoutes.get('/labels/:id', async (c) => {
 
     return c.json(label);
   } catch (error) {
-    console.error('[Labels] Get error:', error);
+    log.error('Get error', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       { error: error instanceof Error ? error.message : 'Failed to get label' },
       500
@@ -111,7 +159,17 @@ labelsRoutes.get('/labels/:id', async (c) => {
 labelsRoutes.patch('/labels/:id', async (c) => {
   try {
     const id = c.req.param('id');
-    const body = await c.req.json();
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const bodyParse = updateLabelBodySchema.safeParse(parsed.body);
+    if (!bodyParse.success) {
+      return c.json({ error: 'Invalid label update' }, 400);
+    }
+
+    const body = bodyParse.data;
 
     const label = await updateLabel(id, {
       name: body.name,
@@ -122,15 +180,15 @@ labelsRoutes.patch('/labels/:id', async (c) => {
     });
 
     return c.json(label);
-  } catch (error: any) {
-    console.error('[Labels] Update error:', error);
+  } catch (error: unknown) {
+    log.error('Update error', error instanceof Error ? error : new Error(String(error)));
 
-    if (error.message?.includes('not found')) {
+    if (getErrorMessage(error)?.includes('not found')) {
       return c.json({ error: 'Label not found' }, 404);
     }
 
     return c.json(
-      { error: error instanceof Error ? error.message : 'Failed to update label' },
+      { error: getErrorMessage(error) ?? 'Failed to update label' },
       500
     );
   }
@@ -146,7 +204,7 @@ labelsRoutes.delete('/labels/:id', async (c) => {
     await deleteLabel(id);
     return c.json({ success: true });
   } catch (error) {
-    console.error('[Labels] Delete error:', error);
+    log.error('Delete error', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       { error: error instanceof Error ? error.message : 'Failed to delete label' },
       500
@@ -154,9 +212,7 @@ labelsRoutes.delete('/labels/:id', async (c) => {
   }
 });
 
-// =============================================================================
 // TICKET LABELS
-// =============================================================================
 
 /**
  * GET /api/tickets/:ticketId/labels
@@ -172,7 +228,7 @@ labelsRoutes.get('/tickets/:ticketId/labels', async (c) => {
       count: labelsList.length,
     });
   } catch (error) {
-    console.error('[Labels] Get ticket labels error:', error);
+    log.error('Get ticket labels error', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       { error: error instanceof Error ? error.message : 'Failed to get ticket labels' },
       500
@@ -187,7 +243,12 @@ labelsRoutes.get('/tickets/:ticketId/labels', async (c) => {
 labelsRoutes.put('/tickets/:ticketId/labels', async (c) => {
   try {
     const ticketId = c.req.param('ticketId');
-    const body = await c.req.json();
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const body = parsed.body;
 
     if (!Array.isArray(body.labelIds)) {
       return c.json({ error: 'labelIds must be an array' }, 400);
@@ -201,7 +262,7 @@ labelsRoutes.put('/tickets/:ticketId/labels', async (c) => {
       count: labels.length,
     });
   } catch (error) {
-    console.error('[Labels] Set ticket labels error:', error);
+    log.error('Set ticket labels error', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       { error: error instanceof Error ? error.message : 'Failed to set ticket labels' },
       500
@@ -222,7 +283,7 @@ labelsRoutes.post('/tickets/:ticketId/labels/:labelId', async (c) => {
 
     return c.json({ success: true });
   } catch (error) {
-    console.error('[Labels] Add label to ticket error:', error);
+    log.error('Add label to ticket error', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       { error: error instanceof Error ? error.message : 'Failed to add label' },
       500
@@ -243,7 +304,7 @@ labelsRoutes.delete('/tickets/:ticketId/labels/:labelId', async (c) => {
 
     return c.json({ success: true });
   } catch (error) {
-    console.error('[Labels] Remove label from ticket error:', error);
+    log.error('Remove label from ticket error', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       { error: error instanceof Error ? error.message : 'Failed to remove label' },
       500

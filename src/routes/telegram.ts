@@ -26,6 +26,7 @@ import {
 import { getChatRegistry } from '../chat/providers/registry.js';
 import type { TelegramAccountConfig } from '../chat/providers/types.js';
 import { logger } from '../utils/logger.js';
+import { isDuplicateWebhookEvent } from './webhook-dedup.js';
 
 // Re-export formatToolResult for channel response formatting
 // Usage: formatToolResult(toolName, result, 'html') → { summary, detail }
@@ -33,9 +34,7 @@ export { formatToolResult } from '../chat/format/index.js';
 
 const telegram = new Hono();
 
-// =============================================================================
 // CONFIGURATION
-// =============================================================================
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || '';
@@ -80,9 +79,7 @@ function getConfig(): TelegramConfig | null {
   return null;
 }
 
-// =============================================================================
 // WEBHOOK ROUTES
-// =============================================================================
 
 /**
  * POST /webhook - Receive updates from Telegram
@@ -113,6 +110,10 @@ telegram.post('/webhook', async (c) => {
   } catch {
     logger.error('[Telegram] Invalid JSON in webhook request');
     return c.json({ error: 'Invalid JSON' }, 400);
+  }
+
+  if (isDuplicateWebhookEvent('telegram:update', update.update_id)) {
+    return c.json({ ok: true });
   }
 
   // Extract sender info for allowlist check
@@ -285,9 +286,7 @@ telegram.get('/webhook', async (c) => {
   });
 });
 
-// =============================================================================
 // STATUS & HEALTH
-// =============================================================================
 
 /**
  * GET /status - Bot status and health check
@@ -376,9 +375,7 @@ telegram.post('/test', async (c) => {
   return c.json({ error: result.error || 'Failed to send message' }, 500);
 });
 
-// =============================================================================
 // CONFIGURATION MANAGEMENT
-// =============================================================================
 
 /**
  * GET /config - Get current configuration (redacted)

@@ -17,9 +17,7 @@ import type { SessionAggregate, HookInference } from '../hooks/types.js';
 import { getSettings } from '../settings/index.js';
 import { getOllamaService } from '../intelligence/ollama.js';
 
-// ============================================================================
 // Patterns for extraction
-// ============================================================================
 
 export const FILE_CREATED_PATTERN = /(?:created?|added?|wrote?|new file)[:\s]+[`"']?([a-zA-Z0-9_\-\.\/]+\.[a-z0-9]+|(?:\.[a-z0-9_\-]+))[`"']?/gi;
 export const FILE_MODIFIED_PATTERN = /(?:modified?|updated?|changed?|edited?|wrote?)[:\s]+[`"']?([a-zA-Z0-9_\-\.\/]+\.[a-z0-9]+|(?:\.[a-z0-9_\-]+))[`"']?/gi;
@@ -135,7 +133,7 @@ export function extractFromSession(
     || (session.summary ? generateWhatChanged(filesChanged, artifacts) : 'Session activity');
     
   const taskType = inference?.taskType || (session.summary ? inferTaskType(session.summary, filesChanged) : 'chore');
-  const title = (inference as any)?.commitMessage || generateSmartTitle(whatChanged, filesChanged, artifacts, taskType);
+  const title = inference?.commitMessage || generateSmartTitle(whatChanged, filesChanged, artifacts, taskType);
 
   return {
     sessionId: session.sessionId,

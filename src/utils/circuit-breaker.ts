@@ -6,7 +6,10 @@
  * until the service has time to recover.
  */
 
-import { AppError, ExternalAPIError, ErrorCategory, ErrorSeverity } from '../types/errors.js';
+import { AppError, ErrorCategory, ErrorSeverity } from '../types/errors.js';
+import { createContextualLogger } from './logger.js';
+
+const log = createContextualLogger('CircuitBreaker');
 
 /**
  * Circuit breaker states
@@ -184,12 +187,12 @@ export class CircuitBreaker {
       }
     }
 
-    console.error(
-      `[CircuitBreaker:${this.config.name}] Failure recorded. ` +
-        `Count: ${this.failures.length}/${this.config.failureThreshold} ` +
-        `State: ${this.state}`,
-      error
-    );
+    log.error('Failure recorded', error instanceof Error ? error : new Error(String(error)), {
+      name: this.config.name,
+      failureCount: this.failures.length,
+      threshold: this.config.failureThreshold,
+      state: this.state,
+    });
   }
 
   /**
@@ -220,9 +223,7 @@ export class CircuitBreaker {
       }, this.config.resetTimeout);
     }
 
-    console.log(
-      `[CircuitBreaker:${this.config.name}] State changed: ${oldState} → ${newState}`
-    );
+    log.info('State changed', { name: this.config.name, from: oldState, to: newState });
   }
 
   /**
@@ -252,7 +253,7 @@ export class CircuitBreaker {
     this.successCount = 0;
     this.failures = [];
     this.stateChangedAt = new Date();
-    console.log(`[CircuitBreaker:${this.config.name}] Manually reset`);
+    log.info('Manually reset', { name: this.config.name });
   }
 
   /**
@@ -341,18 +342,21 @@ export const circuitBreakers = new CircuitBreakerRegistry();
 /**
  * Decorator to wrap a function with a circuit breaker
  */
-export function withCircuitBreaker<T extends (...args: any[]) => Promise<any>>(
+export function withCircuitBreaker<TArgs extends unknown[], TResult>(
   name: string,
   config?: Partial<CircuitBreakerConfig>
 ) {
   return function (
-    target: any,
-    propertyKey: string,
-    descriptor: PropertyDescriptor
-  ): PropertyDescriptor {
+    _target: object,
+    _propertyKey: string,
+    descriptor: TypedPropertyDescriptor<(...args: TArgs) => Promise<TResult>>
+  ): TypedPropertyDescriptor<(...args: TArgs) => Promise<TResult>> {
     const original = descriptor.value;
+    if (!original) {
+      return descriptor;
+    }
 
-    descriptor.value = async function (...args: any[]) {
+    descriptor.value = async function (...args: TArgs): Promise<TResult> {
       const breaker = circuitBreakers.getOrCreate(name, config);
       return breaker.execute(() => original.apply(this, args));
     };

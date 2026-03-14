@@ -7,13 +7,13 @@
  * Loading precedence (lowest to highest):
  * 1. Extra dirs (config.load.extraDirs)
  * 2. Bundled (built-in skills)
- * 3. Managed (~/.glinr/skills/)
+ * 3. Managed (~/.profclaw/skills/)
  * 4. Workspace (<project>/skills/)
  *
  * Later sources override earlier ones by skill name.
  */
 
-import { readFile, readdir, stat } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { join, basename } from 'node:path';
 import { homedir } from 'node:os';
 import { execFile } from 'node:child_process';
@@ -31,12 +31,24 @@ import {
   type SkillStatus,
   type SkillsStatus,
 } from './types.js';
+import { compileSkill, type CompiledSkill } from './compiler.js';
 
 const execFileAsync = promisify(execFile);
 
-// =============================================================================
+// Compiled Skill Registry (populated during loadSkillFromDir)
+
+/** In-memory registry of compiled skills, keyed by skillKey/skillName */
+const compiledSkillRegistry = new Map<string, CompiledSkill>();
+
+/**
+ * Return the compiled (model-adaptive) version of a skill by its ID.
+ * Returns undefined if the skill has not been loaded yet.
+ */
+export function getCompiledSkill(skillId: string): CompiledSkill | undefined {
+  return compiledSkillRegistry.get(skillId);
+}
+
 // SKILL.md Parser
-// =============================================================================
 
 const FRONTMATTER_REGEX = /^---\s*\n([\s\S]*?)\n---\s*\n([\s\S]*)$/;
 
@@ -78,8 +90,8 @@ export function parseSkillMd(content: string): {
   if (frontmatter.metadata) {
     try {
       const parsed = JSON.parse(frontmatter.metadata);
-      // Support both { glinr: {...} } and direct format
-      metadata = parsed.glinr || parsed.openclaw || parsed;
+      // Support both { profclaw: {...} } and direct format
+      metadata = parsed.profclaw || parsed.openclaw || parsed;
     } catch {
       logger.warn(`[Skills] Failed to parse metadata JSON for skill: ${frontmatter.name}`);
     }
@@ -149,9 +161,7 @@ function parseSimpleYaml(yaml: string): Record<string, unknown> {
   return result;
 }
 
-// =============================================================================
 // Skill Loading
-// =============================================================================
 
 /**
  * Load a single skill from a directory
@@ -199,6 +209,10 @@ async function loadSkillFromDir(
       }
     }
 
+    // Compile skill instructions for model-adaptive injection (9.1)
+    const compiled = compileSkill(skillKey, skillName, instructions);
+    compiledSkillRegistry.set(skillKey, compiled);
+
     return {
       name: skillName,
       description: frontmatter.description || '',
@@ -214,7 +228,7 @@ async function loadSkillFromDir(
       enabled: skillConfig?.enabled !== false,
       command,
     };
-  } catch (error) {
+  } catch {
     // SKILL.md doesn't exist or can't be read - skip silently
     return null;
   }
@@ -287,8 +301,8 @@ export async function loadAllSkills(params: {
     }
   }
 
-  // 3. Managed skills (~/.glinr/skills/)
-  const managedDir = join(homedir(), '.glinr', 'skills');
+  // 3. Managed skills (~/.profclaw/skills/)
+  const managedDir = join(homedir(), '.profclaw', 'skills');
   const managedSkills = await loadSkillsFromDir(managedDir, 'managed', config);
   for (const skill of managedSkills) {
     skillMap.set(skill.name, skill);
@@ -335,9 +349,7 @@ export function filterSkills(
   });
 }
 
-// =============================================================================
 // Eligibility Checking
-// =============================================================================
 
 /** Cache for binary existence checks */
 const binaryCache = new Map<string, boolean>();
@@ -425,9 +437,7 @@ export async function checkEligibility(
   return { eligible: errors.length === 0, errors };
 }
 
-// =============================================================================
 // Skill Snapshot
-// =============================================================================
 
 /**
  * Build a skills snapshot with prompt for AI model (synchronous version)
@@ -478,9 +488,7 @@ export function buildSkillSnapshotSync(
   return { prompt: lines.join('\n'), snapshot };
 }
 
-// =============================================================================
 // Skill Status
-// =============================================================================
 
 /**
  * Build detailed status for all skills
@@ -524,9 +532,7 @@ export function buildSkillsStatus(skills: SkillEntry[], version: number): Skills
   };
 }
 
-// =============================================================================
 // Utility
-// =============================================================================
 
 /** Sanitize a skill name for use as a chat command (alphanumeric + underscore, max 32 chars) */
 function sanitizeCommandName(name: string): string {

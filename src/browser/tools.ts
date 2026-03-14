@@ -2,13 +2,14 @@
  * Browser Tools - Single Source of Truth
  *
  * Define browser tools once, use everywhere:
- * - MCP Server (glinr__browser_* prefix)
+ * - MCP Server (profclaw__browser_* prefix)
  * - Chat Execution (browser_* prefix)
  *
  * Uses unified tool types from src/tools/types.ts
  */
 
 import { z } from 'zod';
+import { createRequire } from 'module';
 import {
   getBrowserService,
   formatSnapshotResponse,
@@ -16,9 +17,9 @@ import {
 } from './index.js';
 import type { ToolDefinition, ToolResult, ToolAvailability } from '../tools/types.js';
 
-// =============================================================================
+const require = createRequire(import.meta.url);
+
 // Availability Check
-// =============================================================================
 
 /** Cache browser availability to avoid repeated checks */
 let browserAvailabilityCache: ToolAvailability | null = null;
@@ -51,9 +52,7 @@ function checkBrowserAvailability(): ToolAvailability {
 export type BrowserToolDefinition<TParams = unknown, TResult = unknown> = ToolDefinition<TParams, TResult>;
 export type BrowserToolResult<T = unknown> = ToolResult<T>;
 
-// =============================================================================
 // Parameter Schemas
-// =============================================================================
 
 export const NavigateParamsSchema = z.object({
   url: z.string().url().describe('URL to navigate to'),
@@ -107,9 +106,7 @@ export const CloseParamsSchema = z.object({
   pageId: z.string().optional().describe('Page to close (closes all if not specified)'),
 });
 
-// =============================================================================
 // Type Exports
-// =============================================================================
 
 export type NavigateParams = z.infer<typeof NavigateParamsSchema>;
 export type SnapshotParams = z.infer<typeof SnapshotParamsSchema>;
@@ -120,9 +117,7 @@ export type ScreenshotParams = z.infer<typeof ScreenshotParamsSchema>;
 export type PagesParams = z.infer<typeof PagesParamsSchema>;
 export type CloseParams = z.infer<typeof CloseParamsSchema>;
 
-// =============================================================================
 // Result Types
-// =============================================================================
 
 export interface NavigateResult {
   pageId: string;
@@ -171,9 +166,7 @@ export interface CloseResult {
   closed: string;
 }
 
-// =============================================================================
 // Tool Definitions (Single Source of Truth)
-// =============================================================================
 
 export const browserNavigateTool: BrowserToolDefinition<NavigateParams, NavigateResult> = {
   name: 'browser_navigate',
@@ -546,9 +539,7 @@ Use to clean up browser resources after completing tasks.`,
   },
 };
 
-// =============================================================================
 // All Browser Tools (Single Array)
-// =============================================================================
 
 export const BROWSER_TOOLS = [
   browserNavigateTool,

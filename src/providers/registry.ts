@@ -1,5 +1,5 @@
 /**
- * GLINR AI Provider Registry
+ * profClaw AI Provider Registry
  *
  * Central registry for managing AI providers.
  * Handles provider discovery, configuration, and routing.
@@ -16,7 +16,7 @@ import type {
   ProviderHealth,
   ProviderType,
 } from './types.js';
-import { DEFAULT_MODEL_ALIASES, DEFAULT_MODEL_CATALOG } from './types.js';
+import { DEFAULT_MODEL_ALIASES } from './types.js';
 import { logger } from '../utils/logger.js';
 
 // === Provider Registry ===
@@ -218,11 +218,7 @@ class ProviderRegistry {
     };
 
     if (request.stream) {
-      // For streaming, we need to collect chunks
-      let fullContent = '';
-      const response = await provider.completeStream(finalRequest, (chunk) => {
-        fullContent += chunk;
-      });
+      const response = await provider.completeStream(finalRequest, () => {});
       return response;
     }
 

@@ -1,7 +1,7 @@
 /**
  * Browser Service
  *
- * Core Playwright browser management for GLINR.
+ * Core Playwright browser management for profClaw.
  * Handles browser lifecycle, page management, and element interaction.
  */
 
@@ -26,6 +26,9 @@ import type {
 import { captureSnapshot, formatSnapshotResponse } from './snapshot.js';
 import { searchSnapshot, formatSearchResponse } from './search.js';
 import { getRefTracker, resetRefTracker, clearAllTrackers } from './refs.js';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('Browser');
 
 // Default configuration
 const DEFAULT_CONFIG: BrowserConfig = {
@@ -56,7 +59,7 @@ class BrowserService {
    */
   async ensureBrowser(): Promise<Browser> {
     if (!this.browser || !this.browser.isConnected()) {
-      console.log('[Browser] Launching browser...');
+      log.info('Launching browser');
 
       this.browser = await chromium.launch({
         headless: this.config.headless,
@@ -74,7 +77,7 @@ class BrowserService {
           'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       });
 
-      console.log('[Browser] Browser launched');
+      log.info('Browser launched');
     }
 
     return this.browser;
@@ -391,7 +394,7 @@ class BrowserService {
     }
 
     clearAllTrackers();
-    console.log('[Browser] Browser closed');
+    log.info('Browser closed');
   }
 
   /**

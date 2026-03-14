@@ -1,5 +1,5 @@
 /**
- * GLINR AI Provider System
+ * profClaw AI Provider System
  *
  * Built on Vercel AI SDK for production-ready multi-provider support.
  * Supports: Anthropic, OpenAI, Google, Ollama, and more.
@@ -7,17 +7,42 @@
  * @see https://sdk.vercel.ai/docs
  */
 
-import { generateText, streamText, tool as createTool, type LanguageModel, jsonSchema } from 'ai';
-import { createAnthropic } from '@ai-sdk/anthropic';
-import { createOpenAI } from '@ai-sdk/openai';
-import { createAzure } from '@ai-sdk/azure';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { createOllama } from 'ai-sdk-ollama';
+import { generateText, streamText, tool as createTool, type LanguageModel, type Tool as AiSdkTool, type ToolSet, jsonSchema } from 'ai';
+// Provider SDKs are lazily imported inside ensureProvider() to reduce startup memory
+// (each SDK is ~15MB; loading all 6 at startup costs ~100MB even if unused)
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { logger } from '../utils/logger.js';
 import { normalizeToolSchema } from './schema-utils.js';
+
+// AI provider resilience settings (configurable via env)
+const AI_TIMEOUT_MS = parseInt(process.env['AI_PROVIDER_TIMEOUT_MS'] ?? '120000', 10);
+const AI_MAX_RETRIES = parseInt(process.env['AI_MAX_RETRIES'] ?? '2', 10);
+
+/**
+ * Retry wrapper for transient AI provider failures (429, 503, network errors).
+ * Uses exponential backoff with a 10s cap.
+ */
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = AI_MAX_RETRIES): Promise<T> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      const isRetryable =
+        error instanceof Error &&
+        (/429|503|rate.limit|too.many|service.unavailable|ECONNRESET|ETIMEDOUT|fetch.failed/i.test(error.message));
+      if (!isRetryable || attempt === maxRetries) throw error;
+      const delay = Math.min(1000 * 2 ** attempt, 10000);
+      logger.warn(`[AIProvider] Transient error (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms`, {
+        component: 'AIProvider',
+        error: error.message,
+      });
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw new Error('Unreachable');
+}
 
 // Core types & data — single source of truth in core/
 import {
@@ -32,6 +57,27 @@ import {
   type AIMessage,
 } from './core/types.js';
 import { MODEL_ALIASES, MODEL_CATALOG } from './core/models.js';
+
+/** Sensible default model per provider (used when no model is specified). */
+const PROVIDER_DEFAULT_MODEL: Record<string, string> = {
+  ollama: 'llama3.2',
+  anthropic: 'claude-sonnet-4-5-20250929',
+  openai: 'gpt-4o',
+  google: 'gemini-2.0-flash',
+  azure: 'gpt-4o',
+  groq: 'llama-3.3-70b-versatile',
+  cerebras: 'llama-3.3-70b',
+  fireworks: 'accounts/fireworks/models/llama-v3p1-70b-instruct',
+  together: 'meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo',
+  deepseek: 'deepseek-chat',
+  mistral: 'mistral-large-latest',
+  xai: 'grok-2',
+  cohere: 'command-r-plus',
+  perplexity: 'sonar',
+  bedrock: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+  replicate: 'meta/meta-llama-3-70b-instruct',
+  openrouter: 'anthropic/claude-sonnet-4-5-20250929',
+};
 
 // Re-export for consumers that import from providers/ai-sdk or providers/index
 export {
@@ -52,26 +98,53 @@ export type {
 // Pre-compiled regex patterns for performance (avoid recompilation on each call)
 const TOOL_CALL_REGEX = /```tool\s*\n?([\s\S]*?)\n?```/g;
 
+type AiSdkToolSchema = AiSdkTool<unknown, unknown>['inputSchema'];
+
+function asJsonSchemaInput(schema: unknown): Parameters<typeof jsonSchema>[0] {
+  return schema as Parameters<typeof jsonSchema>[0];
+}
+
+function toAiMessages(messages: ChatMessage[]): AIMessage[] {
+  return messages.map((msg) => ({
+    role: msg.role,
+    content: msg.content,
+  }));
+}
+
+function toToolArguments(args: unknown): Record<string, unknown> {
+  return typeof args === 'object' && args !== null
+    ? (args as Record<string, unknown>)
+    : {};
+}
+
+function getToolResultMessage(result: unknown): string {
+  if (typeof result === 'object' && result !== null && typeof (result as { message?: unknown }).message === 'string') {
+    return (result as { message: string }).message;
+  }
+  return JSON.stringify(result);
+}
+
+function buildNativeToolSchema(
+  parameters: z.ZodType<unknown>,
+  normalizeForAzure: boolean,
+): AiSdkToolSchema {
+  if (!normalizeForAzure) {
+    return parameters;
+  }
+
+  const rawJsonSchema = zodToJsonSchema(parameters, {
+    $refStrategy: 'none',
+    target: 'openAi',
+  });
+  const normalizedSchema = normalizeToolSchema(rawJsonSchema);
+  return jsonSchema(asJsonSchemaInput(normalizedSchema));
+}
+
 // === Provider Factory ===
 
-interface ProviderInstances {
-  anthropic?: ReturnType<typeof createAnthropic>;
-  openai?: ReturnType<typeof createOpenAI>;
-  azure?: ReturnType<typeof createAzure>;
-  google?: ReturnType<typeof createGoogleGenerativeAI>;
-  ollama?: ReturnType<typeof createOllama>;
-  groq?: ReturnType<typeof createOpenAI>; // Groq uses OpenAI-compatible API
-  xai?: ReturnType<typeof createOpenAI>; // xAI uses OpenAI-compatible API
-  mistral?: ReturnType<typeof createOpenAI>; // Mistral uses OpenAI-compatible API
-  cohere?: ReturnType<typeof createOpenAI>; // Cohere uses OpenAI-compatible API
-  perplexity?: ReturnType<typeof createOpenAI>; // Perplexity uses OpenAI-compatible API
-  deepseek?: ReturnType<typeof createOpenAI>; // DeepSeek uses OpenAI-compatible API
-  together?: ReturnType<typeof createOpenAI>; // Together uses OpenAI-compatible API
-  cerebras?: ReturnType<typeof createOpenAI>; // Cerebras uses OpenAI-compatible API
-  fireworks?: ReturnType<typeof createOpenAI>; // Fireworks uses OpenAI-compatible API
-  openrouter?: ReturnType<typeof createOpenAI>; // OpenRouter uses OpenAI-compatible API
-  copilot?: ReturnType<typeof createOpenAI>; // GitHub Copilot proxy uses OpenAI-compatible API
-}
+// Provider instances are callable (model => LanguageModel) with optional .chat()
+type ProviderInstance = ((...args: unknown[]) => unknown) & { chat?: (...args: unknown[]) => unknown };
+type ProviderInstances = Record<string, ProviderInstance | undefined>;
 
 // Provider priority for auto-selection (prefer cloud providers over local)
 const PROVIDER_PRIORITY: ProviderType[] = [
@@ -90,6 +163,25 @@ const PROVIDER_PRIORITY: ProviderType[] = [
   'cohere',     // Cohere
   'perplexity', // Perplexity (search-focused)
   'copilot',    // GitHub Copilot proxy
+  'bedrock',    // AWS Bedrock
+  'zhipu',      // Zhipu AI (GLM series)
+  'moonshot',   // Moonshot AI (Kimi)
+  'qwen',       // Qwen (Alibaba Cloud)
+  'replicate',  // Replicate
+  'github-models', // GitHub Models
+  'volcengine', // Bytedance Doubao
+  'byteplus',   // BytePlus
+  'qianfan',    // Baidu Qianfan
+  'modelstudio', // ModelStudio
+  'minimax',    // Minimax
+  'xiaomi',     // Xiaomi MiLM
+  'huggingface', // HuggingFace Inference
+  'nvidia-nim', // NVIDIA NIM
+  'watsonx',    // IBM Watsonx
+  'vercel-ai',  // Vercel AI Gateway
+  'cloudflare-ai', // Cloudflare AI Gateway
+  'venice',     // Venice AI
+  'kilocode',   // Kilocode
   'ollama',     // Local - lowest priority (often doesn't support tools)
 ];
 
@@ -124,11 +216,12 @@ class AIProviderManager {
       });
     }
 
-    // Google
-    if (process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY) {
+    // Google (supports multiple env var names)
+    const googleKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+    if (googleKey) {
       this.configure('google', {
         type: 'google',
-        apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_API_KEY,
+        apiKey: googleKey,
         enabled: true,
       });
     }
@@ -224,6 +317,16 @@ class AIProviderManager {
       });
     }
 
+    // Zhipu AI (BigModel / GLM series)
+    const zhipuKey = process.env.BIGMODEL_API_KEY || process.env.ZHIPU_API_KEY;
+    if (zhipuKey) {
+      this.configure('zhipu', {
+        type: 'zhipu',
+        apiKey: zhipuKey,
+        enabled: true,
+      });
+    }
+
     // Fireworks
     if (process.env.FIREWORKS_API_KEY) {
       this.configure('fireworks', {
@@ -258,193 +361,339 @@ class AIProviderManager {
         enabled: true,
       });
     }
+
+    // Volcengine (Bytedance Doubao)
+    if (process.env.VOLCENGINE_API_KEY) {
+      this.configure('volcengine', {
+        type: 'volcengine',
+        apiKey: process.env.VOLCENGINE_API_KEY,
+        enabled: true,
+      });
+    }
+
+    // BytePlus (international Bytedance)
+    if (process.env.BYTEPLUS_API_KEY) {
+      this.configure('byteplus', {
+        type: 'byteplus',
+        apiKey: process.env.BYTEPLUS_API_KEY,
+        enabled: true,
+      });
+    }
+
+    // Baidu Qianfan
+    if (process.env.QIANFAN_API_KEY) {
+      this.configure('qianfan', {
+        type: 'qianfan',
+        apiKey: process.env.QIANFAN_API_KEY,
+        enabled: true,
+      });
+    }
+
+    // ModelStudio (Alibaba DashScope compatible mode)
+    if (process.env.MODELSTUDIO_API_KEY) {
+      this.configure('modelstudio', {
+        type: 'modelstudio',
+        apiKey: process.env.MODELSTUDIO_API_KEY,
+        enabled: true,
+      });
+    }
+
+    // Minimax
+    if (process.env.MINIMAX_API_KEY) {
+      this.configure('minimax', {
+        type: 'minimax',
+        apiKey: process.env.MINIMAX_API_KEY,
+        enabled: true,
+      });
+    }
+
+    // Xiaomi MiLM
+    if (process.env.XIAOMI_API_KEY) {
+      this.configure('xiaomi', {
+        type: 'xiaomi',
+        apiKey: process.env.XIAOMI_API_KEY,
+        enabled: true,
+      });
+    }
+
+    // HuggingFace Inference
+    if (process.env.HUGGINGFACE_API_TOKEN) {
+      this.configure('huggingface', {
+        type: 'huggingface',
+        apiKey: process.env.HUGGINGFACE_API_TOKEN,
+        enabled: true,
+      });
+    }
+
+    // NVIDIA NIM
+    if (process.env.NVIDIA_NIM_API_KEY) {
+      this.configure('nvidia-nim', {
+        type: 'nvidia-nim',
+        apiKey: process.env.NVIDIA_NIM_API_KEY,
+        enabled: true,
+      });
+    }
+
+    // Venice AI
+    if (process.env.VENICE_API_KEY) {
+      this.configure('venice', {
+        type: 'venice',
+        apiKey: process.env.VENICE_API_KEY,
+        enabled: true,
+      });
+    }
+
+    // Kilocode
+    if (process.env.KILOCODE_API_KEY) {
+      this.configure('kilocode', {
+        type: 'kilocode',
+        apiKey: process.env.KILOCODE_API_KEY,
+        enabled: true,
+      });
+    }
+
+    // Vercel AI Gateway
+    if (process.env.VERCEL_AI_API_KEY) {
+      this.configure('vercel-ai', {
+        type: 'vercel-ai',
+        apiKey: process.env.VERCEL_AI_API_KEY,
+        enabled: true,
+      });
+    }
+
+    // Cloudflare AI Gateway
+    if (process.env.CLOUDFLARE_AI_API_KEY || process.env.CLOUDFLARE_AI_TOKEN) {
+      const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+      this.configure('cloudflare-ai', {
+        type: 'cloudflare-ai',
+        apiKey: process.env.CLOUDFLARE_AI_API_KEY || process.env.CLOUDFLARE_AI_TOKEN,
+        baseUrl: accountId
+          ? `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/v1`
+          : undefined,
+        enabled: true,
+      });
+    }
+
+    // IBM Watsonx
+    if (process.env.WATSONX_API_KEY) {
+      this.configure('watsonx', {
+        type: 'watsonx',
+        apiKey: process.env.WATSONX_API_KEY,
+        baseUrl: process.env.WATSONX_URL || 'https://us-south.ml.cloud.ibm.com/ml/v1',
+        defaultModel: process.env.WATSONX_PROJECT_ID,
+        enabled: true,
+      });
+    }
   }
 
   configure(type: ProviderType, config: ProviderConfig): void {
     this.configs.set(type, config);
+    // Invalidate cached provider instance so ensureProvider() recreates it on next use
+    const key = this.providerKey(type);
+    delete this.providers[key];
+    logger.info(`[AIProvider] Configured ${type}`);
+  }
+
+  /** Map hyphenated provider types to camelCase keys for the providers record */
+  private providerKey(type: ProviderType): string {
+    const keyMap: Partial<Record<ProviderType, string>> = {
+      'github-models': 'githubModels',
+      'nvidia-nim': 'nvidiaNim',
+      'vercel-ai': 'vercelAi',
+      'cloudflare-ai': 'cloudflareAi',
+    };
+    return keyMap[type] ?? type;
+  }
+
+  /**
+   * Lazily import and instantiate the SDK for a provider on first use.
+   * Each SDK is ~15MB; this avoids loading all of them at startup.
+   */
+  private async ensureProvider(type: ProviderType): Promise<void> {
+    const key = this.providerKey(type);
+    if (this.providers[key]) return;
+
+    const config = this.configs.get(type);
+    if (!config?.enabled && type !== 'ollama') return;
 
     switch (type) {
-      case 'anthropic':
-        if (config.apiKey) {
-          this.providers.anthropic = createAnthropic({
+      case 'anthropic': {
+        if (!config?.apiKey) return;
+        const { createAnthropic } = await import('@ai-sdk/anthropic');
+        this.providers.anthropic = createAnthropic({
+          apiKey: config.apiKey,
+          baseURL: config.baseUrl,
+        }) as unknown as ProviderInstance;
+        break;
+      }
+
+      case 'openai': {
+        if (!config?.apiKey) return;
+        const { createOpenAI } = await import('@ai-sdk/openai');
+        this.providers.openai = createOpenAI({
+          apiKey: config.apiKey,
+          baseURL: config.baseUrl,
+        }) as unknown as ProviderInstance;
+        break;
+      }
+
+      case 'google': {
+        if (!config?.apiKey) return;
+        const { createGoogleGenerativeAI } = await import('@ai-sdk/google');
+        this.providers.google = createGoogleGenerativeAI({
+          apiKey: config.apiKey,
+          baseURL: config.baseUrl,
+        }) as unknown as ProviderInstance;
+        break;
+      }
+
+      case 'azure': {
+        if (!config?.apiKey) return;
+        const { createAzure } = await import('@ai-sdk/azure');
+        const apiVersion = config.apiVersion || '2024-10-21';
+        logger.info(`[AIProvider] Azure using API version: ${apiVersion}`);
+
+        if (config.resourceName) {
+          this.providers.azure = createAzure({
             apiKey: config.apiKey,
-            baseURL: config.baseUrl,
-          });
-        }
-        break;
-
-      case 'openai':
-        if (config.apiKey) {
-          this.providers.openai = createOpenAI({
+            resourceName: config.resourceName,
+            apiVersion,
+          }) as unknown as ProviderInstance;
+          logger.info(`[AIProvider] Azure configured with resource: ${config.resourceName}`);
+        } else if (config.baseUrl) {
+          const endpoint = config.baseUrl.replace(/\/$/, '');
+          this.providers.azure = createAzure({
             apiKey: config.apiKey,
-            baseURL: config.baseUrl,
-          });
+            baseURL: endpoint,
+            apiVersion,
+            useDeploymentBasedUrls: true,
+          }) as unknown as ProviderInstance;
+          logger.info(`[AIProvider] Azure configured with endpoint: ${endpoint}`);
+        } else {
+          logger.warn('[AIProvider] Azure API key provided but no endpoint or resource name');
+        }
+
+        if (config.defaultModel) {
+          logger.info(`[AIProvider] Azure default deployment: ${config.defaultModel}`);
         }
         break;
+      }
 
-      case 'google':
-        if (config.apiKey) {
-          this.providers.google = createGoogleGenerativeAI({
-            apiKey: config.apiKey,
-            baseURL: config.baseUrl,
-          });
-        }
-        break;
-
-      case 'azure':
-        if (config.apiKey) {
-          // Azure OpenAI supports multiple endpoint formats:
-          // 1. Resource name → SDK builds: https://${resourceName}.openai.azure.com
-          // 2. Direct endpoint → https://{resource}.openai.azure.com or regional cognitive services
-          //
-          // Some Azure setups use regional Cognitive Services endpoints like:
-          // https://eastus.api.cognitive.microsoft.com (valid for Azure OpenAI)
-
-          const apiVersion = config.apiVersion || '2024-10-21';
-          logger.info(`[AIProvider] Azure using API version: ${apiVersion}`);
-
-          if (config.resourceName) {
-            // Preferred: Use resource name, SDK constructs the URL
-            this.providers.azure = createAzure({
-              apiKey: config.apiKey,
-              resourceName: config.resourceName,
-              apiVersion,
-            });
-            logger.info(`[AIProvider] Azure configured with resource: ${config.resourceName}`);
-          } else if (config.baseUrl) {
-            // Use provided endpoint URL directly
-            // Both .openai.azure.com and .cognitive.microsoft.com formats are valid
-            const endpoint = config.baseUrl.replace(/\/$/, ''); // Remove trailing slash
-
-            this.providers.azure = createAzure({
-              apiKey: config.apiKey,
-              baseURL: endpoint,
-              apiVersion,
-              // Azure OpenAI requires deployment-based URLs: /deployments/${modelId}/...
-              // Without this, SDK uses /v1/... format which doesn't work with Azure
-              useDeploymentBasedUrls: true,
-            });
-            logger.info(`[AIProvider] Azure configured with endpoint: ${endpoint}`);
-          } else {
-            logger.warn('[AIProvider] Azure API key provided but no endpoint or resource name');
-          }
-
-          // Log deployment info if available
-          if (config.defaultModel) {
-            logger.info(`[AIProvider] Azure default deployment: ${config.defaultModel}`);
-          }
-        }
-        break;
-
-      case 'groq':
-        if (config.apiKey) {
-          this.providers.groq = createOpenAI({
-            apiKey: config.apiKey,
-            baseURL: 'https://api.groq.com/openai/v1',
-          });
-        }
-        break;
-
-      case 'ollama':
+      case 'ollama': {
+        const { createOllama } = await import('ai-sdk-ollama');
         this.providers.ollama = createOllama({
-          baseURL: config.baseUrl || 'http://localhost:11434',
-        });
+          baseURL: config?.baseUrl || 'http://localhost:11434',
+        }) as unknown as ProviderInstance;
         break;
+      }
 
+      // All OpenAI-compatible providers share the same SDK
+      case 'groq':
       case 'xai':
-        if (config.apiKey) {
-          this.providers.xai = createOpenAI({
-            apiKey: config.apiKey,
-            baseURL: 'https://api.x.ai/v1',
-          });
-        }
-        break;
-
       case 'mistral':
-        if (config.apiKey) {
-          this.providers.mistral = createOpenAI({
-            apiKey: config.apiKey,
-            baseURL: 'https://api.mistral.ai/v1',
-          });
-        }
-        break;
-
       case 'cohere':
-        if (config.apiKey) {
-          this.providers.cohere = createOpenAI({
-            apiKey: config.apiKey,
-            baseURL: 'https://api.cohere.ai/v1',
-          });
-        }
-        break;
-
       case 'perplexity':
-        if (config.apiKey) {
-          this.providers.perplexity = createOpenAI({
-            apiKey: config.apiKey,
-            baseURL: 'https://api.perplexity.ai',
-          });
-        }
-        break;
-
       case 'deepseek':
-        if (config.apiKey) {
-          this.providers.deepseek = createOpenAI({
-            apiKey: config.apiKey,
-            baseURL: 'https://api.deepseek.com/v1',
-          });
-        }
-        break;
-
       case 'together':
-        if (config.apiKey) {
-          this.providers.together = createOpenAI({
-            apiKey: config.apiKey,
-            baseURL: 'https://api.together.xyz/v1',
-          });
-        }
-        break;
-
       case 'cerebras':
-        if (config.apiKey) {
-          this.providers.cerebras = createOpenAI({
-            apiKey: config.apiKey,
-            baseURL: 'https://api.cerebras.ai/v1',
-          });
-        }
-        break;
-
       case 'fireworks':
-        if (config.apiKey) {
-          this.providers.fireworks = createOpenAI({
-            apiKey: config.apiKey,
-            baseURL: 'https://api.fireworks.ai/inference/v1',
-          });
-        }
-        break;
-
       case 'openrouter':
-        if (config.apiKey) {
-          this.providers.openrouter = createOpenAI({
-            apiKey: config.apiKey,
-            baseURL: 'https://openrouter.ai/api/v1',
-          });
-        }
+      case 'zhipu':
+      case 'moonshot': {
+        if (!config?.apiKey) return;
+        const { createOpenAI } = await import('@ai-sdk/openai');
+        const baseURLs: Record<string, string> = {
+          groq: 'https://api.groq.com/openai/v1',
+          xai: 'https://api.x.ai/v1',
+          mistral: 'https://api.mistral.ai/v1',
+          cohere: 'https://api.cohere.ai/v1',
+          perplexity: 'https://api.perplexity.ai',
+          deepseek: 'https://api.deepseek.com/v1',
+          together: 'https://api.together.xyz/v1',
+          cerebras: 'https://api.cerebras.ai/v1',
+          fireworks: 'https://api.fireworks.ai/inference/v1',
+          openrouter: 'https://openrouter.ai/api/v1',
+          zhipu: 'https://open.bigmodel.cn/api/paas/v4',
+          moonshot: 'https://api.moonshot.cn/v1',
+        };
+        this.providers[key] = createOpenAI({
+          apiKey: config.apiKey,
+          baseURL: baseURLs[type],
+        }) as unknown as ProviderInstance;
         break;
+      }
 
-      case 'copilot':
-        // GitHub Copilot proxy - uses user's Copilot subscription via local proxy
-        // No API key needed - proxy handles auth via GitHub token
-        if (config.baseUrl) {
-          this.providers.copilot = createOpenAI({
-            apiKey: 'copilot', // Placeholder - proxy doesn't need real key
-            baseURL: config.baseUrl,
-          });
-        }
+      case 'copilot': {
+        if (!config?.baseUrl) return;
+        const { createOpenAI } = await import('@ai-sdk/openai');
+        this.providers.copilot = createOpenAI({
+          apiKey: 'copilot',
+          baseURL: config.baseUrl,
+        }) as unknown as ProviderInstance;
         break;
+      }
+
+      case 'github-models': {
+        if (!config?.apiKey) return;
+        const { createOpenAI } = await import('@ai-sdk/openai');
+        this.providers.githubModels = createOpenAI({
+          apiKey: config.apiKey,
+          baseURL: 'https://models.inference.ai.azure.com',
+        }) as unknown as ProviderInstance;
+        break;
+      }
+
+      case 'replicate': {
+        if (!config?.apiKey) return;
+        const { createOpenAI } = await import('@ai-sdk/openai');
+        this.providers.replicate = createOpenAI({
+          apiKey: config.apiKey,
+          baseURL: 'https://openai-proxy.replicate.com/v1',
+        }) as unknown as ProviderInstance;
+        break;
+      }
+
+      // New OpenAI-compatible providers
+      case 'volcengine':
+      case 'byteplus':
+      case 'qianfan':
+      case 'modelstudio':
+      case 'minimax':
+      case 'xiaomi':
+      case 'huggingface':
+      case 'nvidia-nim':
+      case 'venice':
+      case 'kilocode':
+      case 'vercel-ai':
+      case 'cloudflare-ai':
+      case 'watsonx': {
+        if (!config?.apiKey) return;
+        const { createOpenAI } = await import('@ai-sdk/openai');
+        const newProviderBaseURLs: Record<string, string> = {
+          volcengine: 'https://ark.cn-beijing.volces.com/api/v3',
+          byteplus: 'https://ark.byteplush.com/api/v3',
+          qianfan: 'https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxin',
+          modelstudio: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+          minimax: 'https://api.minimax.chat/v1',
+          xiaomi: 'https://api.xiaomi.com/ai/v1',
+          huggingface: 'https://api-inference.huggingface.co/v1',
+          'nvidia-nim': 'https://integrate.api.nvidia.com/v1',
+          venice: 'https://api.venice.ai/api/v1',
+          kilocode: 'https://api.kilocode.ai/v1',
+          'vercel-ai': 'https://gateway.ai.vercel.com/v1',
+          watsonx: 'https://us-south.ml.cloud.ibm.com/ml/v1',
+        };
+        // Cloudflare uses a dynamic URL based on account ID (set during configure)
+        const baseURL = type === 'cloudflare-ai'
+          ? (config.baseUrl || 'https://api.cloudflare.com/client/v4/accounts/unknown/ai/v1')
+          : (config.baseUrl || newProviderBaseURLs[type]);
+        this.providers[key] = createOpenAI({
+          apiKey: config.apiKey,
+          baseURL,
+        }) as unknown as ProviderInstance;
+        break;
+      }
     }
-
-    logger.info(`[AIProvider] Configured ${type}`);
   }
 
   setDefaultProvider(type: ProviderType): void {
@@ -577,118 +826,71 @@ class AIProviderManager {
     return { provider: this.defaultProvider, model: defaultModel };
   }
 
-  getModel(provider: ProviderType, modelId: string): LanguageModel {
-    switch (provider) {
-      case 'anthropic':
-        if (!this.providers.anthropic) {
-          throw new Error('Anthropic not configured. Set ANTHROPIC_API_KEY.');
-        }
-        return this.providers.anthropic(modelId) as unknown as LanguageModel;
+  async getModel(provider: ProviderType, modelId: string): Promise<LanguageModel> {
+    await this.ensureProvider(provider);
 
-      case 'openai':
-        if (!this.providers.openai) {
-          throw new Error('OpenAI not configured. Set OPENAI_API_KEY.');
-        }
-        return this.providers.openai(modelId) as unknown as LanguageModel;
-
-      case 'google':
-        if (!this.providers.google) {
-          throw new Error('Google AI not configured. Set GOOGLE_API_KEY.');
-        }
-        return this.providers.google(modelId) as unknown as LanguageModel;
-
-      case 'azure': {
-        if (!this.providers.azure) {
-          throw new Error('Azure OpenAI not configured. Set AZURE_OPENAI_API_KEY and AZURE_OPENAI_RESOURCE_NAME.');
-        }
-        // For Azure, use configured deployment if 'default' is passed
-        let deployment = modelId;
-        if (modelId === 'default') {
-          const azureConfig = this.configs.get('azure');
-          deployment = azureConfig?.defaultModel || modelId;
-          if (deployment === 'default') {
-            throw new Error('Azure deployment not configured. Set defaultModel in Azure config or AZURE_OPENAI_DEPLOYMENT_NAME.');
-          }
-        }
-        // Use .chat() for Azure - the default responses API isn't supported on all Azure endpoints
-        return this.providers.azure.chat(deployment) as unknown as LanguageModel;
-      }
-
-      case 'groq':
-        if (!this.providers.groq) {
-          throw new Error('Groq not configured. Set GROQ_API_KEY.');
-        }
-        return this.providers.groq(modelId) as unknown as LanguageModel;
-
-      case 'ollama':
-        if (!this.providers.ollama) {
-          throw new Error('Ollama not configured.');
-        }
-        return this.providers.ollama(modelId) as unknown as LanguageModel;
-
-      case 'xai':
-        if (!this.providers.xai) {
-          throw new Error('xAI not configured. Set XAI_API_KEY.');
-        }
-        return this.providers.xai(modelId) as unknown as LanguageModel;
-
-      case 'mistral':
-        if (!this.providers.mistral) {
-          throw new Error('Mistral not configured. Set MISTRAL_API_KEY.');
-        }
-        return this.providers.mistral(modelId) as unknown as LanguageModel;
-
-      case 'cohere':
-        if (!this.providers.cohere) {
-          throw new Error('Cohere not configured. Set COHERE_API_KEY.');
-        }
-        return this.providers.cohere(modelId) as unknown as LanguageModel;
-
-      case 'perplexity':
-        if (!this.providers.perplexity) {
-          throw new Error('Perplexity not configured. Set PERPLEXITY_API_KEY.');
-        }
-        return this.providers.perplexity(modelId) as unknown as LanguageModel;
-
-      case 'deepseek':
-        if (!this.providers.deepseek) {
-          throw new Error('DeepSeek not configured. Set DEEPSEEK_API_KEY.');
-        }
-        return this.providers.deepseek(modelId) as unknown as LanguageModel;
-
-      case 'together':
-        if (!this.providers.together) {
-          throw new Error('Together AI not configured. Set TOGETHER_API_KEY.');
-        }
-        return this.providers.together(modelId) as unknown as LanguageModel;
-
-      case 'cerebras':
-        if (!this.providers.cerebras) {
-          throw new Error('Cerebras not configured. Set CEREBRAS_API_KEY.');
-        }
-        return this.providers.cerebras(modelId) as unknown as LanguageModel;
-
-      case 'fireworks':
-        if (!this.providers.fireworks) {
-          throw new Error('Fireworks not configured. Set FIREWORKS_API_KEY.');
-        }
-        return this.providers.fireworks(modelId) as unknown as LanguageModel;
-
-      case 'openrouter':
-        if (!this.providers.openrouter) {
-          throw new Error('OpenRouter not configured. Set OPENROUTER_API_KEY.');
-        }
-        return this.providers.openrouter(modelId) as unknown as LanguageModel;
-
-      case 'copilot':
-        if (!this.providers.copilot) {
-          throw new Error('GitHub Copilot proxy not configured. Set COPILOT_API_URL.');
-        }
-        return this.providers.copilot(modelId) as unknown as LanguageModel;
-
-      default:
-        throw new Error(`Unknown provider: ${provider}`);
+    const key = this.providerKey(provider);
+    const instance = this.providers[key];
+    if (!instance) {
+      const envHints: Record<string, string> = {
+        anthropic: 'Set ANTHROPIC_API_KEY.',
+        openai: 'Set OPENAI_API_KEY.',
+        google: 'Set GOOGLE_API_KEY.',
+        azure: 'Set AZURE_OPENAI_API_KEY and AZURE_OPENAI_RESOURCE_NAME.',
+        groq: 'Set GROQ_API_KEY.',
+        ollama: 'Check Ollama is running.',
+        xai: 'Set XAI_API_KEY.',
+        mistral: 'Set MISTRAL_API_KEY.',
+        cohere: 'Set COHERE_API_KEY.',
+        perplexity: 'Set PERPLEXITY_API_KEY.',
+        deepseek: 'Set DEEPSEEK_API_KEY.',
+        together: 'Set TOGETHER_API_KEY.',
+        cerebras: 'Set CEREBRAS_API_KEY.',
+        fireworks: 'Set FIREWORKS_API_KEY.',
+        openrouter: 'Set OPENROUTER_API_KEY.',
+        copilot: 'Set COPILOT_API_URL.',
+        volcengine: 'Set VOLCENGINE_API_KEY.',
+        byteplus: 'Set BYTEPLUS_API_KEY.',
+        qianfan: 'Set QIANFAN_API_KEY.',
+        modelstudio: 'Set MODELSTUDIO_API_KEY.',
+        minimax: 'Set MINIMAX_API_KEY.',
+        xiaomi: 'Set XIAOMI_API_KEY.',
+        huggingface: 'Set HUGGINGFACE_API_TOKEN.',
+        'nvidia-nim': 'Set NVIDIA_NIM_API_KEY.',
+        venice: 'Set VENICE_API_KEY.',
+        kilocode: 'Set KILOCODE_API_KEY.',
+        'vercel-ai': 'Set VERCEL_AI_API_KEY.',
+        'cloudflare-ai': 'Set CLOUDFLARE_AI_API_KEY and CLOUDFLARE_ACCOUNT_ID.',
+        watsonx: 'Set WATSONX_API_KEY.',
+      };
+      throw new Error(`${provider} not configured. ${envHints[provider] || ''}`);
     }
+
+    // Azure uses .chat() method for deployment-based access
+    if (provider === 'azure') {
+      let deployment = modelId;
+      if (modelId === 'default') {
+        const azureConfig = this.configs.get('azure');
+        deployment = azureConfig?.defaultModel || modelId;
+        if (deployment === 'default') {
+          throw new Error('Azure deployment not configured. Set defaultModel in Azure config or AZURE_OPENAI_DEPLOYMENT_NAME.');
+        }
+      }
+      return instance.chat!(deployment) as unknown as LanguageModel;
+    }
+
+    // OpenAI-compatible providers must use .chat() - the default instance() call
+    // uses the Responses API which third-party providers don't support
+    const OPENAI_COMPAT_PROVIDERS = new Set([
+      'openai', 'groq', 'xai', 'mistral', 'cohere', 'perplexity',
+      'deepseek', 'together', 'cerebras', 'fireworks', 'openrouter', 'copilot',
+      'zhipu', 'moonshot',
+    ]);
+    if (OPENAI_COMPAT_PROVIDERS.has(provider) && typeof instance.chat === 'function') {
+      return instance.chat(modelId) as unknown as LanguageModel;
+    }
+
+    return instance(modelId) as unknown as LanguageModel;
   }
 
   getModelInfo(modelId: string): ModelInfo | undefined {
@@ -709,9 +911,9 @@ class AIProviderManager {
     // Resolve model
     const modelRef = request.model
       ? this.resolveModel(request.model)
-      : { provider: this.defaultProvider, model: 'llama3.2' };
+      : { provider: this.defaultProvider, model: PROVIDER_DEFAULT_MODEL[this.defaultProvider] || 'llama3.2' };
 
-    const model = this.getModel(modelRef.provider, modelRef.model);
+    const model: LanguageModel = await this.getModel(modelRef.provider, modelRef.model);
 
     // Convert messages to AI SDK format
     const messages: AIMessage[] = request.messages.map((msg) => ({
@@ -725,12 +927,13 @@ class AIProviderManager {
     }
 
     try {
-      const result = await generateText({
+      const result = await withRetry(() => generateText({
         model,
         messages,
         temperature: request.temperature ?? 0.7,
         maxOutputTokens: request.maxTokens ?? 4096,
-      });
+        abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS),
+      }));
 
       const duration = Date.now() - startTime;
       const modelInfo = this.getModelInfo(modelRef.model);
@@ -778,9 +981,9 @@ class AIProviderManager {
     // Resolve model
     const modelRef = request.model
       ? this.resolveModel(request.model)
-      : { provider: this.defaultProvider, model: 'llama3.2' };
+      : { provider: this.defaultProvider, model: PROVIDER_DEFAULT_MODEL[this.defaultProvider] || 'llama3.2' };
 
-    const model = this.getModel(modelRef.provider, modelRef.model);
+    const model: LanguageModel = await this.getModel(modelRef.provider, modelRef.model);
 
     // Convert messages
     const messages: AIMessage[] = request.messages.map((msg) => ({
@@ -798,6 +1001,7 @@ class AIProviderManager {
         messages,
         temperature: request.temperature ?? 0.7,
         maxOutputTokens: request.maxTokens ?? 4096,
+        abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS),
       });
 
       // Collect text with batched chunk emission for better performance
@@ -872,9 +1076,9 @@ class AIProviderManager {
     // Resolve model
     const modelRef = request.model
       ? this.resolveModel(request.model)
-      : { provider: this.defaultProvider, model: 'llama3.2' };
+      : { provider: this.defaultProvider, model: PROVIDER_DEFAULT_MODEL[this.defaultProvider] || 'llama3.2' };
 
-    const model = this.getModel(modelRef.provider, modelRef.model);
+    const model: LanguageModel = await this.getModel(modelRef.provider, modelRef.model);
 
     // Check if model supports native tools
     const toolSupport = this.modelSupportsTools(modelRef.model || modelRef.provider + '/' + modelRef.model);
@@ -886,8 +1090,7 @@ class AIProviderManager {
     const detectedToolCalls: ToolCall[] = [];
 
     // Convert tools for native AI SDK usage
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const aiSdkTools: Record<string, any> = {};
+    const aiSdkTools: ToolSet = {};
     
     if (useNativeTools && request.tools) {
       // Add a reinforcement prompt for local models to ensure they provide arguments
@@ -899,22 +1102,18 @@ class AIProviderManager {
         const rawJsonSchema = zodToJsonSchema(t.parameters as z.ZodType, {
           $refStrategy: 'none',
         });
-        // Type cast needed due to minor differences between zod-to-json-schema and AI SDK JSONSchema types
         aiSdkTools[t.name] = createTool({
           description: t.description,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          inputSchema: jsonSchema(rawJsonSchema as any),
+          inputSchema: jsonSchema(asJsonSchemaInput(rawJsonSchema)),
         });
       });
     } else if (request.tools && request.tools.length > 0) {
       // Fallback: Manual tool prompting
       const toolDescriptions = request.tools.map((t) => {
-        const params = t.parameters;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const shape = (params as any)?._def?.shape || (params as any)?.shape || {};
+        const params = t.parameters as { _def?: { shape?: Record<string, { _def?: { description?: string } }> }; shape?: Record<string, { _def?: { description?: string } }> };
+        const shape: Record<string, { _def?: { description?: string } }> = params?._def?.shape ?? params?.shape ?? {};
         const paramList = Object.entries(shape)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .map(([key, val]: [string, any]) => `  - ${key}: ${val?._def?.description || 'string'}`)
+          .map(([key, val]) => `  - ${key}: ${val?._def?.description || 'string'}`)
           .join('\n');
         return `**${t.name}**: ${t.description}\nParameters:\n${paramList}`;
       }).join('\n\n');
@@ -933,13 +1132,14 @@ class AIProviderManager {
     }
 
     try {
-      const result = await generateText({
+      const result = await withRetry(() => generateText({
         model,
         messages,
         temperature: request.temperature ?? 0.7,
         maxOutputTokens: request.maxTokens ?? 4096,
         tools: useNativeTools ? aiSdkTools : undefined,
-      });
+        abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS),
+      }));
 
       let finalContent = result.text;
 
@@ -947,16 +1147,15 @@ class AIProviderManager {
       if (useNativeTools && result.toolCalls && result.toolCalls.length > 0) {
         for (const toolCall of result.toolCalls) {
           if (request.executeTools) {
+            const args = toToolArguments(toolCall.input);
             detectedToolCalls.push({
               id: toolCall.toolCallId,
               name: toolCall.toolName,
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              arguments: (toolCall as any).args, 
+              arguments: args,
             });
 
             // Execute the tool
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const toolResult = await request.executeTools(toolCall.toolName, (toolCall as any).args);
+            const toolResult = await request.executeTools(toolCall.toolName, args);
             toolResults.push({
               toolCallId: toolCall.toolCallId,
               toolName: toolCall.toolName,
@@ -993,8 +1192,7 @@ class AIProviderManager {
               });
 
               // Replace the tool call block with the result
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const resultMessage = (toolResult as any)?.message || JSON.stringify(toolResult);
+              const resultMessage = getToolResultMessage(toolResult);
               finalContent = finalContent.replace(match[0], `\n✅ **${toolCall.tool}**: ${resultMessage}\n`);
             }
           } catch {
@@ -1043,7 +1241,7 @@ class AIProviderManager {
   modelSupportsTools(modelOrAlias?: string): { supported: boolean; model: string; provider: ProviderType; recommendation?: string } {
     const modelRef = modelOrAlias
       ? this.resolveModel(modelOrAlias)
-      : { provider: this.defaultProvider, model: 'llama3.2' };
+      : { provider: this.defaultProvider, model: PROVIDER_DEFAULT_MODEL[this.defaultProvider] || 'llama3.2' };
 
     // Azure OpenAI: All GPT-4, GPT-4o, and GPT-3.5-turbo models support function calling
     // We check provider first since Azure deployment names won't be in MODEL_CATALOG
@@ -1088,15 +1286,15 @@ class AIProviderManager {
    * NOTE: If the model doesn't support native tool calling, tools will be
    * skipped and a warning will be included in the response.
    */
-  async chatWithNativeTools(request: any): Promise<any> {
+  async chatWithNativeTools(request: ChatWithNativeToolsRequest): Promise<ChatWithNativeToolsResponse> {
     const startTime = Date.now();
 
     // Resolve model
     const modelRef = request.model
       ? this.resolveModel(request.model)
-      : { provider: this.defaultProvider, model: 'llama3.2' };
+      : { provider: this.defaultProvider, model: PROVIDER_DEFAULT_MODEL[this.defaultProvider] || 'llama3.2' };
 
-    const model = this.getModel(modelRef.provider, modelRef.model);
+    const model = await this.getModel(modelRef.provider, modelRef.model);
 
     // Check if model supports native tool calling
     const toolSupport = this.modelSupportsTools(request.model);
@@ -1112,10 +1310,7 @@ class AIProviderManager {
     }
 
     // Convert messages to AI SDK format
-    const messages: AIMessage[] = request.messages.map((msg: any) => ({
-      role: msg.role,
-      content: msg.content,
-    }));
+    const messages = toAiMessages(request.messages);
 
     // Add system prompt if provided
     if (request.systemPrompt) {
@@ -1128,7 +1323,7 @@ class AIProviderManager {
 
     // Convert tool definitions to AI SDK format with execute handlers
     // Only build tools if the model supports them
-    const tools: Record<string, ReturnType<typeof createTool>> = {};
+    const tools: ToolSet = {};
 
     // Check if provider is Azure - needs normalized JSON Schema
     const isAzureProvider = modelRef.provider === 'azure';
@@ -1137,19 +1332,11 @@ class AIProviderManager {
       for (const toolDef of request.tools || []) {
         // For Azure, convert Zod schemas to normalized JSON Schema
         // Azure has stricter schema validation requirements
-        let inputSchema: unknown = toolDef.parameters;
+        let inputSchema: AiSdkToolSchema = toolDef.parameters;
 
         if (isAzureProvider && toolDef.parameters) {
           try {
-            // Convert Zod schema to JSON Schema
-            const rawJsonSchema = zodToJsonSchema(toolDef.parameters as z.ZodType, {
-              $refStrategy: 'none',
-              target: 'openAi',
-            });
-            // Normalize for Azure compatibility (removes unsupported keywords, ensures type: object)
-            const normalizedSchema = normalizeToolSchema(rawJsonSchema);
-            // Wrap in AI SDK's jsonSchema helper for proper typing
-            inputSchema = jsonSchema(normalizedSchema);
+            inputSchema = buildNativeToolSchema(toolDef.parameters, true);
             logger.debug(`[AIProvider] Normalized schema for Azure tool: ${toolDef.name}`, {
               component: 'AIProvider',
             });
@@ -1162,17 +1349,18 @@ class AIProviderManager {
         }
 
         // AI SDK v5+ uses inputSchema instead of parameters
-        (tools as any)[toolDef.name] = createTool({
+        tools[toolDef.name] = createTool<unknown, unknown>({
         description: toolDef.description,
-        inputSchema: inputSchema as any,
-        execute: async (args: any) => {
+        inputSchema,
+        execute: async (args: unknown) => {
           const toolCallId = randomUUID();
+          const toolArgs = toToolArguments(args);
 
           // Record the tool call
           toolCallHistory.push({
             id: toolCallId,
             name: toolDef.name,
-            arguments: args as Record<string, unknown>,
+            arguments: toolArgs,
           });
 
           // Execute through the provided handler (which goes through security)
@@ -1229,14 +1417,15 @@ class AIProviderManager {
     } // end if (shouldUseTools)
 
     try {
-      const result = await generateText({
+      const result = await withRetry(() => generateText({
         model,
         messages,
         tools: Object.keys(tools).length > 0 ? tools : undefined,
         temperature: request.temperature ?? 0.7,
         maxOutputTokens: request.maxTokens ?? 4096,
         maxSteps: request.maxToolRoundtrips ?? 5,
-      } as any);
+        abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS),
+      } as Parameters<typeof generateText>[0]));
 
       const duration = Date.now() - startTime;
       const modelInfo = this.getModelInfo(modelRef.model);
@@ -1293,25 +1482,22 @@ class AIProviderManager {
    * Stream chat with native tool calling
    */
   async streamWithNativeTools(
-    request: any,
+    request: ChatWithNativeToolsRequest,
     onChunk: (chunk: string) => void,
     onToolCall?: (toolName: string, args: unknown) => void,
     onToolResult?: (toolName: string, result: unknown) => void,
-  ): Promise<any> {
+  ): Promise<ChatWithNativeToolsResponse> {
     const startTime = Date.now();
 
     // Resolve model
     const modelRef = request.model
       ? this.resolveModel(request.model)
-      : { provider: this.defaultProvider, model: 'llama3.2' };
+      : { provider: this.defaultProvider, model: PROVIDER_DEFAULT_MODEL[this.defaultProvider] || 'llama3.2' };
 
-    const model = this.getModel(modelRef.provider, modelRef.model);
+    const model = await this.getModel(modelRef.provider, modelRef.model);
 
     // Convert messages
-    const messages: AIMessage[] = request.messages.map((msg: any) => ({
-      role: msg.role,
-      content: msg.content,
-    }));
+    const messages = toAiMessages(request.messages);
 
     if (request.systemPrompt) {
       messages.unshift({ role: 'system', content: request.systemPrompt });
@@ -1322,39 +1508,35 @@ class AIProviderManager {
     const toolResultHistory: Array<{ toolCallId: string; toolName: string; result: unknown; approvalRequired?: boolean; approvalId?: string }> = [];
 
     // Build tools with execute handlers
-    const tools: Record<string, ReturnType<typeof createTool>> = {};
+    const tools: ToolSet = {};
 
     // Check if provider is Azure - needs normalized JSON Schema
     const isAzureProvider = modelRef.provider === 'azure';
 
     for (const toolDef of request.tools || []) {
       // For Azure, convert Zod schemas to normalized JSON Schema
-      let inputSchema: unknown = toolDef.parameters;
+      let inputSchema: AiSdkToolSchema = toolDef.parameters;
 
       if (isAzureProvider && toolDef.parameters) {
         try {
-          const rawJsonSchema = zodToJsonSchema(toolDef.parameters as z.ZodType, {
-            $refStrategy: 'none',
-            target: 'openAi',
-          });
-          const normalizedSchema = normalizeToolSchema(rawJsonSchema);
-          inputSchema = jsonSchema(normalizedSchema);
+          inputSchema = buildNativeToolSchema(toolDef.parameters, true);
         } catch {
           // Fall back to original schema
         }
       }
 
       // AI SDK v5+ uses inputSchema instead of parameters
-      (tools as any)[toolDef.name] = createTool({
+      tools[toolDef.name] = createTool<unknown, unknown>({
         description: toolDef.description,
-        inputSchema: inputSchema as any,
-        execute: async (args: any) => {
+        inputSchema,
+        execute: async (args: unknown) => {
           const toolCallId = randomUUID();
+          const toolArgs = toToolArguments(args);
 
           toolCallHistory.push({
             id: toolCallId,
             name: toolDef.name,
-            arguments: args as Record<string, unknown>,
+            arguments: toolArgs,
           });
 
           // Notify about tool call
@@ -1412,7 +1594,8 @@ class AIProviderManager {
         temperature: request.temperature ?? 0.7,
         maxOutputTokens: request.maxTokens ?? 4096,
         maxSteps: request.maxToolRoundtrips ?? 5,
-      } as any);
+        abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS),
+      } as Parameters<typeof streamText>[0]);
 
       let fullText = '';
 
@@ -1653,6 +1836,12 @@ export interface ChatWithNativeToolsResponse extends ChatResponse {
   toolResults?: NativeToolResult[];
   pendingApprovals?: NativeToolResult[];
   steps?: number;
+  toolSupport?: {
+    requested: boolean;
+    supported: boolean;
+    used: boolean;
+    recommendation?: string;
+  };
 }
 
 export async function chat(

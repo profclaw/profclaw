@@ -9,9 +9,7 @@ import { z } from 'zod';
 import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // Schema
-// =============================================================================
 
 const ArtifactSchema = z.object({
   type: z.enum(['ticket', 'commit', 'file', 'pr', 'project', 'comment', 'other']).describe('Type of artifact'),
@@ -32,9 +30,7 @@ const CompleteTaskParamsSchema = z.object({
 
 export type CompleteTaskParams = z.infer<typeof CompleteTaskParamsSchema>;
 
-// =============================================================================
 // Result Type
-// =============================================================================
 
 interface CompleteTaskResult {
   /** Signals the agentic loop that the task is complete */
@@ -56,9 +52,7 @@ interface CompleteTaskResult {
   completedAt: string;
 }
 
-// =============================================================================
 // Tool Definition
-// =============================================================================
 
 export const completeTaskTool: ToolDefinition<CompleteTaskParams, CompleteTaskResult> = {
   name: 'complete_task',
@@ -76,16 +70,16 @@ export const completeTaskTool: ToolDefinition<CompleteTaskParams, CompleteTaskRe
 
 **EXAMPLE WORKFLOW:**
 1. User: "Create a bug ticket for login issue"
-2. You: Call list_projects → get project key "GLINR"
-3. You: Call create_ticket → ticket "GLINR-42" created
-4. You: Call complete_task → summary: "Created bug ticket GLINR-42 for login issue"
+2. You: Call list_projects → get project key "PC"
+3. You: Call create_ticket → ticket "PC-42" created
+4. You: Call complete_task → summary: "Created bug ticket PC-42 for login issue"
 
 **IMPORTANT:** Always include:
 - A clear summary of what was done
 - Any artifacts that were created (tickets, files, etc.)
 - Suggested next steps if applicable`,
 
-  category: 'glinr',
+  category: 'profclaw',
   securityLevel: 'safe',
   allowedHosts: ['sandbox', 'gateway', 'local'],
   parameters: CompleteTaskParamsSchema,
@@ -93,11 +87,11 @@ export const completeTaskTool: ToolDefinition<CompleteTaskParams, CompleteTaskRe
     {
       description: 'Complete after creating a ticket',
       params: {
-        summary: 'Created bug ticket GLINR-42 for the login button issue',
+        summary: 'Created bug ticket PC-42 for the login button issue',
         artifacts: [
           {
             type: 'ticket',
-            id: 'GLINR-42',
+            id: 'PC-42',
             description: 'Fix login button not responding',
           },
         ],
@@ -108,11 +102,11 @@ export const completeTaskTool: ToolDefinition<CompleteTaskParams, CompleteTaskRe
     {
       description: 'Complete after a search task',
       params: {
-        summary: 'Found 3 open bugs related to authentication in the GLINR project',
+        summary: 'Found 3 open bugs related to authentication in the profClaw project',
         artifacts: [
-          { type: 'ticket', id: 'GLINR-10', description: 'Session timeout bug' },
-          { type: 'ticket', id: 'GLINR-15', description: 'OAuth redirect issue' },
-          { type: 'ticket', id: 'GLINR-22', description: 'Password reset not working' },
+          { type: 'ticket', id: 'PC-10', description: 'Session timeout bug' },
+          { type: 'ticket', id: 'PC-15', description: 'OAuth redirect issue' },
+          { type: 'ticket', id: 'PC-22', description: 'Password reset not working' },
         ],
         confidence: 'high',
       },
@@ -126,7 +120,7 @@ export const completeTaskTool: ToolDefinition<CompleteTaskParams, CompleteTaskRe
     logger.info('[Agent] Task marked as complete:', {
       summary: params.summary,
       artifactCount: params.artifacts?.length ?? 0,
-      confidence: params.confidence,
+      confidence: params.confidence ?? 'high',
     });
 
     return {
@@ -143,8 +137,6 @@ export const completeTaskTool: ToolDefinition<CompleteTaskParams, CompleteTaskRe
   },
 };
 
-// =============================================================================
 // Export
-// =============================================================================
 
 export default completeTaskTool;

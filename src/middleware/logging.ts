@@ -103,7 +103,7 @@ export async function requestBodyLogger(c: Context, next: Next): Promise<void> {
           headers: c.req.raw.headers,
           body: JSON.stringify(body),
         });
-      } catch (error) {
+      } catch {
         logger.warn('Failed to parse request body as JSON', {
           correlationId,
         });
@@ -118,7 +118,7 @@ export async function requestBodyLogger(c: Context, next: Next): Promise<void> {
  * Sanitize request/response bodies
  * Removes sensitive data like passwords, tokens, etc.
  */
-function sanitizeBody(body: any): any {
+function sanitizeBody(body: unknown): unknown {
   if (!body || typeof body !== 'object') {
     return body;
   }
@@ -137,16 +137,19 @@ function sanitizeBody(body: any): any {
     'private_key',
   ];
 
-  const sanitized = Array.isArray(body) ? [...body] : { ...body };
+  if (Array.isArray(body)) {
+    return body.map((item) => sanitizeBody(item));
+  }
+
+  const record = body as Record<string, unknown>;
+  const sanitized: Record<string, unknown> = { ...record };
 
   for (const key of Object.keys(sanitized)) {
     const lowerKey = key.toLowerCase();
-    
-    // Check if key contains sensitive field name
+
     if (sensitiveFields.some((field) => lowerKey.includes(field.toLowerCase()))) {
       sanitized[key] = '[REDACTED]';
     } else if (typeof sanitized[key] === 'object' && sanitized[key] !== null) {
-      // Recursively sanitize nested objects
       sanitized[key] = sanitizeBody(sanitized[key]);
     }
   }

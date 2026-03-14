@@ -8,7 +8,6 @@
 import type {
   SessionManager,
   ToolSession,
-  SessionStatus,
   SessionFilter,
 } from "./types.js";
 import { logger } from "../../utils/logger.js";
@@ -20,9 +19,7 @@ import {
 import { randomUUID } from "crypto";
 import type { ChildProcess } from "child_process";
 
-// =============================================================================
 // Constants
-// =============================================================================
 
 const DEFAULT_MAX_OUTPUT_CHARS = 200_000;
 const TAIL_CHARS = 10_000; // Keep last 10k chars for display
@@ -43,9 +40,7 @@ const redactSessionOutput = (text: string): string => {
   return redactSecrets(text);
 };
 
-// =============================================================================
 // Session Manager Implementation
-// =============================================================================
 
 export class ToolSessionManager implements SessionManager {
   private sessions: Map<string, ManagedSession> = new Map();
@@ -211,9 +206,7 @@ export class ToolSessionManager implements SessionManager {
     }
   }
 
-  // ===========================================================================
   // Extended Methods
-  // ===========================================================================
 
   /**
    * Attach a process to a session
@@ -384,9 +377,7 @@ export class ToolSessionManager implements SessionManager {
     this.sessions.clear();
   }
 
-  // ===========================================================================
   // Private Methods
-  // ===========================================================================
 
   private generateSessionId(): string {
     // Short 8-char ID for display
@@ -436,9 +427,7 @@ export class ToolSessionManager implements SessionManager {
   }
 }
 
-// =============================================================================
 // Types
-// =============================================================================
 
 interface ManagedSession {
   session: ToolSession;
@@ -453,9 +442,7 @@ export type SessionOutputListener = (event: {
   data: string;
 }) => void;
 
-// =============================================================================
 // Singleton
-// =============================================================================
 
 let sessionManager: ToolSessionManager | null = null;
 

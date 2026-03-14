@@ -10,16 +10,12 @@ import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.
 import {
   listConversations,
   getRecentConversationsWithPreview,
-  getConversationMessages,
-  type Conversation,
 } from '../../conversations.js';
 
 // Chat mode type (for future use)
 type ChatMode = 'chat' | 'agentic';
 
-// =============================================================================
 // Schema
-// =============================================================================
 
 const SessionsListParamsSchema = z.object({
   limit: z.number().min(1).max(50).optional().default(10)
@@ -36,9 +32,7 @@ const SessionsListParamsSchema = z.object({
 
 export type SessionsListParams = z.infer<typeof SessionsListParamsSchema>;
 
-// =============================================================================
 // Tool Definition
-// =============================================================================
 
 export interface SessionInfo {
   id: string;
@@ -139,7 +133,7 @@ Returns session IDs that can be used with other session tools.`,
           createdAt: s.createdAt,
           updatedAt: s.updatedAt,
         }));
-        total = result.total;
+        total = filtered.length;
       }
 
       // Build human-readable output

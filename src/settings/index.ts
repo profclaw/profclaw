@@ -1,5 +1,8 @@
 import { z } from 'zod';
 import { getStorage } from '../storage/index.js';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('Settings');
 
 // Plugin status enum
 export const PluginStatusSchema = z.enum(['enabled', 'disabled', 'error', 'checking']);
@@ -10,10 +13,15 @@ export const SettingsSchema = z.object({
     theme: z.enum(['light', 'dark', 'midnight', 'system']).default('system'),
   }).default({}),
   aiProvider: z.object({
-    defaultProvider: z.enum(['openai', 'anthropic', 'ollama']).optional(),
+    defaultProvider: z.enum([
+      'anthropic', 'openai', 'google', 'azure', 'ollama', 'openrouter',
+      'groq', 'xai', 'mistral', 'cohere', 'perplexity', 'deepseek',
+      'together', 'cerebras', 'fireworks', 'copilot',
+    ]).optional(),
     openaiKey: z.string().optional(),
     anthropicKey: z.string().optional(),
     ollamaBaseUrl: z.string().optional(),
+    providerKeys: z.record(z.string(), z.string()).optional(),
   }).optional(),
   // OAuth provider credentials (stored encrypted in DB)
   oauth: z.object({
@@ -52,7 +60,7 @@ export const SettingsSchema = z.object({
       allowRead: z.boolean().default(true),
       allowWrite: z.boolean().default(false),
     }).default({}),
-    // CLI access - allows shell commands to control GLINR
+    // CLI access - allows shell commands to control profClaw
     cliAccess: z.object({
       enabled: z.boolean().default(false),
       requireAuth: z.boolean().default(true),
@@ -77,6 +85,8 @@ export const SettingsSchema = z.object({
     maxConcurrentTasks: z.number().min(1).max(10).default(3),
     registrationMode: z.enum(['open', 'invite']).default('invite'),
     showForgotPassword: z.boolean().default(true),
+    authMode: z.enum(['local', 'multi']).default('local'),
+    accessKeyHash: z.string().optional(),
   }).default({}),
 });
 
@@ -109,6 +119,7 @@ const DEFAULT_SETTINGS: Settings = {
     maxConcurrentTasks: 3,
     registrationMode: 'invite' as const,
     showForgotPassword: true,
+    authMode: 'local' as const,
   },
 };
 
@@ -123,6 +134,8 @@ const SECRET_FIELDS = [
   'oauth.linear.clientSecret',
   'aiProvider.openaiKey',
   'aiProvider.anthropicKey',
+  'aiProvider.providerKeys',
+  'system.accessKeyHash',
 ];
 
 // Mask a value for display
@@ -174,7 +187,7 @@ export async function getSettings(): Promise<Settings> {
 
   try {
     // Load settings from storage
-    const rows = await storage.query<{ key: string; value: any; category: string }>(
+    const rows = await storage.query<{ key: string; value: unknown; category: string }>(
       'SELECT key, value, category FROM settings'
     );
 
@@ -208,7 +221,7 @@ export async function getSettings(): Promise<Settings> {
 
     return maskSecrets(settingsCache);
   } catch (error) {
-    console.warn('[Settings] Failed to load settings, using defaults:', error);
+    log.warn('Failed to load settings, using defaults', { error: error instanceof Error ? error.message : String(error) });
     settingsCache = { ...DEFAULT_SETTINGS };
     return maskSecrets(settingsCache);
   }
@@ -326,9 +339,7 @@ export async function isIntegrationConfigured(
 // Validation schema for updates
 export const UpdateSettingsSchema = SettingsSchema.partial();
 
-// =============================================================================
 // OAuth Configuration Getters (env vars override DB)
-// =============================================================================
 
 export interface GitHubOAuthConfig {
   clientId: string;

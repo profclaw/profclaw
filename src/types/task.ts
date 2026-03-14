@@ -47,7 +47,7 @@ export const CreateTaskSchema = z.object({
   source: z.string(),
   sourceId: z.string().optional(), // e.g., issue number, PR number
   sourceUrl: z.string().url().optional(),
-  repository: z.string().optional(), // e.g., "GLINCKER/glinr-backend"
+  repository: z.string().optional(), // e.g., "profclaw/profclaw"
   branch: z.string().optional(),
   labels: z.array(z.string()).default([]),
   assignedAgent: z.string().optional(), // Which agent adapter to use

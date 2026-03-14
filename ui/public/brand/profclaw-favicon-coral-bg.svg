@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fb7185"/>
+      <stop offset="100%" stop-color="#e11d48"/>
+    </linearGradient>
+    <radialGradient id="shine" cx="35%" cy="25%" r="50%">
+      <stop offset="0%" stop-color="#fff" stop-opacity=".15"/>
+      <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2a1828"/>
+      <stop offset="100%" stop-color="#1a0e1a"/>
+    </linearGradient>
+    <radialGradient id="belly" cx="42%" cy="38%" r="45%">
+      <stop offset="0%" stop-color="#f43f5e" stop-opacity=".08"/>
+      <stop offset="100%" stop-color="#f43f5e" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Coral gradient bg -->
+  <rect width="128" height="128" rx="28" fill="url(#bg)"/>
+  <rect width="128" height="128" rx="28" fill="url(#shine)"/>
+  <rect x="1" y="1" width="126" height="126" rx="27" fill="none" stroke="#fff" stroke-opacity=".1"/>
+  <!-- Dark shadow body - contrasts against coral -->
+  <ellipse cx="64" cy="72" rx="33" ry="31" fill="url(#body)"/>
+  <ellipse cx="64" cy="72" rx="33" ry="31" fill="url(#belly)"/>
+  <ellipse cx="64" cy="72" rx="32.5" ry="30.5" fill="none" stroke="#fff" stroke-opacity=".06"/>
+  <!-- Legs -->
+  <rect x="52" y="100" width="9" height="12" rx="4.5" fill="#1a0e1a"/>
+  <rect x="67" y="100" width="9" height="12" rx="4.5" fill="#1a0e1a"/>
+  <!-- Claws -->
+  <ellipse cx="25" cy="72" rx="9" ry="7" fill="#201420"/>
+  <path d="M20,66 L25,72 L30,66" stroke="#fb7185" stroke-width="1.2" fill="none" stroke-linecap="round" opacity=".3"/>
+  <ellipse cx="103" cy="72" rx="9" ry="7" fill="#201420"/>
+  <path d="M98,66 L103,72 L108,66" stroke="#fb7185" stroke-width="1.2" fill="none" stroke-linecap="round" opacity=".3"/>
+  <!-- Antennae -->
+  <line x1="50" y1="43" x2="42" y2="26" stroke="#1a0e1a" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="41" cy="24" r="3.5" fill="#fda4af" opacity=".7"/>
+  <circle cx="41" cy="24" r="1.5" fill="#fff" opacity=".5"/>
+  <line x1="78" y1="43" x2="86" y2="26" stroke="#1a0e1a" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="87" cy="24" r="3.5" fill="#fda4af" opacity=".7"/>
+  <circle cx="87" cy="24" r="1.5" fill="#fff" opacity=".5"/>
+  <!-- Eyes -->
+  <circle cx="52" cy="67" r="10.5" fill="#fff"/>
+  <circle cx="76" cy="67" r="10.5" fill="#fff"/>
+  <circle cx="54" cy="66" r="5.8" fill="#4c0519"/>
+  <circle cx="78" cy="66" r="5.8" fill="#4c0519"/>
+  <circle cx="56.5" cy="64" r="2.5" fill="#fff"/>
+  <circle cx="80.5" cy="64" r="2.5" fill="#fff"/>
+  <circle cx="52" cy="69" r="1.2" fill="#fff" opacity=".35"/>
+  <circle cx="76" cy="69" r="1.2" fill="#fff" opacity=".35"/>
+</svg>

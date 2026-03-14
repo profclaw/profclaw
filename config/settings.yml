@@ -4,7 +4,7 @@
 # tier: 'local' for persistent SQLite, 'memory' for in-memory (lost on restart)
 storage:
   tier: local
-  dbPath: ./data/glinr.db
+  dbPath: ./data/profclaw.db
 
 server:
   port: 3000
@@ -153,10 +153,10 @@ sessionSpawn:
 # STATUS MAPPING (optional)
 # =========================================================================
 # Status mapping overrides (optional)
-# Use this to customize how GLINR statuses map to external platforms
+# Use this to customize how profClaw statuses map to external platforms
 statusMapping:
-  # GLINR status -> external platform status
-  # Format: glinr_status: { platform: external_status }
+  # profClaw status -> external platform status
+  # Format: profclaw_status: { platform: external_status }
   # Uncomment and modify as needed:
   # backlog:
   #   linear: Backlog

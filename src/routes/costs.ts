@@ -82,7 +82,7 @@ costs.get('/export', async (c) => {
   }
 
   const csv = rows.join('\n');
-  const filename = `glinr-cost-report-${new Date().toISOString().split('T')[0]}.csv`;
+  const filename = `profclaw-cost-report-${new Date().toISOString().split('T')[0]}.csv`;
 
   c.header('Content-Type', 'text/csv');
   c.header('Content-Disposition', `attachment; filename="${filename}"`);

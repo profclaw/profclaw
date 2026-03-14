@@ -17,9 +17,7 @@ import {
   getUserFriendlyErrorMessage,
 } from './error.js';
 
-// =============================================================================
 // Cooldown Management
-// =============================================================================
 
 /**
  * Cooldown durations by failure reason (in milliseconds)
@@ -113,9 +111,7 @@ export function getProvidersInCooldown(): ProviderCooldown[] {
   return result;
 }
 
-// =============================================================================
 // Model Candidate Resolution
-// =============================================================================
 
 /**
  * Model candidate for fallback
@@ -128,7 +124,7 @@ interface ModelCandidate {
 /**
  * Default models for each provider
  */
-const DEFAULT_MODELS: Record<ProviderType, string> = {
+const DEFAULT_MODELS: Partial<Record<ProviderType, string>> = {
   anthropic: 'claude-sonnet-4-5-20251014',
   openai: 'gpt-4.1',
   azure: 'default', // Uses configured deployment - not hardcoded
@@ -145,6 +141,12 @@ const DEFAULT_MODELS: Record<ProviderType, string> = {
   cerebras: 'llama3.1-70b',
   fireworks: 'accounts/fireworks/models/llama-v3p1-70b-instruct',
   copilot: 'gpt-4o',
+  bedrock: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+  zhipu: 'glm-4-plus',
+  moonshot: 'moonshot-v1-32k',
+  qwen: 'qwen-max',
+  replicate: 'meta/llama-3.1-405b-instruct',
+  'github-models': 'gpt-4o',
 };
 
 /**
@@ -155,16 +157,22 @@ const FALLBACK_PROVIDER_ORDER: ProviderType[] = [
   'openai',
   'google',
   'azure',
+  'bedrock',
   'groq',
   'openrouter',
   'mistral',
   'deepseek',
   'together',
   'xai',
+  'zhipu',
+  'moonshot',
+  'qwen',
   'cohere',
   'perplexity',
   'fireworks',
   'cerebras',
+  'replicate',
+  'github-models',
   'ollama',
   'copilot',
 ];
@@ -227,9 +235,7 @@ export function buildFallbackCandidates(params: {
   return candidates;
 }
 
-// =============================================================================
 // Run With Model Fallback
-// =============================================================================
 
 /**
  * Run an operation with automatic model fallback.

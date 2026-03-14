@@ -13,11 +13,11 @@ const openApiRoutes = new Hono();
 const spec = {
   openapi: '3.1.0',
   info: {
-    title: 'GLINR Task Manager API',
+    title: 'profClaw API',
     version: '0.1.0',
     description:
       'AI-powered task orchestration, ticket management, and chat system. Supports multi-provider AI (Anthropic, OpenAI, Google, Ollama) with agentic tool execution.',
-    contact: { name: 'GLINR', url: 'https://glincker.com' },
+    contact: { name: 'profClaw', url: 'https://profclaw.ai' },
     license: { name: 'MIT' },
   },
   servers: [
@@ -239,7 +239,7 @@ const spec = {
                 required: ['name', 'key'],
                 properties: {
                   name: { type: 'string' },
-                  key: { type: 'string', description: 'Project key (e.g., GLINR)' },
+                  key: { type: 'string', description: 'Project key (e.g., PC)' },
                   description: { type: 'string' },
                   defaultAssignee: { type: 'string' },
                 },
@@ -523,7 +523,7 @@ openApiRoutes.get('/', (c) => {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>GLINR API Documentation</title>
+  <title>profClaw API Documentation</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">
   <style>
     body { margin: 0; background: #1a1a2e; }

@@ -16,7 +16,7 @@ interface AssigneePickerProps {
 }
 
 const AVAILABLE_AGENTS = [
-  'glinr-assistant',
+  'profclaw-assistant',
   'code-reviewer',
   'bug-fixer',
   'test-runner',

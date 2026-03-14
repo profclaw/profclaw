@@ -7,11 +7,10 @@
 
 import { z } from 'zod';
 import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.js';
+import { getSsrfGuard } from '../../../security/ssrf-guard.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // Schema
-// =============================================================================
 
 const WebFetchParamsSchema = z.object({
   url: z.string().url().describe('URL to fetch'),
@@ -24,23 +23,20 @@ const WebFetchParamsSchema = z.object({
 
 export type WebFetchParams = z.infer<typeof WebFetchParamsSchema>;
 
-// =============================================================================
 // Constants
-// =============================================================================
 
 const DEFAULT_TIMEOUT_SEC = 30;
 const MAX_CONTENT_LENGTH = 500_000; // 500KB
 const BLOCKED_HOSTS = new Set([
   'localhost',
   '127.0.0.1',
+  '::1',
   '0.0.0.0',
   '169.254.169.254', // AWS metadata
   'metadata.google.internal', // GCP metadata
 ]);
 
-// =============================================================================
 // Tool Definition
-// =============================================================================
 
 export const webFetchTool: ToolDefinition<WebFetchParams, WebFetchResult> = {
   name: 'web_fetch',
@@ -74,26 +70,40 @@ Use for: reading documentation, fetching API responses, checking web content.`,
       };
     }
 
-    // Check for blocked hosts (SSRF protection)
-    if (BLOCKED_HOSTS.has(url.hostname) || url.hostname.endsWith('.local')) {
-      return {
-        success: false,
-        error: {
-          code: 'BLOCKED_HOST',
-          message: `Access to ${url.hostname} is not allowed`,
-        },
-      };
-    }
-
-    // Check for private IPs
-    if (isPrivateIP(url.hostname)) {
-      return {
-        success: false,
-        error: {
-          code: 'PRIVATE_IP',
-          message: 'Access to private IP addresses is not allowed',
-        },
-      };
+    // SSRF Guard (replaces legacy BLOCKED_HOSTS + isPrivateIP checks)
+    const ssrfGuard = getSsrfGuard();
+    if (ssrfGuard) {
+      const ssrfResult = await ssrfGuard.validateUrl(params.url);
+      if (!ssrfResult.allowed) {
+        return {
+          success: false,
+          error: {
+            code: 'SSRF_BLOCKED',
+            message: ssrfResult.reason ?? 'URL blocked by SSRF guard',
+          },
+        };
+      }
+    } else {
+      // Fallback: legacy checks when guard not initialized
+      const hostname = normalizeHostname(url.hostname);
+      if (BLOCKED_HOSTS.has(hostname) || hostname.endsWith('.local')) {
+        return {
+          success: false,
+          error: {
+            code: 'BLOCKED_HOST',
+            message: `Access to ${hostname} is not allowed`,
+          },
+        };
+      }
+      if (isPrivateIP(hostname)) {
+        return {
+          success: false,
+          error: {
+            code: 'PRIVATE_IP',
+            message: 'Access to private IP addresses is not allowed',
+          },
+        };
+      }
     }
 
     try {
@@ -111,7 +121,7 @@ Use for: reading documentation, fetching API responses, checking web content.`,
       const response = await fetch(params.url, {
         method: params.method,
         headers: {
-          'User-Agent': 'GLINR-TaskManager/1.0',
+          'User-Agent': 'profClaw/1.0',
           Accept: 'text/html,application/json,text/plain,*/*',
           ...params.headers,
         },
@@ -196,13 +206,13 @@ Use for: reading documentation, fetching API responses, checking web content.`,
   },
 };
 
-// =============================================================================
 // Helpers
-// =============================================================================
 
 function isPrivateIP(hostname: string): boolean {
+  const normalized = normalizeHostname(hostname);
+
   // Check for IPv4 private ranges
-  const ipv4Match = hostname.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  const ipv4Match = normalized.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
   if (ipv4Match) {
     const [_, a, b] = ipv4Match.map(Number);
     // 10.x.x.x
@@ -212,7 +222,23 @@ function isPrivateIP(hostname: string): boolean {
     // 192.168.x.x
     if (a === 192 && b === 168) return true;
   }
+
+  // Check common IPv6 loopback, link-local, and unique local ranges
+  const ipv6 = normalized.toLowerCase();
+  if (ipv6 === '::1') return true;
+  if (ipv6.startsWith('fc') || ipv6.startsWith('fd')) return true;
+  if (ipv6.startsWith('fe8') || ipv6.startsWith('fe9') || ipv6.startsWith('fea') || ipv6.startsWith('feb')) {
+    return true;
+  }
+
   return false;
+}
+
+function normalizeHostname(hostname: string): string {
+  if (hostname.startsWith('[') && hostname.endsWith(']')) {
+    return hostname.slice(1, -1);
+  }
+  return hostname;
 }
 
 function extractTextFromHtml(html: string): string {
@@ -246,9 +272,7 @@ function extractTextFromHtml(html: string): string {
   return text;
 }
 
-// =============================================================================
 // Types (exported for use in index.ts)
-// =============================================================================
 
 export interface WebFetchResult {
   status: number;

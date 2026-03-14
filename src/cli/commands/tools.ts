@@ -21,12 +21,17 @@ import type {
 import type { ExecResult } from '../../chat/execution/tools/exec.js';
 import type { ReadFileResult, SearchFilesResult, GrepResult, GrepMatch } from '../../chat/execution/tools/file-ops.js';
 
-// Initialize registry on import
-registerBuiltinTools();
+// Lazy initialization - only register tools when a tools command actually runs
+let toolsInitialized = false;
+function getRegistry(): ReturnType<typeof getToolRegistry> {
+  if (!toolsInitialized) {
+    registerBuiltinTools();
+    toolsInitialized = true;
+  }
+  return getToolRegistry();
+}
 
-// =============================================================================
 // Minimal Session Manager for CLI
-// =============================================================================
 
 class CLISessionManager implements SessionManager {
   private sessions = new Map<string, ToolSession>();
@@ -77,9 +82,7 @@ class CLISessionManager implements SessionManager {
   }
 }
 
-// =============================================================================
 // Context Creation
-// =============================================================================
 
 const cliSessionManager = new CLISessionManager();
 
@@ -103,9 +106,7 @@ function createContext(workdir?: string): ToolExecutionContext {
   };
 }
 
-// =============================================================================
 // CLI Commands
-// =============================================================================
 
 export function toolsCommands() {
   const tools = new Command('tools')
@@ -119,7 +120,7 @@ export function toolsCommands() {
     .option('--json', 'Output as JSON')
     .option('-c, --category <cat>', 'Filter by category')
     .action(async (options) => {
-      const registry = getToolRegistry();
+      const registry = getRegistry();
       let toolList: ToolDefinition[] = registry.list();
 
       if (options.category) {
@@ -180,7 +181,7 @@ export function toolsCommands() {
     .description('Show detailed information about a tool')
     .option('--json', 'Output as JSON')
     .action(async (name: string, options) => {
-      const registry = getToolRegistry();
+      const registry = getRegistry();
       const tool = registry.get(name);
 
       if (!tool) {
@@ -234,7 +235,7 @@ export function toolsCommands() {
     .option('--json', 'Output result as JSON')
     .option('-y, --yes', 'Skip approval for moderate tools')
     .action(async (name: string, options) => {
-      const registry = getToolRegistry();
+      const registry = getRegistry();
       const tool = registry.get(name);
 
       if (!tool) {
@@ -247,7 +248,7 @@ export function toolsCommands() {
       if (options.params) {
         try {
           params = JSON.parse(options.params);
-        } catch (_e) {
+        } catch {
           error('Invalid JSON for --params');
           process.exit(1);
         }
@@ -321,7 +322,7 @@ export function toolsCommands() {
     .option('--json', 'Output as JSON')
     .action(async (commandParts: string[], options) => {
       const command = commandParts.join(' ');
-      const registry = getToolRegistry();
+      const registry = getRegistry();
       const tool = registry.get('exec');
 
       if (!tool) {
@@ -366,7 +367,7 @@ export function toolsCommands() {
     .option('-s, --short', 'Short format')
     .option('-w, --workdir <path>', 'Repository path')
     .action(async (options) => {
-      const registry = getToolRegistry();
+      const registry = getRegistry();
       const tool = registry.get('git_status');
 
       if (!tool) {
@@ -394,7 +395,7 @@ export function toolsCommands() {
     .option('-t, --type <type>', 'Info type: all, cpu, memory, os, network', 'all')
     .option('--json', 'Output as JSON')
     .action(async (options) => {
-      const registry = getToolRegistry();
+      const registry = getRegistry();
       const tool = registry.get('system_info');
 
       if (!tool) {
@@ -426,7 +427,7 @@ export function toolsCommands() {
     .description('Shortcut: Show environment variables')
     .option('-f, --filter <pattern>', 'Filter by pattern')
     .action(async (name: string | undefined, options) => {
-      const registry = getToolRegistry();
+      const registry = getRegistry();
       const tool = registry.get('env');
 
       if (!tool) {
@@ -452,7 +453,7 @@ export function toolsCommands() {
     .command('which <command>')
     .description('Shortcut: Find command location')
     .action(async (command: string) => {
-      const registry = getToolRegistry();
+      const registry = getRegistry();
       const tool = registry.get('which');
 
       if (!tool) {
@@ -477,7 +478,7 @@ export function toolsCommands() {
     .description('Shortcut: Read a file')
     .option('-l, --lines <n>', 'Max lines to read', '100')
     .action(async (filePath: string, options) => {
-      const registry = getToolRegistry();
+      const registry = getRegistry();
       const tool = registry.get('read_file');
 
       if (!tool) {
@@ -509,7 +510,7 @@ export function toolsCommands() {
     .option('-p, --path <dir>', 'Search directory', '.')
     .option('-t, --type <type>', 'File type: file, directory, both', 'file')
     .action(async (pattern: string, options) => {
-      const registry = getToolRegistry();
+      const registry = getRegistry();
       const tool = registry.get('search_files');
 
       if (!tool) {
@@ -550,7 +551,7 @@ export function toolsCommands() {
     .option('-i, --ignore-case', 'Case insensitive')
     .option('-c, --context <n>', 'Context lines', '0')
     .action(async (pattern: string, searchPath: string | undefined, options) => {
-      const registry = getToolRegistry();
+      const registry = getRegistry();
       const tool = registry.get('grep');
 
       if (!tool) {

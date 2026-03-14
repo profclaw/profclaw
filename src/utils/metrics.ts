@@ -1,6 +1,6 @@
 /**
  * Metrics Tracking System
- * 
+ *
  * Tracks and aggregates metrics for:
  * - Task processing (duration, success rate, throughput)
  * - Queue depth and wait times
@@ -9,18 +9,18 @@
  * - Error rates by category
  */
 
-import type { TaskStatusType } from '../types/task.js';
-import type { ErrorCategory } from '../types/errors.js';
-import type { CircuitState } from '../utils/circuit-breaker.js';
+import type { TaskStatusType } from "../types/task.js";
+import type { ErrorCategory } from "../types/errors.js";
+import type { CircuitState } from "./circuit-breaker.js";
 
 /**
  * Metric types
  */
 export enum MetricType {
-  COUNTER = 'COUNTER',       // Cumulative count
-  GAUGE = 'GAUGE',           // Current value
-  HISTOGRAM = 'HISTOGRAM',   // Distribution of values
-  SUMMARY = 'SUMMARY',       // Statistical summary
+  COUNTER = "COUNTER", // Cumulative count
+  GAUGE = "GAUGE", // Current value
+  HISTOGRAM = "HISTOGRAM", // Distribution of values
+  SUMMARY = "SUMMARY", // Statistical summary
 }
 
 /**
@@ -38,7 +38,7 @@ interface Metric {
  * Histogram bucket for distribution tracking
  */
 interface HistogramBucket {
-  le: number;  // Less than or equal to
+  le: number; // Less than or equal to
   count: number;
 }
 
@@ -72,7 +72,11 @@ class MetricsCollector {
   /**
    * Increment a counter
    */
-  incrementCounter(name: string, labels?: Record<string, string>, value: number = 1): void {
+  incrementCounter(
+    name: string,
+    labels?: Record<string, string>,
+    value: number = 1,
+  ): void {
     const key = this.getKey(name, labels);
     const current = this.counters.get(key) || 0;
     this.counters.set(key, current + value);
@@ -89,7 +93,11 @@ class MetricsCollector {
   /**
    * Observe a value in histogram
    */
-  observeHistogram(name: string, value: number, labels?: Record<string, string>): void {
+  observeHistogram(
+    name: string,
+    value: number,
+    labels?: Record<string, string>,
+  ): void {
     const key = this.getKey(name, labels);
     let histogram = this.histograms.get(key);
 
@@ -97,7 +105,9 @@ class MetricsCollector {
       histogram = {
         count: 0,
         sum: 0,
-        buckets: this.createBuckets([0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300]),
+        buckets: this.createBuckets([
+          0.1, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300,
+        ]),
       };
       this.histograms.set(key, histogram);
     }
@@ -116,7 +126,11 @@ class MetricsCollector {
   /**
    * Observe a value in summary
    */
-  observeSummary(name: string, value: number, labels?: Record<string, string>): void {
+  observeSummary(
+    name: string,
+    value: number,
+    labels?: Record<string, string>,
+  ): void {
     const key = this.getKey(name, labels);
     let values = this.summaries.get(key);
 
@@ -183,7 +197,7 @@ class MetricsCollector {
    */
   getSummaryMetrics(): Record<string, SummaryData> {
     const result: Record<string, SummaryData> = {};
-    
+
     for (const [key, values] of this.summaries) {
       const sorted = [...values].sort((a, b) => a - b);
       const sum = sorted.reduce((acc, val) => acc + val, 0);
@@ -238,14 +252,17 @@ class MetricsCollector {
     const labelPairs = Object.entries(labels)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([k, v]) => `${k}="${v}"`)
-      .join(',');
+      .join(",");
     return `${name}{${labelPairs}}`;
   }
 
   /**
    * Parse key back to name and labels
    */
-  private parseKey(key: string): { name: string; labels?: Record<string, string> } {
+  private parseKey(key: string): {
+    name: string;
+    labels?: Record<string, string>;
+  } {
     const match = key.match(/^([^{]+)(?:\{(.+)\})?$/);
     if (!match) return { name: key };
 
@@ -255,10 +272,10 @@ class MetricsCollector {
     if (!labelsStr) return { name };
 
     const labels: Record<string, string> = {};
-    const pairs = labelsStr.split(',');
+    const pairs = labelsStr.split(",");
     for (const pair of pairs) {
-      const [k, v] = pair.split('=');
-      labels[k] = v.replace(/"/g, '');
+      const [k, v] = pair.split("=");
+      labels[k] = v.replace(/"/g, "");
     }
 
     return { name, labels };
@@ -278,7 +295,7 @@ export class TaskMetrics {
    * Track task started
    */
   static taskStarted(status: TaskStatusType, source: string): void {
-    metrics.incrementCounter('tasks_started_total', { status, source });
+    metrics.incrementCounter("tasks_started_total", { status, source });
   }
 
   /**
@@ -288,22 +305,28 @@ export class TaskMetrics {
     success: boolean,
     duration: number,
     adapter: string,
-    source: string
+    source: string,
   ): void {
-    const status = success ? 'success' : 'failure';
-    
-    metrics.incrementCounter('tasks_completed_total', { status, adapter, source });
-    metrics.observeHistogram('task_duration_seconds', duration / 1000, { adapter });
-    metrics.observeSummary('task_duration_ms', duration, { adapter });
+    const status = success ? "success" : "failure";
+
+    metrics.incrementCounter("tasks_completed_total", {
+      status,
+      adapter,
+      source,
+    });
+    metrics.observeHistogram("task_duration_seconds", duration / 1000, {
+      adapter,
+    });
+    metrics.observeSummary("task_duration_ms", duration, { adapter });
   }
 
   /**
    * Track task failed
    */
   static taskFailed(errorCategory: ErrorCategory, adapter: string): void {
-    metrics.incrementCounter('tasks_failed_total', { 
-      error_category: errorCategory, 
-      adapter 
+    metrics.incrementCounter("tasks_failed_total", {
+      error_category: errorCategory,
+      adapter,
     });
   }
 
@@ -311,22 +334,22 @@ export class TaskMetrics {
    * Track queue depth
    */
   static setQueueDepth(depth: number, status: TaskStatusType): void {
-    metrics.setGauge('queue_depth', depth, { status });
+    metrics.setGauge("queue_depth", depth, { status });
   }
 
   /**
    * Track adapter health
    */
   static setAdapterHealth(adapter: string, healthy: boolean): void {
-    metrics.setGauge('adapter_healthy', healthy ? 1 : 0, { adapter });
+    metrics.setGauge("adapter_healthy", healthy ? 1 : 0, { adapter });
   }
 
   /**
    * Track circuit breaker state
    */
   static setCircuitBreakerState(name: string, state: CircuitState): void {
-    const stateValue = state === 'CLOSED' ? 0 : state === 'HALF_OPEN' ? 1 : 2;
-    metrics.setGauge('circuit_breaker_state', stateValue, { circuit: name });
+    const stateValue = state === "CLOSED" ? 0 : state === "HALF_OPEN" ? 1 : 2;
+    metrics.setGauge("circuit_breaker_state", stateValue, { circuit: name });
   }
 }
 
@@ -338,7 +361,7 @@ export class HTTPMetrics {
    * Track HTTP request
    */
   static requestReceived(method: string, path: string): void {
-    metrics.incrementCounter('http_requests_total', { method, path });
+    metrics.incrementCounter("http_requests_total", { method, path });
   }
 
   /**
@@ -348,18 +371,18 @@ export class HTTPMetrics {
     method: string,
     path: string,
     status: number,
-    duration: number
+    duration: number,
   ): void {
     const statusClass = `${Math.floor(status / 100)}xx`;
-    
-    metrics.incrementCounter('http_responses_total', { 
-      method, 
-      path, 
+
+    metrics.incrementCounter("http_responses_total", {
+      method,
+      path,
       status: status.toString(),
       status_class: statusClass,
     });
-    
-    metrics.observeHistogram('http_request_duration_seconds', duration / 1000, {
+
+    metrics.observeHistogram("http_request_duration_seconds", duration / 1000, {
       method,
       path,
     });
@@ -369,7 +392,11 @@ export class HTTPMetrics {
    * Track HTTP errors
    */
   static error(method: string, path: string, errorType: string): void {
-    metrics.incrementCounter('http_errors_total', { method, path, error_type: errorType });
+    metrics.incrementCounter("http_errors_total", {
+      method,
+      path,
+      error_type: errorType,
+    });
   }
 }
 
@@ -396,21 +423,27 @@ export function getMetricsSummary(): {
 
   // Calculate task metrics
   const tasksCompleted = allMetrics
-    .filter((m) => m.name === 'tasks_completed_total')
+    .filter((m) => m.name === "tasks_completed_total")
     .reduce((sum, m) => sum + m.value, 0);
-  
+
   const tasksSuccess = allMetrics
-    .filter((m) => m.name === 'tasks_completed_total' && m.labels?.status === 'success')
+    .filter(
+      (m) =>
+        m.name === "tasks_completed_total" && m.labels?.status === "success",
+    )
     .reduce((sum, m) => sum + m.value, 0);
-  
+
   const tasksFailure = allMetrics
-    .filter((m) => m.name === 'tasks_completed_total' && m.labels?.status === 'failure')
+    .filter(
+      (m) =>
+        m.name === "tasks_completed_total" && m.labels?.status === "failure",
+    )
     .reduce((sum, m) => sum + m.value, 0);
 
   // Calculate queue depth
   const queueDepth: Record<string, number> = {};
   allMetrics
-    .filter((m) => m.name === 'queue_depth')
+    .filter((m) => m.name === "queue_depth")
     .forEach((m) => {
       if (m.labels?.status) {
         queueDepth[m.labels.status] = m.value;
@@ -419,11 +452,11 @@ export function getMetricsSummary(): {
 
   // Calculate HTTP metrics
   const httpTotal = allMetrics
-    .filter((m) => m.name === 'http_requests_total')
+    .filter((m) => m.name === "http_requests_total")
     .reduce((sum, m) => sum + m.value, 0);
-  
+
   const httpErrors = allMetrics
-    .filter((m) => m.name === 'http_errors_total')
+    .filter((m) => m.name === "http_errors_total")
     .reduce((sum, m) => sum + m.value, 0);
 
   return {
@@ -431,7 +464,8 @@ export function getMetricsSummary(): {
       total: tasksCompleted,
       success: tasksSuccess,
       failure: tasksFailure,
-      successRate: tasksCompleted > 0 ? (tasksSuccess / tasksCompleted) * 100 : 0,
+      successRate:
+        tasksCompleted > 0 ? (tasksSuccess / tasksCompleted) * 100 : 0,
     },
     queue: {
       depth: queueDepth,

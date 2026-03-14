@@ -1,4 +1,4 @@
-# Windsurf/Codeium Rules for GLINR Task Manager
+# Windsurf/Codeium Rules for profClaw
 
 ## Project: AI Task Queue Orchestrator
 - Runtime: Node.js 22+ ES modules
@@ -143,5 +143,4 @@ pnpm lint     # Must pass
 
 ## See Also
 
-- `CLAUDE.md` - Full project conventions
 - `AGENTS.md` - Detailed AI agent workflow

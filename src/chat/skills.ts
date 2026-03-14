@@ -7,8 +7,6 @@
  * Inspired by OpenClaw's adapter pattern and HuggingFace skills.
  */
 
-import type { ConversationMessage } from './conversations.js';
-
 // === Skill Types ===
 
 export interface ChatSkill {
@@ -125,7 +123,7 @@ export const CHAT_SKILLS: ChatSkill[] = [
     ],
     preferredModel: 'fast',
     systemPromptAddition: `
-You are helping with task management in GLINR.
+You are helping with task management in profClaw.
 
 ## Available Actions
 - Create tasks/tickets with: title, description, priority, labels
@@ -137,7 +135,7 @@ You are helping with task management in GLINR.
 - Always confirm before creating or modifying tasks
 - Ask for missing required fields (title, description)
 - Suggest appropriate priority based on context
-- You can reference the GLINR API but cannot execute actions directly`,
+- You can reference the profClaw API but cannot execute actions directly`,
     examples: [
       'Create a task to fix the login bug',
       'What tasks are pending?',
@@ -161,7 +159,7 @@ You are helping with task management in GLINR.
     ],
     preferredModel: 'powerful',
     systemPromptAddition: `
-You are helping with code in GLINR.
+You are helping with code in profClaw.
 
 ## Capabilities
 - Write code in TypeScript, JavaScript, Python, and more
@@ -196,7 +194,7 @@ You are helping with code in GLINR.
     ],
     preferredModel: 'balanced',
     systemPromptAddition: `
-You are analyzing data in GLINR.
+You are analyzing data in profClaw.
 
 ## Available Analysis
 - Token costs and spending by model/provider
@@ -234,7 +232,7 @@ You have access to:
     ],
     preferredModel: 'balanced',
     systemPromptAddition: `
-You are helping write content in GLINR.
+You are helping write content in profClaw.
 
 ## Capabilities
 - Write clear documentation
@@ -267,7 +265,7 @@ You are helping write content in GLINR.
     ],
     preferredModel: 'fast',
     systemPromptAddition: `
-You are the GLINR assistant helping users with their questions.
+You are the profClaw assistant helping users with their questions.
 
 ## What You Can Help With
 - Task management and organization
@@ -489,7 +487,10 @@ function estimateComplexity(message: string): number {
 export function buildSkillPrompt(
   basePrompt: string,
   skillMatch: SkillMatch,
-  context?: { task?: any; ticket?: any }
+  context?: {
+    task?: { id?: string; title?: string; status?: string; agent?: string };
+    ticket?: { id?: string; title?: string; status?: string };
+  }
 ): string {
   let prompt = basePrompt;
 

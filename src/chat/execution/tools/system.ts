@@ -10,9 +10,7 @@ import path from 'path';
 import { spawn } from 'child_process';
 import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.js';
 
-// =============================================================================
 // Schemas
-// =============================================================================
 
 const EnvParamsSchema = z.object({
   name: z.string().optional().describe('Specific environment variable name'),
@@ -43,9 +41,7 @@ export type ProcessListParams = z.infer<typeof ProcessListParamsSchema>;
 export type PathInfoParams = z.infer<typeof PathInfoParamsSchema>;
 export type WhichParams = z.infer<typeof WhichParamsSchema>;
 
-// =============================================================================
 // Env Tool
-// =============================================================================
 
 export const envTool: ToolDefinition<EnvParams, EnvResult> = {
   name: 'env',
@@ -77,7 +73,16 @@ export const envTool: ToolDefinition<EnvParams, EnvResult> = {
 
     let filtered = Object.entries(env);
     if (params.filter) {
-      const pattern = new RegExp(params.filter, 'i');
+      const pattern = createFilterPattern(params.filter);
+      if (!pattern) {
+        return {
+          success: false,
+          error: {
+            code: 'INVALID_FILTER',
+            message: `Invalid filter pattern: ${params.filter}`,
+          },
+        };
+      }
       filtered = filtered.filter(([key]) => pattern.test(key));
     }
 
@@ -98,9 +103,7 @@ export const envTool: ToolDefinition<EnvParams, EnvResult> = {
   },
 };
 
-// =============================================================================
 // System Info Tool
-// =============================================================================
 
 export const systemInfoTool: ToolDefinition<SystemInfoParams, SystemInfoResult> = {
   name: 'system_info',
@@ -192,9 +195,7 @@ export const systemInfoTool: ToolDefinition<SystemInfoParams, SystemInfoResult> 
   },
 };
 
-// =============================================================================
 // Process List Tool
-// =============================================================================
 
 export const processListTool: ToolDefinition<ProcessListParams, ProcessListResult> = {
   name: 'process_list',
@@ -267,9 +268,21 @@ export const processListTool: ToolDefinition<ProcessListParams, ProcessListResul
 
         // Filter
         if (params.filter) {
-          const pattern = new RegExp(params.filter, 'i');
+          const pattern = createFilterPattern(params.filter);
+          if (!pattern) {
+            resolve({
+              success: false,
+              error: {
+                code: 'INVALID_FILTER',
+                message: `Invalid filter pattern: ${params.filter}`,
+              },
+            });
+            return;
+          }
           processes = processes.filter(p => pattern.test(p.command));
         }
+
+        processes.sort((a, b) => compareProcesses(a, b, params.sortBy));
 
         // Limit
         processes = processes.slice(0, params.limit);
@@ -301,9 +314,7 @@ export const processListTool: ToolDefinition<ProcessListParams, ProcessListResul
   },
 };
 
-// =============================================================================
 // Path Info Tool
-// =============================================================================
 
 export const pathInfoTool: ToolDefinition<PathInfoParams, PathInfoResult> = {
   name: 'path_info',
@@ -349,9 +360,7 @@ export const pathInfoTool: ToolDefinition<PathInfoParams, PathInfoResult> = {
   },
 };
 
-// =============================================================================
 // Which Tool
-// =============================================================================
 
 export const whichTool: ToolDefinition<WhichParams, WhichResult> = {
   name: 'which',
@@ -375,17 +384,12 @@ export const whichTool: ToolDefinition<WhichParams, WhichResult> = {
       });
 
       let stdout = '';
-      let stderr = '';
 
       proc.stdout?.on('data', (data: Buffer) => {
         stdout += data.toString();
       });
 
-      proc.stderr?.on('data', (data: Buffer) => {
-        stderr += data.toString();
-      });
-
-      proc.on('close', (code) => {
+      proc.on('close', (_code) => {
         const paths = stdout.trim().split('\n').filter(Boolean);
         const found = paths.length > 0;
 
@@ -422,9 +426,7 @@ export const whichTool: ToolDefinition<WhichParams, WhichResult> = {
   },
 };
 
-// =============================================================================
 // Helper Functions
-// =============================================================================
 
 function formatBytes(bytes: number): string {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -452,9 +454,33 @@ function formatUptime(seconds: number): string {
   return parts.join(' ') || '< 1m';
 }
 
-// =============================================================================
+function createFilterPattern(input: string): RegExp | null {
+  try {
+    return new RegExp(input, 'i');
+  } catch {
+    return null;
+  }
+}
+
+function compareProcesses(
+  a: ProcessInfo,
+  b: ProcessInfo,
+  sortBy: ProcessListParams['sortBy']
+): number {
+  switch (sortBy) {
+    case 'memory':
+      return b.memory - a.memory;
+    case 'pid':
+      return a.pid - b.pid;
+    case 'name':
+      return a.command.localeCompare(b.command);
+    case 'cpu':
+    default:
+      return b.cpu - a.cpu;
+  }
+}
+
 // Types
-// =============================================================================
 
 export interface EnvResult {
   variables: Record<string, string | undefined>;

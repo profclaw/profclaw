@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+vi.mock('../../utils/logger.js', () => ({
+  logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  createContextualLogger: vi.fn(() => ({
+    debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),
+  })),
+}));
+
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
@@ -41,8 +48,8 @@ describe('Slack Notifications', () => {
       id: 'task-123456789',
       title: 'Critical Task',
       priority: 1,
-      repository: 'glinr/glinr',
-      sourceUrl: 'https://github.com/glinr/glinr/issues/1'
+      repository: 'profclaw/profclaw',
+      sourceUrl: 'https://github.com/profclaw/profclaw/issues/1'
     } as any;
 
     await slack.notifyTaskStarted(task);
@@ -55,7 +62,7 @@ describe('Slack Notifications', () => {
     // Task ID field in section block
     expect(blocks[2].fields[0].text).toContain('task-123');
     // Repo field
-    expect(blocks[2].fields[2].text).toContain('glinr/glinr');
+    expect(blocks[2].fields[2].text).toContain('profclaw/profclaw');
   });
 
   it('should honor NOTIFY_ON_START setting', async () => {
@@ -81,12 +88,10 @@ describe('Slack Notifications', () => {
   });
 
   it('should handle fetch errors gracefully', async () => {
-    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     mockFetch.mockRejectedValue(new Error('Network Down'));
 
-    await slack.sendSlackNotification({ type: 'task_started', title: 'T', message: 'M' });
-    
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Error sending notification:'), expect.any(Error));
-    consoleSpy.mockRestore();
+    await expect(
+      slack.sendSlackNotification({ type: 'task_started', title: 'T', message: 'M' })
+    ).resolves.toBeUndefined();
   });
 });

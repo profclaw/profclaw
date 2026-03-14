@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { api } from '../utils/api.js';
+import type { FileChange, SummaryStats } from '../../types/summary.js';
 import {
   createTable,
   formatRelativeTime,
@@ -16,6 +17,12 @@ interface Summary {
   whatChanged: string;
   createdAt: string;
 }
+
+type SummaryDetails = Summary & {
+  whyChanged?: string;
+  howChanged?: string;
+  filesChanged?: FileChange[];
+};
 
 export function summaryCommands() {
   const summary = new Command('summary')
@@ -82,7 +89,7 @@ export function summaryCommands() {
     .option('--json', 'Output as JSON')
     .action(async (id, options) => {
       const spin = spinner('Fetching summary...').start();
-      const result = await api.get<{ summary: Summary & { whyChanged?: string; howChanged?: string; filesChanged?: any[] } }>(`/api/summaries/${id}`);
+      const result = await api.get<{ summary: SummaryDetails }>(`/api/summaries/${id}`);
       spin.stop();
 
       if (!result.ok) {
@@ -181,7 +188,7 @@ export function summaryCommands() {
     .option('--json', 'Output as JSON')
     .action(async (options) => {
       const spin = spinner('Fetching stats...').start();
-      const result = await api.get<any>('/api/summaries/stats');
+      const result = await api.get<SummaryStats>('/api/summaries/stats');
       spin.stop();
 
       if (!result.ok) {

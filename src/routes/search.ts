@@ -1,11 +1,14 @@
 import { Hono } from 'hono';
 import { getStorage } from '../storage/index.js';
-import { getEmbeddingService } from '../ai/embedding-service.js';
+import { getEmbeddingService, type EmbeddingService } from '../ai/embedding-service.js';
 import { getSummary, searchSummaries } from '../summaries/index.js';
-import { getTask, getTasks } from '../queue/task-queue.js';
+import { getTask, getTasks } from '../queue/index.js';
+import type { Summary } from '../types/summary.js';
+import type { Task } from '../types/task.js';
 import { logger } from '../utils/logger.js';
 
 const search = new Hono();
+const validSearchTypes = new Set(['task', 'summary', 'all']);
 
 /**
  * Unified semantic search endpoint
@@ -29,10 +32,14 @@ search.get('/semantic', async (c) => {
     return c.json({ error: 'Query parameter "q" is required' }, 400);
   }
 
+  if (!validSearchTypes.has(type)) {
+    return c.json({ error: 'Invalid search type' }, 400);
+  }
+
   const storage = getStorage();
   const results: {
-    tasks: Array<{ task: any; score: number }>;
-    summaries: Array<{ summary: any; score: number }>;
+    tasks: Array<{ task: Task; score: number }>;
+    summaries: Array<{ summary: Summary; score: number }>;
     totalResults: number;
   } = {
     tasks: [],
@@ -148,9 +155,13 @@ search.get('/text', async (c) => {
     return c.json({ error: 'Query parameter "q" is required' }, 400);
   }
 
+  if (!validSearchTypes.has(type)) {
+    return c.json({ error: 'Invalid search type' }, 400);
+  }
+
   const results: {
-    tasks: any[];
-    summaries: any[];
+    tasks: Task[];
+    summaries: Summary[];
     totalResults: number;
   } = {
     tasks: [],
@@ -198,8 +209,8 @@ search.get('/capabilities', async (c) => {
 
   let embeddingProvider = 'none';
   try {
-    const service = getEmbeddingService();
-    embeddingProvider = (service as any).provider || 'unknown';
+    const service = getEmbeddingService() as EmbeddingService & { provider?: string };
+    embeddingProvider = service.provider || 'unknown';
   } catch {
     // No embedding service available
   }

@@ -110,12 +110,12 @@ export function SignupPage() {
           {/* Logo */}
           <div className="flex justify-center mb-6">
             <div className="p-4 rounded-[2rem] glass-heavy shadow-2xl shadow-primary/10 transition-transform hover:scale-110">
-              <Logo className="h-12 w-12 text-[var(--primary)]" aria-label="GLINR Logo" />
+              <Logo className="h-12 w-12 text-[var(--primary)]" aria-label="profClaw Logo" />
             </div>
           </div>
           <h1 className="text-3xl font-black tracking-tighter uppercase tracking-[0.1em]">Create account</h1>
           <p className="text-sm text-[var(--muted-foreground)] font-semibold mt-1">
-            Get started with GLINR for free
+            Get started with profClaw for free
           </p>
         </div>
 
@@ -203,7 +203,7 @@ export function SignupPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 onFocus={() => setFocusedField('email')}
                 onBlur={() => setFocusedField(null)}
-                placeholder="you@glinr.ai"
+                placeholder="you@profclaw.ai"
                 required
                 autoComplete="email"
                 className={cn(

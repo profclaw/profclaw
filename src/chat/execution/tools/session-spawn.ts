@@ -14,14 +14,13 @@ import { getAgentSessionManager } from '../session-spawn/manager.js';
 import { getSessionSpawnConfig } from '../session-spawn/config.js';
 import type {
   AgentSession,
-  SessionMessage,
   MessageType,
 } from '../session-spawn/types.js';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
+type SessionScopedToolContext = ToolExecutionContext & { sessionId?: string };
+
 // spawn_session Tool
-// =============================================================================
 
 // Get config for schema defaults (loaded once at module init)
 const config = getSessionSpawnConfig();
@@ -107,7 +106,7 @@ export const spawnSessionTool: ToolDefinition<SpawnSessionParams, SpawnSessionRe
 - Use \`list_sessions\` to check progress
 - Use \`receive_messages\` to get results when child completes`,
 
-  category: 'glinr',
+  category: 'profclaw',
   securityLevel: 'moderate',
   allowedHosts: ['sandbox', 'gateway', 'local'],
   parameters: SpawnSessionParamsSchema,
@@ -137,9 +136,10 @@ export const spawnSessionTool: ToolDefinition<SpawnSessionParams, SpawnSessionRe
   ): Promise<ToolResult<SpawnSessionResult>> {
     try {
       const manager = getAgentSessionManager();
+      const scopedContext = context as SessionScopedToolContext;
 
       // Get or create a root session for this conversation
-      let parentSessionId = (context as any).sessionId;
+      let parentSessionId = scopedContext.sessionId;
 
       if (!parentSessionId) {
         // Create a root session if none exists
@@ -150,7 +150,7 @@ export const spawnSessionTool: ToolDefinition<SpawnSessionParams, SpawnSessionRe
         );
         parentSessionId = rootSession.id;
         // Store for future tool calls
-        (context as any).sessionId = parentSessionId;
+        scopedContext.sessionId = parentSessionId;
       }
 
       const session = await manager.spawn({
@@ -196,9 +196,7 @@ export const spawnSessionTool: ToolDefinition<SpawnSessionParams, SpawnSessionRe
   },
 };
 
-// =============================================================================
 // send_message Tool
-// =============================================================================
 
 const SendMessageParamsSchema = z.object({
   target: z
@@ -210,7 +208,7 @@ const SendMessageParamsSchema = z.object({
     .describe('Message type'),
   subject: z.string().max(200).optional().describe('Optional message subject'),
   content: z
-    .record(z.any())
+    .record(z.unknown())
     .describe('Message content (JSON object with your data)'),
   priority: z
     .number()
@@ -270,7 +268,7 @@ export const sendMessageTool: ToolDefinition<SendMessageParams, SendMessageResul
 }
 \`\`\``,
 
-  category: 'glinr',
+  category: 'profclaw',
   securityLevel: 'safe',
   allowedHosts: ['sandbox', 'gateway', 'local'],
   parameters: SendMessageParamsSchema,
@@ -301,7 +299,7 @@ export const sendMessageTool: ToolDefinition<SendMessageParams, SendMessageResul
   ): Promise<ToolResult<SendMessageResult>> {
     try {
       const manager = getAgentSessionManager();
-      const sessionId = (context as any).sessionId;
+      const sessionId = (context as SessionScopedToolContext).sessionId;
 
       if (!sessionId) {
         return {
@@ -352,9 +350,7 @@ export const sendMessageTool: ToolDefinition<SendMessageParams, SendMessageResul
   },
 };
 
-// =============================================================================
 // receive_messages Tool
-// =============================================================================
 
 const ReceiveMessagesParamsSchema = z.object({
   types: z
@@ -390,7 +386,7 @@ interface ReceiveMessagesResult {
     fromSessionId: string;
     type: string;
     subject?: string;
-    content: Record<string, any>;
+    content: Record<string, unknown>;
     priority: number;
     createdAt: string;
   }>;
@@ -420,7 +416,7 @@ export const receiveMessagesTool: ToolDefinition<
 
 Returns messages sorted by priority (highest first), then by creation time.`,
 
-  category: 'glinr',
+  category: 'profclaw',
   securityLevel: 'safe',
   allowedHosts: ['sandbox', 'gateway', 'local'],
   parameters: ReceiveMessagesParamsSchema,
@@ -448,7 +444,7 @@ Returns messages sorted by priority (highest first), then by creation time.`,
   ): Promise<ToolResult<ReceiveMessagesResult>> {
     try {
       const manager = getAgentSessionManager();
-      const sessionId = (context as any).sessionId;
+      const sessionId = (context as SessionScopedToolContext).sessionId;
 
       if (!sessionId) {
         return {
@@ -507,9 +503,7 @@ Returns messages sorted by priority (highest first), then by creation time.`,
   },
 };
 
-// =============================================================================
 // list_sessions Tool
-// =============================================================================
 
 const ListSessionsParamsSchema = z.object({
   scope: z
@@ -560,7 +554,7 @@ export const listSessionsTool: ToolDefinition<ListSessionsParams, ListSessionsRe
 - Wait for child tasks to complete
 - Get session IDs for direct messaging`,
 
-  category: 'glinr',
+  category: 'profclaw',
   securityLevel: 'safe',
   allowedHosts: ['sandbox', 'gateway', 'local'],
   parameters: ListSessionsParamsSchema,
@@ -587,7 +581,7 @@ export const listSessionsTool: ToolDefinition<ListSessionsParams, ListSessionsRe
   ): Promise<ToolResult<ListSessionsResult>> {
     try {
       const manager = getAgentSessionManager();
-      const sessionId = (context as any).sessionId;
+      const sessionId = (context as SessionScopedToolContext).sessionId;
 
       if (!sessionId) {
         return {
@@ -667,13 +661,11 @@ export const listSessionsTool: ToolDefinition<ListSessionsParams, ListSessionsRe
   },
 };
 
-// =============================================================================
 // Export all tools
-// =============================================================================
 
-export const sessionSpawnTools: ToolDefinition<any, any>[] = [
+export const sessionSpawnTools = [
   spawnSessionTool,
   sendMessageTool,
   receiveMessagesTool,
   listSessionsTool,
-];
+] as unknown as ToolDefinition[];

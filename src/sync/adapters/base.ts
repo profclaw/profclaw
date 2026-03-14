@@ -91,9 +91,9 @@ export abstract class BaseSyncAdapter implements SyncAdapter {
 
   mapPriorityFromExternal(externalPriority: string | number): TicketPriority {
     // Try to match by value
-    for (const [glinrPriority, platformMap] of Object.entries(PRIORITY_MAP)) {
+    for (const [profclawPriority, platformMap] of Object.entries(PRIORITY_MAP)) {
       if (platformMap[this.platform] === externalPriority) {
-        return glinrPriority as TicketPriority;
+        return profclawPriority as TicketPriority;
       }
     }
     // Fallback: try common patterns
@@ -146,7 +146,7 @@ export abstract class BaseSyncAdapter implements SyncAdapter {
 
   // === Webhook Parsing (optional, override in subclass) ===
 
-  parseWebhook?(payload: unknown): WebhookEvent | null {
+  parseWebhook?(_payload: unknown): WebhookEvent | null {
     return null;
   }
 

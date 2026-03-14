@@ -1,22 +1,27 @@
 /**
  * CLI Setup Wizard
  *
- * Interactive first-time setup for GLINR Task Manager.
+ * Interactive first-time setup for profClaw.
  * Configures AI provider, admin account, registration mode, and GitHub OAuth.
  *
  * Usage:
- *   glinr setup                     # Interactive wizard
- *   glinr setup --non-interactive   # CI/Docker automation
+ *   profclaw setup                     # Interactive wizard
+ *   profclaw setup --non-interactive   # CI/Docker automation
  */
 
 import { Command } from 'commander';
 import chalk from 'chalk';
 import figlet from 'figlet';
-import { createInterface } from 'readline/promises';
+import { select, search, input, password as passwordPrompt, confirm, Separator } from '@inquirer/prompts';
 import { randomUUID } from 'crypto';
 import { eq } from 'drizzle-orm';
-import { initStorage, getDb, saveProviderConfig } from '../../storage/index.js';
+import { spawn } from 'child_process';
+import { existsSync, mkdirSync, openSync } from 'node:fs';
+import { join } from 'node:path';
+import { createServer } from 'net';
+import { initStorage, getDb, saveProviderConfig, loadAllProviderConfigs } from '../../storage/index.js';
 import { users, inviteCodes } from '../../storage/schema.js';
+import { PROVIDER_CATALOG } from '../providers.js';
 import {
   hashPassword,
   validatePasswordStrength,
@@ -28,12 +33,18 @@ import {
 import { updateSettings, type Settings } from '../../settings/index.js';
 import { success, error, info, warn, spinner } from '../utils/output.js';
 
-// ---------------------------------------------------------------------------
+/** Render a step header with progress bar. */
+function stepHeader(step: number, total: number, title: string): void {
+  const barLen = 20;
+  const filled = Math.round((step / total) * barLen);
+  const bar = chalk.cyan('━'.repeat(filled)) + chalk.dim('━'.repeat(barLen - filled));
+  console.log(`\n  ${bar}  ${chalk.dim(`${step}/${total}`)}  ${chalk.bold.white(title)}\n`);
+}
+
 // Helpers
-// ---------------------------------------------------------------------------
 
 function showBanner(): void {
-  const banner = figlet.textSync('GLINR', {
+  const banner = figlet.textSync('profClaw', {
     font: 'Standard',
     horizontalLayout: 'default',
   });
@@ -41,45 +52,8 @@ function showBanner(): void {
   console.log(chalk.dim('  Setup Wizard\n'));
 }
 
-async function prompt(rl: ReturnType<typeof createInterface>, question: string): Promise<string> {
-  const answer = await rl.question(chalk.bold(question));
-  return answer.trim();
-}
-
-async function promptPassword(rl: ReturnType<typeof createInterface>, question: string): Promise<string> {
-  // readline/promises doesn't natively hide input, but for a CLI wizard this is acceptable
-  const answer = await rl.question(chalk.bold(question));
-  return answer.trim();
-}
-
-async function promptChoice(
-  rl: ReturnType<typeof createInterface>,
-  question: string,
-  options: { key: string; label: string }[],
-): Promise<string> {
-  console.log('');
-  console.log(chalk.bold(question));
-  for (const opt of options) {
-    console.log(`  ${chalk.cyan(opt.key)}) ${opt.label}`);
-  }
-  const validKeys = options.map((o) => o.key);
-  while (true) {
-    const answer = await prompt(rl, `Choice [${validKeys.join('/')}]: `);
-    if (validKeys.includes(answer)) return answer;
-    console.log(chalk.red(`  Invalid choice. Options: ${validKeys.join(', ')}`));
-  }
-}
-
-async function promptYesNo(
-  rl: ReturnType<typeof createInterface>,
-  question: string,
-  defaultYes = false,
-): Promise<boolean> {
-  const hint = defaultYes ? 'Y/n' : 'y/N';
-  const answer = await prompt(rl, `${question} [${hint}]: `);
-  if (!answer) return defaultYes;
-  return answer.toLowerCase().startsWith('y');
-}
+// Inquirer theme for consistent prefix
+const theme = { prefix: '  ', style: { highlight: (text: string) => chalk.cyan.bold(text) } };
 
 async function checkRedis(): Promise<boolean> {
   try {
@@ -129,7 +103,7 @@ async function checkAdminExists(db: ReturnType<typeof getDb>): Promise<boolean> 
 }
 
 /**
- * Check if the GLINR server is running locally (for API-based admin creation).
+ * Check if the profClaw server is running locally (for API-based admin creation).
  * When the CLI runs inside Docker alongside the server, using the API ensures
  * both processes see the same DB state (avoids LibSQL cross-process issues).
  */
@@ -184,122 +158,192 @@ function hasEnvKey(key: string): boolean {
   return !!val && val !== '' && !val.startsWith('sk-ant-xxxx') && !val.startsWith('sk-xxxx');
 }
 
-// ---------------------------------------------------------------------------
 // Step 1: System Check
-// ---------------------------------------------------------------------------
+
+async function detectConfiguredProvider(): Promise<string | null> {
+  // Check env vars first
+  for (const p of PROVIDER_CATALOG) {
+    if (hasEnvKey(p.envVar)) return p.name;
+  }
+  // Check database (saved via saveProviderConfig)
+  try {
+    const saved = await loadAllProviderConfigs();
+    const enabled = saved.find(s => s.enabled);
+    if (enabled) {
+      const match = PROVIDER_CATALOG.find(p => p.key === enabled.type);
+      return match ? `${match.name} (saved)` : enabled.type;
+    }
+  } catch { /* db not ready yet */ }
+  return null;
+}
 
 async function stepSystemCheck(db: ReturnType<typeof getDb>): Promise<{
   redisOk: boolean;
   hasAdmin: boolean;
-  hasAnthropicKey: boolean;
-  hasOpenAIKey: boolean;
+  hasProvider: boolean;
+  providerName: string | null;
 }> {
-  console.log(chalk.bold.white('\n  Step 1: System Check\n'));
-
   const spin = spinner('Checking system...');
   spin.start();
 
   const redisOk = await checkRedis();
   const hasAdmin = await checkAdminExists(db);
-  const hasAnthropicKey = hasEnvKey('ANTHROPIC_API_KEY');
-  const hasOpenAIKey = hasEnvKey('OPENAI_API_KEY');
+  const providerName = await detectConfiguredProvider();
+  const hasProvider = !!providerName;
 
   spin.stop();
 
-  const mark = (ok: boolean) => (ok ? chalk.green('  ✓') : chalk.red('  ✗'));
+  const mark = (ok: boolean) => (ok ? chalk.green('  \u2713') : chalk.red('  \u2717'));
 
   console.log(`${mark(redisOk)} Redis: ${redisOk ? 'connected' : 'not reachable'}`);
   console.log(`${mark(hasAdmin)} Admin account: ${hasAdmin ? 'exists' : 'not created'}`);
-  console.log(`${mark(hasAnthropicKey || hasOpenAIKey)} AI provider: ${
-    hasAnthropicKey ? 'Anthropic key found' :
-    hasOpenAIKey ? 'OpenAI key found' :
-    'not configured'
-  }`);
+  console.log(`${mark(hasProvider)} AI provider: ${providerName || 'not configured'}`);
 
   if (!redisOk) {
     warn('Redis is required for task processing.');
     info('Start Redis: docker compose up redis -d');
   }
 
-  return { redisOk, hasAdmin, hasAnthropicKey, hasOpenAIKey };
+  return { redisOk, hasAdmin, hasProvider, providerName };
 }
 
-// ---------------------------------------------------------------------------
 // Step 2: AI Provider
-// ---------------------------------------------------------------------------
 
 async function stepAiProvider(
-  rl: ReturnType<typeof createInterface>,
-  status: { hasAnthropicKey: boolean; hasOpenAIKey: boolean },
+  status: { hasProvider: boolean; providerName: string | null },
 ): Promise<string> {
-  if (status.hasAnthropicKey || status.hasOpenAIKey) {
-    const provider = status.hasAnthropicKey ? 'Anthropic' : 'OpenAI';
-    info(`AI provider already configured (${provider} from env).`);
-    const reconfigure = await promptYesNo(rl, '  Reconfigure AI provider?', false);
-    if (!reconfigure) return 'skip';
+  if (status.hasProvider) {
+    info(`AI provider already configured (${status.providerName}).`);
+    try {
+      const reconfigure = await confirm({
+        message: 'Reconfigure AI provider?',
+        default: false,
+        theme,
+      });
+      if (!reconfigure) return status.providerName || 'configured';
+    } catch { return status.providerName || 'configured'; }
   }
 
-  const choice = await promptChoice(rl, '  Select AI Provider:', [
-    { key: '1', label: 'Anthropic API Key (recommended)' },
-    { key: '2', label: 'OpenAI API Key' },
-    { key: '3', label: 'Ollama (free, local AI)' },
-    { key: '4', label: 'Skip for now' },
-  ]);
+  // Detect which providers already have keys
+  const detected = new Set<string>();
+  for (const p of PROVIDER_CATALOG) {
+    if (process.env[p.envVar]) detected.add(p.key);
+  }
+  // Check Ollama service
+  const ollamaRunning = await checkOllama(process.env.OLLAMA_BASE_URL || 'http://localhost:11434');
+  if (ollamaRunning) detected.add('ollama');
 
-  if (choice === '4') {
+  let choice: string;
+  try {
+    choice = await search<string>({
+      message: 'Select AI provider (type to filter, arrows to navigate)',
+      pageSize: 15,
+      source: (term: string | undefined) => {
+        const results: Array<Separator | { name: string; value: string; description: string; short: string }> = [];
+        const filter = (term || '').toLowerCase();
+        let lastCategory = '';
+
+        for (const p of PROVIDER_CATALOG) {
+          if (filter && ![p.name, p.key, p.models, p.category, p.tag]
+            .some(s => s.toLowerCase().includes(filter))) {
+            continue;
+          }
+
+          if (p.category !== lastCategory) {
+            if (results.length > 0) results.push(new Separator());
+            results.push(new Separator(chalk.bold.cyan(` ${p.category} `)));
+            lastCategory = p.category;
+          }
+
+          const det = detected.has(p.key) ? chalk.green(' *') : '';
+          const ollamaTag = p.key === 'ollama' && ollamaRunning ? 'detected' : p.tag;
+          const tag = ollamaTag ? ` ${chalk.dim(`[${ollamaTag}]`)}` : '';
+          results.push({
+            name: `${p.name.padEnd(16)} ${chalk.dim(p.models)}${tag}${det}`,
+            value: p.key,
+            description: p.envVar,
+            short: p.name,
+          });
+        }
+
+        if (!filter || 'skip'.includes(filter)) {
+          results.push(new Separator());
+          results.push({
+            name: chalk.dim('Skip for now'),
+            value: 'skip',
+            description: 'Configure later in Settings',
+            short: 'Skip',
+          });
+        }
+
+        return results;
+      },
+      theme,
+    });
+  } catch {
+    return 'skip';
+  }
+
+  if (choice === 'skip') {
     info('AI provider skipped. You can configure it later in Settings.');
     return 'skip';
   }
 
-  if (choice === '1') {
-    const apiKey = await prompt(rl, '  Anthropic API Key: ');
-    if (!apiKey) {
-      warn('No key provided, skipping.');
-      return 'skip';
+  const chosen = PROVIDER_CATALOG.find(p => p.key === choice);
+  if (!chosen) return 'skip';
+
+  console.log(`\n  ${chalk.bold(chosen.name)} selected`);
+  console.log(chalk.dim(`  Env var: ${chosen.envVar}`));
+
+  // Ollama special case
+  if (chosen.key === 'ollama') {
+    const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+    const spin = spinner(`Checking Ollama at ${ollamaUrl}...`);
+    spin.start();
+    const ollamaOk = await checkOllama(ollamaUrl);
+    spin.stop();
+
+    if (ollamaOk) {
+      success(`Ollama reachable at ${ollamaUrl}`);
+      await saveProviderConfig({ type: 'ollama', apiKey: ollamaUrl, enabled: true });
+      await updateSettings({
+        integrations: { ollamaEndpoint: ollamaUrl } as Settings['integrations'],
+        plugins: { ollama: { enabled: true, autoStart: false } } as Settings['plugins'],
+      });
+      success('Ollama provider configured.');
+    } else {
+      warn(`Ollama not reachable at ${ollamaUrl}`);
+      info('Start Ollama: docker compose --profile ai up -d');
+      info('Then re-run: profclaw setup');
+      await saveProviderConfig({ type: 'ollama', apiKey: ollamaUrl, enabled: true });
     }
-    await saveProviderConfig({ type: 'anthropic', apiKey, enabled: true });
-    success('Anthropic provider configured.');
-    return 'anthropic';
+    return 'ollama';
   }
 
-  if (choice === '2') {
-    const apiKey = await prompt(rl, '  OpenAI API Key: ');
-    if (!apiKey) {
-      warn('No key provided, skipping.');
-      return 'skip';
-    }
-    await saveProviderConfig({ type: 'openai', apiKey, enabled: true });
-    success('OpenAI provider configured.');
-    return 'openai';
+  // Already detected
+  if (detected.has(chosen.key)) {
+    success(`${chosen.name} already configured from ${chosen.envVar}`);
+    return chosen.key;
   }
 
-  // Ollama
-  const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
-  const spin = spinner(`Checking Ollama at ${ollamaUrl}...`);
-  spin.start();
-  const ollamaOk = await checkOllama(ollamaUrl);
-  spin.stop();
+  // Prompt for API key
+  let apiKey: string;
+  try {
+    apiKey = await input({ message: chosen.envVar, theme });
+  } catch { return 'skip'; }
+  if (!apiKey) { warn('No key provided, skipping.'); return 'skip'; }
 
-  if (ollamaOk) {
-    success(`Ollama reachable at ${ollamaUrl}`);
-    await saveProviderConfig({ type: 'ollama', apiKey: ollamaUrl, enabled: true });
-    await updateSettings({
-      integrations: { ollamaEndpoint: ollamaUrl } as Settings['integrations'],
-      plugins: { ollama: { enabled: true, autoStart: false } } as Settings['plugins'],
-    });
-    success('Ollama provider configured.');
-  } else {
-    warn(`Ollama not reachable at ${ollamaUrl}`);
-    info('Start Ollama: docker compose --profile ai up -d');
-    info('Then re-run: glinr setup');
-    await saveProviderConfig({ type: 'ollama', apiKey: ollamaUrl, enabled: true });
+  try {
+    await saveProviderConfig({ type: chosen.key, apiKey, enabled: true });
+    success(`${chosen.name} provider configured.`);
+    return chosen.key;
+  } catch (err) {
+    error(`Failed to save: ${err instanceof Error ? err.message : 'unknown'}`);
+    return 'skip';
   }
-  return 'ollama';
 }
 
-// ---------------------------------------------------------------------------
 // Step 3: Admin Account
-// ---------------------------------------------------------------------------
 
 async function createAdminUser(
   db: ReturnType<typeof getDb>,
@@ -338,7 +382,6 @@ function showRecoveryCodes(codes: string[]): void {
 }
 
 async function stepAdminAccount(
-  rl: ReturnType<typeof createInterface>,
   db: ReturnType<typeof getDb>,
 ): Promise<string | null> {
   if (!db) {
@@ -346,48 +389,58 @@ async function stepAdminAccount(
     return null;
   }
 
-  console.log(chalk.bold.white('\n  Step 3: Admin Account\n'));
-
   const existingAdmins = await getExistingAdmins(db);
 
   if (existingAdmins.length > 0) {
     console.log(chalk.dim('  Existing admin accounts:'));
     for (const admin of existingAdmins) {
-      console.log(`    ${chalk.green('•')} ${admin.name} ${chalk.dim(`<${admin.email}>`)}`);
+      console.log(`    ${chalk.green('\u2022')} ${admin.name} ${chalk.dim(`<${admin.email}>`)}`);
     }
     console.log('');
-    console.log('  What would you like to do?');
-    console.log(`    ${chalk.bold('1)')} Keep existing — no changes`);
-    console.log(`    ${chalk.bold('2)')} Reset password for an existing admin`);
-    console.log(`    ${chalk.bold('3)')} Create an additional admin`);
-    console.log('');
 
-    const choice = await prompt(rl, '  Choice [1]: ');
-    const picked = choice || '1';
+    let picked: string;
+    try {
+      picked = await select<string>({
+        message: 'What would you like to do?',
+        choices: [
+          { name: 'Keep existing - no changes', value: 'keep' },
+          { name: 'Reset password for an existing admin', value: 'reset' },
+          { name: 'Create an additional admin', value: 'create' },
+        ],
+        theme,
+      });
+    } catch { return existingAdmins[0].email; }
 
-    if (picked === '1') {
+    if (picked === 'keep') {
       success(`Keeping ${existingAdmins.length} existing admin(s).`);
       return existingAdmins[0].email;
     }
 
-    if (picked === '2') {
-      // Reset password for existing admin
+    if (picked === 'reset') {
       let targetAdmin = existingAdmins[0];
       if (existingAdmins.length > 1) {
-        console.log('');
-        for (let i = 0; i < existingAdmins.length; i++) {
-          console.log(`    ${chalk.bold(`${i + 1})`)} ${existingAdmins[i].email}`);
-        }
-        const idx = await prompt(rl, `  Which admin? [1]: `);
-        const n = parseInt(idx || '1', 10) - 1;
-        if (n >= 0 && n < existingAdmins.length) {
-          targetAdmin = existingAdmins[n];
-        }
+        try {
+          const adminId = await select<string>({
+            message: 'Which admin?',
+            choices: existingAdmins.map(a => ({
+              name: `${a.name} ${chalk.dim(`<${a.email}>`)}`,
+              value: a.id,
+            })),
+            theme,
+          });
+          targetAdmin = existingAdmins.find(a => a.id === adminId) || existingAdmins[0];
+        } catch { return existingAdmins[0].email; }
       }
 
       let newPassword = '';
       while (true) {
-        newPassword = await promptPassword(rl, '  New password (min 8 chars, 1 letter, 1 number): ');
+        try {
+          newPassword = await passwordPrompt({
+            message: 'New password (min 8 chars, 1 letter, 1 number)',
+            mask: '*',
+            theme,
+          });
+        } catch { return existingAdmins[0].email; }
         const strengthError = validatePasswordStrength(newPassword);
         if (!strengthError) break;
         console.log(chalk.red(`  ${strengthError}`));
@@ -410,22 +463,29 @@ async function stepAdminAccount(
       return targetAdmin.email;
     }
 
-    // picked === '3' — fall through to create new admin
+    // picked === 'create' - fall through to create new admin
     console.log('');
   }
 
   // Create new admin
-  const name = await prompt(rl, '  Name: ');
+  let name: string;
+  try {
+    name = await input({ message: 'Name', theme });
+  } catch { return existingAdmins.length > 0 ? existingAdmins[0].email : null; }
+
   if (!name) {
     warn('Admin account creation skipped.');
     return existingAdmins.length > 0 ? existingAdmins[0].email : null;
   }
 
-  const email = await prompt(rl, '  Email: ');
-  if (!email || !email.includes('@')) {
-    error('Invalid email address.');
-    return existingAdmins.length > 0 ? existingAdmins[0].email : null;
-  }
+  let email: string;
+  try {
+    email = await input({
+      message: 'Email',
+      validate: (val) => val.includes('@') || 'Must be a valid email address',
+      theme,
+    });
+  } catch { return existingAdmins.length > 0 ? existingAdmins[0].email : null; }
 
   // Check email uniqueness
   const existing = await db
@@ -438,10 +498,16 @@ async function stepAdminAccount(
     return existingAdmins.length > 0 ? existingAdmins[0].email : null;
   }
 
-  let password = '';
+  let pw = '';
   while (true) {
-    password = await promptPassword(rl, '  Password (min 8 chars, 1 letter, 1 number): ');
-    const strengthError = validatePasswordStrength(password);
+    try {
+      pw = await passwordPrompt({
+        message: 'Password (min 8 chars, 1 letter, 1 number)',
+        mask: '*',
+        theme,
+      });
+    } catch { return existingAdmins.length > 0 ? existingAdmins[0].email : null; }
+    const strengthError = validatePasswordStrength(pw);
     if (!strengthError) break;
     console.log(chalk.red(`  ${strengthError}`));
   }
@@ -449,7 +515,7 @@ async function stepAdminAccount(
   // Prefer server API (avoids cross-process LibSQL issues in Docker)
   const serverUrl = await getServerBaseUrl();
   if (serverUrl) {
-    const apiResult = await createAdminViaApi(serverUrl, email, password, name);
+    const apiResult = await createAdminViaApi(serverUrl, email, pw, name);
     if (apiResult) {
       success(`Admin account created: ${apiResult.email}`);
       showRecoveryCodes(apiResult.recoveryCodes);
@@ -458,28 +524,29 @@ async function stepAdminAccount(
   }
 
   // Fall back to direct DB
-  const result = await createAdminUser(db, name, email, password);
+  const result = await createAdminUser(db, name, email, pw);
   success(`Admin account created: ${result.email}`);
   showRecoveryCodes(result.recoveryCodes);
   return result.email;
 }
 
-// ---------------------------------------------------------------------------
 // Step 4: Registration Mode
-// ---------------------------------------------------------------------------
 
 async function stepRegistrationMode(
-  rl: ReturnType<typeof createInterface>,
   db: ReturnType<typeof getDb>,
 ): Promise<{ mode: string; codes: string[] }> {
-  console.log(chalk.bold.white('\n  Step 4: Registration Mode\n'));
+  let mode: string;
+  try {
+    mode = await select<string>({
+      message: 'How should new users register?',
+      choices: [
+        { name: 'Invite only (more secure)', value: 'invite', description: 'Users need an invite code to sign up' },
+        { name: 'Open registration', value: 'open', description: 'Anyone can create an account' },
+      ],
+      theme,
+    });
+  } catch { mode = 'invite'; }
 
-  const choice = await promptChoice(rl, '  How should new users register?', [
-    { key: '1', label: 'Invite only (default, more secure)' },
-    { key: '2', label: 'Open registration' },
-  ]);
-
-  const mode = choice === '1' ? 'invite' : 'open';
   await updateSettings({
     system: { registrationMode: mode } as Settings['system'],
   });
@@ -489,7 +556,15 @@ async function stepRegistrationMode(
   const codes: string[] = [];
 
   if (mode === 'invite' && db) {
-    const generate = await promptYesNo(rl, '  Generate 3 invite codes now?', true);
+    let generate: boolean;
+    try {
+      generate = await confirm({
+        message: 'Generate 3 invite codes now?',
+        default: true,
+        theme,
+      });
+    } catch { generate = false; }
+
     if (generate) {
       for (let i = 0; i < 3; i++) {
         const code = generateInviteCode();
@@ -516,14 +591,18 @@ async function stepRegistrationMode(
   return { mode, codes };
 }
 
-// ---------------------------------------------------------------------------
 // Step 5: GitHub OAuth (optional)
-// ---------------------------------------------------------------------------
 
-async function stepGitHubOAuth(rl: ReturnType<typeof createInterface>): Promise<boolean> {
-  console.log(chalk.bold.white('\n  Step 5: GitHub OAuth (Optional)\n'));
+async function stepGitHubOAuth(): Promise<boolean> {
+  let configure: boolean;
+  try {
+    configure = await confirm({
+      message: 'Configure GitHub OAuth login?',
+      default: false,
+      theme,
+    });
+  } catch { return false; }
 
-  const configure = await promptYesNo(rl, '  Configure GitHub OAuth login?', false);
   if (!configure) {
     info('GitHub OAuth skipped. Configure later in Settings.');
     return false;
@@ -535,8 +614,12 @@ async function stepGitHubOAuth(rl: ReturnType<typeof createInterface>): Promise<
   info('Create a GitHub OAuth App at: https://github.com/settings/developers');
   console.log('');
 
-  const clientId = await prompt(rl, '  GitHub Client ID: ');
-  const clientSecret = await prompt(rl, '  GitHub Client Secret: ');
+  let clientId: string;
+  let clientSecret: string;
+  try {
+    clientId = await input({ message: 'GitHub Client ID', theme });
+    clientSecret = await input({ message: 'GitHub Client Secret', theme });
+  } catch { return false; }
 
   if (!clientId || !clientSecret) {
     warn('Incomplete credentials, skipping GitHub OAuth.');
@@ -557,24 +640,32 @@ async function stepGitHubOAuth(rl: ReturnType<typeof createInterface>): Promise<
   return true;
 }
 
-// ---------------------------------------------------------------------------
 // Step 6: Summary
-// ---------------------------------------------------------------------------
 
-function showSummary(results: {
+function checkPortAvailable(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = createServer();
+    server.once('error', () => resolve(false));
+    server.once('listening', () => { server.close(); resolve(true); });
+    server.listen(port);
+  });
+}
+
+async function showSummaryAndOffer(results: {
   redisOk: boolean;
   aiProvider: string;
   adminEmail: string | null;
   registrationMode: string;
   inviteCodes: string[];
   githubOAuth: boolean;
-}): void {
-  const port = process.env.PORT || '3000';
+  fromOnboard?: boolean;
+}): Promise<void> {
+  const port = parseInt(process.env.PORT || '3000', 10);
 
   console.log(chalk.bold.white('\n  Setup Complete!\n'));
-  console.log('  ' + '─'.repeat(44));
+  console.log('  ' + '\u2500'.repeat(44));
 
-  const mark = (ok: boolean) => (ok ? chalk.green('✓') : chalk.yellow('✗'));
+  const mark = (ok: boolean) => (ok ? chalk.green('\u2713') : chalk.yellow('\u2717'));
 
   console.log(`  ${mark(results.redisOk)} Redis: ${results.redisOk ? 'connected' : 'not connected'}`);
   console.log(`  ${mark(results.aiProvider !== 'skip')} AI: ${results.aiProvider === 'skip' ? 'not configured' : results.aiProvider}`);
@@ -582,15 +673,100 @@ function showSummary(results: {
   console.log(`  ${mark(true)} Registration: ${results.registrationMode}${results.inviteCodes.length ? ` (${results.inviteCodes.length} codes)` : ''}`);
   console.log(`  ${mark(results.githubOAuth)} GitHub OAuth: ${results.githubOAuth ? 'configured' : 'skipped'}`);
 
-  console.log('  ' + '─'.repeat(44));
+  console.log('  ' + '\u2500'.repeat(44));
+
+  // Check if server is already running
+  const portFree = await checkPortAvailable(port);
+  const serverRunning = !portFree;
+
+  if (serverRunning) {
+    // Server already running - just show the URL
+    console.log('');
+    success(`Server already running on port ${port}`);
+    console.log(`\n  ${chalk.cyan.bold(`http://localhost:${port}`)}\n`);
+  } else {
+    // Offer to start the server
+    console.log('');
+    let startServer = false;
+    try {
+      startServer = await confirm({
+        message: 'Start the server now?',
+        default: true,
+        theme,
+      });
+    } catch { /* Ctrl+C */ }
+
+    if (startServer) {
+      console.log('');
+      const startSpin = spinner('Starting server...');
+      startSpin.start();
+
+      // Determine runtime
+      const distPath = 'dist/server.js';
+      const useCompiled = existsSync(distPath);
+      const cmd = useCompiled ? 'node' : 'npx';
+      const args = useCompiled ? [distPath] : ['tsx', 'src/server.ts'];
+
+      // Redirect server output to log file (keep terminal clean)
+      const logDir = join(process.cwd(), 'data');
+      if (!existsSync(logDir)) mkdirSync(logDir, { recursive: true });
+      const logPath = join(logDir, 'server.log');
+      const logFd = openSync(logPath, 'a');
+
+      const child = spawn(cmd, args, {
+        stdio: ['ignore', logFd, logFd],
+        detached: true,
+        env: { ...process.env, PORT: String(port) },
+      });
+
+      child.unref();
+
+      // Wait for server to start, polling health check
+      let serverOk = false;
+      for (let i = 0; i < 5; i++) {
+        await new Promise(r => setTimeout(r, 1000));
+        try {
+          const res = await fetch(`http://localhost:${port}/health`, {
+            signal: AbortSignal.timeout(2000),
+          });
+          if (res.ok) { serverOk = true; break; }
+        } catch { /* not ready yet */ }
+      }
+
+      startSpin.stop();
+
+      if (serverOk) {
+        success(`Server running on port ${port}`);
+      } else {
+        warn('Server starting in background (health check pending)');
+      }
+
+      console.log(`\n  ${chalk.cyan.bold(`http://localhost:${port}`)}`);
+      console.log('');
+      console.log(chalk.dim('  Server is running in the background.'));
+      console.log(chalk.dim(`  Stop:    ${chalk.white('profclaw daemon stop')}  or  ${chalk.white(`kill $(lsof -ti :${port})`)}`));
+      console.log(chalk.dim(`  Logs:    ${chalk.white(`tail -f ${logPath}`)}`));
+      console.log(chalk.dim(`  Status:  ${chalk.white('profclaw doctor')}`));
+    } else {
+      console.log('');
+      console.log(`  Start later with: ${chalk.cyan.bold('profclaw serve')}`);
+    }
+  }
+
+  // Always show helpful next steps
   console.log('');
-  console.log(`  Open ${chalk.cyan.bold(`http://localhost:${port}`)} to get started.`);
+  console.log(chalk.bold.white('  Next Steps'));
+  console.log('  ' + '\u2500'.repeat(44));
+  console.log(`  ${chalk.cyan('profclaw doctor')}          Health check (12 tests)`);
+  console.log(`  ${chalk.cyan('profclaw chat quick')} ${chalk.dim('"hi"')}  Chat with AI`);
+  console.log(`  ${chalk.cyan('profclaw task list')}        View agent tasks`);
+  console.log(`  ${chalk.cyan('profclaw tools list')}       Available tools`);
+  console.log(`  ${chalk.cyan('profclaw provider test')}    Test AI provider`);
+  console.log(`  ${chalk.cyan('profclaw --help')}           All commands`);
   console.log('');
 }
 
-// ---------------------------------------------------------------------------
 // Non-Interactive Mode
-// ---------------------------------------------------------------------------
 
 async function runNonInteractive(options: {
   adminEmail?: string;
@@ -726,9 +902,7 @@ async function runNonInteractive(options: {
   success('Setup complete.');
 }
 
-// ---------------------------------------------------------------------------
 // Command Registration
-// ---------------------------------------------------------------------------
 
 export function setupCommand(): Command {
   const cmd = new Command('setup')
@@ -739,6 +913,7 @@ export function setupCommand(): Command {
     .option('--admin-name <name>', 'Admin display name (non-interactive)')
     .option('--ai-provider <provider>', 'AI provider: anthropic, openai, ollama, skip (non-interactive)')
     .option('--registration-mode <mode>', 'Registration mode: invite, open (non-interactive)')
+    .option('--from-onboard', 'Called from onboard wizard (skip AI provider)')
     .action(async (options) => {
       try {
         // Non-interactive mode
@@ -753,8 +928,18 @@ export function setupCommand(): Command {
           return;
         }
 
+        const fromOnboard = !!options.fromOnboard;
+
         // Interactive mode
-        showBanner();
+        if (!fromOnboard) showBanner();
+
+        // Suppress initialization noise ([INFO] Initializing LibSQL storage, etc.)
+        const _origLog = console.log;
+        console.log = (...args: unknown[]) => {
+          const msg = String(args[0] || '');
+          if (msg.includes('[INFO]') || msg.includes('[DEBUG]')) return;
+          _origLog.apply(console, args);
+        };
 
         const spin = spinner('Initializing...');
         spin.start();
@@ -762,40 +947,69 @@ export function setupCommand(): Command {
         const db = getDb();
         spin.stop();
 
+        // Restore console
+        console.log = _origLog;
+
         if (!db) {
           error('Failed to initialize database.');
           process.exit(1);
         }
 
-        // Create a single readline interface for all steps
-        const rl = createInterface({ input: process.stdin, output: process.stdout });
+        // Dynamic step numbering
+        // Standalone: 5 steps (System Check, AI Provider, Admin, Registration, GitHub OAuth)
+        // From onboard: continues at step 5 of 6 (onboard did 1-4)
+        const totalSteps = fromOnboard ? 6 : 5;
+        let step = fromOnboard ? 4 : 0;
 
-        // Step 1: System Check
-        const status = await stepSystemCheck(db);
+        // System Check (skip if from onboard - already done)
+        let status: { redisOk: boolean; hasAdmin: boolean; hasProvider: boolean; providerName: string | null };
+        if (fromOnboard) {
+          // Quick silent check
+          const redisOk = await checkRedis();
+          const hasAdmin = await checkAdminExists(db);
+          const providerName = await detectConfiguredProvider();
+          status = { redisOk, hasAdmin, hasProvider: !!providerName, providerName };
+        } else {
+          step++;
+          stepHeader(step, totalSteps, 'System Check');
+          status = await stepSystemCheck(db);
+        }
 
-        // Step 2: AI Provider
-        console.log(chalk.bold.white('\n  Step 2: AI Provider\n'));
-        const aiProvider = await stepAiProvider(rl, status);
+        // AI Provider (skip if from onboard - already configured)
+        let aiProvider = 'skip';
+        if (!fromOnboard) {
+          step++;
+          stepHeader(step, totalSteps, 'AI Provider');
+          aiProvider = await stepAiProvider(status);
+        }
 
-        // Step 3: Admin Account
-        const adminEmail = await stepAdminAccount(rl, db);
+        // Admin Account
+        step++;
+        stepHeader(step, totalSteps, 'Admin Account');
+        const adminEmail = await stepAdminAccount(db);
 
-        // Step 4: Registration Mode
-        const regResult = await stepRegistrationMode(rl, db);
+        // Registration Mode
+        step++;
+        stepHeader(step, totalSteps, 'Registration Mode');
+        const regResult = await stepRegistrationMode(db);
 
-        // Step 5: GitHub OAuth
-        const githubOAuth = await stepGitHubOAuth(rl);
+        // GitHub OAuth (skip if from onboard to keep it shorter)
+        let githubOAuth = false;
+        if (!fromOnboard) {
+          step++;
+          stepHeader(step, totalSteps, 'GitHub OAuth');
+          githubOAuth = await stepGitHubOAuth();
+        }
 
-        rl.close();
-
-        // Step 6: Summary
-        showSummary({
+        // Summary + offer to start server
+        await showSummaryAndOffer({
           redisOk: status.redisOk,
           aiProvider,
           adminEmail,
           registrationMode: regResult.mode,
           inviteCodes: regResult.codes,
           githubOAuth,
+          fromOnboard,
         });
       } catch (err) {
         error(err instanceof Error ? err.message : 'Setup failed');

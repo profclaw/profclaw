@@ -6,14 +6,10 @@
  */
 
 import { randomUUID } from 'crypto';
-import { eq, and, asc, desc, isNull } from 'drizzle-orm';
+import { eq, asc, isNull } from 'drizzle-orm';
 import { getDb } from '../storage/index.js';
 import { states } from '../storage/schema.js';
 import type { StateGroup } from '../tickets/types.js';
-
-// TODO(@copilot): Generate unit tests for this module
-// Key functions to test: createState, getState, listStates, updateState, deleteState, initializeProjectStates
-// Test file location: src/states/tests/index.test.ts
 
 export interface State {
   id: string;
@@ -50,9 +46,7 @@ export interface UpdateStateInput {
   sequence?: number;
 }
 
-// =============================================================================
 // STATE CRUD
-// =============================================================================
 
 /**
  * Create a new state
@@ -137,7 +131,7 @@ export async function updateState(id: string, input: UpdateStateInput): Promise<
       .where(existing.projectId ? eq(states.projectId, existing.projectId) : isNull(states.projectId));
   }
 
-  const updates: any = { updatedAt: new Date() };
+  const updates: Partial<typeof states.$inferInsert> = { updatedAt: new Date() };
   if (input.name !== undefined) updates.name = input.name;
   if (input.slug !== undefined) updates.slug = input.slug;
   if (input.color !== undefined) updates.color = input.color;
@@ -170,9 +164,7 @@ export async function deleteState(id: string): Promise<void> {
   await db.delete(states).where(eq(states.id, id));
 }
 
-// =============================================================================
 // PROJECT INITIALIZATION
-// =============================================================================
 
 /**
  * Initialize default states for a new project

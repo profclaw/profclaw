@@ -28,6 +28,40 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
+  npm-publish:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: pnpm/action-setup@7088e561eb65bb68695d245aa206f005ef30921d # v4.1.0
+        with:
+          version: 9
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Test
+        run: pnpm test -- --run
+
+      - name: Publish to npm with provenance
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
   docker:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created }}
@@ -66,10 +100,33 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  npm-publish:
+  binaries:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created }}
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            platform: darwin
+            arch: x64
+            ext: ""
+          - os: macos-latest
+            platform: darwin
+            arch: arm64
+            ext: ""
+          - os: ubuntu-latest
+            platform: linux
+            arch: x64
+            ext: ""
+          - os: ubuntu-latest
+            platform: linux
+            arch: arm64
+            ext: ""
+          - os: windows-latest
+            platform: win32
+            arch: x64
+            ext: ".exe"
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -80,19 +137,65 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
           cache: pnpm
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
 
-      - name: Build
-        run: pnpm build
+      - name: Build binary
+        run: npx pkg . --targets node22-${{ matrix.platform }}-${{ matrix.arch }} --output profclaw-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.ext }}
 
-      - name: Test
-        run: pnpm test -- --run
+      - name: Upload binary to release
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.2.1
+        with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          files: profclaw-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.ext }}
 
-      - name: Publish to npm
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+  appcast:
+    needs: [release-please, binaries]
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Determine channel
+        id: channel
+        run: |
+          TAG="${{ needs.release-please.outputs.tag_name }}"
+          if [[ "$TAG" == *"-beta"* ]]; then
+            echo "channel=beta" >> $GITHUB_OUTPUT
+          elif [[ "$TAG" == *"-alpha"* ]] || [[ "$TAG" == *"-dev"* ]]; then
+            echo "channel=dev" >> $GITHUB_OUTPUT
+          else
+            echo "channel=stable" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate appcast XML
+        run: |
+          VERSION="${{ needs.release-please.outputs.version }}"
+          TAG="${{ needs.release-please.outputs.tag_name }}"
+          CHANNEL="${{ steps.channel.outputs.channel }}"
+          REPO="${{ github.repository }}"
+
+          cat > appcast.xml <<EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+            <channel>
+              <title>profClaw Updates</title>
+              <item>
+                <title>profClaw ${VERSION}</title>
+                <sparkle:version>${VERSION}</sparkle:version>
+                <sparkle:channel>${CHANNEL}</sparkle:channel>
+                <pubDate>$(date -R)</pubDate>
+                <enclosure url="https://github.com/${REPO}/releases/download/${TAG}/profclaw-darwin-arm64" sparkle:os="macos" type="application/octet-stream" />
+                <enclosure url="https://github.com/${REPO}/releases/download/${TAG}/profclaw-linux-x64" sparkle:os="linux" type="application/octet-stream" />
+              </item>
+            </channel>
+          </rss>
+          EOF
+
+      - name: Upload appcast
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85e87e3ef29c3e6d191 # v2.2.1
+        with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          files: appcast.xml

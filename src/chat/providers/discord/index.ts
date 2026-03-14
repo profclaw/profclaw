@@ -30,10 +30,9 @@ import type {
   OutgoingMessage,
 } from '../types.js';
 import { logger } from '../../../utils/logger.js';
+import { chunkForPlatform } from '../../format/chunk.js';
 
-// =============================================================================
 // DISCORD API TYPES
-// =============================================================================
 
 /** Discord Interaction Types */
 const InteractionType = {
@@ -172,9 +171,7 @@ interface DiscordComponent {
   max_values?: number;
 }
 
-// =============================================================================
 // CONFIGURATION
-// =============================================================================
 
 const DiscordAccountConfigSchema = z.object({
   id: z.string(),
@@ -198,9 +195,7 @@ const DiscordAccountConfigSchema = z.object({
 
 type DiscordConfig = z.infer<typeof DiscordAccountConfigSchema>;
 
-// =============================================================================
 // METADATA
-// =============================================================================
 
 const meta: ChatProviderMeta = {
   id: 'discord',
@@ -212,9 +207,7 @@ const meta: ChatProviderMeta = {
   color: '#5865F2',
 };
 
-// =============================================================================
 // CAPABILITIES
-// =============================================================================
 
 const capabilities: ChatProviderCapabilities = {
   chatTypes: ['direct', 'channel', 'thread'],
@@ -233,9 +226,7 @@ const capabilities: ChatProviderCapabilities = {
   realtime: false, // HTTP Interactions only, no Gateway
 };
 
-// =============================================================================
 // HELPER FUNCTIONS
-// =============================================================================
 
 const DISCORD_API_BASE = 'https://discord.com/api/v10';
 
@@ -328,16 +319,6 @@ function getChatType(channel?: DiscordChannel): 'direct' | 'channel' | 'thread' 
   }
 }
 
-function getUserName(interaction: DiscordInteraction): string {
-  const user = interaction.member?.user || interaction.user;
-  if (!user) return 'Unknown';
-  return interaction.member?.nick || user.global_name || user.username;
-}
-
-function getUserId(interaction: DiscordInteraction): string {
-  return interaction.member?.user?.id || interaction.user?.id || '';
-}
-
 function parseCommandOptions(
   options?: DiscordInteractionData['options']
 ): Record<string, string | number | boolean> {
@@ -357,9 +338,7 @@ function parseCommandOptions(
   return result;
 }
 
-// =============================================================================
 // ED25519 SIGNATURE VERIFICATION
-// =============================================================================
 
 /**
  * Verify Discord interaction signature using Ed25519
@@ -459,9 +438,7 @@ export function isDiscordSenderAllowed(
   return { allowed: true };
 }
 
-// =============================================================================
 // AUTH ADAPTER
-// =============================================================================
 
 const authAdapter: AuthAdapter = {
   getAuthUrl(state: string, scopes?: string[]): string {
@@ -483,7 +460,7 @@ const authAdapter: AuthAdapter = {
     return `https://discord.com/oauth2/authorize?${params}`;
   },
 
-  async exchangeCode(code: string): Promise<{
+  async exchangeCode(_code: string): Promise<{
     accessToken: string;
     refreshToken?: string;
     expiresIn?: number;
@@ -503,9 +480,7 @@ const authAdapter: AuthAdapter = {
   },
 };
 
-// =============================================================================
 // OUTBOUND ADAPTER
-// =============================================================================
 
 const outboundAdapter: OutboundAdapter = {
   async send(message: OutgoingMessage): Promise<SendResult> {
@@ -513,57 +488,65 @@ const outboundAdapter: OutboundAdapter = {
       return { success: false, error: 'Bot token not configured' };
     }
 
-    const body: Record<string, unknown> = {};
+    const textChunks = message.text
+      ? chunkForPlatform(message.text, 'discord', { mode: 'newline' }).chunks
+      : [];
+    const chunks = textChunks.length > 0 ? textChunks : [undefined];
+    let replyToId = message.replyToId;
+    let firstMessage: DiscordMessage | undefined;
 
-    // Text content
-    if (message.text) {
-      body.content = message.text;
-    }
+    for (const [index, chunk] of chunks.entries()) {
+      const body: Record<string, unknown> = {};
 
-    // Embeds from blocks
-    if (message.blocks && Array.isArray(message.blocks)) {
-      // Check if blocks are embeds or components
-      const firstBlock = message.blocks[0] as Record<string, unknown> | undefined;
-      if (firstBlock) {
-        if ('title' in firstBlock || 'description' in firstBlock || 'fields' in firstBlock) {
-          // It's an embed
-          body.embeds = message.blocks as DiscordEmbed[];
-        } else if ('type' in firstBlock && firstBlock.type === ComponentType.ACTION_ROW) {
-          // It's a component
-          body.components = message.blocks as DiscordComponent[];
+      if (chunk !== undefined) {
+        body.content = chunk;
+      }
+
+      if (message.blocks && Array.isArray(message.blocks) && index === 0) {
+        const firstBlock = message.blocks[0] as Record<string, unknown> | undefined;
+        if (firstBlock) {
+          if ('title' in firstBlock || 'description' in firstBlock || 'fields' in firstBlock) {
+            body.embeds = message.blocks as DiscordEmbed[];
+          } else if ('type' in firstBlock && firstBlock.type === ComponentType.ACTION_ROW) {
+            body.components = message.blocks as DiscordComponent[];
+          }
         }
+      }
+
+      if (replyToId) {
+        body.message_reference = {
+          message_id: replyToId,
+        };
+      }
+
+      if (message.ephemeral) {
+        body.flags = 64;
+      }
+
+      const result = await callDiscordApi<DiscordMessage>(
+        `/channels/${message.to}/messages`,
+        'POST',
+        body
+      );
+
+      if (!result.ok || !result.data) {
+        return {
+          success: false,
+          error: result.error || 'Failed to send message',
+        };
+      }
+
+      if (!firstMessage) {
+        firstMessage = result.data;
+        replyToId = result.data.id;
       }
     }
 
-    // Reply reference
-    if (message.replyToId) {
-      body.message_reference = {
-        message_id: message.replyToId,
-      };
-    }
-
-    // Ephemeral flag (only works with interactions, not direct messages)
-    if (message.ephemeral) {
-      body.flags = 64; // EPHEMERAL flag
-    }
-
-    const result = await callDiscordApi<DiscordMessage>(
-      `/channels/${message.to}/messages`,
-      'POST',
-      body
-    );
-
-    if (result.ok && result.data) {
-      return {
-        success: true,
-        messageId: result.data.id,
-        threadId: result.data.thread?.id,
-      };
-    }
-
     return {
-      success: false,
-      error: result.error || 'Failed to send message',
+      success: true,
+      messageId: firstMessage?.id,
+      threadId: firstMessage?.thread?.id,
+      raw: { chunkCount: chunks.length },
     };
   },
 
@@ -648,9 +631,7 @@ const outboundAdapter: OutboundAdapter = {
   },
 };
 
-// =============================================================================
 // INBOUND ADAPTER
-// =============================================================================
 
 const inboundAdapter: InboundAdapter = {
   parseMessage(payload: unknown): IncomingMessage | null {
@@ -813,9 +794,7 @@ const inboundAdapter: InboundAdapter = {
   },
 };
 
-// =============================================================================
 // STATUS ADAPTER
-// =============================================================================
 
 const statusAdapter: StatusAdapter = {
   isConfigured(config: DiscordAccountConfig): boolean {
@@ -866,9 +845,7 @@ const statusAdapter: StatusAdapter = {
   },
 };
 
-// =============================================================================
 // INTERACTION HELPERS
-// =============================================================================
 
 /**
  * Build a PING response (required for Discord endpoint verification)
@@ -983,9 +960,7 @@ export async function registerSlashCommands(
   };
 }
 
-// =============================================================================
 // PROVIDER EXPORT
-// =============================================================================
 
 export const discordProvider: ChatProvider<DiscordAccountConfig> = {
   meta,

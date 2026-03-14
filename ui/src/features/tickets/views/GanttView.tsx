@@ -3,19 +3,6 @@
  *
  * A timeline view for tickets showing start dates, due dates, and progress.
  * Inspired by Plane's gantt-chart implementation.
- *
- * TODO: Future Enhancements (from Plane reference):
- * - [ ] Drag-to-resize bars to change due dates
- * - [ ] Drag-to-move bars to reschedule tickets
- * - [ ] Dependencies/relations arrows between tickets
- * - [ ] Swimlanes grouping by assignee, project, or sprint
- * - [ ] Export to PNG/PDF for reporting
- * - [ ] Inline ticket editing (title, assignee)
- * - [ ] Critical path highlighting
- * - [ ] Milestone markers (diamond shapes)
- * - [ ] Keyboard navigation (arrow keys to move between tickets)
- * - [ ] Collapsible groups/sections
- * - [ ] Context menu (right-click) for quick actions
  */
 
 import { useState, useMemo, useRef } from 'react';
@@ -61,7 +48,6 @@ import {
 import { cn } from '@/lib/utils';
 import { TicketDetailModal } from '../components/TicketDetailModal';
 
-// TODO: Add 'quarter' and 'day' view modes for more granularity
 type ViewMode = 'week' | 'month' | 'quarter';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -115,10 +101,6 @@ export function GanttView() {
   // Project filter
   const projectId = searchParams.get('project') || '';
 
-  // TODO: Add useEffect to auto-scroll to today marker on initial load
-  // TODO: Add keyboard navigation (arrow keys to move focus between tickets)
-  // TODO: Add swimlane grouping state (none, assignee, project, sprint)
-
   // Fetch tickets with dates
   const { data: ticketsData, isLoading, error } = useQuery({
     queryKey: ['tickets', 'gantt', projectId],
@@ -134,8 +116,6 @@ export function GanttView() {
     queryFn: () => api.projects.list(),
   });
 
-  // TODO: Implement drag-to-reschedule with mutation
-  // TODO: Add swimlane grouping state (none, assignee, project, sprint)
   const tickets = useMemo(() => {
     if (!ticketsData?.tickets) return [];
     return ticketsData.tickets.filter(
@@ -235,7 +215,7 @@ export function GanttView() {
     setSearchParams(params);
   };
 
-  const selectedProject = projectsData?.projects?.find((p: any) => p.id === projectId);
+  const selectedProject = projectsData?.projects?.find((p) => p.id === projectId);
 
   if (error) {
     return (
@@ -266,7 +246,7 @@ export function GanttView() {
               <DropdownMenuItem onClick={() => handleProjectChange('')}>
                 All Projects
               </DropdownMenuItem>
-              {projectsData?.projects?.map((project: any) => (
+              {projectsData?.projects?.map((project) => (
                 <DropdownMenuItem
                   key={project.id}
                   onClick={() => handleProjectChange(project.id)}
@@ -385,7 +365,7 @@ export function GanttView() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-muted-foreground font-mono">
-                        {ticket.project?.key || 'GLINR'}-{ticket.sequence}
+                        {ticket.project?.key || 'PROFCLAW'}-{ticket.sequence}
                       </span>
                       <span
                         className={cn(

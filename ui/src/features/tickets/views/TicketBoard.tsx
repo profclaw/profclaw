@@ -15,7 +15,7 @@ import {
   FolderOpen,
   ChevronDown,
 } from 'lucide-react';
-import { api, type TicketStatus } from '@/core/api/client';
+import { api, type TicketStatus, type TicketType, type TicketPriority } from '@/core/api/client';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -56,8 +56,8 @@ interface ColumnProps {
     sequence: number;
     title: string;
     description?: string;
-    type: any;
-    priority: any;
+    type: TicketType;
+    priority: TicketPriority;
     status: string;
     labels: string[];
     assignee?: string;
@@ -248,8 +248,8 @@ export function TicketBoard() {
       sequence: number;
       title: string;
       description?: string;
-      type: any;
-      priority: any;
+      type: TicketType;
+      priority: TicketPriority;
       status: string;
       labels: string[];
       assignee?: string;

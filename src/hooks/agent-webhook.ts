@@ -2,17 +2,18 @@
  * External Agent Webhook Handlers
  *
  * Receives completion notifications from external AI agents like OpenClaw, Devin, etc.
- * These webhooks allow agents to report their work back to GLINR.
+ * These webhooks allow agents to report their work back to profClaw.
  */
 
 import { randomUUID } from 'crypto';
 import { createHmac, timingSafeEqual } from 'crypto';
 import type { Context } from 'hono';
 import { z } from 'zod';
+import { createContextualLogger } from '../utils/logger.js';
 
-// ============================================================================
+const log = createContextualLogger('AgentWebhook');
+
 // Schemas
-// ============================================================================
 
 /**
  * Generic agent completion payload
@@ -59,9 +60,7 @@ export const OpenClawCompletionSchema = AgentCompletionSchema.extend({
 
 export type OpenClawCompletion = z.infer<typeof OpenClawCompletionSchema>;
 
-// ============================================================================
 // Storage
-// ============================================================================
 
 interface AgentReport {
   id: string;
@@ -78,9 +77,7 @@ interface AgentReport {
 const agentReports = new Map<string, AgentReport>();
 const taskReports = new Map<string, AgentReport[]>(); // taskId -> reports
 
-// ============================================================================
 // Signature Verification
-// ============================================================================
 
 const WEBHOOK_SECRETS: Record<string, string | undefined> = {
   openclaw: process.env.OPENCLAW_WEBHOOK_SECRET,
@@ -100,7 +97,7 @@ function verifySignature(
 
   // Skip verification if no secret configured
   if (!secret) {
-    console.warn(`[Webhook] No secret configured for ${agent}, skipping verification`);
+    log.warn('No secret configured for agent, skipping verification', { agent });
     return true;
   }
 
@@ -127,9 +124,7 @@ function verifySignature(
   }
 }
 
-// ============================================================================
 // Handlers
-// ============================================================================
 
 /**
  * Handle OpenClaw completion webhook
@@ -153,7 +148,7 @@ export async function handleOpenClawWebhook(c: Context): Promise<AgentReport | n
 
   const parsed = OpenClawCompletionSchema.safeParse(payload);
   if (!parsed.success) {
-    console.error('[Webhook] OpenClaw validation failed:', parsed.error.flatten());
+    log.error('OpenClaw validation failed', new Error(parsed.error.message));
     throw new Error(`Validation failed: ${parsed.error.message}`);
   }
 
@@ -183,7 +178,7 @@ export async function handleGenericAgentWebhook(c: Context): Promise<AgentReport
 
   const parsed = AgentCompletionSchema.safeParse(payload);
   if (!parsed.success) {
-    console.error('[Webhook] Agent validation failed:', parsed.error.flatten());
+    log.error('Agent validation failed', new Error(parsed.error.message));
     throw new Error(`Validation failed: ${parsed.error.message}`);
   }
 
@@ -217,17 +212,16 @@ function processAgentCompletion(completion: AgentCompletion): AgentReport {
   }
 
   // Log
-  console.log(`[Webhook] Agent ${completion.agent} reported: ${completion.status}`);
-  if (completion.artifacts?.length) {
-    console.log(`[Webhook] Artifacts: ${completion.artifacts.length} items`);
-  }
+  log.info('Agent reported completion', {
+    agent: completion.agent,
+    status: completion.status,
+    artifacts: completion.artifacts?.length,
+  });
 
   return report;
 }
 
-// ============================================================================
 // Query Functions
-// ============================================================================
 
 /**
  * Get report by ID

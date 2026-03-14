@@ -1,23 +1,19 @@
 /**
  * Slack OAuth Authentication
  *
- * Handles OAuth flow for installing GLINR Slack app into workspaces.
+ * Handles OAuth flow for installing profClaw Slack app into workspaces.
  */
 
 import { logger } from '../utils/logger.js';
 import { getChatRegistry } from '../chat/providers/index.js';
 
-// =============================================================================
 // CONFIGURATION
-// =============================================================================
 
 const SLACK_CLIENT_ID = process.env.SLACK_CLIENT_ID || '';
 const SLACK_CLIENT_SECRET = process.env.SLACK_CLIENT_SECRET || '';
 const SLACK_REDIRECT_URI = process.env.SLACK_REDIRECT_URI || '';
 
-// =============================================================================
 // TYPES
-// =============================================================================
 
 export interface SlackOAuthResult {
   accessToken: string;
@@ -29,9 +25,7 @@ export interface SlackOAuthResult {
   scopes: string[];
 }
 
-// =============================================================================
 // OAUTH FUNCTIONS
-// =============================================================================
 
 /**
  * Check if Slack OAuth is configured

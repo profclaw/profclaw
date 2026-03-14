@@ -1,7 +1,7 @@
 {
-  "name": "GLINCKER Enterprise Portal",
-  "short_name": "GLINCKER Auth",
-  "description": "Enterprise-grade authentication portal for GLINCKER workspace and digital tools",
+  "name": "profClaw",
+  "short_name": "profClaw",
+  "description": "Smart AI agent engine",
   "icons": [
     {
       "src": "/favicon/android-chrome-192x192.png",
@@ -14,8 +14,8 @@
       "type": "image/png"
     }
   ],
-  "theme_color": "#000000",
-  "background_color": "#ffffff",
+  "theme_color": "#f43f5e",
+  "background_color": "#08080d",
   "display": "standalone",
   "start_url": "/",
   "scope": "/"

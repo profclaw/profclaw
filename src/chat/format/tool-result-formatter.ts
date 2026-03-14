@@ -7,14 +7,12 @@
  * - discord: Discord markdown + optional embed fields
  */
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export type ChannelFormat = 'plain' | 'html' | 'discord';
 
 export interface FormattedToolResult {
-  /** One-line summary (e.g., "Created ticket GLINR-42: Fix login") */
+  /** One-line summary (e.g., "Created ticket PC-42: Fix login") */
   summary: string;
   /** Multi-line detail (markdown, html, or plain depending on format) */
   detail?: string;
@@ -22,9 +20,7 @@ export interface FormattedToolResult {
   fields?: Array<{ name: string; value: string; inline?: boolean }>;
 }
 
-// =============================================================================
 // Helpers
-// =============================================================================
 
 /** Extract first heading or first line from markdown output */
 function extractSummaryFromOutput(output: string): string {
@@ -89,9 +85,7 @@ function extractFields(
   return fields.slice(0, 10); // Discord max 25, but keep it reasonable
 }
 
-// =============================================================================
 // Per-tool formatters
-// =============================================================================
 
 type ToolFormatter = (
   result: Record<string, unknown>,
@@ -198,9 +192,7 @@ function formatFromOutput(
   }
 }
 
-// =============================================================================
 // Main formatter
-// =============================================================================
 
 /**
  * Format a tool result for a specific channel.

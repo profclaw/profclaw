@@ -74,6 +74,17 @@ import type { CreateJobModalProps, JobType } from '../types';
 type Step = 'type' | 'schedule' | 'config' | 'review';
 type ScheduleType = 'cron' | 'interval' | 'oneshot' | 'event';
 type Mode = 'simple' | 'advanced';
+type TemplateSelection = {
+  id: string;
+  name: string;
+  category: string;
+  description?: string;
+  jobType: JobType;
+  payload: Record<string, unknown>;
+  suggestedCron?: string;
+  guide?: string;
+  warning?: string;
+};
 
 interface StepConfig {
   id: Step;
@@ -208,11 +219,11 @@ const JOB_TYPES = [
     type: 'tool' as JobType,
     label: 'Tool Execution',
     icon: Wrench,
-    description: 'Run a GLINR tool',
+    description: 'Run a profClaw tool',
     color: 'from-indigo-500/20 to-pink-500/20',
     examples: ['Git operations', 'File sync', 'Database backups'],
     defaultPayload: { tool: 'git_status', params: {} },
-    guide: 'Execute any registered GLINR tool with custom parameters.',
+    guide: 'Execute any registered profClaw tool with custom parameters.',
   },
   {
     type: 'script' as JobType,
@@ -331,7 +342,7 @@ function humanizeCron(expr: string): string {
   return `Cron: ${expr}`;
 }
 
-function validateJson(value: string): { valid: boolean; error?: string; parsed?: any } {
+function validateJson(value: string): { valid: boolean; error?: string; parsed?: unknown } {
   try {
     const parsed = JSON.parse(value);
     return { valid: true, parsed };
@@ -370,7 +381,7 @@ export function CreateJobModal({ open: controlledOpen, onOpenChange }: CreateJob
   const [eventType, setEventType] = useState('webhook');
   const [eventConfig, setEventConfig] = useState('{}');
   const [payload, setPayload] = useState('{}');
-  const [selectedTemplate, setSelectedTemplate] = useState<typeof BUILTIN_TEMPLATES[0] | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateSelection | null>(null);
 
   // Advanced options (only in advanced mode)
   const [timezone, setTimezone] = useState('UTC');
@@ -413,7 +424,7 @@ export function CreateJobModal({ open: controlledOpen, onOpenChange }: CreateJob
   }, [jobType, selectedTemplate]);
 
   // Handle template selection
-  const handleTemplateSelect = (template: typeof BUILTIN_TEMPLATES[0]) => {
+  const handleTemplateSelect = (template: TemplateSelection) => {
     // Toggle selection if already selected
     if (selectedTemplate?.id === template.id) {
       setSelectedTemplate(null);
@@ -422,7 +433,7 @@ export function CreateJobModal({ open: controlledOpen, onOpenChange }: CreateJob
 
     setSelectedTemplate(template);
     setName(template.name);
-    setDescription(template.description);
+    setDescription(template.description ?? '');
     setJobType(template.jobType);
     setPayload(JSON.stringify(template.payload, null, 2));
     if (template.suggestedCron) {
@@ -442,16 +453,17 @@ export function CreateJobModal({ open: controlledOpen, onOpenChange }: CreateJob
         runAt = new Date(`${runAtDate}T${runAtTime}`).toISOString();
       }
 
-      let eventTrigger: any;
+      let eventTrigger: { type: string; config: Record<string, unknown> } | undefined;
       if (scheduleType === 'event') {
         try {
-          eventTrigger = { type: eventType, config: JSON.parse(eventConfig) };
+          eventTrigger = { type: eventType, config: JSON.parse(eventConfig) as Record<string, unknown> };
         } catch {
           eventTrigger = { type: eventType, config: {} };
         }
       }
 
-      let delivery: any;
+      type DeliveryConfig = { channels: Array<{ type: string; target: string; onSuccess: boolean; onFailure: boolean }> };
+      let delivery: DeliveryConfig | undefined;
       if (mode === 'advanced' && deliveryEnabled && deliveryChannel) {
         delivery = {
           channels: [
@@ -731,10 +743,18 @@ export function CreateJobModal({ open: controlledOpen, onOpenChange }: CreateJob
                     <div className="mt-4 pt-4 border-t">
                       <Label className="text-xs text-muted-foreground">Your Templates</Label>
                       <div className="flex flex-wrap gap-2 mt-2">
-                        {customTemplates.slice(0, 4).map((t: any) => (
+                        {customTemplates.slice(0, 4).map((t) => (
                           <button
                             key={t.id}
-                            onClick={() => handleTemplateSelect(t)}
+                            onClick={() => handleTemplateSelect({
+                              id: t.id,
+                              name: t.name,
+                              category: t.category,
+                              description: t.description,
+                              jobType: t.jobType,
+                              payload: t.payloadTemplate,
+                              suggestedCron: t.suggestedCron,
+                            } satisfies TemplateSelection)}
                             className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/30 hover:bg-muted/50 text-xs"
                           >
                             <FileCode className="h-3 w-3 text-primary" />

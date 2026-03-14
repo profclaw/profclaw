@@ -7,9 +7,7 @@
 
 import type { FailoverReason } from './types.js';
 
-// =============================================================================
 // Error Detection Patterns
-// =============================================================================
 
 const TIMEOUT_HINT_RE = /timeout|timed out|deadline exceeded|context deadline exceeded/i;
 const ABORT_TIMEOUT_RE = /request was aborted|request aborted/i;
@@ -98,9 +96,7 @@ const ERROR_PATTERNS = {
   ],
 } as const;
 
-// =============================================================================
 // FailoverError Class
-// =============================================================================
 
 /**
  * Error class that includes failover metadata.
@@ -134,9 +130,7 @@ export class FailoverError extends Error {
   }
 }
 
-// =============================================================================
 // Error Classification Functions
-// =============================================================================
 
 /**
  * Check if an error is a FailoverError

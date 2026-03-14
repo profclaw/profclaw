@@ -20,6 +20,9 @@ import {
 } from '../storage/schema.js';
 import { getGitHubOAuthConfig, getSettingsRaw, type GitHubOAuthConfig } from '../settings/index.js';
 import { hashPassword, verifyPassword as verifyPw } from './password.js';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('AuthService');
 
 /**
  * Hash a session token for secure storage.
@@ -29,9 +32,7 @@ function hashSessionToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
-// =============================================================================
 // TYPES
-// =============================================================================
 
 export interface User {
   id: string;
@@ -70,9 +71,7 @@ export interface AuthResult {
   error?: string;
 }
 
-// =============================================================================
 // CONFIG
-// =============================================================================
 
 const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
@@ -84,9 +83,7 @@ async function getGitHubConfig(): Promise<GitHubOAuthConfig | null> {
   return cachedGitHubConfig;
 }
 
-// =============================================================================
 // PASSWORD UPGRADE (transparent SHA256 → scrypt migration)
-// =============================================================================
 
 /**
  * Upgrade a user's password hash from legacy SHA256 to scrypt.
@@ -101,12 +98,10 @@ async function upgradePasswordHash(userId: string, password: string): Promise<vo
     .update(users)
     .set({ passwordHash: newHash, updatedAt: new Date() })
     .where(eq(users.id, userId));
-  console.log(`[Auth] Upgraded password hash to scrypt for user ${userId}`);
+  log.info(`Upgraded password hash to scrypt for user ${userId}`);
 }
 
-// =============================================================================
 // SESSION MANAGEMENT
-// =============================================================================
 
 export async function createSession(
   userId: string,
@@ -194,9 +189,7 @@ export async function deleteAllUserSessions(userId: string): Promise<void> {
   await db.delete(sessions).where(eq(sessions.userId, userId));
 }
 
-// =============================================================================
 // EMAIL/PASSWORD AUTHENTICATION
-// =============================================================================
 
 export async function signUpWithEmail(
   email: string,
@@ -298,7 +291,7 @@ export async function signInWithEmail(
   // Transparently upgrade legacy SHA256 hash to scrypt
   if (needsUpgrade) {
     upgradePasswordHash(user.id, password).catch((err) => {
-      console.error('[Auth] Failed to upgrade password hash:', err);
+      log.error('Failed to upgrade password hash', err instanceof Error ? err : new Error(String(err)));
     });
   }
 
@@ -332,9 +325,7 @@ export async function signInWithEmail(
   };
 }
 
-// =============================================================================
 // GITHUB OAUTH
-// =============================================================================
 
 export async function getGitHubAuthUrl(state?: string): Promise<string | null> {
   const config = await getGitHubConfig();
@@ -378,7 +369,7 @@ export async function exchangeGitHubCode(code: string): Promise<{
   };
 
   if (data.error || !data.access_token) {
-    console.error('[Auth] GitHub token exchange failed:', data.error);
+    log.error('GitHub token exchange failed', { error: data.error });
     return null;
   }
 
@@ -398,7 +389,7 @@ export async function getGitHubUser(accessToken: string): Promise<GitHubUser | n
   });
 
   if (!response.ok) {
-    console.error('[Auth] Failed to fetch GitHub user:', response.status);
+    log.error('Failed to fetch GitHub user', { status: response.status });
     return null;
   }
 
@@ -419,7 +410,7 @@ export async function getGitHubPrimaryEmail(accessToken: string): Promise<string
     });
 
     if (!response.ok) {
-      console.error('[Auth] Failed to fetch GitHub emails:', response.status);
+      log.error('Failed to fetch GitHub emails', { status: response.status });
       return null;
     }
 
@@ -438,7 +429,7 @@ export async function getGitHubPrimaryEmail(accessToken: string): Promise<string
 
     return primaryEmail || null;
   } catch (error) {
-    console.error('[Auth] Error fetching GitHub emails:', error);
+    log.error('Error fetching GitHub emails', error instanceof Error ? error : new Error(String(error)));
     return null;
   }
 }
@@ -493,7 +484,7 @@ export async function signInWithGitHub(
         accessToken: tokenResult.accessToken,
         scope: tokenResult.scope,
         providerUsername: githubUser.login,
-        providerData: githubUser as unknown as Record<string, any>,
+        providerData: githubUser as unknown as Record<string, unknown>,
         updatedAt: now,
       })
       .where(eq(oauthAccounts.id, existingOAuth[0].id));
@@ -503,7 +494,7 @@ export async function signInWithGitHub(
     const currentEmail = existingUser[0]?.email || '';
 
     // Update user's last login and email if we now have a real one
-    const updateData: Record<string, any> = {
+    const updateData: Partial<typeof users.$inferInsert> = {
       lastLoginAt: now,
       updatedAt: now,
       avatarUrl: githubUser.avatar_url,
@@ -573,7 +564,7 @@ export async function signInWithGitHub(
       providerUsername: githubUser.login,
       accessToken: tokenResult.accessToken,
       scope: tokenResult.scope,
-      providerData: githubUser as unknown as Record<string, any>,
+      providerData: githubUser as unknown as Record<string, unknown>,
       createdAt: now,
       updatedAt: now,
     });
@@ -642,9 +633,7 @@ export async function signInWithGitHub(
   };
 }
 
-// =============================================================================
 // USER OPERATIONS
-// =============================================================================
 
 export async function getUserById(userId: string): Promise<User | null> {
   const db = getDb();

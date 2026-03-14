@@ -44,10 +44,10 @@ describe('TemplateService', () => {
         nested: { key: '{{val}}' }
       }
     };
-    const variables = { owner: 'glinr', repo: 'tm', val: 'foo' };
-    
+    const variables = { owner: 'profclaw', repo: 'tm', val: 'foo' };
+
     const result = service.applyTemplate(template, variables);
-    expect(result.payload.repo).toBe('glinr/tm');
+    expect(result.payload.repo).toBe('profclaw/tm');
     expect(result.payload.nested.key).toBe('foo');
   });
 

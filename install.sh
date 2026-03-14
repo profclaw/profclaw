@@ -1,6 +1,6 @@
 #!/bin/bash
-# GLINR Task Manager Installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/GLINCKER/glinr-task-manager/main/install.sh | bash
+# profClaw Task Manager Installer
+# Usage: curl -fsSL https://raw.githubusercontent.com/profclaw/profclaw/main/install.sh | bash
 
 set -e
 
@@ -14,7 +14,7 @@ NC='\033[0m' # No Color
 print_banner() {
     echo -e "${BLUE}"
     echo "  ╔═══════════════════════════════════════╗"
-    echo "  ║       GLINR Task Manager              ║"
+    echo "  ║       profClaw Task Manager           ║"
     echo "  ║       AI-Native Task Orchestration    ║"
     echo "  ╚═══════════════════════════════════════╝"
     echo -e "${NC}"
@@ -79,29 +79,29 @@ install_npm() {
     info "Installing via $pkg_manager (global)..."
 
     if [ "$pkg_manager" = "pnpm" ]; then
-        pnpm add -g glinr-task-manager@latest
+        pnpm add -g profclaw@latest
     else
-        npm install -g glinr-task-manager@latest
+        npm install -g profclaw@latest
     fi
 
-    success "Installed glinr-task-manager globally"
-    success "CLI available as: glinr"
+    success "Installed profclaw globally"
+    success "CLI available as: profclaw"
 }
 
 # Docker installation (clones repo for docker-compose.yml)
 install_docker() {
-    INSTALL_DIR="${GLINR_INSTALL_DIR:-$HOME/.glinr}"
+    INSTALL_DIR="${PROFCLAW_INSTALL_DIR:-$HOME/.profclaw}"
     info "Installing to $INSTALL_DIR"
     mkdir -p "$INSTALL_DIR"
     cd "$INSTALL_DIR"
 
-    if [ -d "glinr-task-manager" ]; then
+    if [ -d "profclaw" ]; then
         info "Updating existing installation..."
-        cd glinr-task-manager
+        cd profclaw
         git pull --quiet
     else
-        git clone --depth 1 --quiet https://github.com/GLINCKER/glinr-task-manager.git
-        cd glinr-task-manager
+        git clone --depth 1 --quiet https://github.com/profclaw/profclaw.git
+        cd profclaw
     fi
 
     # Create .env from example if not exists
@@ -111,27 +111,27 @@ install_docker() {
     fi
 
     # Create CLI wrapper for Docker commands
-    GLINR_DIR="$INSTALL_DIR/glinr-task-manager"
-    cat > "$INSTALL_DIR/glinr" << EOF
+    PROFCLAW_DIR="$INSTALL_DIR/profclaw"
+    cat > "$INSTALL_DIR/profclaw" << EOF
 #!/bin/bash
-cd "$GLINR_DIR"
+cd "$PROFCLAW_DIR"
 case "\$1" in
     start)    docker compose up -d ;;
     start-ai) docker compose --profile ai up -d ;;
     stop)     docker compose down ;;
-    logs)     docker compose logs -f glinr ;;
+    logs)     docker compose logs -f profclaw ;;
     restart)  docker compose restart ;;
     update)   git pull && docker compose pull && docker compose up -d ;;
-    setup)    docker exec -it glinr-task-manager glinr setup ;;
-    *)        echo "Usage: glinr {start|start-ai|stop|logs|restart|update|setup}" ;;
+    setup)    docker exec -it profclaw profclaw setup ;;
+    *)        echo "Usage: profclaw {start|start-ai|stop|logs|restart|update|setup}" ;;
 esac
 EOF
-    chmod +x "$INSTALL_DIR/glinr"
+    chmod +x "$INSTALL_DIR/profclaw"
 
     # Try to symlink to PATH
     if [ -w "/usr/local/bin" ]; then
-        ln -sf "$INSTALL_DIR/glinr" "/usr/local/bin/glinr" 2>/dev/null || true
-        success "CLI installed to /usr/local/bin/glinr"
+        ln -sf "$INSTALL_DIR/profclaw" "/usr/local/bin/profclaw" 2>/dev/null || true
+        success "CLI installed to /usr/local/bin/profclaw"
     else
         warn "Add to PATH: export PATH=\"\$PATH:$INSTALL_DIR\""
     fi
@@ -148,32 +148,32 @@ print_next_steps() {
     if [ "$INSTALL_METHOD" = "docker" ]; then
         echo "  Get started:"
         echo ""
-        echo -e "  ${BLUE}1.${NC} Start GLINR + Redis:"
-        echo "     glinr start"
+        echo -e "  ${BLUE}1.${NC} Start profClaw + Redis:"
+        echo "     profclaw start"
         echo ""
         echo -e "  ${BLUE}2.${NC} Run setup wizard:"
-        echo "     glinr setup"
+        echo "     profclaw setup"
         echo ""
         echo -e "  ${BLUE}3.${NC} Open dashboard:"
         echo "     http://localhost:3000"
         echo ""
-        echo -e "  Want free local AI? ${BLUE}glinr start-ai${NC}"
+        echo -e "  Want free local AI? ${BLUE}profclaw start-ai${NC}"
     else
         echo "  Get started:"
         echo ""
         echo -e "  ${BLUE}1.${NC} Run setup wizard:"
-        echo "     glinr setup"
+        echo "     profclaw setup"
         echo ""
         echo -e "  ${BLUE}2.${NC} Start the server:"
-        echo "     glinr serve"
+        echo "     profclaw serve"
         echo ""
         echo -e "  ${BLUE}3.${NC} Open dashboard:"
         echo "     http://localhost:3000"
     fi
 
     echo ""
-    echo "  Documentation:  https://glinr.dev/docs"
-    echo "  Report issues:  https://github.com/GLINCKER/glinr-task-manager/issues"
+    echo "  Documentation:  https://profclaw.ai/docs"
+    echo "  Report issues:  https://github.com/profclaw/profclaw/issues"
     echo ""
 }
 

@@ -7,11 +7,14 @@
  * - BullMQ integration for actual delayed retries
  */
 
-import type { Task, TaskResult } from '../types/task.js';
+import type { Task } from '../types/task.js';
 import { sendSlackNotification } from '../notifications/slack.js';
 import { getStorage } from '../storage/index.js';
 import { randomUUID } from 'crypto';
 import type { Queue } from 'bullmq';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('FailureHandler');
 
 // Reference to the task queue (set during init)
 let taskQueueRef: Queue<Task> | null = null;
@@ -51,10 +54,49 @@ export interface DeadLetterTask {
   resolvedAt?: Date;
   resolvedBy?: string;
   resolutionNote?: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   createdAt: Date;
   taskCreatedAt?: Date;
   taskStartedAt?: Date;
+}
+
+interface DeadLetterTaskRow {
+  id: string;
+  task_id: string;
+  title: string;
+  description: string | null;
+  prompt: string;
+  source: string;
+  source_id: string | null;
+  source_url: string | null;
+  repository: string | null;
+  branch: string | null;
+  labels: string | null;
+  assigned_agent: string | null;
+  priority: number;
+  attempts: number;
+  max_attempts: number;
+  last_error_code: string;
+  last_error_message: string;
+  last_error_stack: string | null;
+  retry_count: number;
+  last_retry_at: number | null;
+  status: 'pending' | 'resolved' | 'discarded';
+  resolved_at: number | null;
+  resolved_by: string | null;
+  resolution_note: string | null;
+  metadata: string | null;
+  created_at: number;
+  task_created_at: number | null;
+  task_started_at: number | null;
+}
+
+function toUnixSeconds(date?: Date): number | null {
+  return date ? Math.floor(date.getTime() / 1000) : null;
+}
+
+function undefinedIfNull<T>(value: T | null): T | undefined {
+  return value ?? undefined;
 }
 
 /**
@@ -105,14 +147,14 @@ export async function initDeadLetterQueue(): Promise<void> {
  * Handle a failed task
  */
 export async function handleTaskFailure(task: Task, error: Error): Promise<void> {
-  console.error(`[FailureHandler] Task ${task.id} failed: ${error.message}`);
+  log.error(`Task ${task.id} failed`, new Error(error.message));
 
   task.attempts = (task.attempts || 0) + 1;
 
   // Check if we should retry
   if (task.attempts < task.maxAttempts) {
     const delay = calculateBackoffWithJitter(task.attempts);
-    console.log(`[FailureHandler] Scheduling retry ${task.attempts}/${task.maxAttempts} in ${Math.round(delay / 1000)}s`);
+    log.info('Scheduling retry', { taskId: task.id, attempt: task.attempts, maxAttempts: task.maxAttempts, delaySeconds: Math.round(delay / 1000) });
 
     // Actually retry with BullMQ delay
     if (taskQueueRef) {
@@ -125,9 +167,9 @@ export async function handleTaskFailure(task: Task, error: Error): Promise<void>
           jobId: `${task.id}-retry-${task.attempts}`,
         }
       );
-      console.log(`[FailureHandler] Task ${task.id} requeued with ${delay}ms delay`);
+      log.info('Task requeued with delay', { taskId: task.id, delayMs: delay });
     } else {
-      console.warn('[FailureHandler] Task queue not available, cannot retry');
+      log.warn('Task queue not available, cannot retry');
     }
 
     await sendSlackNotification({
@@ -136,13 +178,13 @@ export async function handleTaskFailure(task: Task, error: Error): Promise<void>
       message: `Attempt ${task.attempts}/${task.maxAttempts} failed. Retrying in ${Math.round(delay / 60000)} minutes.\nError: ${error.message}`,
       task,
       severity: 'info',
-    }).catch(console.error);
+    }).catch((err: unknown) => log.error('Slack notification failed', err instanceof Error ? err : new Error(String(err))));
 
     return;
   }
 
   // Max retries reached - move to dead letter queue
-  console.error(`[FailureHandler] Task ${task.id} exceeded max retries, moving to dead letter queue`);
+  log.error(`Task ${task.id} exceeded max retries, moving to dead letter queue`, new Error('MAX_RETRIES_EXCEEDED'));
 
   task.status = 'failed';
   task.result = {
@@ -168,7 +210,7 @@ export async function handleTaskFailure(task: Task, error: Error): Promise<void>
     message: `Task failed after ${task.maxAttempts} attempts and moved to dead letter queue.\n\nLast error: ${error.message}\n\nSource: ${task.sourceUrl || 'N/A'}`,
     task,
     severity: 'error',
-  }).catch(console.error);
+  }).catch((err: unknown) => log.error('Slack notification failed', err instanceof Error ? err : new Error(String(err))));
 }
 
 /**
@@ -220,12 +262,12 @@ async function addToDeadLetterQueue(task: Task, error: Error): Promise<void> {
       error.stack ?? null,
       'pending',
       JSON.stringify(task.metadata ?? {}),
-      task.createdAt ? Math.floor(new Date(task.createdAt as any).getTime() / 1000) : null,
-      task.startedAt ? Math.floor(new Date(task.startedAt as any).getTime() / 1000) : null,
+      toUnixSeconds(task.createdAt),
+      toUnixSeconds(task.startedAt),
     ]
   );
 
-  console.log(`[FailureHandler] Task ${task.id} persisted to DLQ with ID ${id}`);
+  log.info('Task persisted to DLQ', { taskId: task.id, dlqId: id });
 }
 
 /**
@@ -256,7 +298,7 @@ ${error.message}
 ### Details
 - **Task ID:** \`${task.id}\`
 - **Attempts:** ${task.attempts}/${task.maxAttempts}
-- **Duration:** ${task.startedAt ? Math.round((Date.now() - new Date(task.startedAt as any).getTime()) / 1000) : 'N/A'}s
+- **Duration:** ${task.startedAt ? Math.round((Date.now() - task.startedAt.getTime()) / 1000) : 'N/A'}s
 
 ### Next Steps
 This task has been moved to the dead letter queue for manual review. Please:
@@ -265,7 +307,7 @@ This task has been moved to the dead letter queue for manual review. Please:
 3. Re-trigger the task or assign to a human developer
 
 ---
-*Posted by [GLINR Task Manager](https://github.com/GLINCKER/glinr-task-manager)*`;
+*Posted by [profClaw Task Manager](https://github.com/profclaw/profclaw)*`;
 
   try {
     await fetch(
@@ -275,13 +317,13 @@ This task has been moved to the dead letter queue for manual review. Please:
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
-          'User-Agent': 'glinr-task-manager',
+          'User-Agent': 'profclaw',
         },
         body: JSON.stringify({ body }),
       }
     );
   } catch (err) {
-    console.error('[FailureHandler] Failed to post GitHub comment:', err);
+    log.error('Failed to post GitHub comment', err instanceof Error ? err : new Error(String(err)));
   }
 }
 
@@ -306,7 +348,7 @@ export async function getDeadLetterQueue(options?: {
   const total = countResult[0]?.count || 0;
 
   // Get tasks
-  const rows = await storage.query<Record<string, any>>(
+  const rows = await storage.query<DeadLetterTaskRow>(
     `SELECT * FROM dead_letter_tasks WHERE status = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
     [status, limit, offset]
   );
@@ -315,27 +357,27 @@ export async function getDeadLetterQueue(options?: {
     id: row.id,
     taskId: row.task_id,
     title: row.title,
-    description: row.description,
+    description: undefinedIfNull(row.description),
     prompt: row.prompt,
     source: row.source,
-    sourceId: row.source_id,
-    sourceUrl: row.source_url,
-    repository: row.repository,
-    branch: row.branch,
+    sourceId: undefinedIfNull(row.source_id),
+    sourceUrl: undefinedIfNull(row.source_url),
+    repository: undefinedIfNull(row.repository),
+    branch: undefinedIfNull(row.branch),
     labels: JSON.parse(row.labels || '[]'),
-    assignedAgent: row.assigned_agent,
+    assignedAgent: undefinedIfNull(row.assigned_agent),
     priority: row.priority,
     attempts: row.attempts,
     maxAttempts: row.max_attempts,
     lastErrorCode: row.last_error_code,
     lastErrorMessage: row.last_error_message,
-    lastErrorStack: row.last_error_stack,
+    lastErrorStack: undefinedIfNull(row.last_error_stack),
     retryCount: row.retry_count,
     lastRetryAt: row.last_retry_at ? new Date(row.last_retry_at * 1000) : undefined,
     status: row.status as 'pending' | 'resolved' | 'discarded',
     resolvedAt: row.resolved_at ? new Date(row.resolved_at * 1000) : undefined,
-    resolvedBy: row.resolved_by,
-    resolutionNote: row.resolution_note,
+    resolvedBy: undefinedIfNull(row.resolved_by),
+    resolutionNote: undefinedIfNull(row.resolution_note),
     metadata: JSON.parse(row.metadata || '{}'),
     createdAt: new Date(row.created_at * 1000),
     taskCreatedAt: row.task_created_at ? new Date(row.task_created_at * 1000) : undefined,
@@ -355,7 +397,7 @@ export async function removeFromDeadLetterQueue(
 ): Promise<boolean> {
   const storage = getStorage();
 
-  const result = await storage.execute(
+  await storage.execute(
     `UPDATE dead_letter_tasks
      SET status = 'resolved', resolved_at = strftime('%s', 'now'), resolved_by = ?, resolution_note = ?
      WHERE id = ?`,
@@ -390,20 +432,20 @@ export async function discardFromDeadLetterQueue(
  */
 export async function retryDeadLetterTask(dlqId: string): Promise<boolean> {
   if (!taskQueueRef) {
-    console.error('[FailureHandler] Task queue not available, cannot retry');
+    log.error('Task queue not available, cannot retry', new Error('QUEUE_NOT_INITIALIZED'));
     return false;
   }
 
   const storage = getStorage();
 
   // Get the DLQ entry
-  const rows = await storage.query<Record<string, any>>(
+  const rows = await storage.query<DeadLetterTaskRow>(
     'SELECT * FROM dead_letter_tasks WHERE id = ? AND status = ?',
     [dlqId, 'pending']
   );
 
   if (rows.length === 0) {
-    console.error(`[FailureHandler] DLQ entry ${dlqId} not found or not pending`);
+    log.error(`DLQ entry not found or not pending`, new Error(`DLQ entry ${dlqId} not found`));
     return false;
   }
 
@@ -413,17 +455,17 @@ export async function retryDeadLetterTask(dlqId: string): Promise<boolean> {
   const task: Task = {
     id: dlqEntry.task_id,
     title: dlqEntry.title,
-    description: dlqEntry.description,
+    description: undefinedIfNull(dlqEntry.description),
     prompt: dlqEntry.prompt,
     status: 'pending',
     priority: dlqEntry.priority,
     source: dlqEntry.source,
-    sourceId: dlqEntry.source_id,
-    sourceUrl: dlqEntry.source_url,
-    repository: dlqEntry.repository,
-    branch: dlqEntry.branch,
+    sourceId: undefinedIfNull(dlqEntry.source_id),
+    sourceUrl: undefinedIfNull(dlqEntry.source_url),
+    repository: undefinedIfNull(dlqEntry.repository),
+    branch: undefinedIfNull(dlqEntry.branch),
     labels: JSON.parse(dlqEntry.labels || '[]'),
-    assignedAgent: dlqEntry.assigned_agent,
+    assignedAgent: undefinedIfNull(dlqEntry.assigned_agent),
     createdAt: new Date(),
     updatedAt: new Date(),
     attempts: 0, // Reset attempts for retry
@@ -453,8 +495,35 @@ export async function retryDeadLetterTask(dlqId: string): Promise<boolean> {
     [dlqId]
   );
 
-  console.log(`[FailureHandler] Task ${task.id} moved from DLQ back to main queue`);
+  log.info('Task moved from DLQ back to main queue', { taskId: task.id, dlqId });
   return true;
+}
+
+/**
+ * Clean up resolved/discarded DLQ entries older than retention period.
+ * Called from daily cron or on-demand.
+ */
+export async function cleanupDeadLetterQueue(
+  retentionDays = parseInt(process.env['DLQ_RETENTION_DAYS'] ?? '30', 10)
+): Promise<number> {
+  const storage = getStorage();
+  const cutoffSeconds = Math.floor(Date.now() / 1000) - (retentionDays * 86400);
+
+  await storage.execute(
+    `DELETE FROM dead_letter_tasks
+     WHERE status IN ('resolved', 'discarded')
+     AND (resolved_at IS NOT NULL AND resolved_at < ?)`,
+    [cutoffSeconds]
+  );
+
+  // SQLite execute doesn't reliably return affected rows, so count separately
+  const remaining = await storage.query<{ count: number }>(
+    `SELECT COUNT(*) as count FROM dead_letter_tasks WHERE status IN ('resolved', 'discarded')`
+  );
+
+  const remainingCount = remaining[0]?.count ?? 0;
+  log.info('DLQ cleanup complete', { retentionDays, remainingResolved: remainingCount });
+  return remainingCount;
 }
 
 /**

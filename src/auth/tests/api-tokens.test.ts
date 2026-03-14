@@ -24,7 +24,7 @@ describe('API Tokens Service', () => {
       
       const result = await apiTokens.createApiToken(name, scopes);
       
-      expect(result.plainTextToken).toContain('glinr_');
+      expect(result.plainTextToken).toContain('profclaw_');
       expect(result.token.tokenPrefix).toBeDefined();
       expect(mockStorage.execute).toHaveBeenCalled();
     });

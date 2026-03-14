@@ -17,7 +17,6 @@ import {
   getProcessPool,
   getSandboxManager,
   getRateLimiter,
-  type SecurityMode,
   type ApprovalDecision,
   type AuditEventType,
 } from "../chat/execution/index.js";
@@ -28,16 +27,46 @@ import {
   redactSecrets,
 } from "../chat/execution/secrets.js";
 
-// Initialize on module load (async)
-initializeToolExecution({ registerBuiltins: true }).catch((err) => {
-  logger.error("[ToolRoutes] Failed to initialize tool execution", err);
+const tools = new Hono();
+let toolExecutionInitPromise: Promise<void> | null = null;
+
+async function ensureToolExecutionInitialized(): Promise<void> {
+  if (!toolExecutionInitPromise) {
+    toolExecutionInitPromise = initializeToolExecution({
+      registerBuiltins: true,
+    }).catch((error) => {
+      toolExecutionInitPromise = null;
+      logger.error(
+        "[ToolRoutes] Failed to initialize tool execution",
+        error instanceof Error ? error : undefined,
+      );
+      throw error;
+    });
+  }
+
+  await toolExecutionInitPromise;
+}
+
+tools.use("*", async (c, next) => {
+  try {
+    await ensureToolExecutionInitialized();
+  } catch (error) {
+    return c.json(
+      {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Tool execution initialization failed",
+      },
+      500,
+    );
+  }
+
+  await next();
 });
 
-const tools = new Hono();
-
-// =============================================================================
 // Schemas
-// =============================================================================
 
 const ExecuteToolSchema = z.object({
   toolCall: z.object({
@@ -65,9 +94,7 @@ const AllowlistEntrySchema = z.object({
   description: z.string().optional(),
 });
 
-// =============================================================================
 // Tool Execution
-// =============================================================================
 
 /**
  * Execute a tool call
@@ -218,9 +245,7 @@ tools.get("/approvals/:conversationId", (c) => {
   });
 });
 
-// =============================================================================
 // Security Settings
-// =============================================================================
 
 /**
  * Get current security policy
@@ -296,9 +321,7 @@ tools.delete("/security/allowlist/:pattern", (c) => {
   });
 });
 
-// =============================================================================
 // Tool Registry
-// =============================================================================
 
 /**
  * List available tools
@@ -406,9 +429,7 @@ tools.get("/descriptions", (c) => {
   return c.json({ descriptions });
 });
 
-// =============================================================================
 // Session Management
-// =============================================================================
 
 /**
  * List sessions
@@ -481,9 +502,7 @@ tools.post("/sessions/:sessionId/kill", async (c) => {
   return c.json({ success: true });
 });
 
-// =============================================================================
 // Audit Logging
-// =============================================================================
 
 /**
  * Query audit logs
@@ -558,9 +577,7 @@ tools.get("/audit/export", (c) => {
   return c.body(csv);
 });
 
-// =============================================================================
 // System Status
-// =============================================================================
 
 /**
  * Get full execution system status
@@ -623,9 +640,7 @@ tools.post("/pool/clear-queue", (c) => {
   return c.json({ success: true, cleared });
 });
 
-// =============================================================================
 // Sandbox Management
-// =============================================================================
 
 /**
  * Get sandbox status
@@ -658,9 +673,7 @@ tools.put(
   },
 );
 
-// =============================================================================
 // Rate Limiting
-// =============================================================================
 
 /**
  * Get rate limit configuration
@@ -749,9 +762,7 @@ tools.post("/ratelimit/reset", (c) => {
   return c.json({ success: true });
 });
 
-// =============================================================================
 // SSE Streaming
-// =============================================================================
 
 // Store SSE connections per session
 const sseConnections = new Map<

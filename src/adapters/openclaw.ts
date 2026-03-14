@@ -221,7 +221,7 @@ ${task.prompt}
 
    ${task.sourceId ? `Closes #${task.sourceId}` : ""}
 
-   Co-Authored-By: Glinr <bot@glincker.com>"
+   Co-Authored-By: profClaw <bot@profclaw.ai>"
    \`\`\`
 
 5. **Push & PR**

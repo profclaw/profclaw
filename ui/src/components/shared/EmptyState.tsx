@@ -5,11 +5,6 @@
  * Provides helpful messages and optional actions.
  *
  * Inspired by Plane's empty state patterns.
- *
- * TODO: Future Enhancements:
- * - [ ] Animated illustrations
- * - [ ] Contextual tips based on user history
- * - [ ] Quick action shortcuts
  */
 
 import {

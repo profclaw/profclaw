@@ -254,7 +254,7 @@ export function RelationsWidget({ ticketId, relations = [] }: RelationsWidgetPro
                           >
                             <div className="flex items-center gap-2">
                               <span className="text-[10px] font-mono text-muted-foreground">
-                                {linkedTicket.projectKey || 'GLINR'}-
+                                {linkedTicket.projectKey || 'PROFCLAW'}-
                                 {linkedTicket.sequence}
                               </span>
                               <span className="text-xs truncate">
@@ -361,7 +361,7 @@ export function RelationsWidget({ ticketId, relations = [] }: RelationsWidgetPro
                     >
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-mono text-muted-foreground">
-                          {ticket.projectKey || 'GLINR'}-{ticket.sequence}
+                          {ticket.projectKey || 'PROFCLAW'}-{ticket.sequence}
                         </span>
                         <span className="text-sm truncate">{ticket.title}</span>
                       </div>

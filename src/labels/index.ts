@@ -12,10 +12,6 @@ import { eq, and, isNull, desc, asc } from 'drizzle-orm';
 import { getDb } from '../storage/index.js';
 import { labels, ticketLabels } from '../storage/schema.js';
 
-// TODO(@copilot): Generate unit tests for this module
-// Key functions to test: createLabel, getLabel, listLabels, updateLabel, deleteLabel, addLabelToTicket, removeLabelFromTicket, getTicketLabels, setTicketLabels, findLabelByExternalId, findOrCreateLabel, syncLabelsFromGitHub
-// Test file location: src/labels/tests/index.test.ts
-
 // Types
 export interface Label {
   id: string;
@@ -49,9 +45,7 @@ export interface UpdateLabelInput {
   sortOrder?: number;
 }
 
-// =============================================================================
 // LABEL CRUD
-// =============================================================================
 
 /**
  * Create a new label
@@ -126,7 +120,7 @@ export async function updateLabel(id: string, input: UpdateLabelInput): Promise<
   const db = getDb();
   if (!db) throw new Error('Database not initialized');
 
-  const updates: any = { updatedAt: new Date() };
+  const updates: Partial<typeof labels.$inferInsert> = { updatedAt: new Date() };
   if (input.name !== undefined) updates.name = input.name;
   if (input.description !== undefined) updates.description = input.description;
   if (input.color !== undefined) updates.color = input.color;
@@ -154,9 +148,7 @@ export async function deleteLabel(id: string): Promise<void> {
   await db.delete(labels).where(eq(labels.id, id));
 }
 
-// =============================================================================
 // TICKET-LABEL ASSOCIATIONS
-// =============================================================================
 
 /**
  * Add a label to a ticket
@@ -247,9 +239,7 @@ export async function setTicketLabels(ticketId: string, labelIds: string[]): Pro
   }
 }
 
-// =============================================================================
 // EXTERNAL SYNC HELPERS
-// =============================================================================
 
 /**
  * Find a label by external source and ID

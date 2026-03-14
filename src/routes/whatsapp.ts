@@ -21,6 +21,7 @@ import {
 import { getChatRegistry } from '../chat/providers/registry.js';
 import type { WhatsAppAccountConfig } from '../chat/providers/types.js';
 import { logger } from '../utils/logger.js';
+import { isDuplicateWebhookEvent } from './webhook-dedup.js';
 
 // Re-export formatToolResult for channel response formatting
 // Usage: formatToolResult(toolName, result, 'plain') → { summary, detail }
@@ -28,9 +29,37 @@ export { formatToolResult } from '../chat/format/index.js';
 
 const whatsapp = new Hono();
 
-// =============================================================================
+function buildScopedWhatsAppPayload(
+  payload: WhatsAppWebhookPayload,
+  entryIndex: number,
+  changeIndex: number,
+  messageIndex: number,
+): WhatsAppWebhookPayload {
+  const entry = payload.entry?.[entryIndex];
+  const change = entry?.changes?.[changeIndex];
+  const value = change?.value;
+  const message = value?.messages?.[messageIndex];
+  const contact = value?.contacts?.find((candidate) => candidate.wa_id === message?.from);
+
+  return {
+    object: payload.object,
+    entry: entry && change && value && message
+      ? [{
+          ...entry,
+          changes: [{
+            ...change,
+            value: {
+              ...value,
+              contacts: contact ? [contact] : [],
+              messages: [message],
+            },
+          }],
+        }]
+      : [],
+  };
+}
+
 // CONFIGURATION
-// =============================================================================
 
 const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || '';
 const WHATSAPP_BUSINESS_ACCOUNT_ID = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || '';
@@ -75,9 +104,7 @@ function getConfig(): WhatsAppConfig | null {
   return null;
 }
 
-// =============================================================================
 // WEBHOOK ROUTES
-// =============================================================================
 
 /**
  * GET /webhook - Webhook verification challenge
@@ -161,8 +188,8 @@ whatsapp.post('/webhook', async (c) => {
   setWhatsAppConfig(config);
 
   // Process each entry
-  for (const entry of payload.entry || []) {
-    for (const change of entry.changes || []) {
+  for (const [entryIndex, entry] of (payload.entry || []).entries()) {
+    for (const [changeIndex, change] of (entry.changes || []).entries()) {
       const value = change.value;
 
       // Handle status updates (log only - not a chat event)
@@ -178,7 +205,11 @@ whatsapp.post('/webhook', async (c) => {
 
       // Handle incoming messages
       if (value.messages) {
-        for (const message of value.messages) {
+        for (const [messageIndex, message] of value.messages.entries()) {
+          if (isDuplicateWebhookEvent('whatsapp:message', message.id)) {
+            continue;
+          }
+
           // Check phone allowlist
           const allowCheck = isWhatsAppSenderAllowed(config, message.from);
           if (!allowCheck.allowed) {
@@ -186,8 +217,15 @@ whatsapp.post('/webhook', async (c) => {
             continue;
           }
 
+          const scopedPayload = buildScopedWhatsAppPayload(
+            payload,
+            entryIndex,
+            changeIndex,
+            messageIndex,
+          );
+
           // Parse as action (button/list reply)
-          const action = whatsappProvider.inbound.parseAction(payload);
+          const action = whatsappProvider.inbound.parseAction(scopedPayload);
           if (action) {
             await getChatRegistry().emit({
               type: 'action',
@@ -200,7 +238,7 @@ whatsapp.post('/webhook', async (c) => {
           }
 
           // Parse as regular message
-          const incomingMessage = whatsappProvider.inbound.parseMessage(payload);
+          const incomingMessage = whatsappProvider.inbound.parseMessage(scopedPayload);
           if (incomingMessage) {
             await getChatRegistry().emit({
               type: 'message',
@@ -219,9 +257,7 @@ whatsapp.post('/webhook', async (c) => {
   return c.json({ ok: true });
 });
 
-// =============================================================================
 // STATUS & HEALTH
-// =============================================================================
 
 /**
  * GET /status - WhatsApp status and health check
@@ -309,9 +345,7 @@ whatsapp.post('/test', async (c) => {
   return c.json({ error: result.error || 'Failed to send message' }, 500);
 });
 
-// =============================================================================
 // CONFIGURATION MANAGEMENT
-// =============================================================================
 
 /**
  * GET /config - Get current configuration (redacted)

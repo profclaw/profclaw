@@ -21,7 +21,7 @@ What you expected to happen.
 - OS: [e.g., macOS 15, Ubuntu 24.04]
 - Node.js version: [e.g., 22.x]
 - Redis version: [e.g., 7.x]
-- GLINR version/commit: [e.g., v1.0.0 or commit hash]
+- profClaw version/commit: [e.g., v1.0.0 or commit hash]
 
 **Additional context**
 Any other context, logs, or screenshots.

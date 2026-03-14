@@ -8,9 +8,7 @@
  * via progressive disclosure: metadata loads early, full instructions on demand.
  */
 
-// =============================================================================
 // SKILL.md Frontmatter
-// =============================================================================
 
 /** Parsed SKILL.md frontmatter (YAML header) */
 export interface SkillFrontmatter {
@@ -87,9 +85,7 @@ export interface SkillInstallSpec {
   targetDir?: string;
 }
 
-// =============================================================================
 // Skill Entry (Unified representation)
-// =============================================================================
 
 /** Source of a skill */
 export type SkillSource = 'bundled' | 'managed' | 'workspace' | 'plugin';
@@ -164,9 +160,7 @@ export interface SkillCommandSpec {
   };
 }
 
-// =============================================================================
 // Skill Snapshot (Lazy-evaluated state)
-// =============================================================================
 
 /** Snapshot of skill state for prompt injection */
 export interface SkillSnapshot {
@@ -191,9 +185,7 @@ export interface SkillSnapshot {
   builtAt: number;
 }
 
-// =============================================================================
 // Skill Configuration
-// =============================================================================
 
 /** Per-skill config (from settings) */
 export interface SkillConfig {
@@ -245,9 +237,7 @@ export const DEFAULT_SKILLS_CONFIG: SkillsSystemConfig = {
   allowBundled: [],
 };
 
-// =============================================================================
 // Skill Status (for diagnostics)
-// =============================================================================
 
 /** Detailed status for a single skill */
 export interface SkillStatus {

@@ -1,10 +1,36 @@
 import { Hono } from 'hono';
-import { addTask, getTask, getTasks, cancelTask, retryTask } from '../queue/task-queue.js';
-import { CreateTaskSchema } from '../types/task.js';
+import type { Context } from 'hono';
+import { addTask, getTask, getTasks, cancelTask, retryTask } from '../queue/index.js';
+import { CreateTaskSchema, TaskStatus } from '../types/task.js';
+import type { Task, TaskStatusType } from '../types/task.js';
 import { getStorage } from '../storage/index.js';
 import type { TaskFilterOptions } from '../storage/adapter.js';
+import { createContextualLogger } from '../utils/logger.js';
 
 const tasks = new Hono();
+const log = createContextualLogger('TasksRoutes');
+const validTaskStatuses = new Set<string>(Object.values(TaskStatus));
+
+async function parseJsonBody(c: Context): Promise<
+  { ok: true; body: Record<string, unknown> } | { ok: false; response: Response }
+> {
+  try {
+    const body = await c.req.json();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return {
+        ok: false,
+        response: c.json({ error: 'Request body must be a JSON object' }, 400),
+      };
+    }
+
+    return { ok: true, body: body as Record<string, unknown> };
+  } catch {
+    return {
+      ok: false,
+      response: c.json({ error: 'Invalid JSON body' }, 400),
+    };
+  }
+}
 
 // Sparse fieldset: default fields for list view (Phase 17 optimization)
 const TASK_LIST_FIELDS = [
@@ -79,6 +105,10 @@ tasks.get('/', async (c) => {
   const sparseFields = fieldsParam ? fieldsParam.split(',').map(f => f.trim()) : null;
   const includeFull = c.req.query('full') === 'true'; // Backward compat: return full objects
 
+  if (status && !validTaskStatuses.has(status)) {
+    return c.json({ error: 'Invalid status' }, 400);
+  }
+
   // Use database query for persistence and consistency
   if (storage.getTasksFiltered) {
     try {
@@ -102,7 +132,7 @@ tasks.get('/', async (c) => {
       const result = await storage.getTasksFiltered(options);
 
       // Generate next cursor from full results (before sparse filtering)
-      const nextCursor = getNextCursor(result.tasks as any[], limit);
+      const nextCursor = getNextCursor(result.tasks, limit);
 
       // Apply sparse fieldset
       const taskList = !includeFull
@@ -119,22 +149,25 @@ tasks.get('/', async (c) => {
         sparse: !includeFull,
       });
     } catch (error) {
-      console.error('[API] Error loading tasks from DB, falling back to in-memory:', error);
+      log.error(
+        'Error loading tasks from DB, falling back to in-memory',
+        error instanceof Error ? error : new Error(String(error)),
+      );
     }
   }
 
   // Fallback to in-memory queue (no cursor support for in-memory)
   const taskList = getTasks({
-    status: status as any,
+    status: status as TaskStatusType | undefined,
     limit,
     offset,
   });
 
   // Get total count (without limit)
-  const allTasks = getTasks({ status: status as any });
+  const allTasks = getTasks({ status: status as TaskStatusType | undefined });
 
   // Generate next cursor
-  const nextCursor = getNextCursor(taskList as any[], limit);
+  const nextCursor = getNextCursor(taskList as Task[], limit);
 
   // Apply sparse fieldset
   const sparseTasks = !includeFull
@@ -178,7 +211,7 @@ tasks.post('/', async (c) => {
       201
     );
   } catch (error) {
-    console.error('[API] Error creating task:', error);
+    log.error('Error creating task', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         error: 'Failed to create task',
@@ -201,7 +234,7 @@ tasks.get('/analytics', async (c) => {
     const analytics = await storage.getTaskAnalytics();
     return c.json(analytics);
   } catch (error) {
-    console.error('[API] Error getting task analytics:', error);
+    log.error('Error getting task analytics', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       error: 'Failed to get analytics',
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -275,7 +308,7 @@ tasks.get('/filter', async (c) => {
       offset: options.offset,
     });
   } catch (error) {
-    console.error('[API] Error filtering tasks:', error);
+    log.error('Error filtering tasks', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       error: 'Failed to filter tasks',
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -303,7 +336,7 @@ tasks.get('/archived', async (c) => {
       offset,
     });
   } catch (error) {
-    console.error('[API] Error getting archived tasks:', error);
+    log.error('Error getting archived tasks', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       error: 'Failed to get archived tasks',
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -320,8 +353,17 @@ tasks.post('/archive', async (c) => {
   }
 
   try {
-    const body = await c.req.json().catch(() => ({}));
-    const olderThanDays = body.olderThanDays || 30;
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const rawOlderThanDays = parsed.body.olderThanDays;
+    const olderThanDays = rawOlderThanDays === undefined ? 30 : rawOlderThanDays;
+
+    if (typeof olderThanDays !== 'number' || !Number.isFinite(olderThanDays) || olderThanDays <= 0) {
+      return c.json({ error: 'olderThanDays must be a positive number' }, 400);
+    }
 
     const result = await storage.archiveOldTasks(olderThanDays);
     return c.json({
@@ -329,7 +371,7 @@ tasks.post('/archive', async (c) => {
       archived: result.archived,
     });
   } catch (error) {
-    console.error('[API] Error archiving tasks:', error);
+    log.error('Error archiving tasks', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       error: 'Failed to archive tasks',
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -368,7 +410,7 @@ tasks.get('/export', (_c) => {
   return new Response(JSON.stringify(exportData, null, 2), {
     headers: {
       'Content-Type': 'application/json',
-      'Content-Disposition': `attachment; filename="glinr-tasks-${new Date().toISOString().split('T')[0]}.json"`,
+      'Content-Disposition': `attachment; filename="profclaw-tasks-${new Date().toISOString().split('T')[0]}.json"`,
     },
   });
 });
@@ -376,7 +418,12 @@ tasks.get('/export', (_c) => {
 // Import tasks from JSON
 tasks.post('/import', async (c) => {
   try {
-    const body = await c.req.json();
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const body = parsed.body;
 
     if (!body.version || !Array.isArray(body.tasks)) {
       return c.json({ error: 'Invalid import format. Expected { version, tasks[] }' }, 400);
@@ -427,6 +474,7 @@ tasks.post('/import', async (c) => {
       results,
     });
   } catch (error) {
+    log.error('Error importing tasks', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       error: 'Import failed',
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -468,7 +516,7 @@ tasks.get('/:id/events', async (c) => {
       count: events.length,
     });
   } catch (error) {
-    console.error('[API] Error getting task events:', error);
+    log.error('Error getting task events', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       error: 'Failed to get task events',
       message: error instanceof Error ? error.message : 'Unknown error',

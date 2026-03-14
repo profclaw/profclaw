@@ -6,20 +6,18 @@
  */
 
 import { z } from 'zod';
-import { randomUUID } from 'node:crypto';
 import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.js';
 import {
   getConversation,
   getConversationMessages,
   addMessage,
 } from '../../conversations.js';
-import { aiProvider, type ChatMessage } from '../../../providers/index.js';
+import type { ChatMessage } from '../../../providers/core/types.js';
+// aiProvider is lazily imported inside execute() to avoid loading AI SDKs at startup
 import { buildSystemPrompt, type ChatContext } from '../../system-prompts.js';
 import { getSessionModel } from './session-status.js';
 
-// =============================================================================
 // Schema
-// =============================================================================
 
 const SessionsSendParamsSchema = z.object({
   sessionId: z.string()
@@ -38,9 +36,7 @@ const SessionsSendParamsSchema = z.object({
 
 export type SessionsSendParams = z.infer<typeof SessionsSendParamsSchema>;
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface SessionsSendResult {
   sessionId: string;
@@ -57,9 +53,7 @@ export interface SessionsSendResult {
   message: string;
 }
 
-// =============================================================================
 // Tool Definition
-// =============================================================================
 
 export const sessionsSendTool: ToolDefinition<SessionsSendParams, SessionsSendResult> = {
   name: 'sessions_send',
@@ -105,6 +99,8 @@ without waiting (useful for fire-and-forget tasks).`,
 
   async execute(context: ToolExecutionContext, params: SessionsSendParams): Promise<ToolResult<SessionsSendResult>> {
     try {
+      const waitForResponse = params.waitForResponse ?? true;
+
       // Get the target conversation
       const conversation = await getConversation(params.sessionId);
       if (!conversation) {
@@ -125,7 +121,7 @@ without waiting (useful for fire-and-forget tasks).`,
       });
 
       // If not waiting for response, return immediately
-      if (!params.waitForResponse) {
+      if (!waitForResponse) {
         const lines = [
           '## Message Sent\n',
           `**Session**: \`${params.sessionId.slice(0, 8)}...\``,
@@ -159,12 +155,14 @@ without waiting (useful for fire-and-forget tasks).`,
       // Build context
       const chatContext: ChatContext = {};
 
-      // Add runtime info
+      // Add runtime info (lazy import to avoid loading AI SDKs at startup)
+      const { aiProvider } = await import('../../../providers/index.js');
       const sessionOverride = getSessionModel(params.sessionId);
       const defaultProvider = aiProvider.getDefaultProvider();
       const resolvedRef = aiProvider.resolveModel(sessionOverride || params.model || defaultProvider);
+      const resolvedModel = `${resolvedRef.provider}/${resolvedRef.model}`;
       chatContext.runtime = {
-        model: `${resolvedRef.provider}/${resolvedRef.model}`,
+        model: resolvedModel,
         provider: resolvedRef.provider,
         defaultModel: `${defaultProvider}/${resolvedRef.model}`,
         conversationId: params.sessionId,
@@ -174,10 +172,10 @@ without waiting (useful for fire-and-forget tasks).`,
       // Build system prompt
       const systemPrompt = await buildSystemPrompt(conversation.presetId, chatContext);
 
-      // Send to AI
+      // Send to AI (session override takes precedence over params.model)
       const response = await aiProvider.chat({
         messages: chatMessages,
-        model: params.model,
+        model: resolvedModel,
         systemPrompt,
         temperature: params.temperature,
         maxTokens: params.maxTokens,

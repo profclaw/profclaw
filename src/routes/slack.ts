@@ -2,7 +2,7 @@
  * Slack Integration Routes
  *
  * Handles:
- * - Slash commands (/glinr task list, /glinr ticket create, etc.)
+ * - Slash commands (/profclaw task list, /profclaw ticket create, etc.)
  * - Interactive components (button clicks, modals)
  * - Event subscriptions (optional)
  */
@@ -11,14 +11,22 @@ import { Hono } from "hono";
 import { createHmac, timingSafeEqual, randomUUID } from "crypto";
 import { getDb } from "../storage/index.js";
 import { tickets, projects } from "../storage/schema.js";
-import { eq, desc, and, like } from "drizzle-orm";
+import { eq, desc, like } from "drizzle-orm";
+import { createContextualLogger } from "../utils/logger.js";
+
+const log = createContextualLogger('Slack');
+import {
+  getWebhookDedupValue,
+  isDuplicateWebhookEvent,
+  setWebhookDedupValue,
+} from "./webhook-dedup.js";
 
 const slack = new Hono();
 
 // Configuration
 const SLACK_SIGNING_SECRET = process.env.SLACK_SIGNING_SECRET || "";
 const SLACK_BOT_TOKEN = process.env.SLACK_BOT_TOKEN || "";
-const SLACK_COMMAND_NAME = (process.env.SLACK_COMMAND_NAME || "glinr")
+const SLACK_COMMAND_NAME = (process.env.SLACK_COMMAND_NAME || "profclaw")
   .replace(/^\/+/, "")
   .trim();
 const SLACK_SLASH_EPHEMERAL = process.env.SLACK_SLASH_EPHEMERAL !== "false";
@@ -32,9 +40,7 @@ const SLACK_ALLOWED_CHANNEL_IDS = (process.env.SLACK_ALLOWED_CHANNEL_IDS || "")
   .map((value) => value.trim())
   .filter(Boolean);
 
-// =============================================================================
 // TYPES
-// =============================================================================
 
 interface SlackSlashCommand {
   token: string;
@@ -91,9 +97,7 @@ type SlackPostOptions = {
 
 const INLINE_COMMANDS = new Set(["status", "help", "commands", "whoami", "id"]);
 
-// =============================================================================
 // SIGNATURE VERIFICATION
-// =============================================================================
 
 function verifySlackSignature(
   signingSecret: string,
@@ -106,7 +110,7 @@ function verifySlackSignature(
   // Check timestamp is within 5 minutes
   const fiveMinutesAgo = Math.floor(Date.now() / 1000) - 60 * 5;
   if (parseInt(timestamp, 10) < fiveMinutesAgo) {
-    console.warn("[Slack] Request timestamp too old");
+    log.warn('Request timestamp too old');
     return false;
   }
 
@@ -125,9 +129,7 @@ function verifySlackSignature(
   }
 }
 
-// =============================================================================
 // COMMAND PARSER
-// =============================================================================
 
 interface ParsedCommand {
   action: string;
@@ -145,7 +147,6 @@ function parseCommand(text: string): ParsedCommand {
   // Parse named args like --title="My Task" or key=value
   const args: Record<string, string> = {};
   let currentKey = "";
-  const currentValue = "";
 
   for (const part of rawArgs) {
     if (part.startsWith("--")) {
@@ -203,7 +204,7 @@ function extractInlineCommand(text: string): string | null {
 
 async function postSlackResponse(options: SlackPostOptions): Promise<void> {
   if (!SLACK_BOT_TOKEN) {
-    console.warn("[Slack] Missing SLACK_BOT_TOKEN for inline command response");
+    log.warn('Missing SLACK_BOT_TOKEN for inline command response');
     return;
   }
 
@@ -237,13 +238,11 @@ async function postSlackResponse(options: SlackPostOptions): Promise<void> {
   });
 
   if (!res.ok) {
-    console.warn(`[Slack] Failed to post response: ${res.status}`);
+    log.warn('Failed to post response', { status: res.status });
   }
 }
 
-// =============================================================================
 // COMMAND HANDLERS
-// =============================================================================
 
 async function handleHelp(): Promise<SlackResponse> {
   const commandLabel = `/${SLACK_COMMAND_NAME}`;
@@ -252,7 +251,7 @@ async function handleHelp(): Promise<SlackResponse> {
     blocks: [
       {
         type: "header",
-        text: { type: "plain_text", text: "🎯 GLINR Commands", emoji: true },
+        text: { type: "plain_text", text: "🎯 profClaw Commands", emoji: true },
       },
       {
         type: "section",
@@ -262,7 +261,7 @@ async function handleHelp(): Promise<SlackResponse> {
             "*Ticket Commands:*\n" +
             `• \`${commandLabel} ticket list\` - List recent tickets\n` +
             `• \`${commandLabel} ticket create --title="Bug" --priority=high\` - Create ticket\n` +
-            `• \`${commandLabel} ticket show GLINR-123\` - Show ticket details\n` +
+            `• \`${commandLabel} ticket show PC-123\` - Show ticket details\n` +
             `• \`${commandLabel} ticket search <query>\` - Search tickets\n`,
         },
       },
@@ -319,20 +318,18 @@ async function handleTicketList(
     const limit = parseInt(args.limit || "5", 10);
     const status = args.status;
 
-    let query = db
-      .select()
-      .from(tickets)
-      .orderBy(desc(tickets.createdAt))
-      .limit(limit);
-
-    if (status) {
-      query = db
-        .select()
-        .from(tickets)
-        .where(eq(tickets.status, status))
-        .orderBy(desc(tickets.createdAt))
-        .limit(limit);
-    }
+    const query = status
+      ? db
+          .select()
+          .from(tickets)
+          .where(eq(tickets.status, status))
+          .orderBy(desc(tickets.createdAt))
+          .limit(limit)
+      : db
+          .select()
+          .from(tickets)
+          .orderBy(desc(tickets.createdAt))
+          .limit(limit);
 
     const results = await query;
 
@@ -349,7 +346,7 @@ async function handleTicketList(
         text: {
           type: "mrkdwn" as const,
           text:
-            `*GLINR-${t.sequence}* ${getStatusEmoji(t.status)} ${t.title}\n` +
+            `*PC-${t.sequence}* ${getStatusEmoji(t.status)} ${t.title}\n` +
             `Priority: ${getPriorityEmoji(t.priority)} | Status: \`${t.status}\``,
         },
       }),
@@ -372,14 +369,14 @@ async function handleTicketList(
           elements: [
             {
               type: "mrkdwn",
-              text: `🔗 <${SLACK_APP_URL}/tickets|View all in GLINR>`,
+              text: `🔗 <${SLACK_APP_URL}/tickets|View all in profClaw>`,
             },
           ],
         },
       ],
     };
   } catch (error) {
-    console.error("[Slack] Error listing tickets:", error);
+    log.error('Error listing tickets', error instanceof Error ? error : new Error(String(error)));
     return {
       response_type: resolveDefaultResponseType(),
       text: "❌ Failed to list tickets",
@@ -420,8 +417,11 @@ async function handleTicketCreate(
     const nextSequence = (lastTicket[0]?.sequence || 0) + 1;
 
     // Map priority
-    const priorityMap: Record<string, string> = {
-      urgent: "urgent",
+    const priorityMap: Record<
+      string,
+      "critical" | "high" | "medium" | "low" | "none"
+    > = {
+      urgent: "critical",
       high: "high",
       medium: "medium",
       low: "low",
@@ -431,11 +431,14 @@ async function handleTicketCreate(
       priorityMap[args.priority?.toLowerCase() || "medium"] || "medium";
 
     // Map type
-    const typeMap: Record<string, string> = {
+    const typeMap: Record<
+      string,
+      "bug" | "feature" | "task" | "epic" | "story" | "subtask"
+    > = {
       bug: "bug",
       feature: "feature",
       task: "task",
-      improvement: "improvement",
+      improvement: "feature",
       epic: "epic",
     };
     const type = typeMap[args.type?.toLowerCase() || "task"] || "task";
@@ -443,7 +446,7 @@ async function handleTicketCreate(
     const ticketId = randomUUID();
     const now = new Date();
 
-    await db.insert(tickets).values({
+    const ticketRow: typeof tickets.$inferInsert = {
       id: ticketId,
       sequence: nextSequence,
       title,
@@ -451,11 +454,12 @@ async function handleTicketCreate(
       status: "backlog",
       priority,
       type,
-      createdBy: `slack:${userId}`,
-      createdByName: userName,
+      createdBy: "human",
       createdAt: now,
       updatedAt: now,
-    });
+    };
+
+    await db.insert(tickets).values(ticketRow);
 
     return {
       response_type: SLACK_SLASH_EPHEMERAL ? "ephemeral" : "in_channel",
@@ -465,7 +469,7 @@ async function handleTicketCreate(
           text: {
             type: "mrkdwn",
             text:
-              `✅ *Ticket Created:* GLINR-${nextSequence}\n*${title}*\n` +
+              `✅ *Ticket Created:* PC-${nextSequence}\n*${title}*\n` +
               `Priority: ${getPriorityEmoji(priority)} \`${priority}\` | Type: \`${type}\``,
           },
         },
@@ -474,14 +478,14 @@ async function handleTicketCreate(
           elements: [
             {
               type: "mrkdwn",
-              text: `Created by <@${userId}> • <${SLACK_APP_URL}/tickets/${ticketId}|View in GLINR>`,
+              text: `Created by <@${userId}> • <${SLACK_APP_URL}/tickets/${ticketId}|View in profClaw>`,
             },
           ],
         },
       ],
     };
   } catch (error) {
-    console.error("[Slack] Error creating ticket:", error);
+    log.error('Error creating ticket', error instanceof Error ? error : new Error(String(error)), { userId, userName });
     return {
       response_type: resolveDefaultResponseType(),
       text: "❌ Failed to create ticket",
@@ -502,7 +506,7 @@ async function handleTicketShow(ticketRef: string): Promise<SlackResponse> {
   if (!sequenceMatch) {
     return {
       response_type: resolveDefaultResponseType(),
-      text: "❌ Invalid ticket reference. Use GLINR-123 or just 123",
+      text: "❌ Invalid ticket reference. Use PC-123 or just 123",
     };
   }
 
@@ -518,7 +522,7 @@ async function handleTicketShow(ticketRef: string): Promise<SlackResponse> {
     if (result.length === 0) {
       return {
         response_type: resolveDefaultResponseType(),
-        text: `❌ Ticket GLINR-${sequence} not found`,
+        text: `❌ Ticket PC-${sequence} not found`,
       };
     }
 
@@ -531,7 +535,7 @@ async function handleTicketShow(ticketRef: string): Promise<SlackResponse> {
           type: "header",
           text: {
             type: "plain_text",
-            text: `GLINR-${t.sequence}: ${t.title}`,
+            text: `PC-${t.sequence}: ${t.title}`,
             emoji: true,
           },
         },
@@ -569,7 +573,7 @@ async function handleTicketShow(ticketRef: string): Promise<SlackResponse> {
           elements: [
             {
               type: "button",
-              text: { type: "plain_text", text: "🔗 Open in GLINR" },
+              text: { type: "plain_text", text: "🔗 Open in profClaw" },
               action_id: "open_ticket",
               value: t.id,
             },
@@ -578,7 +582,7 @@ async function handleTicketShow(ticketRef: string): Promise<SlackResponse> {
       ],
     };
   } catch (error) {
-    console.error("[Slack] Error showing ticket:", error);
+    log.error('Error showing ticket', error instanceof Error ? error : new Error(String(error)));
     return {
       response_type: resolveDefaultResponseType(),
       text: "❌ Failed to fetch ticket",
@@ -622,7 +626,7 @@ async function handleTicketSearch(query: string): Promise<SlackResponse> {
         type: "section",
         text: {
           type: "mrkdwn" as const,
-          text: `*GLINR-${t.sequence}* ${getStatusEmoji(t.status)} ${t.title}`,
+          text: `*PC-${t.sequence}* ${getStatusEmoji(t.status)} ${t.title}`,
         },
       }),
     );
@@ -642,7 +646,7 @@ async function handleTicketSearch(query: string): Promise<SlackResponse> {
       ],
     };
   } catch (error) {
-    console.error("[Slack] Error searching tickets:", error);
+    log.error('Error searching tickets', error instanceof Error ? error : new Error(String(error)));
     return {
       response_type: resolveDefaultResponseType(),
       text: "❌ Failed to search tickets",
@@ -699,7 +703,7 @@ async function handleProjectList(): Promise<SlackResponse> {
       ],
     };
   } catch (error) {
-    console.error("[Slack] Error listing projects:", error);
+    log.error('Error listing projects', error instanceof Error ? error : new Error(String(error)));
     return {
       response_type: resolveDefaultResponseType(),
       text: "❌ Failed to list projects",
@@ -720,7 +724,7 @@ async function handleProjectShow(projectKey: string): Promise<SlackResponse> {
   if (!projectKey) {
     return {
       response_type: resolveDefaultResponseType(),
-      text: `❌ Project key required. Usage: \`${commandLabel} project show GLINR\``,
+      text: `❌ Project key required. Usage: \`${commandLabel} project show PROFCLAW\``,
     };
   }
 
@@ -786,7 +790,7 @@ async function handleProjectShow(projectKey: string): Promise<SlackResponse> {
       ],
     };
   } catch (error) {
-    console.error("[Slack] Error showing project:", error);
+    log.error('Error showing project', error instanceof Error ? error : new Error(String(error)));
     return {
       response_type: resolveDefaultResponseType(),
       text: "❌ Failed to fetch project",
@@ -838,7 +842,7 @@ async function handleStatus(): Promise<SlackResponse> {
     blocks: [
       {
         type: "header",
-        text: { type: "plain_text", text: "🏥 GLINR Status", emoji: true },
+        text: { type: "plain_text", text: "🏥 profClaw Status", emoji: true },
       },
       {
         type: "section",
@@ -856,9 +860,7 @@ async function handleStatus(): Promise<SlackResponse> {
   };
 }
 
-// =============================================================================
 // HELPERS
-// =============================================================================
 
 function getStatusEmoji(status: string): string {
   const emojis: Record<string, string> = {
@@ -892,9 +894,7 @@ function formatUptime(seconds: number): string {
   return `${mins}m`;
 }
 
-// =============================================================================
 // ROUTES
-// =============================================================================
 
 /**
  * POST /api/slack/commands
@@ -915,7 +915,7 @@ slack.post("/commands", async (c) => {
       rawBody,
     );
     if (!isValid) {
-      console.warn("[Slack] Invalid signature");
+      log.warn('Invalid signature');
       return c.json({ error: "Invalid signature" }, 401);
     }
   }
@@ -937,13 +937,17 @@ slack.post("/commands", async (c) => {
     api_app_id: params.get("api_app_id") || "",
   };
 
-  console.log(
-    `[Slack] Command: ${command.command} ${command.text} from @${command.user_name}`,
-  );
+  log.info('Command received', { command: command.command, text: command.text, user: command.user_name });
 
   const commandName = normalizeSlackCommandName(command.command);
   if (commandName !== SLACK_COMMAND_NAME.toLowerCase()) {
     return c.json({ error: "Unknown command" }, 404);
+  }
+
+  const dedupEventId = command.trigger_id || `${timestamp}:${rawBody}`;
+  const cachedResponse = getWebhookDedupValue<SlackResponse>("slack:command", dedupEventId);
+  if (cachedResponse) {
+    return c.json(cachedResponse);
   }
 
   if (
@@ -1032,13 +1036,14 @@ slack.post("/commands", async (c) => {
         response = await handleHelp();
     }
   } catch (error) {
-    console.error("[Slack] Command error:", error);
+    log.error('Command error', error instanceof Error ? error : new Error(String(error)));
     response = {
       response_type: resolveDefaultResponseType(),
       text: "❌ An error occurred processing your command",
     };
   }
 
+  setWebhookDedupValue("slack:command", dedupEventId, response);
   return c.json(response);
 });
 
@@ -1068,10 +1073,17 @@ slack.post("/interactive", async (c) => {
   const params = new URLSearchParams(rawBody);
   const payloadStr = params.get("payload") || "{}";
   const payload = JSON.parse(payloadStr);
+  const dedupEventId =
+    payload.trigger_id ||
+    payload.actions?.[0]?.action_ts ||
+    payload.callback_id ||
+    `${timestamp}:${payloadStr}`;
+  const cachedResponse = getWebhookDedupValue<Record<string, unknown>>("slack:interactive", dedupEventId);
+  if (cachedResponse) {
+    return c.json(cachedResponse);
+  }
 
-  console.log(
-    `[Slack] Interactive: ${payload.type} - ${payload.actions?.[0]?.action_id}`,
-  );
+  log.info('Interactive event received', { type: payload.type, actionId: payload.actions?.[0]?.action_id });
 
   // Handle different interaction types
   if (payload.type === "block_actions") {
@@ -1079,19 +1091,25 @@ slack.post("/interactive", async (c) => {
     if (action?.action_id === "open_ticket") {
       const ticketId = String(action.value || "");
       if (!ticketId) {
-        return c.json({
+        const response = {
           response_type: resolveDefaultResponseType(),
           text: "❌ Missing ticket reference",
-        });
+        };
+        setWebhookDedupValue("slack:interactive", dedupEventId, response);
+        return c.json(response);
       }
-      return c.json({
+      const response = {
         response_type: resolveDefaultResponseType(),
-        text: `🔗 <${SLACK_APP_URL}/tickets/${ticketId}|Open ticket in GLINR>`,
-      });
+        text: `🔗 <${SLACK_APP_URL}/tickets/${ticketId}|Open ticket in profClaw>`,
+      };
+      setWebhookDedupValue("slack:interactive", dedupEventId, response);
+      return c.json(response);
     }
   }
 
-  return c.json({ ok: true });
+  const response = { ok: true };
+  setWebhookDedupValue("slack:interactive", dedupEventId, response);
+  return c.json(response);
 });
 
 /**
@@ -1115,7 +1133,7 @@ slack.post("/events", async (c) => {
     }
   }
 
-  let payload: { type?: string; challenge?: string } | null = null;
+  let payload: { type?: string; challenge?: string; event_id?: string } | null = null;
   try {
     payload = JSON.parse(rawBody) as { type?: string; challenge?: string };
   } catch {
@@ -1124,6 +1142,10 @@ slack.post("/events", async (c) => {
 
   if (payload?.type === "url_verification" && payload.challenge) {
     return c.json({ challenge: payload.challenge });
+  }
+
+  if (payload?.event_id && isDuplicateWebhookEvent("slack:event", payload.event_id)) {
+    return c.json({ ok: true });
   }
 
   if (payload?.type === "event_callback") {

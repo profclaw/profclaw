@@ -1,7 +1,7 @@
 /**
  * Chat API Routes
  *
- * REST API for AI chat functionality with GLINR intelligence.
+ * REST API for AI chat functionality with profClaw intelligence.
  * Supports multiple providers, conversation history, and context-aware prompts.
  */
 
@@ -10,55 +10,130 @@ import { streamText } from "hono/streaming";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
-import {
-  aiProvider,
-  MODEL_ALIASES,
-  type ChatMessage,
-  type NativeToolCall,
-  type NativeToolResult,
-  type ProviderConfig,
+import type {
+  ChatMessage,
+  NativeToolCall,
+  NativeToolResult,
+  ProviderConfig,
+  ProviderType,
 } from "../providers/index.js";
-import {
-  saveProviderConfig,
-  loadAllProviderConfigs,
-} from "../storage/index.js";
 import { logger } from "../utils/logger.js";
-import {
-  CHAT_PRESETS,
-  QUICK_ACTIONS,
-  buildSystemPrompt,
-  createConversation,
-  getConversation,
-  listConversations,
-  deleteConversation,
-  addMessage,
-  getConversationMessages,
-  getRecentConversationsWithPreview,
-  compactMessages,
-  getMemoryStats,
-  needsCompaction,
-  // Skills
-  CHAT_SKILLS,
-  MODEL_TIERS,
-  detectIntent,
-  selectModel,
-  buildSkillPrompt,
-  // Tool handler
-  createChatToolHandler,
-  getDefaultChatTools,
-  getAllChatTools,
-  getSessionModel,
-  // Agentic executor
-  streamAgenticChat,
-  type ChatContext,
-  type RuntimeInfo,
-  type ConversationMessage,
-  type AgenticStreamEvent,
+import type {
+  ChatContext,
+  ConversationMessage,
 } from "../chat/index.js";
-import { getClient } from "../storage/index.js";
-import { trackChatUsage } from "../costs/token-tracker.js";
 
 const chatRoutes = new Hono();
+let chatRuntimePromise: Promise<void> | null = null;
+
+let ProviderTypeSchema: typeof import("../providers/index.js")["ProviderType"];
+let aiProvider: typeof import("../providers/index.js")["aiProvider"];
+let MODEL_ALIASES: typeof import("../providers/index.js")["MODEL_ALIASES"];
+let saveProviderConfig: typeof import("../storage/index.js")["saveProviderConfig"];
+let getClient: typeof import("../storage/index.js")["getClient"];
+let CHAT_PRESETS: typeof import("../chat/index.js")["CHAT_PRESETS"];
+let QUICK_ACTIONS: typeof import("../chat/index.js")["QUICK_ACTIONS"];
+let buildSystemPrompt: typeof import("../chat/index.js")["buildSystemPrompt"];
+let createConversation: typeof import("../chat/index.js")["createConversation"];
+let getConversation: typeof import("../chat/index.js")["getConversation"];
+let listConversations: typeof import("../chat/index.js")["listConversations"];
+let deleteConversation: typeof import("../chat/index.js")["deleteConversation"];
+let addMessage: typeof import("../chat/index.js")["addMessage"];
+let getConversationMessages: typeof import("../chat/index.js")["getConversationMessages"];
+let getRecentConversationsWithPreview: typeof import("../chat/index.js")["getRecentConversationsWithPreview"];
+let compactMessages: typeof import("../chat/index.js")["compactMessages"];
+let getMemoryStats: typeof import("../chat/index.js")["getMemoryStats"];
+let needsCompaction: typeof import("../chat/index.js")["needsCompaction"];
+let CHAT_SKILLS: typeof import("../chat/index.js")["CHAT_SKILLS"];
+let MODEL_TIERS: typeof import("../chat/index.js")["MODEL_TIERS"];
+let detectIntent: typeof import("../chat/index.js")["detectIntent"];
+let selectModel: typeof import("../chat/index.js")["selectModel"];
+let createChatToolHandler: typeof import("../chat/index.js")["createChatToolHandler"];
+let getDefaultChatTools: typeof import("../chat/index.js")["getDefaultChatTools"];
+let getAllChatTools: typeof import("../chat/index.js")["getAllChatTools"];
+let getChatToolsForModel: typeof import("../chat/index.js")["getChatToolsForModel"];
+let getSessionModel: typeof import("../chat/index.js")["getSessionModel"];
+let streamAgenticChat: typeof import("../chat/index.js")["streamAgenticChat"];
+let getGroupChatManager: typeof import("../chat/index.js")["getGroupChatManager"];
+let trackChatUsage: typeof import("../costs/token-tracker.js")["trackChatUsage"];
+
+async function ensureChatRuntime(): Promise<void> {
+  if (!chatRuntimePromise) {
+    chatRuntimePromise = Promise.all([
+      import("../providers/index.js"),
+      import("../storage/index.js"),
+      import("../chat/index.js"),
+      import("../costs/token-tracker.js"),
+    ])
+      .then(([providersModule, storageModule, chatModule, costsModule]) => {
+        ProviderTypeSchema = providersModule.ProviderType;
+        aiProvider = providersModule.aiProvider;
+        MODEL_ALIASES = providersModule.MODEL_ALIASES;
+        saveProviderConfig = storageModule.saveProviderConfig;
+        getClient = storageModule.getClient;
+        CHAT_PRESETS = chatModule.CHAT_PRESETS;
+        QUICK_ACTIONS = chatModule.QUICK_ACTIONS;
+        buildSystemPrompt = chatModule.buildSystemPrompt;
+        createConversation = chatModule.createConversation;
+        getConversation = chatModule.getConversation;
+        listConversations = chatModule.listConversations;
+        deleteConversation = chatModule.deleteConversation;
+        addMessage = chatModule.addMessage;
+        getConversationMessages = chatModule.getConversationMessages;
+        getRecentConversationsWithPreview =
+          chatModule.getRecentConversationsWithPreview;
+        compactMessages = chatModule.compactMessages;
+        getMemoryStats = chatModule.getMemoryStats;
+        needsCompaction = chatModule.needsCompaction;
+        CHAT_SKILLS = chatModule.CHAT_SKILLS;
+        MODEL_TIERS = chatModule.MODEL_TIERS;
+        detectIntent = chatModule.detectIntent;
+        selectModel = chatModule.selectModel;
+        createChatToolHandler = chatModule.createChatToolHandler;
+        getDefaultChatTools = chatModule.getDefaultChatTools;
+        getAllChatTools = chatModule.getAllChatTools;
+        getChatToolsForModel = chatModule.getChatToolsForModel;
+        getSessionModel = chatModule.getSessionModel;
+        streamAgenticChat = chatModule.streamAgenticChat;
+        getGroupChatManager = chatModule.getGroupChatManager;
+        trackChatUsage = costsModule.trackChatUsage;
+      })
+      .catch((error) => {
+        chatRuntimePromise = null;
+        throw error;
+      });
+  }
+
+  await chatRuntimePromise;
+}
+
+function parseProviderType(value: string): ProviderType | null {
+  const parsed = ProviderTypeSchema.safeParse(value);
+
+  return parsed.success ? parsed.data : null;
+}
+
+chatRoutes.use("*", async (c, next) => {
+  try {
+    await ensureChatRuntime();
+  } catch (error) {
+    logger.error(
+      "[Chat] Failed to initialize runtime",
+      error instanceof Error ? error : undefined,
+    );
+    return c.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Chat runtime unavailable",
+      },
+      500,
+    );
+  }
+
+  await next();
+});
 
 // === Schemas ===
 
@@ -109,6 +184,22 @@ const ProviderConfigSchema = z.object({
 });
 
 // === Routes ===
+
+/**
+ * GET /api/chat/model-capability
+ * Returns capability tier and tool access level for a given model ID
+ */
+chatRoutes.get("/model-capability", async (c) => {
+  const model = c.req.query("model");
+  if (!model) {
+    return c.json({ capability: "reasoning", tier: "full", maxSchemaTokens: 20000 });
+  }
+  const { getModelRouting } = await import("../chat/execution/model-capability.js");
+  // Resolve alias to full model ID (e.g. "gemini" -> "gemini-1.5-pro")
+  const { MODEL_ALIASES } = await import("../providers/core/models.js");
+  const resolved = MODEL_ALIASES[model.toLowerCase()]?.model ?? model;
+  return c.json(getModelRouting(resolved));
+});
 
 /**
  * POST /api/chat/completions
@@ -218,11 +309,15 @@ chatRoutes.post(
  * List available models
  */
 chatRoutes.get("/models", async (c) => {
-  const provider = c.req.query("provider") as string | undefined;
+  const provider = c.req.query("provider");
 
   let models;
   if (provider) {
-    models = aiProvider.getModelsForProvider(provider as any);
+    const providerType = parseProviderType(provider);
+    if (!providerType) {
+      return c.json({ error: "Invalid provider" }, 400);
+    }
+    models = aiProvider.getModelsForProvider(providerType);
   } else {
     models = aiProvider.getAllModels();
   }
@@ -271,8 +366,12 @@ chatRoutes.post(
   "/providers/:type/configure",
   zValidator("json", ProviderConfigSchema),
   async (c) => {
-    const type = c.req.param("type") as any;
+    const type = parseProviderType(c.req.param("type"));
     const config = c.req.valid("json");
+
+    if (!type) {
+      return c.json({ error: "Invalid provider" }, 400);
+    }
 
     try {
       // Build provider config (include Azure-specific fields)
@@ -327,7 +426,11 @@ chatRoutes.post(
  * Check provider health
  */
 chatRoutes.post("/providers/:type/health", async (c) => {
-  const type = c.req.param("type") as any;
+  const type = parseProviderType(c.req.param("type"));
+
+  if (!type) {
+    return c.json({ error: "Invalid provider" }, 400);
+  }
 
   const results = await aiProvider.healthCheck(type);
   const result = results[0];
@@ -423,7 +526,11 @@ chatRoutes.get("/providers/:type/models", async (c) => {
     }
 
     // For other providers, return static catalog
-    const models = aiProvider.getModelsForProvider(type as any);
+    const providerType = parseProviderType(type);
+    if (!providerType) {
+      return c.json({ error: "Invalid provider" }, 400);
+    }
+    const models = aiProvider.getModelsForProvider(providerType);
     return c.json({ provider: type, models });
   } catch (error) {
     logger.error(
@@ -509,7 +616,7 @@ chatRoutes.get("/presets", async (c) => {
       icon: p.icon,
       examples: p.examples,
     })),
-    default: "glinr-assistant",
+    default: "profclaw-assistant",
   });
 });
 
@@ -1135,9 +1242,12 @@ chatRoutes.post(
         sessionOverride,
       };
 
-      // Get available tools (determine before building prompt)
+      // Get available tools - model-aware when model ID is known
       const enableTools = body.enableTools ?? true;
-      const tools = enableTools ? getDefaultChatTools() : [];
+      const modelId = resolvedRef.model;
+      const tools = enableTools
+        ? getChatToolsForModel(modelId, { conversationId })
+        : [];
 
       // Build system prompt with context and tool mode
       const systemPrompt = await buildSystemPrompt(
@@ -1377,7 +1487,7 @@ chatRoutes.post(
 
       // Build system prompt
       const systemPrompt = await buildSystemPrompt(
-        body.presetId || "glinr-assistant",
+        body.presetId || "profclaw-assistant",
         context,
       );
 
@@ -1409,7 +1519,7 @@ chatRoutes.post(
         usage: response.usage,
         duration: response.duration,
         context: {
-          presetId: body.presetId || "glinr-assistant",
+          presetId: body.presetId || "profclaw-assistant",
           taskId: body.taskId,
           ticketId: body.ticketId,
         },
@@ -1427,9 +1537,7 @@ chatRoutes.post(
   },
 );
 
-// =============================================================================
 // Chat with Tools
-// =============================================================================
 
 /**
  * POST /api/chat/with-tools
@@ -1480,7 +1588,7 @@ chatRoutes.post(
       } else if (!systemPrompt) {
         // Even without preset, add tool-enabled system prompt
         systemPrompt = await buildSystemPrompt(
-          "glinr-assistant",
+          "profclaw-assistant",
           {},
           { enableTools: true },
         );
@@ -1643,8 +1751,8 @@ chatRoutes.post(
         sessionOverride,
       };
 
-      // Get tools - agentic mode uses all tools (securityMode: full)
-      const tools = getAllChatTools();
+      // Get tools - agentic mode uses model-aware filtering
+      const tools = getChatToolsForModel(resolvedRef.model, { conversationId, includeAll: true });
 
       // Build system prompt with agent mode (uses AGENT_MODE_SUFFIX)
       const systemPrompt = await buildSystemPrompt(conversation.presetId, context, {
@@ -1957,6 +2065,88 @@ chatRoutes.post(
       );
       return c.json(
         { error: error instanceof Error ? error.message : "Approval failed" },
+        500,
+      );
+    }
+  },
+);
+
+// Group Chat Routes
+
+/**
+ * GET /api/chat/group/config
+ * Get group chat configuration and channel personalities
+ */
+chatRoutes.get("/group/config", (c) => {
+  const manager = getGroupChatManager();
+  return c.json({
+    mentionGating: true,
+    threadingEnabled: true,
+    rateLimiting: true,
+    channelPersonalities: manager.getChannelPersonalities(),
+  });
+});
+
+/**
+ * POST /api/chat/group/personality
+ * Set a channel-specific system prompt
+ */
+chatRoutes.post(
+  "/group/personality",
+  zValidator(
+    "json",
+    z.object({
+      channelId: z.string().min(1),
+      systemPrompt: z.string().min(1),
+    }),
+  ),
+  async (c) => {
+    const { channelId, systemPrompt } = c.req.valid("json");
+
+    try {
+      const manager = getGroupChatManager();
+      manager.setChannelPersonality(channelId, systemPrompt);
+      return c.json({ success: true });
+    } catch (error) {
+      logger.error(
+        "[Chat/Group] Set personality error:",
+        error instanceof Error ? error : undefined,
+      );
+      return c.json(
+        { error: error instanceof Error ? error.message : "Failed to set personality" },
+        500,
+      );
+    }
+  },
+);
+
+/**
+ * POST /api/chat/group/rate-limit
+ * Configure the per-minute rate limit for a channel
+ */
+chatRoutes.post(
+  "/group/rate-limit",
+  zValidator(
+    "json",
+    z.object({
+      channelId: z.string().min(1),
+      maxPerMinute: z.number().int().positive(),
+    }),
+  ),
+  async (c) => {
+    const { channelId, maxPerMinute } = c.req.valid("json");
+
+    try {
+      const manager = getGroupChatManager();
+      manager.setRateLimit(channelId, maxPerMinute);
+      return c.json({ success: true });
+    } catch (error) {
+      logger.error(
+        "[Chat/Group] Set rate limit error:",
+        error instanceof Error ? error : undefined,
+      );
+      return c.json(
+        { error: error instanceof Error ? error.message : "Failed to set rate limit" },
         500,
       );
     }

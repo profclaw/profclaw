@@ -36,7 +36,7 @@ type LinearWebhookAction =
 interface LinearWebhookPayload {
   action: LinearWebhookAction;
   type: LinearWebhookEvent;
-  data: any;
+  data: unknown;
   url: string;
   organizationId: string;
   webhookTimestamp: number;
@@ -456,9 +456,9 @@ function handleIssueLabelEvent(
     const data = payload.data;
     
     // data.issue should contain the issue information
-    if (data.issue) {
+    if (typeof data === 'object' && data !== null && 'issue' in data && data.issue) {
       return handleIssueEvent(
-        { ...payload, type: 'Issue', action: 'update', data: data.issue },
+        { ...payload, type: 'Issue', action: 'update', data: data.issue as LinearIssue },
         correlationId
       );
     }

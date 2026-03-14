@@ -6,9 +6,7 @@
 
 import { loadConfig } from '../../../utils/config-loader.js';
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface SessionSpawnConfig {
   enabled: boolean;
@@ -30,9 +28,7 @@ interface SettingsYaml {
   sessionSpawn?: Partial<SessionSpawnConfig>;
 }
 
-// =============================================================================
 // Defaults
-// =============================================================================
 
 const DEFAULT_CONFIG: SessionSpawnConfig = {
   enabled: true,
@@ -50,9 +46,7 @@ const DEFAULT_CONFIG: SessionSpawnConfig = {
   },
 };
 
-// =============================================================================
 // Config Loading
-// =============================================================================
 
 let cachedConfig: SessionSpawnConfig | null = null;
 
@@ -137,9 +131,7 @@ export function getRootSessionLimits(): { maxBudget: number; maxSteps: number } 
   };
 }
 
-// =============================================================================
 // Helpers
-// =============================================================================
 
 function parseNumber(envValue: string | undefined, defaultValue: number): number {
   if (envValue === undefined || envValue === '') {

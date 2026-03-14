@@ -13,9 +13,7 @@
 import { z } from 'zod';
 import { logger } from '../utils/logger.js';
 
-// =============================================================================
 // Configuration Schema
-// =============================================================================
 
 export const WebSearchConfigSchema = z.object({
   enabled: z.boolean().default(true),
@@ -53,9 +51,7 @@ export const WebSearchConfigSchema = z.object({
 
 export type WebSearchConfig = z.infer<typeof WebSearchConfigSchema>;
 
-// =============================================================================
 // Search Result Types
-// =============================================================================
 
 export interface SearchResult {
   title: string;
@@ -72,9 +68,54 @@ export interface WebSearchResponse {
   searchTime?: number;
 }
 
-// =============================================================================
+interface BraveSearchResult {
+  title: string;
+  url: string;
+  description: string;
+}
+
+interface BraveSearchResponse {
+  web?: {
+    results?: BraveSearchResult[];
+    count?: number;
+  };
+}
+
+interface SerperSearchResult {
+  title: string;
+  link: string;
+  snippet: string;
+  position?: number;
+}
+
+interface SerperSearchResponse {
+  organic?: SerperSearchResult[];
+  searchParameters?: { timeUsed?: number };
+}
+
+interface SearxngSearchResult {
+  title: string;
+  url: string;
+  content: string;
+}
+
+interface SearxngSearchResponse {
+  results?: SearxngSearchResult[];
+  number_of_results?: number;
+  search_time?: number;
+}
+
+interface TavilySearchResult {
+  title: string;
+  url: string;
+  content: string;
+}
+
+interface TavilySearchResponse {
+  results?: TavilySearchResult[];
+}
+
 // Provider Implementations
-// =============================================================================
 
 /**
  * Brave Search API
@@ -102,14 +143,12 @@ async function searchBrave(
     throw new Error(`Brave Search API error: ${response.status} ${response.statusText}`);
   }
 
-  const data = await response.json() as {
-    web?: { results?: any[]; count?: number };
-  };
+  const data = await response.json() as BraveSearchResponse;
 
   return {
     query,
     provider: 'brave',
-    results: (data.web?.results ?? []).map((r: any, i: number) => ({
+    results: (data.web?.results ?? []).map((r, i: number) => ({
       title: r.title,
       url: r.url,
       snippet: r.description,
@@ -146,15 +185,12 @@ async function searchSerper(
     throw new Error(`Serper API error: ${response.status} ${response.statusText}`);
   }
 
-  const data = await response.json() as {
-    organic?: any[];
-    searchParameters?: { timeUsed?: number };
-  };
+  const data = await response.json() as SerperSearchResponse;
 
   return {
     query,
     provider: 'serper',
-    results: (data.organic ?? []).map((r: any, i: number) => ({
+    results: (data.organic ?? []).map((r, i: number) => ({
       title: r.title,
       url: r.link,
       snippet: r.snippet,
@@ -190,16 +226,12 @@ async function searchSearxng(
     throw new Error(`SearXNG error: ${response.status} ${response.statusText}`);
   }
 
-  const data = await response.json() as {
-    results?: any[];
-    number_of_results?: number;
-    search_time?: number;
-  };
+  const data = await response.json() as SearxngSearchResponse;
 
   return {
     query,
     provider: 'searxng',
-    results: (data.results ?? []).slice(0, options.count ?? 10).map((r: any, i: number) => ({
+    results: (data.results ?? []).slice(0, options.count ?? 10).map((r, i: number) => ({
       title: r.title,
       url: r.url,
       snippet: r.content,
@@ -238,14 +270,12 @@ async function searchTavily(
     throw new Error(`Tavily API error: ${response.status} ${response.statusText}`);
   }
 
-  const data = await response.json() as {
-    results?: any[];
-  };
+  const data = await response.json() as TavilySearchResponse;
 
   return {
     query,
     provider: 'tavily',
-    results: (data.results ?? []).map((r: any, i: number) => ({
+    results: (data.results ?? []).map((r, i: number) => ({
       title: r.title,
       url: r.url,
       snippet: r.content,
@@ -254,9 +284,7 @@ async function searchTavily(
   };
 }
 
-// =============================================================================
 // Main Search Function
-// =============================================================================
 
 /**
  * Perform a web search using the configured provider
@@ -319,9 +347,7 @@ export async function webSearch(
   }
 }
 
-// =============================================================================
 // Helpers
-// =============================================================================
 
 /**
  * Resolve API key from config or environment variable

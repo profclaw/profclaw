@@ -72,7 +72,7 @@ export async function initSyncIntegration(): Promise<SyncEngine | null> {
       await addCommentFromSync(
         ticketId,
         comment.content || '',
-        comment.author || { type: 'human', name: 'Unknown', platform: 'glinr' },
+        comment.author || { type: 'human', name: 'Unknown', platform: 'profclaw' },
         comment.externalId
       );
     },
@@ -94,7 +94,11 @@ export async function initSyncIntegration(): Promise<SyncEngine | null> {
 
     // Update external link
     updateExternalLink: async (id: string, updates: Partial<ExternalLink>) => {
-      await updateExternalLink(id, updates as any);
+      await updateExternalLink(id, {
+        lastSyncedAt: updates.lastSyncedAt,
+        syncError: updates.syncError,
+        syncEnabled: updates.syncEnabled,
+      });
     },
   });
 
@@ -180,7 +184,7 @@ export async function pushTicketToExternal(ticketId: string, platform?: string):
 }
 
 /**
- * Trigger outbound sync when a ticket is updated in GLINR
+ * Trigger outbound sync when a ticket is updated in profClaw
  * Called by the ticket service after updates
  */
 export async function onTicketChanged(ticketId: string, updates: Partial<Ticket>): Promise<void> {
@@ -213,12 +217,12 @@ export async function onTicketChanged(ticketId: string, updates: Partial<Ticket>
 }
 
 /**
- * Trigger outbound sync when a comment is added in GLINR
+ * Trigger outbound sync when a comment is added in profClaw
  * Called by the ticket service after adding comments
  */
 export async function onCommentCreated(ticketId: string, content: string, source: string): Promise<void> {
   // Skip if the comment came from an external platform (avoid echo)
-  if (source !== 'glinr') return;
+  if (source !== 'profclaw') return;
 
   if (!hasSyncEngine()) return;
 

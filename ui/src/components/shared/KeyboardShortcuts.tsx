@@ -25,6 +25,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ['Cmd', 'N'], description: 'Create new task' },
       { keys: ['Cmd', '/'], description: 'Focus search' },
       { keys: ['Cmd', 'Shift', 'T'], description: 'Toggle theme' },
+      { keys: ['Cmd', 'Shift', 'V'], description: 'Toggle Talk Mode' },
     ],
   },
   {

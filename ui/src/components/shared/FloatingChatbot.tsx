@@ -85,7 +85,7 @@ interface PageContext {
 }
 
 // Storage key for conversation IDs by context
-const STORAGE_KEY_PREFIX = "glinr_chatbot_conversation_";
+const STORAGE_KEY_PREFIX = "profclaw_chatbot_conversation_";
 
 // Get storage key for a page context
 function getStorageKey(contextType: string, entityId?: string): string {
@@ -346,14 +346,14 @@ const PAGE_CONTEXTS: Record<string, PageContext> = {
     type: "settings",
     name: "Settings",
     icon: Settings,
-    description: "Configure GLINR settings",
+    description: "Configure profClaw settings",
     capabilities: [
       "Configure AI providers",
       "Manage integrations",
       "Update preferences",
     ],
     quickActions: [
-      { label: "Setup help", prompt: "Help me set up and configure GLINR." },
+      { label: "Setup help", prompt: "Help me set up and configure profClaw." },
       { label: "Provider config", prompt: "Help me configure an AI provider." },
     ],
   },
@@ -451,17 +451,17 @@ const PAGE_CONTEXTS: Record<string, PageContext> = {
   },
   default: {
     type: "default",
-    name: "GLINR",
+    name: "profClaw",
     icon: Sparkles,
     description: "AI-powered task management",
     capabilities: [
-      "Answer questions about GLINR",
+      "Answer questions about profClaw",
       "Help with navigation",
       "Provide general assistance",
     ],
     quickActions: [
-      { label: "Help", prompt: "What can you help me with in GLINR?" },
-      { label: "Navigate", prompt: "Help me find what I need in GLINR." },
+      { label: "Help", prompt: "What can you help me with in profClaw?" },
+      { label: "Navigate", prompt: "Help me find what I need in profClaw." },
     ],
   },
 };
@@ -473,7 +473,10 @@ function usePageContext(): { context: PageContext; entityId?: string } {
 
   return useMemo(() => {
     // Check for specific routes
-    if (path === "/") {
+    if (path === "/" || path === "/chat") {
+      return { context: PAGE_CONTEXTS.default };
+    }
+    if (path === "/analytics") {
       return { context: PAGE_CONTEXTS.dashboard };
     }
 
@@ -591,8 +594,9 @@ export function FloatingChatbot() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Check if we're on the chat page (used for conditional rendering, not early return)
+  // "/" is now the full Chat view, "/chat" redirects there
   const isOnChatPage =
-    location.pathname === "/chat" || location.pathname.startsWith("/chat/");
+    location.pathname === "/" || location.pathname === "/chat" || location.pathname.startsWith("/chat/");
 
   // Fetch ticket data if on ticket detail page
   const { data: ticketData } = useQuery({
@@ -625,7 +629,7 @@ export function FloatingChatbot() {
   // Selected model for this chatbot (separate from main chat)
   const [selectedModel, setSelectedModel] = useState<string>(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("glinr-floating-chat-model") || "";
+      return localStorage.getItem("profclaw-floating-chat-model") || "";
     }
     return "";
   });
@@ -633,7 +637,7 @@ export function FloatingChatbot() {
   // Handle model change
   const handleModelChange = (model: string) => {
     setSelectedModel(model);
-    localStorage.setItem("glinr-floating-chat-model", model);
+    localStorage.setItem("profclaw-floating-chat-model", model);
   };
 
   // Get available models (filtered by configured providers)
@@ -786,7 +790,7 @@ export function FloatingChatbot() {
       const title = `${pageContext.name} Chat`;
       const data = await api.chat.conversations.create({
         title,
-        presetId: "glinr-assistant",
+        presetId: "profclaw-assistant",
         ticketId: pageContext.type === "ticket-detail" ? entityId : undefined,
         projectId: pageContext.type === "project-detail" ? entityId : undefined,
       });
@@ -958,13 +962,13 @@ export function FloatingChatbot() {
                 </span>
               </div>
               <div>
-                <h3 className="text-sm font-black tracking-tight uppercase tracking-[0.1em]">GLINR Assistant</h3>
+                <h3 className="text-sm font-black tracking-tight uppercase tracking-[0.1em]">profClaw Assistant</h3>
                 <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-semibold">
                   <PageIcon className="h-3 w-3" />
                   <span className="uppercase tracking-widest">{pageContext.name}</span>
                   {entityId && ticketData && (
                     <span className="text-sky-600 dark:text-sky-400">
-                      • GLINR-{(ticketData as { sequence?: number }).sequence}
+                      • {(ticketData as { sequence?: number }).sequence}
                     </span>
                   )}
                   {entityId && projectData && (
@@ -1268,7 +1272,7 @@ export function FloatingChatbot() {
             : "bg-primary text-primary-foreground shadow-primary/30",
         )}
         title={
-          isOpen ? "Close chat" : `Open GLINR Assistant (${pageContext.name})`
+          isOpen ? "Close chat" : `Open profClaw Assistant (${pageContext.name})`
         }
       >
         {isOpen ? (

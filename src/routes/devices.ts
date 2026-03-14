@@ -6,9 +6,10 @@
  */
 
 import { Hono } from 'hono';
+import type { Context } from 'hono';
+import { z } from 'zod';
 import {
   loadOrCreateDeviceIdentity,
-  getDeviceIdentity,
   exportPublicIdentity,
   createDeviceAttestation,
   verifyDeviceAttestation,
@@ -25,13 +26,74 @@ import {
   parsePairingCode,
   initPairingCodesTable,
 } from '../auth/pairing-codes.js';
+import { generatePairingQR, generatePairingUrl, generateQRSvg } from '../auth/qr-pairing.js';
 import { getStorage } from '../storage/index.js';
+import { createContextualLogger } from '../utils/logger.js';
 
 const app = new Hono();
+const log = createContextualLogger('Devices');
 
-// ============================================================================
+const attestBodySchema = z.object({
+  data: z.record(z.string(), z.unknown()).optional(),
+});
+
+const verifyAttestationBodySchema = z.object({
+  attestation: z.object({
+    deviceId: z.string(),
+    publicKey: z.string(),
+    attestation: z.object({
+      timestamp: z.string(),
+      nonce: z.string(),
+      data: z.record(z.string(), z.unknown()).optional(),
+      signature: z.string(),
+    }),
+  }),
+  maxAgeMs: z.number().optional(),
+  expectedDeviceId: z.string().optional(),
+});
+
+const pairingRequestBodySchema = z.object({
+  requesterId: z.string().optional(),
+  meta: z.record(z.string(), z.string()).optional(),
+});
+
+const pairingApproveBodySchema = z.object({
+  code: z.string().min(1),
+  approvedBy: z.string().optional(),
+});
+
+const pairingRejectBodySchema = z.object({
+  code: z.string().min(1),
+  rejectedBy: z.string().optional(),
+  reason: z.string().optional(),
+});
+
+const pairingValidateBodySchema = z.object({
+  token: z.string().min(1),
+});
+
+async function parseJsonBody(c: Context): Promise<
+  { ok: true; body: Record<string, unknown> } | { ok: false; response: Response }
+> {
+  try {
+    const body = await c.req.json();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return {
+        ok: false,
+        response: c.json({ success: false, error: 'Request body must be a JSON object' }, 400),
+      };
+    }
+
+    return { ok: true, body: body as Record<string, unknown> };
+  } catch {
+    return {
+      ok: false,
+      response: c.json({ success: false, error: 'Invalid JSON body' }, 400),
+    };
+  }
+}
+
 // Device Identity Endpoints
-// ============================================================================
 
 /**
  * GET /api/devices/identity
@@ -45,7 +107,7 @@ app.get('/identity', async (c) => {
       identity: exportPublicIdentity(identity),
     });
   } catch (error) {
-    console.error('[Devices] Failed to get identity:', error);
+    log.error('Failed to get identity', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         success: false,
@@ -62,16 +124,25 @@ app.get('/identity', async (c) => {
  */
 app.post('/attest', async (c) => {
   try {
-    const body = await c.req.json().catch(() => ({}));
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const bodyParse = attestBodySchema.safeParse(parsed.body);
+    if (!bodyParse.success) {
+      return c.json({ success: false, error: 'Invalid attestation payload' }, 400);
+    }
+
     const identity = loadOrCreateDeviceIdentity();
-    const attestation = createDeviceAttestation(identity, body.data);
+    const attestation = createDeviceAttestation(identity, bodyParse.data.data);
 
     return c.json({
       success: true,
       attestation,
     });
   } catch (error) {
-    console.error('[Devices] Failed to create attestation:', error);
+    log.error('Failed to create attestation', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         success: false,
@@ -88,15 +159,19 @@ app.post('/attest', async (c) => {
  */
 app.post('/verify', async (c) => {
   try {
-    const body = await c.req.json();
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
 
-    if (!body.attestation) {
+    const bodyParse = verifyAttestationBodySchema.safeParse(parsed.body);
+    if (!bodyParse.success) {
       return c.json({ success: false, error: 'Missing attestation' }, 400);
     }
 
-    const result = verifyDeviceAttestation(body.attestation, {
-      maxAgeMs: body.maxAgeMs,
-      expectedDeviceId: body.expectedDeviceId,
+    const result = verifyDeviceAttestation(bodyParse.data.attestation, {
+      maxAgeMs: bodyParse.data.maxAgeMs,
+      expectedDeviceId: bodyParse.data.expectedDeviceId,
     });
 
     return c.json({
@@ -104,7 +179,7 @@ app.post('/verify', async (c) => {
       ...result,
     });
   } catch (error) {
-    console.error('[Devices] Failed to verify attestation:', error);
+    log.error('Failed to verify attestation', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         success: false,
@@ -115,9 +190,7 @@ app.post('/verify', async (c) => {
   }
 });
 
-// ============================================================================
 // Pairing Code Endpoints
-// ============================================================================
 
 /**
  * POST /api/devices/pairing/request
@@ -128,16 +201,27 @@ app.post('/pairing/request', async (c) => {
     // Ensure table exists
     await initPairingCodesTable();
 
-    const body = await c.req.json().catch(() => ({}));
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const bodyParse = pairingRequestBodySchema.safeParse(parsed.body);
+    if (!bodyParse.success) {
+      return c.json({ success: false, error: 'Invalid pairing request payload' }, 400);
+    }
     const identity = loadOrCreateDeviceIdentity();
+    const identityMeta = {
+      deviceId: identity.deviceId,
+      ...(identity.displayName ? { displayName: identity.displayName } : {}),
+      ...(identity.platform ? { platform: identity.platform } : {}),
+    };
 
     const result = await requestPairingCode({
-      requesterId: body.requesterId || identity.deviceId,
+      requesterId: bodyParse.data.requesterId || identity.deviceId,
       meta: {
-        deviceId: identity.deviceId,
-        displayName: identity.displayName,
-        platform: identity.platform,
-        ...body.meta,
+        ...identityMeta,
+        ...bodyParse.data.meta,
       },
     });
 
@@ -149,7 +233,7 @@ app.post('/pairing/request', async (c) => {
       created: result.created,
     });
   } catch (error) {
-    console.error('[Devices] Failed to request pairing code:', error);
+    log.error('Failed to request pairing code', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         success: false,
@@ -177,7 +261,7 @@ app.get('/pairing/status/:code', async (c) => {
       expiresAt: status.expiresAt?.toISOString(),
     });
   } catch (error) {
-    console.error('[Devices] Failed to check pairing status:', error);
+    log.error('Failed to check pairing status', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         success: false,
@@ -195,14 +279,18 @@ app.get('/pairing/status/:code', async (c) => {
 app.post('/pairing/approve', async (c) => {
   try {
     await initPairingCodesTable();
-    const body = await c.req.json();
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
 
-    if (!body.code) {
+    const bodyParse = pairingApproveBodySchema.safeParse(parsed.body);
+    if (!bodyParse.success) {
       return c.json({ success: false, error: 'Missing code' }, 400);
     }
 
-    const code = parsePairingCode(body.code);
-    const approvedBy = body.approvedBy || 'admin';
+    const code = parsePairingCode(bodyParse.data.code);
+    const approvedBy = bodyParse.data.approvedBy || 'admin';
 
     const result = await approvePairingCode({ code, approvedBy });
 
@@ -230,7 +318,7 @@ app.post('/pairing/approve', async (c) => {
       token: result.token,
     });
   } catch (error) {
-    console.error('[Devices] Failed to approve pairing code:', error);
+    log.error('Failed to approve pairing code', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         success: false,
@@ -248,19 +336,23 @@ app.post('/pairing/approve', async (c) => {
 app.post('/pairing/reject', async (c) => {
   try {
     await initPairingCodesTable();
-    const body = await c.req.json();
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
 
-    if (!body.code) {
+    const bodyParse = pairingRejectBodySchema.safeParse(parsed.body);
+    if (!bodyParse.success) {
       return c.json({ success: false, error: 'Missing code' }, 400);
     }
 
-    const code = parsePairingCode(body.code);
-    const rejectedBy = body.rejectedBy || 'admin';
+    const code = parsePairingCode(bodyParse.data.code);
+    const rejectedBy = bodyParse.data.rejectedBy || 'admin';
 
     const success = await rejectPairingCode({
       code,
       rejectedBy,
-      reason: body.reason,
+      reason: bodyParse.data.reason,
     });
 
     if (!success) {
@@ -275,7 +367,7 @@ app.post('/pairing/reject', async (c) => {
 
     return c.json({ success: true });
   } catch (error) {
-    console.error('[Devices] Failed to reject pairing code:', error);
+    log.error('Failed to reject pairing code', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         success: false,
@@ -307,7 +399,7 @@ app.get('/pairing/pending', async (c) => {
       count: requests.length,
     });
   } catch (error) {
-    console.error('[Devices] Failed to list pending requests:', error);
+    log.error('Failed to list pending requests', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         success: false,
@@ -325,20 +417,24 @@ app.get('/pairing/pending', async (c) => {
 app.post('/pairing/validate', async (c) => {
   try {
     await initPairingCodesTable();
-    const body = await c.req.json();
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
 
-    if (!body.token) {
+    const bodyParse = pairingValidateBodySchema.safeParse(parsed.body);
+    if (!bodyParse.success) {
       return c.json({ success: false, error: 'Missing token' }, 400);
     }
 
-    const result = await validatePairingToken(body.token);
+    const result = await validatePairingToken(bodyParse.data.token);
 
     return c.json({
       success: true,
       ...result,
     });
   } catch (error) {
-    console.error('[Devices] Failed to validate token:', error);
+    log.error('Failed to validate token', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         success: false,
@@ -363,7 +459,7 @@ app.post('/pairing/cleanup', async (c) => {
       deleted,
     });
   } catch (error) {
-    console.error('[Devices] Failed to cleanup pairing requests:', error);
+    log.error('Failed to cleanup pairing requests', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         success: false,
@@ -374,9 +470,55 @@ app.post('/pairing/cleanup', async (c) => {
   }
 });
 
-// ============================================================================
+/**
+ * GET /api/devices/pairing/qr/:code
+ * Generate a QR code payload (url, svg, text) for a pairing code
+ */
+app.get('/pairing/qr/:code', async (c: Context) => {
+  try {
+    const code = c.req.param('code');
+    if (!code) {
+      return c.json({ error: 'Pairing code required' }, 400);
+    }
+
+    const forwardedHost = c.req.header('X-Forwarded-Host');
+    const baseUrl = forwardedHost ? `https://${forwardedHost}` : undefined;
+
+    const qr = generatePairingQR(code, { baseUrl });
+    return c.json({ success: true, ...qr });
+  } catch (error) {
+    log.error('Failed to generate QR code', error instanceof Error ? error : new Error(String(error)));
+    return c.json({ error: 'Failed to generate QR code' }, 500);
+  }
+});
+
+/**
+ * GET /api/devices/pairing/qr/:code/svg
+ * Return QR code as a raw SVG image for direct embedding
+ */
+app.get('/pairing/qr/:code/svg', async (c: Context) => {
+  try {
+    const code = c.req.param('code');
+    if (!code) {
+      return c.text('Missing code', 400);
+    }
+
+    const forwardedHost = c.req.header('X-Forwarded-Host');
+    const baseUrl = forwardedHost ? `https://${forwardedHost}` : undefined;
+
+    const url = generatePairingUrl(code, { baseUrl });
+    const svg = generateQRSvg(url, 300);
+
+    c.header('Content-Type', 'image/svg+xml');
+    c.header('Cache-Control', 'public, max-age=3600');
+    return c.body(svg);
+  } catch (error) {
+    log.error('Failed to generate QR SVG', error instanceof Error ? error : new Error(String(error)));
+    return c.text('Failed to generate QR', 500);
+  }
+});
+
 // Paired Devices Management
-// ============================================================================
 
 /**
  * GET /api/devices/paired
@@ -420,7 +562,7 @@ app.get('/paired', async (c) => {
       count: devices.length,
     });
   } catch (error) {
-    console.error('[Devices] Failed to list paired devices:', error);
+    log.error('Failed to list paired devices', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         success: false,
@@ -456,11 +598,11 @@ app.delete('/paired/:id', async (c) => {
       id,
     ]);
 
-    console.log(`[Devices] Revoked device ${id}`);
+    log.info('Revoked device', { id });
 
     return c.json({ success: true });
   } catch (error) {
-    console.error('[Devices] Failed to revoke device:', error);
+    log.error('Failed to revoke device', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         success: false,

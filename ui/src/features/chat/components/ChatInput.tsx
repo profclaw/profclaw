@@ -14,7 +14,9 @@ import {
   X,
   Bot,
   MessageCircle,
+  AudioLines,
 } from 'lucide-react';
+import type { TalkModeState } from '@/core/hooks/useTalkMode';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -37,6 +39,11 @@ interface ChatInputProps {
   // Mode toggle
   agentMode?: boolean;
   onToggleAgentMode?: () => void;
+  // Talk Mode
+  talkModeState?: TalkModeState;
+  onToggleTalkMode?: () => void;
+  // Voice availability
+  voiceAvailable?: { stt: boolean; tts: boolean };
 }
 
 export function ChatInput({
@@ -54,7 +61,11 @@ export function ChatInput({
   onStopRecording,
   agentMode = false,
   onToggleAgentMode,
+  talkModeState = 'idle',
+  onToggleTalkMode,
+  voiceAvailable,
 }: ChatInputProps) {
+  const sttReady = voiceAvailable?.stt ?? true;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -155,27 +166,75 @@ export function ChatInput({
             <ImagePlus className="h-5 w-5" aria-hidden="true" />
           </Button>
 
-          {/* Voice recording button */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn(
-              'h-9 w-9 shrink-0 rounded-xl transition-all',
-              isRecording
-                ? 'bg-destructive/10 text-destructive animate-pulse'
-                : 'text-muted-foreground hover:bg-muted'
-            )}
-            onClick={isRecording ? onStopRecording : onStartRecording}
-            disabled={isPending || disabled}
-            aria-label={isRecording ? 'Stop recording' : 'Start recording'}
-            aria-pressed={isRecording}
-          >
-            {isRecording ? (
-              <MicOff className="h-5 w-5" aria-hidden="true" />
-            ) : (
-              <Mic className="h-5 w-5" aria-hidden="true" />
-            )}
-          </Button>
+          {/* Voice recording button - hidden when Talk Mode is active */}
+          {talkModeState === 'idle' && (
+            <div className="relative">
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  'h-9 w-9 shrink-0 rounded-xl transition-all',
+                  isRecording
+                    ? 'bg-destructive/10 text-destructive animate-pulse'
+                    : !sttReady
+                      ? 'opacity-40 cursor-not-allowed text-muted-foreground'
+                      : 'text-muted-foreground hover:bg-muted'
+                )}
+                onClick={isRecording ? onStopRecording : onStartRecording}
+                disabled={isPending || disabled}
+                title={!sttReady ? 'Voice input unavailable - configure STT in Settings > Voice' : undefined}
+                aria-label={isRecording ? 'Stop recording' : !sttReady ? 'Voice input unavailable' : 'Start recording'}
+                aria-pressed={isRecording}
+              >
+                {isRecording ? (
+                  <MicOff className="h-5 w-5" aria-hidden="true" />
+                ) : (
+                  <Mic className="h-5 w-5" aria-hidden="true" />
+                )}
+              </Button>
+              {/* Availability indicator dot */}
+              <span
+                className={cn(
+                  'absolute top-0.5 right-0.5 h-2 w-2 rounded-full',
+                  sttReady ? 'bg-green-500' : 'bg-red-500'
+                )}
+                aria-hidden="true"
+              />
+            </div>
+          )}
+
+          {/* Talk Mode toggle button */}
+          {onToggleTalkMode && (
+            <div className="relative">
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  'h-9 w-9 shrink-0 rounded-xl transition-all',
+                  talkModeState !== 'idle'
+                    ? 'bg-green-500/20 text-green-500'
+                    : !sttReady
+                      ? 'opacity-40 cursor-not-allowed text-muted-foreground'
+                      : 'text-muted-foreground hover:bg-muted'
+                )}
+                onClick={onToggleTalkMode}
+                disabled={isPending || disabled}
+                title={!sttReady && talkModeState === 'idle' ? 'Talk Mode unavailable - configure STT in Settings > Voice' : undefined}
+                aria-label={talkModeState !== 'idle' ? 'Stop Talk Mode' : !sttReady ? 'Talk Mode unavailable' : 'Start Talk Mode'}
+                aria-pressed={talkModeState !== 'idle'}
+              >
+                <AudioLines className="h-5 w-5" aria-hidden="true" />
+              </Button>
+              {/* Availability indicator dot */}
+              <span
+                className={cn(
+                  'absolute top-0.5 right-0.5 h-2 w-2 rounded-full',
+                  sttReady ? 'bg-green-500' : 'bg-red-500'
+                )}
+                aria-hidden="true"
+              />
+            </div>
+          )}
         </div>
 
         {/* Text input */}

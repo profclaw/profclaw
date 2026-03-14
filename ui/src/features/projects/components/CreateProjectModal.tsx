@@ -95,7 +95,7 @@ export function CreateProjectModal({ open, onOpenChange, onSuccess }: CreateProj
       resetForm();
       onSuccess?.();
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       if (error.message?.includes('already exists')) {
         setKeyError('This project key is already taken');
       } else {
@@ -151,7 +151,7 @@ export function CreateProjectModal({ open, onOpenChange, onSuccess }: CreateProj
             Create New Project
           </DialogTitle>
           <DialogDescription>
-            Create a project to organize your tickets. Each project gets a unique key prefix (e.g., GLINR-1, MOBILE-1).
+            Create a project to organize your tickets. Each project gets a unique key prefix (e.g., PROFCLAW-1, MOBILE-1).
           </DialogDescription>
         </DialogHeader>
 

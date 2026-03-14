@@ -41,7 +41,7 @@ describe('E2E: Chat Flow', () => {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'Cookie': `glinr_session=${sessionToken}`
+        'Cookie': `profclaw_session=${sessionToken}`
       },
       body: JSON.stringify({ title: 'Test Conversation' })
     });
@@ -72,7 +72,7 @@ describe('E2E: Chat Flow', () => {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'Cookie': `glinr_session=${sessionToken}`
+        'Cookie': `profclaw_session=${sessionToken}`
       },
       body: JSON.stringify({
         messages: [{ role: 'user', content: 'Hi' }],

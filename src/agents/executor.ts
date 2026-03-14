@@ -1,7 +1,7 @@
 /**
  * Agent Executor
  *
- * The main orchestrator for the GLINR agentic loop system.
+ * The main orchestrator for the profClaw agentic loop system.
  * Uses AI SDK's native multi-step execution (stopWhen + onStepFinish)
  * instead of a manual loop. Tools have execute functions and the SDK
  * handles message accumulation, tool result feeding, and step chaining.
@@ -12,7 +12,13 @@ import {
   stepCountIs as sdkStepCountIs,
   hasToolCall as sdkHasToolCall,
 } from "ai";
-import type { StopCondition as AiSdkStopCondition } from "ai";
+import type {
+  LanguageModel,
+  ModelMessage,
+  StepResult,
+  StopCondition as AiSdkStopCondition,
+  ToolSet,
+} from "ai";
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import type {
@@ -21,15 +27,12 @@ import type {
   AgentResult,
   AgentEvents,
   ToolCallRecord,
-  ThinkingEffort,
 } from "./types.js";
 import { EFFORT_BUDGET_MAP } from "./types.js";
 import { defaultStopConditions, taskCompleted } from "./stop-conditions.js";
 import { logger } from "../utils/logger.js";
 
-// =============================================================================
 // Default Configuration
-// =============================================================================
 
 const DEFAULT_CONFIG: Required<AgentConfig> = {
   maxSteps: 100,
@@ -44,9 +47,134 @@ const DEFAULT_CONFIG: Required<AgentConfig> = {
 /** After this many consecutive same-tool failures, inject a system hint */
 const FAILURE_ESCALATION_THRESHOLD = 2;
 
-// =============================================================================
+type ExecutorTools = ToolSet;
+type ExecutorStep = StepResult<ExecutorTools>;
+type ContextProject = NonNullable<AgentState["context"]["availableProjects"]>[number];
+type ContextTicket = NonNullable<AgentState["context"]["createdTickets"]>[number];
+type AgentArtifact = AgentResult["artifacts"][number];
+type ExecutorProviderOptions = {
+  anthropic?: {
+    thinking?: {
+      type: 'enabled';
+      budgetTokens: number;
+    };
+  };
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function getString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function getRecord(value: unknown): Record<string, unknown> | undefined {
+  return isRecord(value) ? value : undefined;
+}
+
+function getRecordArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.filter(isRecord) : [];
+}
+
+function getStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function toToolArgs(input: unknown): Record<string, unknown> {
+  return getRecord(input) ?? {};
+}
+
+function getUsageInputTokens(usage: unknown): number {
+  const usageRecord = getRecord(usage);
+  if (!usageRecord) return 0;
+
+  const inputTokens = usageRecord.inputTokens;
+  if (typeof inputTokens === "number") return inputTokens;
+
+  const promptTokens = usageRecord.promptTokens;
+  return typeof promptTokens === "number" ? promptTokens : 0;
+}
+
+function getUsageOutputTokens(usage: unknown): number {
+  const usageRecord = getRecord(usage);
+  if (!usageRecord) return 0;
+
+  const outputTokens = usageRecord.outputTokens;
+  if (typeof outputTokens === "number") return outputTokens;
+
+  const completionTokens = usageRecord.completionTokens;
+  return typeof completionTokens === "number" ? completionTokens : 0;
+}
+
+function getToolCallInput(toolCall: unknown): Record<string, unknown> {
+  const toolCallRecord = getRecord(toolCall);
+  if (!toolCallRecord) return {};
+
+  return toToolArgs(toolCallRecord.input ?? toolCallRecord.args);
+}
+
+function getToolResultOutput(toolResult: unknown): unknown {
+  const toolResultRecord = getRecord(toolResult);
+  if (!toolResultRecord) return undefined;
+
+  return toolResultRecord.output ?? toolResultRecord.result;
+}
+
+function toContextProject(value: Record<string, unknown>): ContextProject | null {
+  const id = getString(value.id);
+  const key = getString(value.key);
+  const name = getString(value.name);
+
+  if (!id || !key || !name) {
+    return null;
+  }
+
+  return { id, key, name };
+}
+
+function toContextTicket(value: Record<string, unknown>): ContextTicket | null {
+  const id = getString(value.id);
+  const key = getString(value.key);
+  const title = getString(value.title);
+  const type = getString(value.type);
+
+  if (!id || !key || !title || !type) {
+    return null;
+  }
+
+  return { id, key, title, type };
+}
+
+function toAgentArtifact(value: Record<string, unknown>): AgentArtifact | null {
+  const type = getString(value.type);
+  const id = getString(value.id);
+
+  if (!type || !id) {
+    return null;
+  }
+
+  const allowedTypes: AgentArtifact["type"][] = [
+    "ticket",
+    "commit",
+    "file",
+    "pr",
+    "project",
+    "other",
+  ];
+  if (!allowedTypes.includes(type as AgentArtifact["type"])) {
+    return null;
+  }
+
+  return {
+    type: type as AgentArtifact["type"],
+    id,
+    description: getString(value.description),
+    url: getString(value.url),
+  };
+}
+
 // Agent Executor Class
-// =============================================================================
 
 export class AgentExecutor extends EventEmitter<AgentEvents> {
   private state: AgentState;
@@ -95,9 +223,7 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
     });
   }
 
-  // ===========================================================================
   // Public API
-  // ===========================================================================
 
   /**
    * Run the agent until completion or stop condition.
@@ -105,9 +231,9 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
    * with stopWhen + onStepFinish replaces the old manual loop.
    */
   async run(
-    model: any,
-    messages: any[],
-    tools: Record<string, any>,
+    model: LanguageModel,
+    messages: ModelMessage[],
+    tools: ExecutorTools,
     onToolExecute?: (
       name: string,
       args: Record<string, unknown>,
@@ -141,7 +267,7 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
       const providerOptions = this.buildProviderOptions(providerHint);
 
       // Single generateText call — the SDK handles multi-step chaining
-      const result = await generateText({
+      const result = await generateText<ExecutorTools>({
         model,
         messages,
         tools: hasTools ? executableTools : undefined,
@@ -149,15 +275,15 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
         stopWhen: [
           sdkStepCountIs(this.config.maxSteps),
           sdkHasToolCall("complete_task"),
-        ] as AiSdkStopCondition<any>[],
+        ] as AiSdkStopCondition<ExecutorTools>[],
         abortSignal: this.abortController.signal,
-        onStepFinish: (step: any) => {
+        onStepFinish: (step: ExecutorStep) => {
           this.state.currentStep++;
           this.state.updatedAt = Date.now();
 
           // Track token budget (AI SDK v6 uses inputTokens/outputTokens)
-          const stepInput = step.usage?.inputTokens ?? step.usage?.promptTokens ?? 0;
-          const stepOutput = step.usage?.outputTokens ?? step.usage?.completionTokens ?? 0;
+          const stepInput = getUsageInputTokens(step.usage);
+          const stepOutput = getUsageOutputTokens(step.usage);
           const tokensUsed = stepInput + stepOutput;
           this.state.usedBudget += tokensUsed;
           this.state.inputTokensUsed += stepInput;
@@ -173,18 +299,18 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
             const record: ToolCallRecord = {
               id: tc.toolCallId ?? randomUUID(),
               name: tc.toolName,
-              args: (tc as any).input ?? (tc as any).args ?? {},
+              args: getToolCallInput(tc),
               status: "pending",
               startedAt: Date.now(),
             };
 
             // Find the matching tool result
             const tr = (step.toolResults ?? []).find(
-              (r: any) => r.toolCallId === tc.toolCallId,
+              (toolResult) => toolResult.toolCallId === tc.toolCallId,
             );
 
             if (tr) {
-              record.result = tr.result;
+              record.result = getToolResultOutput(tr);
               record.completedAt = Date.now();
 
               // Check if the tool result indicates a failure
@@ -243,13 +369,13 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
             this.abortController.abort();
           }
         },
-      } as any);
+      });
 
       // Update budget from total usage (AI SDK v6 uses inputTokens/outputTokens)
-      const totalUsage = (result as any).totalUsage;
+      const totalUsage = result.totalUsage;
       if (totalUsage) {
-        const totalInput = totalUsage.inputTokens ?? totalUsage.promptTokens ?? 0;
-        const totalOutput = totalUsage.outputTokens ?? totalUsage.completionTokens ?? 0;
+        const totalInput = getUsageInputTokens(totalUsage);
+        const totalOutput = getUsageOutputTokens(totalUsage);
         // totalUsage is the authoritative sum; overwrite our step-by-step estimate
         this.state.usedBudget = totalInput + totalOutput;
         this.state.inputTokensUsed = totalInput;
@@ -317,15 +443,13 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
     this.emit("approval:received", this.state, approved);
   }
 
-  // ===========================================================================
   // Provider Options (Effort / Thinking)
-  // ===========================================================================
 
   /**
    * Build provider-specific options based on agent config.
    * For Anthropic models with effort set, enables extended thinking.
    */
-  private buildProviderOptions(providerHint?: string): Record<string, unknown> | undefined {
+  private buildProviderOptions(providerHint?: string): ExecutorProviderOptions | undefined {
     const effort = this.config.effort;
     if (!effort) return undefined;
 
@@ -347,9 +471,7 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
     };
   }
 
-  // ===========================================================================
   // Tool Wrapping
-  // ===========================================================================
 
   /**
    * Wrap tools with execute functions so the AI SDK can auto-execute them.
@@ -357,15 +479,15 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
    * after each step, the SDK calls execute() and feeds results back.
    */
   private wrapToolsWithExecute(
-    tools: Record<string, any>,
+    tools: ExecutorTools,
     onToolExecute?: (
       name: string,
       args: Record<string, unknown>,
     ) => Promise<unknown>,
-  ): Record<string, any> {
+  ): ExecutorTools {
     if (!onToolExecute) return tools;
 
-    const wrapped: Record<string, any> = {};
+    const wrapped: ExecutorTools = {};
     for (const [name, toolDef] of Object.entries(tools)) {
       wrapped[name] = {
         ...toolDef,
@@ -397,21 +519,19 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
             };
           }
         },
-      };
+      } as ExecutorTools[string];
     }
     return wrapped;
   }
 
-  // ===========================================================================
   // Custom Stop Condition Checks (in onStepFinish)
-  // ===========================================================================
 
   /**
    * Check custom stop conditions that can't be expressed via AI SDK's stopWhen.
    * These include consecutive failures, same tool repeated, budget, timeout, etc.
    * If triggered, we abort the generateText call.
    */
-  private checkCustomStopConditions(step: any): void {
+  private checkCustomStopConditions(step: Pick<ExecutorStep, "toolCalls">): void {
     const history = this.state.toolCallHistory;
 
     // Consecutive failures check
@@ -467,15 +587,13 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
     }
   }
 
-  // ===========================================================================
   // Failure Escalation
-  // ===========================================================================
 
   /**
    * If the same tool has failed consecutively, inject a system hint
    * telling the AI to try a different approach.
    */
-  private injectFailureHint(messages: any[]): void {
+  private injectFailureHint(messages: ModelMessage[]): void {
     const history = this.state.toolCallHistory;
     if (history.length < FAILURE_ESCALATION_THRESHOLD) return;
 
@@ -503,9 +621,7 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
     }
   }
 
-  // ===========================================================================
   // Context Extraction
-  // ===========================================================================
 
   private extractContext(record: ToolCallRecord): void {
     if (!record.result || typeof record.result !== "object") {
@@ -515,8 +631,9 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
     const result = record.result as Record<string, unknown>;
 
     // Store hints from tools
-    if (result.hint) {
-      this.state.context.lastHint = result.hint as string;
+    const hint = getString(result.hint);
+    if (hint) {
+      this.state.context.lastHint = hint;
     }
 
     // Store data from tool results
@@ -525,43 +642,36 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
 
       // Projects from list_projects
       if (record.name === "list_projects" && data.projects) {
-        this.state.context.availableProjects = (data.projects as any[]).map(
-          (p) => ({
-            key: p.key,
-            name: p.name,
-            id: p.id,
-          }),
-        );
+        this.state.context.availableProjects = getRecordArray(data.projects)
+          .map(toContextProject)
+          .filter((project): project is ContextProject => project !== null);
       }
 
       // Tickets from create_ticket
       if (record.name === "create_ticket" && data.id) {
-        const tickets = (this.state.context.createdTickets ?? []) as any[];
-        tickets.push({
-          id: data.id as string,
-          key: data.key as string,
-          title: data.title as string,
-          type: data.type as string,
-        });
+        const ticket = toContextTicket(data);
+        if (!ticket) {
+          return;
+        }
+        const tickets = [...(this.state.context.createdTickets ?? [])];
+        tickets.push(ticket);
         this.state.context.createdTickets = tickets;
       }
 
       // Projects from create_project
       if (record.name === "create_project" && data.id) {
-        const projects = (this.state.context.availableProjects ?? []) as any[];
-        projects.push({
-          id: data.id as string,
-          key: data.key as string,
-          name: data.name as string,
-        });
+        const project = toContextProject(data);
+        if (!project) {
+          return;
+        }
+        const projects = [...(this.state.context.availableProjects ?? [])];
+        projects.push(project);
         this.state.context.availableProjects = projects;
       }
     }
   }
 
-  // ===========================================================================
   // Finalization
-  // ===========================================================================
 
   private finalize(): void {
     const completedViaTask = this.state.toolCallHistory.some(
@@ -597,9 +707,7 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
 
     // Priority 2: AI's text response
     if (!summary) {
-      const textResponse = this.state.context.lastTextResponse as
-        | string
-        | undefined;
+      const textResponse = getString(this.state.context.lastTextResponse);
       if (textResponse) {
         summary = textResponse;
       }
@@ -661,7 +769,7 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
     const artifacts: AgentResult["artifacts"] = [];
 
     // Collect from created tickets
-    const tickets = this.state.context.createdTickets as any[];
+    const tickets = this.state.context.createdTickets;
     if (tickets) {
       for (const ticket of tickets) {
         artifacts.push({
@@ -680,8 +788,10 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
       const result = completionCall.result as Record<string, unknown>;
       if (result.data && typeof result.data === "object") {
         const data = result.data as Record<string, unknown>;
-        const taskArtifacts = data.artifacts as any[];
-        if (taskArtifacts) {
+        const taskArtifacts = getRecordArray(data.artifacts)
+          .map(toAgentArtifact)
+          .filter((artifact): artifact is AgentArtifact => artifact !== null);
+        if (taskArtifacts.length > 0) {
           for (const artifact of taskArtifacts) {
             if (!artifacts.some((a) => a.id === artifact.id)) {
               artifacts.push(artifact);
@@ -702,15 +812,13 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
       const result = completionCall.result as Record<string, unknown>;
       if (result.data && typeof result.data === "object") {
         const data = result.data as Record<string, unknown>;
-        return (data.nextSteps as string[]) ?? [];
+        return getStringArray(data.nextSteps);
       }
     }
     return [];
   }
 
-  // ===========================================================================
   // Error Handling
-  // ===========================================================================
 
   private handleError(error: Error): void {
     this.state.status = "failed";
@@ -731,9 +839,7 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
   }
 }
 
-// =============================================================================
 // Factory Functions
-// =============================================================================
 
 /**
  * Create an agent executor with default configuration.

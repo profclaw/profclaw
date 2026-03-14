@@ -4,7 +4,7 @@
  * Main chat interface with tool calling support and approval workflow.
  */
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -20,8 +20,13 @@ import {
   ChatSidebar,
   ProviderSetupDialog,
   AgenticThinking,
+  TalkModeOverlay,
   type AgenticEvent,
 } from '../components';
+import { WorkflowQuickActions } from '../components/WorkflowQuickActions';
+import { AutonomySlider, type AutonomyLevel } from '../components/AutonomySlider';
+import { ToolTimeline, type ToolCallEvent } from '../components/ToolTimeline';
+import { useTalkMode } from '@/core/hooks/useTalkMode';
 import {
   ToolApprovalDialog,
   type PendingApproval,
@@ -34,10 +39,10 @@ export function ChatView() {
 
   // Constants for localStorage keys
   const STORAGE_KEYS = {
-    model: 'glinr-chat-model',
-    preset: 'glinr-chat-preset',
-    sidebarOpen: 'glinr-chat-sidebar-open',
-    agentMode: 'glinr-chat-agent-mode',
+    model: 'profclaw-chat-model',
+    preset: 'profclaw-chat-preset',
+    sidebarOpen: 'profclaw-chat-sidebar-open',
+    agentMode: 'profclaw-chat-agent-mode',
   } as const;
 
   // State
@@ -52,9 +57,9 @@ export function ChatView() {
   });
   const [selectedPreset, setSelectedPreset] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem(STORAGE_KEYS.preset) || 'glinr-assistant';
+      return localStorage.getItem(STORAGE_KEYS.preset) || 'profclaw-assistant';
     }
-    return 'glinr-assistant';
+    return 'profclaw-assistant';
   });
   const [showProviderSetup, setShowProviderSetup] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -80,14 +85,43 @@ export function ChatView() {
     }
     return false;
   });
+  const [autonomyLevel, setAutonomyLevel] = useState<AutonomyLevel>('ask-dangerous');
   const [focusedView, setFocusedView] = useState(false);
 
   // Agentic execution state
   const [agenticEvents, setAgenticEvents] = useState<AgenticEvent[]>([]);
   const [isAgenticRunning, setIsAgenticRunning] = useState(false);
 
+  // Derive tool call events from agentic events for ToolTimeline
+  const toolCallEvents = useMemo<ToolCallEvent[]>(() => {
+    const calls = new Map<string, ToolCallEvent>();
+    for (const event of agenticEvents) {
+      if (event.type === 'tool:call') {
+        const data = event.data as { id?: string; name?: string; toolCallId?: string; toolName?: string };
+        const id = data.id ?? data.toolCallId ?? crypto.randomUUID();
+        const name = data.name ?? data.toolName ?? 'unknown';
+        calls.set(id, { id, toolName: name, status: 'running', startedAt: Date.now() });
+      }
+      if (event.type === 'tool:result') {
+        const data = event.data as { id?: string; toolCallId?: string; success?: boolean; error?: string };
+        const id = data.id ?? data.toolCallId ?? '';
+        const existing = calls.get(id);
+        if (existing) {
+          existing.status = data.success === false ? 'failed' : 'completed';
+          existing.completedAt = Date.now();
+          if (data.error) existing.error = data.error;
+        }
+      }
+    }
+    return Array.from(calls.values());
+  }, [agenticEvents]);
+
   const urlConversationIdRef = useRef<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  // Track the last assistant message ID to avoid re-triggering TTS
+  const lastSpokenMessageIdRef = useRef<string | null>(null);
 
   // URL sync for conversation persistence
   const setConversationId = useCallback((id: string | null) => {
@@ -142,6 +176,38 @@ export function ChatView() {
     refetchInterval: 60000,
     staleTime: 55000,
   });
+
+  // Model capability detection
+  const { data: modelCapability } = useQuery<{
+    capability: 'basic' | 'instruction' | 'reasoning';
+    tier: 'essential' | 'standard' | 'full';
+    maxSchemaTokens: number;
+  }>({
+    queryKey: ['model-capability', selectedModel],
+    queryFn: async () => {
+      if (!selectedModel) return { capability: 'reasoning' as const, tier: 'full' as const, maxSchemaTokens: 20000 };
+      const res = await fetch(`/api/chat/model-capability?model=${encodeURIComponent(selectedModel)}`);
+      if (!res.ok) return { capability: 'reasoning' as const, tier: 'full' as const, maxSchemaTokens: 20000 };
+      return res.json() as Promise<{ capability: 'basic' | 'instruction' | 'reasoning'; tier: 'essential' | 'standard' | 'full'; maxSchemaTokens: number }>;
+    },
+    staleTime: 300_000,
+    enabled: !!selectedModel,
+  });
+
+  // Voice availability status
+  const { data: voiceStatus } = useQuery<{ available: boolean; stt: { provider: string | null }; tts: { provider: string | null } }>({
+    queryKey: ['voice-status'],
+    queryFn: async () => {
+      const res = await fetch('/api/voice/status');
+      if (!res.ok) return { available: false, stt: { provider: null }, tts: { provider: null } };
+      return res.json() as Promise<{ available: boolean; stt: { provider: string | null }; tts: { provider: string | null } }>;
+    },
+    staleTime: 60_000,
+    retry: 1,
+  });
+
+  const sttAvailable = voiceStatus?.stt?.provider != null;
+  const ttsAvailable = voiceStatus?.tts?.provider != null;
 
   // ============================================================================
   // Mutations
@@ -567,6 +633,87 @@ export function ChatView() {
     }
   };
 
+  // ============================================================================
+  // Talk Mode
+  // ============================================================================
+
+  const handleTalkModeSend = useCallback(async (text: string): Promise<void> => {
+    const isPendingAny = sendConversationMessage.isPending || sendMessageWithTools.isPending || isAgenticRunning;
+    if (!text.trim() || isPendingAny) return;
+
+    const userMessage: Message = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: text.trim(),
+      timestamp: new Date().toISOString(),
+    };
+
+    const loadingMessage: Message = {
+      id: 'loading',
+      role: 'assistant',
+      content: '',
+      isLoading: true,
+      timestamp: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, userMessage, loadingMessage]);
+
+    const sendMutation = agentMode ? sendMessageWithTools : sendConversationMessage;
+
+    if (conversationId) {
+      sendMutation.mutate({
+        conversationId,
+        content: text.trim(),
+        model: selectedModel || undefined,
+      });
+    } else {
+      const result = await createConversation.mutateAsync({
+        presetId: selectedPreset,
+      });
+      sendMutation.mutate({
+        conversationId: result.conversation.id,
+        content: text.trim(),
+        model: selectedModel || undefined,
+      });
+    }
+  }, [
+    sendConversationMessage.isPending, sendMessageWithTools.isPending,
+    isAgenticRunning, agentMode, conversationId, selectedModel, selectedPreset,
+    sendConversationMessage, sendMessageWithTools, createConversation,
+  ]);
+
+  const talkMode = useTalkMode({
+    onTranscription: useCallback((text: string) => {
+      setInput((prev) => (prev ? `${prev} ${text}` : text));
+    }, []),
+    onSend: handleTalkModeSend,
+  });
+
+  // Auto-TTS: speak new assistant messages when Talk Mode is active with autoTts
+  useEffect(() => {
+    if (talkMode.state === 'idle' || !talkMode.config.autoTts) return;
+
+    const lastMessage = messages[messages.length - 1];
+    if (
+      lastMessage &&
+      lastMessage.role === 'assistant' &&
+      !lastMessage.isLoading &&
+      lastMessage.content &&
+      lastMessage.id !== lastSpokenMessageIdRef.current
+    ) {
+      lastSpokenMessageIdRef.current = lastMessage.id;
+      void talkMode.speakResponse(lastMessage.content);
+    }
+  }, [messages, talkMode.state, talkMode.config.autoTts, talkMode.speakResponse]);
+
+  const handleToggleTalkMode = useCallback(() => {
+    if (!sttAvailable && talkMode.state === 'idle') {
+      toast.error('Talk Mode requires an STT provider. Go to Settings > Voice to configure.', { id: 'voice-unavailable' });
+      return;
+    }
+    talkMode.toggle();
+  }, [sttAvailable, talkMode.state, talkMode.toggle]);
+
   const handleNewChat = () => {
     setConversationId(null);
     setMessages([]);
@@ -635,6 +782,19 @@ export function ChatView() {
     setInput(prompt);
   };
 
+  const handleWorkflowSelect = useCallback((workflowId: string) => {
+    const workflowPrompts: Record<string, string> = {
+      deploy: 'Run the deploy workflow for this project',
+      review: 'Run a code review on the recent changes',
+      debug: 'Help me debug the current issue',
+      research: 'Research this topic for me',
+      test: 'Run the test suite and analyze results',
+      refactor: 'Suggest refactoring improvements for the current code',
+    };
+    const prompt = workflowPrompts[workflowId] || `Run the ${workflowId} workflow`;
+    setInput(prompt);
+  }, []);
+
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
@@ -652,14 +812,49 @@ export function ChatView() {
   };
 
   const startRecording = async () => {
+    if (!sttAvailable) {
+      toast.error('Voice input requires an STT provider. Go to Settings > Voice to configure.', { id: 'voice-unavailable' });
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
-      mediaRecorder.onstop = () => {
-        toast.info('Voice recording captured (transcription coming soon)');
-        stream.getTracks().forEach((track) => track.stop());
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
       };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach((track) => track.stop());
+
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        if (audioBlob.size === 0) return;
+
+        try {
+          const formData = new FormData();
+          formData.append('audio', audioBlob, 'recording.webm');
+
+          const response = await fetch('/api/voice/transcribe', {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (!response.ok) throw new Error('Transcription failed');
+
+          const data = (await response.json()) as { text?: string };
+          if (data.text) {
+            setInput((prev) => (prev ? `${prev} ${data.text}` : (data.text ?? '')));
+            toast.success('Voice transcribed');
+          }
+        } catch {
+          toast.error('Voice transcription failed');
+        }
+      };
+
       mediaRecorder.start();
       setIsRecording(true);
       toast.success('Recording started');
@@ -794,6 +989,10 @@ export function ChatView() {
             onClearChat={handleNewChat}
             focusedView={focusedView}
             onToggleFocusedView={handleToggleFocusedView}
+            modelCapability={modelCapability ? {
+              toolTier: modelCapability.tier,
+              capabilityLevel: modelCapability.capability,
+            } : undefined}
           />
         </header>
 
@@ -821,11 +1020,29 @@ export function ChatView() {
         </div>
       )}
 
+      {/* Autonomy Level (agent mode only) */}
+      {agentMode && (
+        <AutonomySlider
+          level={autonomyLevel}
+          onChange={setAutonomyLevel}
+          className="mb-3"
+        />
+      )}
+
       {/* Agentic Thinking Display */}
       {agentMode && (agenticEvents.length > 0 || isAgenticRunning) && (
         <AgenticThinking
           events={agenticEvents}
           isActive={isAgenticRunning}
+          className="mb-3"
+        />
+      )}
+
+      {/* Tool Execution Timeline */}
+      {agentMode && (toolCallEvents.length > 0 || isAgenticRunning) && (
+        <ToolTimeline
+          toolCalls={toolCallEvents}
+          isExecuting={isAgenticRunning}
           className="mb-3"
         />
       )}
@@ -842,6 +1059,21 @@ export function ChatView() {
         onQuickAction={handleQuickAction}
         onOpenProviderSetup={() => setShowProviderSetup(true)}
       />
+
+      {/* Talk Mode Overlay */}
+      {talkMode.state !== 'idle' && (
+        <TalkModeOverlay
+          state={talkMode.state}
+          energy={talkMode.energy}
+          lastTranscription={talkMode.lastTranscription}
+          isCalibrating={talkMode.isCalibrating}
+          noiseFloor={talkMode.noiseFloor}
+          selectedVoice={talkMode.selectedVoice}
+          onVoiceChange={talkMode.setSelectedVoice}
+          onStop={talkMode.stop}
+          ttsAvailable={ttsAvailable}
+        />
+      )}
 
       {/* Input */}
       <ChatInput
@@ -865,7 +1097,19 @@ export function ChatView() {
         onStopRecording={stopRecording}
         agentMode={agentMode}
         onToggleAgentMode={handleToggleAgentMode}
+        talkModeState={talkMode.state}
+        onToggleTalkMode={handleToggleTalkMode}
+        voiceAvailable={{ stt: sttAvailable, tts: ttsAvailable }}
       />
+
+      {/* Workflow Quick Actions */}
+      {agentMode && (
+        <WorkflowQuickActions
+          onWorkflowSelect={handleWorkflowSelect}
+          disabled={isPending || healthyProviders.length === 0}
+          className="px-3 pb-2"
+        />
+      )}
       </div>
 
       {/* History Sheet */}

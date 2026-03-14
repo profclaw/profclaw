@@ -1,10 +1,10 @@
 /**
- * GLINR Sync Engine
+ * profClaw Sync Engine
  *
- * Orchestrates bi-directional sync between GLINR tickets and external platforms.
+ * Orchestrates bi-directional sync between profClaw tickets and external platforms.
  * Handles:
- * - Push: GLINR → External (Linear, GitHub, Jira)
- * - Pull: External → GLINR
+ * - Push: profClaw → External (Linear, GitHub, Jira)
+ * - Pull: External → profClaw
  * - Bidirectional: Both directions with conflict resolution
  */
 
@@ -16,13 +16,9 @@ import type {
   SyncResult,
   SyncState,
   SyncConflict,
-  ConflictStrategy,
   ExternalTicket,
-  ExternalComment,
-  WebhookEvent,
-  SyncDirection,
 } from './types.js';
-import type { Ticket, TicketComment, ExternalLink, TicketStatus } from '../tickets/types.js';
+import type { Ticket, TicketComment, ExternalLink } from '../tickets/types.js';
 import { LinearSyncAdapter } from './adapters/linear.js';
 import { GitHubSyncAdapter } from './adapters/github.js';
 import { loadSyncConfig, toSyncEngineConfig, isSyncEnabled } from './config.js';
@@ -52,6 +48,19 @@ export class SyncEngine {
   private getTicketByExternalLink?: (platform: string, externalId: string) => Promise<Ticket | null>;
   private getExternalLinks?: (ticketId: string) => Promise<ExternalLink[]>;
   private updateExternalLink?: (id: string, updates: Partial<ExternalLink>) => Promise<void>;
+
+  private toTicketCommentSource(platform: string): TicketComment['source'] {
+    switch (platform) {
+      case 'github':
+      case 'linear':
+      case 'jira':
+      case 'plane':
+      case 'profclaw':
+        return platform;
+      default:
+        return 'profclaw';
+    }
+  }
 
   /**
    * Create a new SyncEngine instance
@@ -222,7 +231,7 @@ export class SyncEngine {
     return results;
   }
 
-  // === Push Operations (GLINR → External) ===
+  // === Push Operations (profClaw → External) ===
 
   /**
    * Push a ticket to an external platform
@@ -360,7 +369,7 @@ export class SyncEngine {
     return results;
   }
 
-  // === Pull Operations (External → GLINR) ===
+  // === Pull Operations (External → profClaw) ===
 
   /**
    * Pull changes from an external platform
@@ -394,7 +403,7 @@ export class SyncEngine {
   }
 
   /**
-   * Process an external ticket (create or update in GLINR)
+   * Process an external ticket (create or update in profClaw)
    */
   private async processExternalTicket(platform: string, external: ExternalTicket): Promise<SyncResult> {
     const adapter = this.adapters.get(platform)!;
@@ -500,7 +509,7 @@ export class SyncEngine {
       }
 
       case 'ticket.deleted': {
-        // Optionally handle deletion (mark as cancelled in GLINR?)
+        // Optionally handle deletion (mark as cancelled in profClaw?)
         logger.info('[SyncEngine] Ticket deleted externally', { platform, externalId: event.externalId });
         break;
       }
@@ -514,7 +523,7 @@ export class SyncEngine {
             if (newComment) {
               await this.onCommentAdded(ticket.id, {
                 content: newComment.content,
-                source: platform as any,
+                source: this.toTicketCommentSource(platform),
                 externalId: newComment.externalId,
                 author: {
                   type: 'human',
@@ -548,7 +557,7 @@ export class SyncEngine {
     if (remoteUpdated <= localUpdated) {
       // Check for conflicting fields
       for (const [field, remoteValue] of Object.entries(remoteUpdates)) {
-        const localValue = (local as any)[field];
+        const localValue = local[field as keyof Ticket];
         if (localValue !== undefined && localValue !== remoteValue) {
           return {
             ticketId: local.id,

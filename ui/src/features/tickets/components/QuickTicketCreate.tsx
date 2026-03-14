@@ -4,12 +4,6 @@
  * Notion/Plane-style inline ticket creation.
  * Shows a minimal input that expands on focus.
  * "Press Enter to add another work item" pattern.
- *
- * TODO: Future Enhancements:
- * - [ ] Keyboard shortcuts (Cmd+Enter to create and continue)
- * - [ ] Quick type selection with / commands (/bug, /feature)
- * - [ ] AI auto-categorization as you type
- * - [ ] Template support
  */
 
 import { useState, useRef, useEffect } from 'react';
@@ -85,7 +79,7 @@ export function QuickTicketCreate({
     mutationFn: (data: CreateTicketInput) => api.tickets.create(data),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['tickets'] });
-      toast.success(`Created ${result.ticket.projectKey || 'GLINR'}-${result.ticket.sequence}`);
+      toast.success(`Created ${result.ticket.projectKey || 'PROFCLAW'}-${result.ticket.sequence}`);
       onCreated?.(result.ticket.id);
 
       // Reset for next entry

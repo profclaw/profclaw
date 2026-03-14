@@ -25,13 +25,25 @@ import {
   DEFAULT_MEMORY_CONFIG,
   getMemoryWatcher,
 } from '../memory/index.js';
+import {
+  initExperienceStore,
+  recordExperience,
+  getExperience,
+  deleteExperience,
+  listExperiences,
+  findSimilarExperiences,
+  markUsed,
+  applyDecay,
+  pruneExpired,
+  getStats as getExperienceStats,
+  trackPreference,
+  getUserPreferences,
+} from '../memory/experience-store.js';
 import { logger } from '../utils/logger.js';
 
 const memory = new Hono();
 
-// =============================================================================
 // Schema Validators
-// =============================================================================
 
 const SearchSchema = z.object({
   query: z.string().min(1),
@@ -57,15 +69,7 @@ const SessionCreateSchema = z.object({
   projectId: z.string().optional(),
 });
 
-const SessionListSchema = z.object({
-  status: z.enum(['active', 'archived', 'deleted']).optional(),
-  limit: z.coerce.number().optional().default(20),
-  offset: z.coerce.number().optional().default(0),
-});
-
-// =============================================================================
 // Routes
-// =============================================================================
 
 /**
  * Initialize memory tables
@@ -333,9 +337,7 @@ memory.delete('/all', async (c) => {
   }
 });
 
-// =============================================================================
 // Session Routes
-// =============================================================================
 
 /**
  * List memory sessions
@@ -481,6 +483,285 @@ memory.post('/warm', async (c) => {
         error: 'Failed to warm session',
         message: error instanceof Error ? error.message : 'Unknown error',
       },
+      500
+    );
+  }
+});
+
+// Experience Store Routes (Phase 19, Category 5)
+
+const ExperienceTypeSchema = z.enum([
+  'tool_chain',
+  'user_preference',
+  'task_solution',
+  'error_recovery',
+]);
+
+const RecordExperienceSchema = z.object({
+  type: ExperienceTypeSchema,
+  intent: z.string().min(1),
+  // solution is any JSON value - store as-is
+  solution: z.record(z.string(), z.unknown()).or(z.array(z.unknown())).or(z.string()).or(z.number()).or(z.boolean()).or(z.null()),
+  successScore: z.number().min(0).max(1).default(1.0),
+  tags: z.array(z.string()).default([]),
+  sourceConversationId: z.string().default(''),
+  userId: z.string().optional(),
+});
+
+const ListExperiencesSchema = z.object({
+  type: ExperienceTypeSchema.optional(),
+  userId: z.string().optional(),
+  limit: z.coerce.number().min(1).max(200).default(50),
+  offset: z.coerce.number().min(0).default(0),
+  minWeight: z.coerce.number().min(0).max(1).optional(),
+});
+
+const PreferenceTrackSchema = z.object({
+  userId: z.string().min(1),
+  category: z.string().min(1),
+  value: z.string().min(1),
+});
+
+const DecaySchema = z.object({
+  halfLifeDays: z.number().min(1).max(365).default(30),
+});
+
+const PruneSchema = z.object({
+  minWeight: z.number().min(0).max(1).default(0.05),
+});
+
+/**
+ * Initialize experience store tables
+ */
+memory.post('/experiences/init', async (c) => {
+  try {
+    await initExperienceStore();
+    return c.json({ message: 'Experience store initialized' });
+  } catch (error) {
+    logger.error('[Experience API] Init failed:', error as Error);
+    return c.json(
+      { error: 'Failed to initialize experience store', message: error instanceof Error ? error.message : 'Unknown error' },
+      500
+    );
+  }
+});
+
+/**
+ * GET /api/memory/experiences/stats - Aggregate statistics
+ */
+memory.get('/experiences/stats', async (c) => {
+  try {
+    const stats = await getExperienceStats();
+    return c.json({ stats });
+  } catch (error) {
+    logger.error('[Experience API] Stats failed:', error as Error);
+    return c.json(
+      { error: 'Failed to get experience stats', message: error instanceof Error ? error.message : 'Unknown error' },
+      500
+    );
+  }
+});
+
+/**
+ * GET /api/memory/experiences/search - Similarity search
+ * Query params: q (required), tags (comma-separated), limit
+ */
+memory.get('/experiences/search', async (c) => {
+  try {
+    const q = c.req.query('q') ?? '';
+    const tagsRaw = c.req.query('tags');
+    const limit = Math.min(parseInt(c.req.query('limit') ?? '10', 10), 100);
+    const tags = tagsRaw ? tagsRaw.split(',').map((t) => t.trim()).filter(Boolean) : undefined;
+
+    if (!q) {
+      return c.json({ error: 'Query parameter q is required' }, 400);
+    }
+
+    const experiences = await findSimilarExperiences(q, tags, limit);
+    return c.json({ query: q, tags, experiences });
+  } catch (error) {
+    logger.error('[Experience API] Search failed:', error as Error);
+    return c.json(
+      { error: 'Experience search failed', message: error instanceof Error ? error.message : 'Unknown error' },
+      500
+    );
+  }
+});
+
+/**
+ * POST /api/memory/experiences/decay - Trigger decay calculation
+ */
+memory.post('/experiences/decay', zValidator('json', DecaySchema), async (c) => {
+  try {
+    const { halfLifeDays } = c.req.valid('json');
+    const updated = await applyDecay(halfLifeDays);
+    return c.json({ message: 'Decay applied', updated, halfLifeDays });
+  } catch (error) {
+    logger.error('[Experience API] Decay failed:', error as Error);
+    return c.json(
+      { error: 'Decay calculation failed', message: error instanceof Error ? error.message : 'Unknown error' },
+      500
+    );
+  }
+});
+
+/**
+ * POST /api/memory/experiences/prune - Remove low-weight experiences
+ */
+memory.post('/experiences/prune', zValidator('json', PruneSchema), async (c) => {
+  try {
+    const { minWeight } = c.req.valid('json');
+    const pruned = await pruneExpired(minWeight);
+    return c.json({ message: 'Prune complete', pruned, minWeight });
+  } catch (error) {
+    logger.error('[Experience API] Prune failed:', error as Error);
+    return c.json(
+      { error: 'Prune failed', message: error instanceof Error ? error.message : 'Unknown error' },
+      500
+    );
+  }
+});
+
+/**
+ * GET /api/memory/experiences - List/search experiences
+ */
+memory.get('/experiences', async (c) => {
+  try {
+    const parsed = ListExperiencesSchema.safeParse({
+      type: c.req.query('type'),
+      userId: c.req.query('userId'),
+      limit: c.req.query('limit'),
+      offset: c.req.query('offset'),
+      minWeight: c.req.query('minWeight'),
+    });
+
+    if (!parsed.success) {
+      return c.json({ error: 'Invalid query params', issues: parsed.error.issues }, 400);
+    }
+
+    const result = await listExperiences(parsed.data);
+    return c.json({
+      experiences: result.experiences,
+      total: result.total,
+      limit: parsed.data.limit,
+      offset: parsed.data.offset,
+    });
+  } catch (error) {
+    logger.error('[Experience API] List failed:', error as Error);
+    return c.json(
+      { error: 'Failed to list experiences', message: error instanceof Error ? error.message : 'Unknown error' },
+      500
+    );
+  }
+});
+
+/**
+ * POST /api/memory/experiences - Record a new experience
+ */
+memory.post('/experiences', zValidator('json', RecordExperienceSchema), async (c) => {
+  try {
+    const body = c.req.valid('json');
+    const id = await recordExperience(body);
+    return c.json({ id, message: 'Experience recorded' }, 201);
+  } catch (error) {
+    logger.error('[Experience API] Record failed:', error as Error);
+    return c.json(
+      { error: 'Failed to record experience', message: error instanceof Error ? error.message : 'Unknown error' },
+      500
+    );
+  }
+});
+
+/**
+ * GET /api/memory/experiences/:id - Get single experience
+ */
+memory.get('/experiences/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const experience = await getExperience(id);
+
+    if (!experience) {
+      return c.json({ error: 'Experience not found' }, 404);
+    }
+
+    return c.json({ experience });
+  } catch (error) {
+    logger.error('[Experience API] Get failed:', error as Error);
+    return c.json(
+      { error: 'Failed to get experience', message: error instanceof Error ? error.message : 'Unknown error' },
+      500
+    );
+  }
+});
+
+/**
+ * POST /api/memory/experiences/:id/use - Mark experience as used
+ */
+memory.post('/experiences/:id/use', async (c) => {
+  try {
+    const id = c.req.param('id');
+    await markUsed(id);
+    return c.json({ message: 'Marked as used', id });
+  } catch (error) {
+    logger.error('[Experience API] Mark used failed:', error as Error);
+    return c.json(
+      { error: 'Failed to mark experience as used', message: error instanceof Error ? error.message : 'Unknown error' },
+      500
+    );
+  }
+});
+
+/**
+ * DELETE /api/memory/experiences/:id - Delete an experience
+ */
+memory.delete('/experiences/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    const deleted = await deleteExperience(id);
+
+    if (!deleted) {
+      return c.json({ error: 'Experience not found or delete failed' }, 404);
+    }
+
+    return c.json({ message: 'Experience deleted', id });
+  } catch (error) {
+    logger.error('[Experience API] Delete failed:', error as Error);
+    return c.json(
+      { error: 'Failed to delete experience', message: error instanceof Error ? error.message : 'Unknown error' },
+      500
+    );
+  }
+});
+
+/**
+ * POST /api/memory/preferences - Track a user preference
+ */
+memory.post('/preferences', zValidator('json', PreferenceTrackSchema), async (c) => {
+  try {
+    const { userId, category, value } = c.req.valid('json');
+    await trackPreference(userId, category, value);
+    return c.json({ message: 'Preference tracked', userId, category, value });
+  } catch (error) {
+    logger.error('[Experience API] Track preference failed:', error as Error);
+    return c.json(
+      { error: 'Failed to track preference', message: error instanceof Error ? error.message : 'Unknown error' },
+      500
+    );
+  }
+});
+
+/**
+ * GET /api/memory/preferences/:userId - Get all preferences for a user
+ */
+memory.get('/preferences/:userId', async (c) => {
+  try {
+    const userId = c.req.param('userId');
+    const preferences = await getUserPreferences(userId);
+    return c.json({ userId, preferences });
+  } catch (error) {
+    logger.error('[Experience API] Get preferences failed:', error as Error);
+    return c.json(
+      { error: 'Failed to get preferences', message: error instanceof Error ? error.message : 'Unknown error' },
       500
     );
   }

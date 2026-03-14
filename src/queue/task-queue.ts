@@ -10,7 +10,9 @@ import { randomUUID } from "crypto";
 import { postResultToSource } from "./notifications.js";
 import { createTaskNotification } from "../notifications/in-app.js";
 import { extractFromTaskResult, createSummary } from "../summaries/index.js";
-import { logger } from "../utils/logger.js";
+import { createContextualLogger } from "../utils/logger.js";
+
+const log = createContextualLogger('TaskQueue');
 import { getStorage, initStorage } from "../storage/index.js";
 import {
   handleTaskFailure,
@@ -111,10 +113,7 @@ async function persistTask(task: Task): Promise<void> {
       await storage.createTask(taskWithDates);
     }
   } catch (error) {
-    logger.error("[Queue] Failed to persist task to DB:", {
-      taskId: task.id,
-      error,
-    });
+    log.error('Failed to persist task to DB', { taskId: task.id, error: error instanceof Error ? error.message : String(error) });
   }
 }
 
@@ -128,11 +127,9 @@ async function loadTasksFromDB(): Promise<void> {
     for (const task of tasks) {
       taskStore.set(task.id, task);
     }
-    logger.info(`[Queue] Loaded ${tasks.length} tasks from database`);
+    log.info('Loaded tasks from database', { count: tasks.length });
   } catch (error) {
-    logger.warn("[Queue] Failed to load tasks from DB, starting fresh:", {
-      error,
-    });
+    log.warn('Failed to load tasks from DB, starting fresh', { error: error instanceof Error ? error.message : String(error) });
   }
 }
 
@@ -208,7 +205,7 @@ export async function initTaskQueue(): Promise<void> {
         result,
       });
     }
-    console.log(`[Queue] Task ${job.data.id} completed`);
+    log.info('Task completed', { taskId: job.data.id });
   });
 
   taskWorker.on("failed", async (job, err) => {
@@ -219,10 +216,7 @@ export async function initTaskQueue(): Promise<void> {
     try {
       await handleTaskFailure(task, err);
     } catch (handlerError) {
-      console.error(
-        `[Queue] Failure handler error for task ${task.id}:`,
-        handlerError,
-      );
+      log.error('Failure handler error', { taskId: task.id, error: handlerError instanceof Error ? handlerError.message : String(handlerError) });
     }
 
     // Update local state
@@ -248,10 +242,7 @@ export async function initTaskQueue(): Promise<void> {
       });
     }
 
-    console.error(
-      `[Queue] Task ${job.data.id} failed (attempt ${task.attempts}/${task.maxAttempts}):`,
-      err.message,
-    );
+    log.error('Task failed', { taskId: job.data.id, attempt: task.attempts, maxAttempts: task.maxAttempts, error: err.message });
   });
 
   taskWorker.on("progress", (job, progress) => {
@@ -293,7 +284,7 @@ export async function initTaskQueue(): Promise<void> {
     },
   );
 
-  console.log("[Queue] Task queue initialized");
+  log.info('Task queue initialized');
 }
 
 /**
@@ -302,7 +293,7 @@ export async function initTaskQueue(): Promise<void> {
 export async function processTask(job: Job<Task>): Promise<TaskResult> {
   const task = job.data;
 
-  console.log(`[Queue] Processing task ${task.id}: ${task.title}`);
+  log.info('Processing task', { taskId: task.id, title: task.title });
 
   // Update status
   task.status = "in_progress";
@@ -326,7 +317,7 @@ export async function processTask(job: Job<Task>): Promise<TaskResult> {
     throw new Error("No suitable agent adapter found for task");
   }
 
-  console.log(`[Queue] Using adapter: ${adapter.name}`);
+  log.info('Using adapter', { adapter: adapter.name });
 
   // Execute the task
   const result = await adapter.executeTask(task);
@@ -345,19 +336,14 @@ export async function processTask(job: Job<Task>): Promise<TaskResult> {
       });
       await createSummary(summaryInput);
     } catch (error) {
-      logger.error(
-        `[Queue] Failed to create summary for task ${task.id}:`,
-        error as Error,
-      );
+      log.error('Failed to create summary', { taskId: task.id, error: error instanceof Error ? error.message : String(error) });
     }
 
     // 2. Post results back to source (e.g., GitHub comment)
     if (notificationQueue) {
       await notificationQueue.add("notify-source", { task, result });
     } else {
-      console.warn(
-        "[Queue] Notification queue not initialized, falling back to direct call",
-      );
+      log.warn('Notification queue not initialized, falling back to direct call');
       // Fallback for safety/testing without queue init
       await postResultToSource(task, result);
     }
@@ -415,7 +401,7 @@ export async function addTask(input: CreateTaskInput): Promise<Task> {
     task,
   });
 
-  console.log(`[Queue] Task ${task.id} added to queue`);
+  log.info('Task added to queue', { taskId: task.id });
 
   return task;
 }
@@ -472,13 +458,13 @@ export function onTaskEvent(callback: (event: TaskEvent) => void): () => void {
 }
 
 // SSE broadcast callback (set from server.ts)
-let sseBroadcaster: ((eventType: string, data: any) => void) | null = null;
+let sseBroadcaster: ((eventType: string, data: Record<string, unknown>) => void) | null = null;
 
 /**
  * Register SSE broadcaster for real-time updates
  */
 export function registerSSEBroadcaster(
-  broadcaster: (eventType: string, data: any) => void,
+  broadcaster: (eventType: string, data: Record<string, unknown>) => void,
 ): void {
   sseBroadcaster = broadcaster;
 }
@@ -492,7 +478,7 @@ function emitEvent(event: TaskEvent): void {
     try {
       callback(event);
     } catch (error) {
-      console.error("[Queue] Error in event callback:", error);
+      log.error('Error in event callback', error instanceof Error ? error : new Error(String(error)));
     }
   }
 
@@ -522,7 +508,7 @@ function emitEvent(event: TaskEvent): void {
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
-      console.error("[Queue] Error broadcasting SSE event:", error);
+      log.error('Error broadcasting SSE event', error instanceof Error ? error : new Error(String(error)));
     }
   }
 
@@ -530,7 +516,7 @@ function emitEvent(event: TaskEvent): void {
   if (event.type === 'completed' || event.type === 'failed') {
     createTaskNotification(event).then((id: string | null) => {
       if (id && sseBroadcaster) sseBroadcaster('notification:new', { id });
-    }).catch(console.error);
+    }).catch((err: unknown) => log.error('Notification creation failed', err instanceof Error ? err : new Error(String(err))));
   }
 }
 
@@ -640,5 +626,5 @@ export async function closeTaskQueue(): Promise<void> {
     await notificationQueue.close();
     notificationQueue = null;
   }
-  console.log("[Queue] Task queue closed");
+  log.info('Task queue closed');
 }

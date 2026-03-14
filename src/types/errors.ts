@@ -1,6 +1,6 @@
 /**
- * Structured Error Types for GLINR Task Manager
- * 
+ * Structured Error Types for profClaw
+ *
  * Provides a type-safe error hierarchy for better error handling,
  * categorization, and retry logic.
  */

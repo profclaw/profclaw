@@ -9,6 +9,10 @@
  */
 
 import { Hono } from 'hono';
+import type { Context } from 'hono';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('Sync');
 import { handleSyncWebhook, pushTicketToExternal, getSyncStatus } from '../sync/integration.js';
 import { hasSyncEngine, getSyncEngine } from '../sync/engine.js';
 import { loadSyncConfig } from '../sync/config.js';
@@ -17,12 +21,37 @@ import crypto from 'crypto';
 
 const syncRoutes = new Hono();
 
+async function parseJsonBody(c: Context): Promise<
+  { ok: true; body: Record<string, unknown> } | { ok: false; response: Response }
+> {
+  try {
+    const body = await c.req.json();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return {
+        ok: false,
+        response: c.json({ error: 'Request body must be a JSON object' }, 400),
+      };
+    }
+
+    return { ok: true, body: body as Record<string, unknown> };
+  } catch {
+    return {
+      ok: false,
+      response: c.json({ error: 'Invalid JSON body' }, 400),
+    };
+  }
+}
+
 // === Webhook Signature Verification ===
 
 function verifyLinearSignature(payload: string, signature: string | undefined, secret: string): boolean {
   if (!signature || !secret) return false;
   const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex');
-  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+  try {
+    return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+  } catch {
+    return false;
+  }
 }
 
 function verifyGitHubSignature(payload: string, signature: string | undefined, secret: string): boolean {
@@ -57,7 +86,7 @@ syncRoutes.post('/webhook/linear', async (c) => {
   // Verify signature if secret is configured
   if (linearConfig.webhookSecret) {
     if (!verifyLinearSignature(rawBody, signature, linearConfig.webhookSecret)) {
-      console.warn('[SyncRoutes] Invalid Linear webhook signature');
+      log.warn('Invalid Linear webhook signature');
       return c.json({ error: 'Invalid signature' }, 401);
     }
   }
@@ -100,7 +129,7 @@ syncRoutes.post('/webhook/github', async (c) => {
   // Verify signature if secret is configured
   if (githubConfig.webhookSecret) {
     if (!verifyGitHubSignature(rawBody, signature, githubConfig.webhookSecret)) {
-      console.warn('[SyncRoutes] Invalid GitHub webhook signature');
+      log.warn('Invalid GitHub webhook signature');
       return c.json({ error: 'Invalid signature' }, 401);
     }
   }
@@ -113,7 +142,7 @@ syncRoutes.post('/webhook/github', async (c) => {
   }
 
   // Parse payload
-  let payload: any;
+  let payload: unknown;
   try {
     payload = JSON.parse(rawBody);
   } catch {
@@ -125,7 +154,7 @@ syncRoutes.post('/webhook/github', async (c) => {
     const ticketSyncResult = await processGitHubWebhookForTicketSync(eventType!, payload);
 
     if (ticketSyncResult.action !== 'ignored') {
-      console.log(`[SyncRoutes] GitHub ticket sync: ${ticketSyncResult.action}`, ticketSyncResult);
+      log.info('GitHub ticket sync', { action: ticketSyncResult.action, result: ticketSyncResult });
       return c.json({
         message: `Ticket sync: ${ticketSyncResult.action}`,
         ticketId: ticketSyncResult.ticketId,
@@ -133,7 +162,7 @@ syncRoutes.post('/webhook/github', async (c) => {
       });
     }
   } catch (error) {
-    console.error('[SyncRoutes] Ticket sync error (falling back to legacy):', error);
+    log.error('Ticket sync error (falling back to legacy)', error instanceof Error ? error : new Error(String(error)));
   }
 
   // Fallback to legacy sync webhook handler (for sync engine)
@@ -176,11 +205,16 @@ syncRoutes.post('/trigger', async (c) => {
     return c.json({ error: 'Sync engine not initialized' }, 400);
   }
 
-  const body = await c.req.json().catch(() => ({})) as { platform?: string };
+  const parsed = await parseJsonBody(c);
+  if (!parsed.ok) {
+    return parsed.response;
+  }
+
+  const body = parsed.body;
   const engine = getSyncEngine();
 
   try {
-    if (body.platform) {
+    if (typeof body.platform === 'string' && body.platform.length > 0) {
       // Sync specific platform
       const results = await engine.syncPlatform(body.platform);
       return c.json({
@@ -196,7 +230,7 @@ syncRoutes.post('/trigger', async (c) => {
       });
     }
   } catch (error) {
-    console.error('[SyncRoutes] Sync trigger failed:', error);
+    log.error('Sync trigger failed', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       error: error instanceof Error ? error.message : 'Sync failed',
     }, 500);
@@ -209,9 +243,14 @@ syncRoutes.post('/trigger', async (c) => {
  */
 syncRoutes.post('/push/:ticketId', async (c) => {
   const ticketId = c.req.param('ticketId');
-  const body = await c.req.json().catch(() => ({})) as { platform?: string };
+  const parsed = await parseJsonBody(c);
+  if (!parsed.ok) {
+    return parsed.response;
+  }
 
-  const result = await pushTicketToExternal(ticketId, body.platform);
+  const platform = typeof parsed.body.platform === 'string' ? parsed.body.platform : undefined;
+
+  const result = await pushTicketToExternal(ticketId, platform);
 
   if (result.success) {
     return c.json({
@@ -248,16 +287,21 @@ syncRoutes.post('/conflicts/:ticketId/resolve', async (c) => {
   }
 
   const ticketId = c.req.param('ticketId');
-  const body = await c.req.json() as { resolution: 'local' | 'remote' };
+  const parsed = await parseJsonBody(c);
+  if (!parsed.ok) {
+    return parsed.response;
+  }
 
-  if (!['local', 'remote'].includes(body.resolution)) {
+  const resolution = parsed.body.resolution;
+
+  if (resolution !== 'local' && resolution !== 'remote') {
     return c.json({ error: 'Invalid resolution. Must be "local" or "remote"' }, 400);
   }
 
   const engine = getSyncEngine();
-  engine.resolvePendingConflict(ticketId, body.resolution);
+  engine.resolvePendingConflict(ticketId, resolution);
 
-  return c.json({ message: 'Conflict resolved', resolution: body.resolution });
+  return c.json({ message: 'Conflict resolved', resolution });
 });
 
 export default syncRoutes;

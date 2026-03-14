@@ -18,8 +18,11 @@ import {
   randomUUID,
 } from 'crypto';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, chmodSync } from 'fs';
-import { dirname, join } from 'path';
+import { join } from 'path';
 import { homedir } from 'os';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('DeviceIdentity');
 
 /**
  * Device identity structure
@@ -55,7 +58,7 @@ interface DeviceIdentityFile {
 /**
  * Default identity file path
  */
-const DEFAULT_IDENTITY_DIR = join(homedir(), '.glinr', 'identity');
+const DEFAULT_IDENTITY_DIR = join(homedir(), '.profclaw', 'identity');
 const DEFAULT_IDENTITY_FILE = 'device.json';
 
 /**
@@ -127,9 +130,9 @@ export function loadOrCreateDeviceIdentity(
 
       // Validate version
       if (data.version !== 1) {
-        console.warn(`[DeviceIdentity] Unknown version ${data.version}, creating new identity`);
+        log.warn('Unknown version, creating new identity', { version: data.version });
       } else {
-        console.log(`[DeviceIdentity] Loaded existing identity: ${data.deviceId.slice(0, 8)}...`);
+        log.info('Loaded existing identity', { deviceIdPrefix: data.deviceId.slice(0, 8) });
         return {
           deviceId: data.deviceId,
           publicKeyPem: data.publicKeyPem,
@@ -140,12 +143,12 @@ export function loadOrCreateDeviceIdentity(
         };
       }
     } catch (error) {
-      console.warn(`[DeviceIdentity] Failed to load identity, creating new one:`, error);
+      log.warn('Failed to load identity, creating new one', { error: error instanceof Error ? error.message : String(error) });
     }
   }
 
   // Create new identity
-  console.log('[DeviceIdentity] Creating new device identity...');
+  log.info('Creating new device identity');
 
   const { publicKey, privateKey } = generateKeyPair();
   const deviceId = deriveDeviceId(publicKey);
@@ -154,7 +157,7 @@ export function loadOrCreateDeviceIdentity(
     deviceId,
     publicKeyPem: publicKey,
     privateKeyPem: privateKey,
-    displayName: options?.displayName || `GLINR Device ${deviceId.slice(0, 8)}`,
+    displayName: options?.displayName || `profClaw Device ${deviceId.slice(0, 8)}`,
     platform: getPlatform(),
     createdAt: new Date().toISOString(),
   };
@@ -167,7 +170,7 @@ export function loadOrCreateDeviceIdentity(
   };
   writeSecureFile(filePath, JSON.stringify(fileData, null, 2));
 
-  console.log(`[DeviceIdentity] Created new identity: ${deviceId.slice(0, 8)}...`);
+  log.info('Created new identity', { deviceIdPrefix: deviceId.slice(0, 8) });
   return identity;
 }
 

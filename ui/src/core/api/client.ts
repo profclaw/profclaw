@@ -1,5 +1,5 @@
 /**
- * API Client for GLINR Task Manager
+ * API Client for profClaw Task Manager
  *
  * Provides type-safe API calls to the backend
  *

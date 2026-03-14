@@ -9,9 +9,9 @@
  */
 
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { z } from 'zod';
-import { randomUUID } from 'crypto';
 import { eq } from 'drizzle-orm';
 import {
   signUpWithEmail,
@@ -19,11 +19,12 @@ import {
   signInWithGitHub,
   validateSession,
   deleteSession,
+  createSession,
   getGitHubAuthUrl,
-  getUserById,
   updateUser,
   getUserConnectedAccounts,
   getUserGitHubToken,
+  type User,
 } from '../auth/auth-service.js';
 import {
   redirectToJira,
@@ -34,21 +35,19 @@ import {
   handleLinearCallback,
 } from '../auth/linear-oauth.js';
 import { rateLimit } from '../middleware/rate-limit.js';
-import { validatePasswordStrength, hashInviteCode } from '../auth/password.js';
-import { getSettingsRaw } from '../settings/index.js';
+import { validatePasswordStrength, hashInviteCode, hashPassword, verifyPassword } from '../auth/password.js';
+import { getSettingsRaw, updateSettings } from '../settings/index.js';
 import { getDb } from '../storage/index.js';
-import { inviteCodes } from '../storage/schema.js';
+import { inviteCodes, users } from '../storage/schema.js';
+import { invalidateLocalAdminCache } from '../auth/middleware.js';
+import { createContextualLogger } from '../utils/logger.js';
 
-// =============================================================================
 // RATE LIMITERS
-// =============================================================================
 
 const loginLimiter = rateLimit({ windowMs: 60_000, max: 10, message: 'Too many login attempts. Try again in a minute.' });
 const signupLimiter = rateLimit({ windowMs: 60_000, max: 5, message: 'Too many signup attempts. Try again in a minute.' });
 
-// =============================================================================
 // VALIDATION SCHEMAS
-// =============================================================================
 
 const signupSchema = z.object({
   email: z.string().email('Invalid email address').max(255),
@@ -74,7 +73,20 @@ const updateProfileSchema = z.object({
   onboardingCompleted: z.boolean().optional(),
 });
 
-export const authRoutes = new Hono();
+const accessKeySchema = z.object({
+  key: z.string().min(1, 'Access key is required').max(128),
+});
+
+const setAccessKeySchema = z.object({
+  key: z.string().max(128).nullable(),
+});
+
+type AuthVariables = {
+  user: User;
+};
+
+export const authRoutes = new Hono<{ Variables: AuthVariables }>();
+const log = createContextualLogger('AuthRoutes');
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
@@ -84,9 +96,28 @@ const COOKIE_OPTIONS = {
   path: '/',
 };
 
-// =============================================================================
+async function parseJsonBody(c: Context): Promise<
+  { ok: true; body: Record<string, unknown> } | { ok: false; response: Response }
+> {
+  try {
+    const body = await c.req.json();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return {
+        ok: false,
+        response: c.json({ error: 'Request body must be a JSON object' }, 400),
+      };
+    }
+
+    return { ok: true, body: body as Record<string, unknown> };
+  } catch {
+    return {
+      ok: false,
+      response: c.json({ error: 'Invalid JSON body' }, 400),
+    };
+  }
+}
+
 // EMAIL/PASSWORD AUTH
-// =============================================================================
 
 /**
  * POST /api/auth/signup
@@ -94,8 +125,12 @@ const COOKIE_OPTIONS = {
  */
 authRoutes.post('/signup', signupLimiter, async (c) => {
   try {
-    const body = await c.req.json();
-    const parsed = signupSchema.safeParse(body);
+    const parsedBody = await parseJsonBody(c);
+    if (!parsedBody.ok) {
+      return parsedBody.response;
+    }
+
+    const parsed = signupSchema.safeParse(parsedBody.body);
 
     if (!parsed.success) {
       const firstError = parsed.error.errors[0]?.message || 'Invalid input';
@@ -162,14 +197,14 @@ authRoutes.post('/signup', signupLimiter, async (c) => {
     }
 
     // Set session cookie
-    setCookie(c, 'glinr_session', result.session.token, COOKIE_OPTIONS);
+    setCookie(c, 'profclaw_session', result.session.token, COOKIE_OPTIONS);
 
     return c.json({
       user: result.user,
       message: 'Account created successfully',
     });
   } catch (error) {
-    console.error('[Auth] Signup error:', error);
+    log.error('Signup error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Signup failed' }, 500);
   }
 });
@@ -180,8 +215,12 @@ authRoutes.post('/signup', signupLimiter, async (c) => {
  */
 authRoutes.post('/login', loginLimiter, async (c) => {
   try {
-    const body = await c.req.json();
-    const parsed = loginSchema.safeParse(body);
+    const parsedBody = await parseJsonBody(c);
+    if (!parsedBody.ok) {
+      return parsedBody.response;
+    }
+
+    const parsed = loginSchema.safeParse(parsedBody.body);
 
     if (!parsed.success) {
       const firstError = parsed.error.errors[0]?.message || 'Invalid input';
@@ -196,14 +235,14 @@ authRoutes.post('/login', loginLimiter, async (c) => {
     }
 
     // Set session cookie
-    setCookie(c, 'glinr_session', result.session.token, COOKIE_OPTIONS);
+    setCookie(c, 'profclaw_session', result.session.token, COOKIE_OPTIONS);
 
     return c.json({
       user: result.user,
       message: 'Logged in successfully',
     });
   } catch (error) {
-    console.error('[Auth] Login error:', error);
+    log.error('Login error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Login failed' }, 500);
   }
 });
@@ -214,23 +253,21 @@ authRoutes.post('/login', loginLimiter, async (c) => {
  */
 authRoutes.post('/logout', async (c) => {
   try {
-    const token = getCookie(c, 'glinr_session');
+    const token = getCookie(c, 'profclaw_session');
 
     if (token) {
       await deleteSession(token);
-      deleteCookie(c, 'glinr_session', { path: '/' });
+      deleteCookie(c, 'profclaw_session', { path: '/' });
     }
 
     return c.json({ message: 'Logged out successfully' });
   } catch (error) {
-    console.error('[Auth] Logout error:', error);
+    log.error('Logout error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Logout failed' }, 500);
   }
 });
 
-// =============================================================================
 // GITHUB OAUTH
-// =============================================================================
 
 /**
  * GET /api/auth/github
@@ -282,7 +319,7 @@ authRoutes.get('/github/callback', async (c) => {
     }
 
     // Set session cookie
-    setCookie(c, 'glinr_session', result.session.token, COOKIE_OPTIONS);
+    setCookie(c, 'profclaw_session', result.session.token, COOKIE_OPTIONS);
 
     // Redirect to dashboard or onboarding
     if (!result.user?.onboardingCompleted) {
@@ -291,7 +328,7 @@ authRoutes.get('/github/callback', async (c) => {
 
     return c.redirect('/');
   } catch (error) {
-    console.error('[Auth] GitHub callback error:', error);
+    log.error('GitHub callback error', error instanceof Error ? error : new Error(String(error)));
     return c.redirect('/login?error=callback_failed');
   }
 });
@@ -317,8 +354,12 @@ authRoutes.get('/github/url', async (c) => {
  */
 authRoutes.post('/github/token', async (c) => {
   try {
-    const body = await c.req.json();
-    const { code } = body;
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
+
+    const code = typeof parsed.body.code === 'string' ? parsed.body.code : undefined;
 
     if (!code) {
       return c.json({ error: 'Code is required' }, 400);
@@ -331,21 +372,19 @@ authRoutes.post('/github/token', async (c) => {
     }
 
     // Set session cookie
-    setCookie(c, 'glinr_session', result.session.token, COOKIE_OPTIONS);
+    setCookie(c, 'profclaw_session', result.session.token, COOKIE_OPTIONS);
 
     return c.json({
       user: result.user,
       message: 'Logged in with GitHub successfully',
     });
   } catch (error) {
-    console.error('[Auth] GitHub token exchange error:', error);
+    log.error('GitHub token exchange error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Authentication failed' }, 500);
   }
 });
 
-// =============================================================================
 // SESSION & USER
-// =============================================================================
 
 /**
  * GET /api/auth/me
@@ -353,17 +392,55 @@ authRoutes.post('/github/token', async (c) => {
  */
 authRoutes.get('/me', async (c) => {
   try {
-    const token = getCookie(c, 'glinr_session');
+    // Check if user was injected by local-mode middleware bypass
+    const localUser = c.get('user');
+    const settings = await getSettingsRaw();
+    const authMode = settings.system.authMode;
+
+    if (localUser && authMode === 'local') {
+      return c.json({
+        authenticated: true,
+        authMode,
+        user: localUser,
+      });
+    }
+
+    const token = getCookie(c, 'profclaw_session');
+
+    // In local mode with access key set but no valid session
+    if (authMode === 'local' && settings.system.accessKeyHash) {
+      if (!token) {
+        return c.json({
+          authenticated: false,
+          authMode,
+          accessKeyRequired: true,
+        }, 401);
+      }
+      const user = await validateSession(token);
+      if (!user) {
+        deleteCookie(c, 'profclaw_session', { path: '/' });
+        return c.json({
+          authenticated: false,
+          authMode,
+          accessKeyRequired: true,
+        }, 401);
+      }
+      return c.json({
+        authenticated: true,
+        authMode,
+        user,
+      });
+    }
 
     if (!token) {
-      return c.json({ authenticated: false }, 401);
+      return c.json({ authenticated: false, authMode }, 401);
     }
 
     const user = await validateSession(token);
 
     if (!user) {
-      deleteCookie(c, 'glinr_session', { path: '/' });
-      return c.json({ authenticated: false }, 401);
+      deleteCookie(c, 'profclaw_session', { path: '/' });
+      return c.json({ authenticated: false, authMode }, 401);
     }
 
     // Get connected accounts
@@ -374,6 +451,7 @@ authRoutes.get('/me', async (c) => {
 
     return c.json({
       authenticated: true,
+      authMode,
       user: {
         ...user,
         connectedAccounts,
@@ -381,7 +459,7 @@ authRoutes.get('/me', async (c) => {
       },
     });
   } catch (error) {
-    console.error('[Auth] Get user error:', error);
+    log.error('Get user error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ authenticated: false }, 500);
   }
 });
@@ -392,7 +470,7 @@ authRoutes.get('/me', async (c) => {
  */
 authRoutes.patch('/me', async (c) => {
   try {
-    const token = getCookie(c, 'glinr_session');
+    const token = getCookie(c, 'profclaw_session');
 
     if (!token) {
       return c.json({ error: 'Not authenticated' }, 401);
@@ -404,8 +482,12 @@ authRoutes.patch('/me', async (c) => {
       return c.json({ error: 'Invalid session' }, 401);
     }
 
-    const body = await c.req.json();
-    const parsed = updateProfileSchema.safeParse(body);
+    const parsedBody = await parseJsonBody(c);
+    if (!parsedBody.ok) {
+      return parsedBody.response;
+    }
+
+    const parsed = updateProfileSchema.safeParse(parsedBody.body);
 
     if (!parsed.success) {
       const firstError = parsed.error.errors[0]?.message || 'Invalid input';
@@ -416,14 +498,116 @@ authRoutes.patch('/me', async (c) => {
 
     return c.json({ user: updatedUser });
   } catch (error) {
-    console.error('[Auth] Update user error:', error);
+    log.error('Update user error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Update failed' }, 500);
   }
 });
 
-// =============================================================================
+// ACCESS KEY (local mode protection)
+
+/**
+ * POST /api/auth/verify-access-key
+ * Verify access key and create session (public route, rate limited)
+ */
+authRoutes.post('/verify-access-key', loginLimiter, async (c) => {
+  try {
+    const settings = await getSettingsRaw();
+
+    if (settings.system.authMode !== 'local' || !settings.system.accessKeyHash) {
+      return c.json({ error: 'Access key not configured' }, 400);
+    }
+
+    const parsedBody = await parseJsonBody(c);
+    if (!parsedBody.ok) {
+      return parsedBody.response;
+    }
+
+    const parsed = accessKeySchema.safeParse(parsedBody.body);
+    if (!parsed.success) {
+      return c.json({ error: 'Access key is required' }, 400);
+    }
+
+    const { key } = parsed.data;
+    const result = verifyPassword(key, settings.system.accessKeyHash);
+
+    if (!result.valid) {
+      return c.json({ error: 'Invalid access key' }, 401);
+    }
+
+    // Find admin user to create session
+    const db = getDb();
+    if (!db) {
+      return c.json({ error: 'Database not initialized' }, 500);
+    }
+
+    const admins = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.role, 'admin'))
+      .limit(1);
+
+    if (admins.length === 0) {
+      return c.json({ error: 'No admin user found' }, 500);
+    }
+
+    const session = await createSession(admins[0].id);
+    setCookie(c, 'profclaw_session', session.token, COOKIE_OPTIONS);
+
+    return c.json({ success: true, message: 'Access verified' });
+  } catch (error) {
+    log.error('Access key verification error', error instanceof Error ? error : new Error(String(error)));
+    return c.json({ error: 'Verification failed' }, 500);
+  }
+});
+
+/**
+ * PUT /api/auth/access-key
+ * Set or remove access key (protected, admin only)
+ */
+authRoutes.put('/access-key', async (c) => {
+  try {
+    const user = c.get('user') as User | undefined;
+    if (!user || user.role !== 'admin') {
+      return c.json({ error: 'Admin access required' }, 403);
+    }
+
+    const settings = await getSettingsRaw();
+    if (settings.system.authMode !== 'local') {
+      return c.json({ error: 'Access key is only available in local mode' }, 400);
+    }
+
+    const parsedBody = await parseJsonBody(c);
+    if (!parsedBody.ok) {
+      return parsedBody.response;
+    }
+
+    const parsed = setAccessKeySchema.safeParse(parsedBody.body);
+    if (!parsed.success) {
+      return c.json({ error: 'Invalid input' }, 400);
+    }
+
+    const { key } = parsed.data;
+    const accessKeyHash = key ? hashPassword(key) : undefined;
+
+    await updateSettings({
+      system: { ...settings.system, accessKeyHash },
+    });
+
+    // Invalidate admin cache so middleware picks up the change
+    invalidateLocalAdminCache();
+
+    return c.json({
+      success: true,
+      hasAccessKey: Boolean(accessKeyHash),
+      message: key ? 'Access key set' : 'Access key removed',
+    });
+  } catch (error) {
+    log.error('Access key update error', error instanceof Error ? error : new Error(String(error)));
+    return c.json({ error: 'Failed to update access key' }, 500);
+  }
+});
+
 // OTHER OAUTH PROVIDERS (preserved from original)
-// =============================================================================
 
 // Jira OAuth
 authRoutes.get('/jira', (c) => redirectToJira(c));

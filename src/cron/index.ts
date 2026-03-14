@@ -16,10 +16,6 @@ import { createContextualLogger } from '../utils/logger.js';
 
 const log = createContextualLogger('Cron');
 
-// TODO(@copilot): Generate unit tests for this module
-// Key functions to test: startAllCronJobs, stopAllCronJobs, startIssuePoller, stopIssuePoller, startHeartbeat, stopHeartbeat, getHealthStatus, startStaleChecker, stopStaleChecker
-// Test file location: src/cron/tests/index.test.ts
-
 /**
  * Start all cron jobs
  */

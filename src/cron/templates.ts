@@ -10,9 +10,7 @@ import { jobTemplates } from '../storage/schema.js';
 import { eq } from 'drizzle-orm';
 import type { JobType, RetryPolicy, DeliveryConfig } from './scheduler.js';
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface JobTemplate {
   id: string;
@@ -21,7 +19,7 @@ export interface JobTemplate {
   icon: string;
   category: TemplateCategory;
   jobType: JobType;
-  payloadTemplate: Record<string, any>;
+  payloadTemplate: Record<string, TemplateValue>;
   suggestedCron?: string;
   suggestedIntervalMs?: number;
   defaultRetryPolicy?: RetryPolicy;
@@ -41,7 +39,7 @@ export interface CreateTemplateParams {
   icon?: string;
   category?: TemplateCategory;
   jobType: JobType;
-  payloadTemplate: Record<string, any>;
+  payloadTemplate: Record<string, TemplateValue>;
   suggestedCron?: string;
   suggestedIntervalMs?: number;
   defaultRetryPolicy?: RetryPolicy;
@@ -50,15 +48,21 @@ export interface CreateTemplateParams {
   projectId?: string;
 }
 
-// =============================================================================
+type TemplateValue =
+  | string
+  | number
+  | boolean
+  | null
+  | TemplateValue[]
+  | { [key: string]: TemplateValue };
+
 // Built-in Templates
-// =============================================================================
 
 export const BUILT_IN_TEMPLATES: Omit<JobTemplate, 'id' | 'createdAt' | 'updatedAt'>[] = [
   // --- Sync Templates ---
   {
     name: 'GitHub Issue Sync',
-    description: 'Sync open GitHub issues to GLINR tickets periodically',
+    description: 'Sync open GitHub issues to profClaw tickets periodically',
     icon: '🔄',
     category: 'sync',
     jobType: 'tool',
@@ -83,7 +87,7 @@ export const BUILT_IN_TEMPLATES: Omit<JobTemplate, 'id' | 'createdAt' | 'updated
   },
   {
     name: 'Linear Sync',
-    description: 'Sync Linear issues to GLINR tickets',
+    description: 'Sync Linear issues to profClaw tickets',
     icon: '📐',
     category: 'sync',
     jobType: 'tool',
@@ -270,9 +274,7 @@ export const BUILT_IN_TEMPLATES: Omit<JobTemplate, 'id' | 'createdAt' | 'updated
   },
 ];
 
-// =============================================================================
 // Template Service
-// =============================================================================
 
 export class TemplateService {
   /**
@@ -398,14 +400,17 @@ export class TemplateService {
     variables: Record<string, string>
   ): {
     jobType: JobType;
-    payload: Record<string, any>;
+    payload: Record<string, TemplateValue>;
     cronExpression?: string;
     intervalMs?: number;
     retryPolicy?: RetryPolicy;
     delivery?: DeliveryConfig;
   } {
     // Replace {{variable}} placeholders in payload
-    const payload = this.replaceVariables(template.payloadTemplate, variables);
+    const payload = this.replaceVariables(
+      template.payloadTemplate,
+      variables,
+    ) as Record<string, TemplateValue>;
 
     return {
       jobType: template.jobType,
@@ -420,7 +425,10 @@ export class TemplateService {
   /**
    * Replace {{variable}} placeholders with actual values
    */
-  private replaceVariables(obj: any, variables: Record<string, string>): any {
+  private replaceVariables(
+    obj: TemplateValue,
+    variables: Record<string, string>,
+  ): TemplateValue {
     if (typeof obj === 'string') {
       return obj.replace(/\{\{(\w+)\}\}/g, (_, key) => variables[key] ?? `{{${key}}}`);
     }
@@ -428,9 +436,9 @@ export class TemplateService {
       return obj.map((item) => this.replaceVariables(item, variables));
     }
     if (typeof obj === 'object' && obj !== null) {
-      const result: Record<string, any> = {};
+      const result: Record<string, TemplateValue> = {};
       for (const [key, value] of Object.entries(obj)) {
-        result[key] = this.replaceVariables(value, variables);
+        result[key] = this.replaceVariables(value as TemplateValue, variables);
       }
       return result;
     }
@@ -448,7 +456,7 @@ export class TemplateService {
       icon: row.icon || '⚡',
       category: row.category as TemplateCategory,
       jobType: row.jobType as JobType,
-      payloadTemplate: row.payloadTemplate as Record<string, any>,
+      payloadTemplate: row.payloadTemplate as Record<string, TemplateValue>,
       suggestedCron: row.suggestedCron || undefined,
       suggestedIntervalMs: row.suggestedIntervalMs || undefined,
       defaultRetryPolicy: row.defaultRetryPolicy as RetryPolicy | undefined,

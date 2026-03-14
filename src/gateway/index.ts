@@ -1,5 +1,5 @@
 /**
- * GLINR Gateway Module
+ * profClaw Gateway Module
  *
  * Unified interface for routing and executing tasks across multiple AI agents.
  * Similar to OpenClaw's gateway pattern but enhanced with:
@@ -29,10 +29,6 @@
  * }
  * ```
  */
-
-// TODO(@copilot): Generate unit tests for this module
-// Key functions to test: getGateway, createGateway, GatewayRouter, getWorkflow, getAllWorkflows, inferWorkflow, interpolateTemplate
-// Test file location: src/gateway/tests/index.test.ts
 
 // Types
 export type {

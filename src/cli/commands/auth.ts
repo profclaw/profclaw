@@ -21,7 +21,7 @@ import {
   generateRecoveryCodes,
   hashRecoveryCodes,
 } from '../../auth/password.js';
-import { getSettingsRaw, updateSettings, type Settings } from '../../settings/index.js';
+import { updateSettings, type Settings } from '../../settings/index.js';
 import { createTable, success, error, info, warn } from '../utils/output.js';
 
 /**
@@ -58,9 +58,7 @@ export function authCommands(): Command {
   const auth = new Command('auth')
     .description('Authentication & user management');
 
-  // =========================================================================
-  // glinr auth invite
-  // =========================================================================
+  // profclaw auth invite
   auth
     .command('invite')
     .description('Generate invite code(s)')
@@ -123,9 +121,7 @@ export function authCommands(): Command {
       }
     });
 
-  // =========================================================================
-  // glinr auth reset-password
-  // =========================================================================
+  // profclaw auth reset-password
   auth
     .command('reset-password <email>')
     .description('Reset a user\'s password')
@@ -186,9 +182,7 @@ export function authCommands(): Command {
       }
     });
 
-  // =========================================================================
-  // glinr auth list-users
-  // =========================================================================
+  // profclaw auth list-users
   auth
     .command('list-users')
     .description('List all users')
@@ -198,20 +192,28 @@ export function authCommands(): Command {
       try {
         const db = await ensureDb();
 
-        let query = db
-          .select({
-            id: users.id,
-            email: users.email,
-            name: users.name,
-            role: users.role,
-            status: users.status,
-            createdAt: users.createdAt,
-          })
-          .from(users);
-
-        if (options.status) {
-          query = query.where(eq(users.status, options.status));
-        }
+        const query = options.status
+          ? db
+              .select({
+                id: users.id,
+                email: users.email,
+                name: users.name,
+                role: users.role,
+                status: users.status,
+                createdAt: users.createdAt,
+              })
+              .from(users)
+              .where(eq(users.status, options.status))
+          : db
+              .select({
+                id: users.id,
+                email: users.email,
+                name: users.name,
+                role: users.role,
+                status: users.status,
+                createdAt: users.createdAt,
+              })
+              .from(users);
 
         const allUsers = await query.orderBy(users.createdAt);
 
@@ -244,9 +246,7 @@ export function authCommands(): Command {
       }
     });
 
-  // =========================================================================
-  // glinr auth list-invites
-  // =========================================================================
+  // profclaw auth list-invites
   auth
     .command('list-invites')
     .description('List invite codes')
@@ -314,9 +314,7 @@ export function authCommands(): Command {
       }
     });
 
-  // =========================================================================
-  // glinr auth set-mode
-  // =========================================================================
+  // profclaw auth set-mode
   auth
     .command('set-mode <mode>')
     .description('Set registration mode (open or invite)')
@@ -337,7 +335,7 @@ export function authCommands(): Command {
 
         if (mode === 'invite') {
           info('New users must provide an invite code to register.');
-          info('Generate codes with: glinr auth invite');
+          info('Generate codes with: profclaw auth invite');
         } else {
           warn('Anyone can now register without an invite code.');
         }

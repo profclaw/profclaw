@@ -1,5 +1,16 @@
-import { sqliteTable, text, integer, blob } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, blob, type AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
+import type { TaskResult } from "../types/task.js";
+import type {
+  ArtifactReference,
+  Blocker,
+  Cost,
+  Decision,
+  FileChange,
+  TokenUsage,
+} from "../types/summary.js";
+
+type JsonObject = Record<string, unknown>;
 
 /**
  * Tasks Table
@@ -33,10 +44,10 @@ export const tasks = sqliteTable("tasks", {
   startedAt: integer("started_at", { mode: "timestamp" }),
   completedAt: integer("completed_at", { mode: "timestamp" }),
   metadata: text("metadata", { mode: "json" })
-    .$type<Record<string, any>>()
+    .$type<JsonObject>()
     .notNull()
     .default(sql`'{}'`),
-  result: text("result", { mode: "json" }).$type<any>(),
+  result: text("result", { mode: "json" }).$type<TaskResult>(),
   attempts: integer("attempts").notNull().default(0),
   maxAttempts: integer("max_attempts").notNull().default(3),
 });
@@ -56,23 +67,23 @@ export const summaries = sqliteTable("summaries", {
   whyChanged: text("why_changed"),
   howChanged: text("how_changed"),
   filesChanged: text("files_changed", { mode: "json" })
-    .$type<any[]>()
+    .$type<FileChange[]>()
     .notNull()
     .default(sql`'[]'`),
   decisions: text("decisions", { mode: "json" })
-    .$type<any[]>()
+    .$type<Decision[]>()
     .notNull()
     .default(sql`'[]'`),
   blockers: text("blockers", { mode: "json" })
-    .$type<any[]>()
+    .$type<Blocker[]>()
     .notNull()
     .default(sql`'[]'`),
   artifacts: text("artifacts", { mode: "json" })
-    .$type<any[]>()
+    .$type<ArtifactReference[]>()
     .notNull()
     .default(sql`'[]'`),
-  tokensUsed: text("tokens_used", { mode: "json" }).$type<any>(),
-  cost: text("cost", { mode: "json" }).$type<any>(),
+  tokensUsed: text("tokens_used", { mode: "json" }).$type<TokenUsage>(),
+  cost: text("cost", { mode: "json" }).$type<Cost>(),
   taskType: text("task_type"),
   component: text("component"),
   labels: text("labels", { mode: "json" })
@@ -88,7 +99,7 @@ export const summaries = sqliteTable("summaries", {
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
-  metadata: text("metadata", { mode: "json" }).$type<Record<string, any>>(),
+  metadata: text("metadata", { mode: "json" }).$type<JsonObject>(),
 });
 
 /**
@@ -126,7 +137,7 @@ export const embeddings = sqliteTable("embeddings", {
  */
 export const settings = sqliteTable("settings", {
   key: text("key").primaryKey(),
-  value: text("value", { mode: "json" }).$type<any>().notNull(),
+  value: text("value", { mode: "json" }).$type<unknown>().notNull(),
   category: text("category").notNull(), // 'appearance' | 'integrations' | 'notifications' | 'system'
   isSecret: integer("is_secret", { mode: "boolean" }).notNull().default(false),
   updatedAt: integer("updated_at", { mode: "timestamp" })
@@ -182,7 +193,7 @@ export const taskEvents = sqliteTable("task_events", {
   type: text("type").notNull(), // 'created' | 'queued' | 'assigned' | 'started' | 'progress' | 'completed' | 'failed' | 'cancelled' | 'retried'
   agentId: text("agent_id"),
   message: text("message"),
-  metadata: text("metadata", { mode: "json" }).$type<Record<string, any>>(),
+  metadata: text("metadata", { mode: "json" }).$type<JsonObject>(),
   timestamp: integer("timestamp", { mode: "timestamp" })
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
@@ -216,21 +227,19 @@ export const taskArchives = sqliteTable("task_archives", {
   archivedAt: integer("archived_at", { mode: "timestamp" })
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
-  result: text("result", { mode: "json" }).$type<any>(),
-  metadata: text("metadata", { mode: "json" }).$type<Record<string, any>>(),
+  result: text("result", { mode: "json" }).$type<TaskResult>(),
+  metadata: text("metadata", { mode: "json" }).$type<JsonObject>(),
   durationMs: integer("duration_ms"), // Pre-computed for analytics
 });
 
-// =============================================================================
 // TICKET SYSTEM (AI-Native Tickets - Phase 16)
-// =============================================================================
 
 /**
  * Tickets Table - AI-native ticket system
  */
 export const tickets = sqliteTable("tickets", {
   id: text("id").primaryKey(),
-  sequence: integer("sequence").notNull(), // Human-readable: GLINR-123
+  sequence: integer("sequence").notNull(), // Human-readable: PC-123
   workspaceId: text("workspace_id"),
   projectId: text("project_id").references(() => projects.id), // For multi-project support
 
@@ -253,7 +262,7 @@ export const tickets = sqliteTable("tickets", {
   assigneeAgent: text("assignee_agent"), // AI agent: claude, openclaw, ollama
 
   // Relationships
-  parentId: text("parent_id").references((): any => tickets.id),
+  parentId: text("parent_id").references((): AnySQLiteColumn => tickets.id),
   linkedPRs: text("linked_prs", { mode: "json" })
     .$type<string[]>()
     .notNull()
@@ -418,18 +427,18 @@ export const ticketComments = sqliteTable("ticket_comments", {
   // Author info
   authorType: text("author_type").notNull().default("human"), // human, ai
   authorName: text("author_name").notNull(),
-  authorPlatform: text("author_platform").notNull(), // glinr, github, linear, jira
+  authorPlatform: text("author_platform").notNull(), // profclaw, github, linear, jira
   authorAvatarUrl: text("author_avatar_url"),
 
   // Source tracking
-  source: text("source").notNull().default("glinr"), // glinr, github, linear, jira, plane
+  source: text("source").notNull().default("profclaw"), // profclaw, github, linear, jira, plane
   externalId: text("external_id"), // ID in source system
 
   // AI response features
   isAiResponse: integer("is_ai_response", { mode: "boolean" })
     .notNull()
     .default(false),
-  respondingTo: text("responding_to").references((): any => ticketComments.id),
+  respondingTo: text("responding_to").references((): AnySQLiteColumn => ticketComments.id),
 
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
@@ -452,7 +461,7 @@ export const ticketHistory = sqliteTable("ticket_history", {
   // Who made the change
   changedByType: text("changed_by_type").notNull().default("human"), // human, ai
   changedByName: text("changed_by_name").notNull(),
-  changedByPlatform: text("changed_by_platform").notNull().default("glinr"),
+  changedByPlatform: text("changed_by_platform").notNull().default("profclaw"),
 
   timestamp: integer("timestamp", { mode: "timestamp" })
     .notNull()
@@ -460,16 +469,14 @@ export const ticketHistory = sqliteTable("ticket_history", {
 });
 
 /**
- * Ticket Sequence Counter - For generating GLINR-123 style IDs
+ * Ticket Sequence Counter - For generating PC-123 style IDs
  */
 export const ticketSequence = sqliteTable("ticket_sequence", {
   workspaceId: text("workspace_id").primaryKey().default("default"),
   lastSequence: integer("last_sequence").notNull().default(0),
 });
 
-// =============================================================================
 // PROJECTS & SPRINTS (Phase 17 - Multi-Project Support)
-// =============================================================================
 
 /**
  * Projects Table - Multi-project support with custom prefixes
@@ -480,7 +487,7 @@ export const projects = sqliteTable("projects", {
   workspaceId: text("workspace_id").default("default"),
 
   // Identity
-  key: text("key").notNull().unique(), // "GLINR", "MOBILE", "API" - ticket prefix
+  key: text("key").notNull().unique(), // "PC", "MOBILE", "API" - ticket prefix
   name: text("name").notNull(),
   description: text("description"),
   icon: text("icon").default("📋"),
@@ -625,9 +632,7 @@ export const sprintTickets = sqliteTable("sprint_tickets", {
   ),
 });
 
-// =============================================================================
 // USER AUTHENTICATION SYSTEM (Phase 20)
-// =============================================================================
 
 /**
  * Users Table - Central user identity
@@ -696,7 +701,7 @@ export const oauthAccounts = sqliteTable("oauth_accounts", {
 
   // Metadata from provider
   providerData: text("provider_data", { mode: "json" }).$type<
-    Record<string, any>
+    JsonObject
   >(),
 
   // Timestamps
@@ -778,7 +783,7 @@ export const userPreferences = sqliteTable("user_preferences", {
 
   // Extra JSON settings
   extraSettings: text("extra_settings", { mode: "json" })
-    .$type<Record<string, any>>()
+    .$type<JsonObject>()
     .default(sql`'{}'`),
 
   // Timestamps
@@ -799,7 +804,7 @@ export const userApiKeys = sqliteTable("user_api_keys", {
   // Key info
   name: text("name").notNull(),
   keyHash: text("key_hash").notNull(), // Hashed for security
-  keyPrefix: text("key_prefix").notNull(), // First 8 chars for display: glinr_abc12345...
+  keyPrefix: text("key_prefix").notNull(), // First 8 chars for display: profclaw_abc12345...
 
   // Permissions
   scopes: text("scopes", { mode: "json" })
@@ -818,9 +823,7 @@ export const userApiKeys = sqliteTable("user_api_keys", {
   revokedAt: integer("revoked_at", { mode: "timestamp" }),
 });
 
-// =============================================================================
 // LABELS SYSTEM (Phase 21 - Labels for GitHub/Linear sync)
-// =============================================================================
 
 /**
  * Labels Table - Workspace/Project-scoped labels
@@ -835,7 +838,7 @@ export const labels = sqliteTable("labels", {
   color: text("color").notNull().default("#6B7280"),
 
   // Hierarchy
-  parentId: text("parent_id").references((): any => labels.id),
+  parentId: text("parent_id").references((): AnySQLiteColumn => labels.id),
 
   // Ordering
   sortOrder: integer("sort_order").notNull().default(65535),
@@ -869,9 +872,7 @@ export const ticketLabels = sqliteTable("ticket_labels", {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
-// =============================================================================
 // GITHUB SYNC TRACKING (Phase 21 - Complete bidirectional sync)
-// =============================================================================
 
 /**
  * GitHub Repository Syncs - Track sync state per repository
@@ -911,7 +912,7 @@ export const githubRepositorySyncs = sqliteTable("github_repository_syncs", {
 });
 
 /**
- * GitHub Comment Syncs - Track comment mapping between GLINR and GitHub
+ * GitHub Comment Syncs - Track comment mapping between profClaw and GitHub
  */
 export const githubCommentSyncs = sqliteTable("github_comment_syncs", {
   id: text("id").primaryKey(),
@@ -933,9 +934,7 @@ export const githubCommentSyncs = sqliteTable("github_comment_syncs", {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
-// =============================================================================
 // CRON / SCHEDULED JOBS SYSTEM
-// =============================================================================
 
 /**
  * Scheduled Jobs Table - Cron jobs, intervals, one-shot, and event-triggered jobs
@@ -954,13 +953,13 @@ export const scheduledJobs = sqliteTable("scheduled_jobs", {
   // Event triggers (for event-driven jobs)
   eventTrigger: text("event_trigger", { mode: "json" }).$type<{
     type: "webhook" | "ticket" | "file" | "github";
-    config: Record<string, any>;
+    config: JsonObject;
   } | null>(),
 
   // Job type and payload
   jobType: text("job_type").notNull(), // 'http' | 'tool' | 'script' | 'message'
   payload: text("payload", { mode: "json" })
-    .$type<Record<string, any>>()
+    .$type<JsonObject>()
     .notNull(),
   templateId: text("template_id"),
 
@@ -1025,9 +1024,7 @@ export const scheduledJobs = sqliteTable("scheduled_jobs", {
   archivedAt: integer("archived_at", { mode: "timestamp" }), // Soft delete timestamp
 });
 
-// =============================================================================
 // DEAD LETTER QUEUE (Phase 22 - Persistent failed task storage)
-// =============================================================================
 
 /**
  * Dead Letter Tasks Table - Failed tasks that exceeded max retries
@@ -1072,7 +1069,7 @@ export const deadLetterTasks = sqliteTable("dead_letter_tasks", {
 
   // Metadata
   metadata: text("metadata", { mode: "json" })
-    .$type<Record<string, any>>()
+    .$type<JsonObject>()
     .notNull()
     .default(sql`'{}'`),
 
@@ -1105,7 +1102,7 @@ export const jobRunHistory = sqliteTable("job_run_history", {
 
   // Trigger info
   triggeredBy: text("triggered_by").notNull().default("schedule"), // schedule, manual, event
-  eventData: text("event_data", { mode: "json" }).$type<Record<string, any>>(),
+  eventData: text("event_data", { mode: "json" }).$type<JsonObject>(),
 });
 
 /**
@@ -1125,7 +1122,7 @@ export const jobTemplates = sqliteTable("job_templates", {
   // Job configuration
   jobType: text("job_type").notNull(), // http, tool, script, message
   payloadTemplate: text("payload_template", { mode: "json" })
-    .$type<Record<string, any>>()
+    .$type<JsonObject>()
     .notNull(),
 
   // Suggested schedule
@@ -1159,9 +1156,7 @@ export const jobTemplates = sqliteTable("job_templates", {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
-// =============================================================================
 // AGENT SESSIONS (Phase 23 - Session Spawn/Send)
-// =============================================================================
 
 /**
  * Agent Sessions Table - Persistent session hierarchy for parallel work
@@ -1170,7 +1165,7 @@ export const jobTemplates = sqliteTable("job_templates", {
 export const agentSessions = sqliteTable("agent_sessions", {
   id: text("id").primaryKey(),
   parentSessionId: text("parent_session_id").references(
-    (): any => agentSessions.id,
+    (): AnySQLiteColumn => agentSessions.id,
   ),
   conversationId: text("conversation_id").notNull(),
 
@@ -1193,7 +1188,7 @@ export const agentSessions = sqliteTable("agent_sessions", {
 
   // Result
   finalResult: text("final_result", { mode: "json" }).$type<
-    Record<string, any>
+    JsonObject
   >(),
   stopReason: text("stop_reason"), // 'completed' | 'budget_exceeded' | 'max_steps' | 'cancelled' | 'error'
 
@@ -1213,7 +1208,7 @@ export const agentSessions = sqliteTable("agent_sessions", {
 
   // Metadata
   metadata: text("metadata", { mode: "json" })
-    .$type<Record<string, any>>()
+    .$type<JsonObject>()
     .default(sql`'{}'`),
 });
 
@@ -1221,9 +1216,7 @@ export const agentSessions = sqliteTable("agent_sessions", {
  * Session Messages Table - Mailbox pattern for inter-session communication
  * Supports parent/child/sibling messaging with priority and status tracking.
  */
-// =============================================================================
 // INVITE CODES (Invite-Only Registration)
-// =============================================================================
 
 /**
  * Invite Codes Table - One-time-use codes for invite-only registration
@@ -1254,7 +1247,7 @@ export const sessionMessages = sqliteTable("session_messages", {
   type: text("type").notNull().default("message"), // message, result, request, notification, error
   subject: text("subject"),
   content: text("content", { mode: "json" })
-    .$type<Record<string, any>>()
+    .$type<JsonObject>()
     .notNull(),
 
   // Priority 1-10 (10 = highest)
@@ -1265,7 +1258,7 @@ export const sessionMessages = sqliteTable("session_messages", {
 
   // Threading
   replyToMessageId: text("reply_to_message_id").references(
-    (): any => sessionMessages.id,
+    (): AnySQLiteColumn => sessionMessages.id,
   ),
 
   // TTL
@@ -1277,4 +1270,51 @@ export const sessionMessages = sqliteTable("session_messages", {
     .default(sql`CURRENT_TIMESTAMP`),
   deliveredAt: integer("delivered_at", { mode: "timestamp" }),
   readAt: integer("read_at", { mode: "timestamp" }),
+});
+
+// EXPERIENCE STORE (Phase 19 - Cross-Conversation Memory)
+
+/**
+ * Experiences Table - Learned patterns across conversations
+ * Stores tool chains, user preferences, task solutions, and error recovery.
+ */
+export const experiences = sqliteTable("experiences", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull(), // tool_chain | user_preference | task_solution | error_recovery
+  intent: text("intent").notNull(),
+  solution: text("solution").notNull(), // JSON
+  successScore: integer("success_score").notNull().default(1),
+  tags: text("tags", { mode: "json" })
+    .$type<string[]>()
+    .notNull()
+    .default(sql`'[]'`),
+  sourceConversationId: text("source_conversation_id").notNull().default(""),
+  userId: text("user_id"),
+  createdAt: integer("created_at").notNull(),
+  lastUsedAt: integer("last_used_at").notNull(),
+  useCount: integer("use_count").notNull().default(1),
+  weight: integer("weight").notNull().default(1), // stored as REAL in raw SQL
+});
+
+/**
+ * Cost History Table
+ * Persists usage/cost data for analytics and billing across restarts.
+ */
+export const costHistory = sqliteTable("cost_history", {
+  id: text("id").primaryKey(),
+  sessionId: text("session_id"),
+  model: text("model").notNull(),
+  provider: text("provider"),
+  inputTokens: integer("input_tokens").notNull().default(0),
+  outputTokens: integer("output_tokens").notNull().default(0),
+  totalTokens: integer("total_tokens").notNull().default(0),
+  cost: integer("cost").notNull().default(0), // Cost in microdollars (1/1,000,000 USD)
+  source: text("source").notNull().default("chat"), // chat, task, cron, agent
+  agentId: text("agent_id"),
+  metadata: text("metadata", { mode: "json" })
+    .$type<Record<string, unknown>>()
+    .default(sql`'{}'`),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
 });

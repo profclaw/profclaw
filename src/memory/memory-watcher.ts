@@ -11,13 +11,10 @@
 
 import { watch, type FSWatcher } from 'chokidar';
 import { join, basename, extname } from 'node:path';
-import { stat } from 'node:fs/promises';
 import { syncMemoryFiles, searchMemory, type MemoryConfig, DEFAULT_MEMORY_CONFIG, type SearchResult } from './memory-service.js';
 import { logger } from '../utils/logger.js';
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface MemoryWatcherOptions {
   /** Base path to watch for memory files */
@@ -45,9 +42,7 @@ export interface MemoryWatcherState {
   watching: boolean;
 }
 
-// =============================================================================
 // Memory Watcher Class
-// =============================================================================
 
 export class MemoryWatcher {
   private watcher: FSWatcher | null = null;
@@ -270,9 +265,7 @@ export class MemoryWatcher {
   }
 }
 
-// =============================================================================
 // Singleton Instance
-// =============================================================================
 
 let globalWatcher: MemoryWatcher | null = null;
 

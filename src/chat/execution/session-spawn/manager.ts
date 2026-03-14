@@ -16,21 +16,21 @@ import type {
   AgentSessionManager,
   CleanupParams,
   CompleteSessionParams,
+  MessageStatus,
+  MessageType,
   ReceiveMessagesParams,
   SendMessageParams,
   SessionMessage,
+  SessionStatus,
+  SessionStopReason,
   SpawnSessionParams,
   UpdateSessionParams,
 } from './types.js';
 
-// =============================================================================
 // Manager Implementation
-// =============================================================================
 
 export class AgentSessionManagerImpl implements AgentSessionManager {
-  // ===========================================================================
   // Session Lifecycle
-  // ===========================================================================
 
   async spawn(params: SpawnSessionParams): Promise<AgentSession> {
     const db = getDb();
@@ -77,7 +77,11 @@ export class AgentSessionManagerImpl implements AgentSessionManager {
       allowedTools: params.allowedTools ?? null,
       disallowedTools: params.disallowedTools ?? null,
       createdAt: now,
+      startedAt: null,
+      completedAt: null,
       updatedAt: now,
+      finalResult: null,
+      stopReason: null,
       metadata: params.metadata ?? {},
     };
 
@@ -109,7 +113,7 @@ export class AgentSessionManagerImpl implements AgentSessionManager {
   ): Promise<AgentSession | null> {
     const db = getDb();
 
-    const updates: Record<string, any> = {
+    const updates: Partial<typeof agentSessions.$inferInsert> = {
       updatedAt: new Date(),
     };
 
@@ -171,9 +175,7 @@ export class AgentSessionManagerImpl implements AgentSessionManager {
     return this.get(sessionId);
   }
 
-  // ===========================================================================
   // Hierarchy Queries
-  // ===========================================================================
 
   async getChildren(sessionId: string): Promise<AgentSession[]> {
     const db = getDb();
@@ -227,9 +229,7 @@ export class AgentSessionManagerImpl implements AgentSessionManager {
     return rows.map((r: typeof agentSessions.$inferSelect) => this.mapToAgentSession(r));
   }
 
-  // ===========================================================================
   // Messaging
-  // ===========================================================================
 
   async send(params: SendMessageParams): Promise<SessionMessage[]> {
     const db = getDb();
@@ -268,6 +268,8 @@ export class AgentSessionManagerImpl implements AgentSessionManager {
         replyToMessageId: params.replyToMessageId ?? null,
         expiresAt,
         createdAt: now,
+        deliveredAt: null,
+        readAt: null,
       };
 
       await db.insert(sessionMessages).values(messageData);
@@ -352,9 +354,7 @@ export class AgentSessionManagerImpl implements AgentSessionManager {
     return result[0]?.count ?? 0;
   }
 
-  // ===========================================================================
   // Cleanup
-  // ===========================================================================
 
   async cleanup(
     params: CleanupParams
@@ -398,9 +398,7 @@ export class AgentSessionManagerImpl implements AgentSessionManager {
     return { sessionsDeleted, messagesDeleted };
   }
 
-  // ===========================================================================
   // Helper: Create Root Session
-  // ===========================================================================
 
   /**
    * Create a root session for a conversation.
@@ -431,7 +429,12 @@ export class AgentSessionManagerImpl implements AgentSessionManager {
       maxBudget: rootLimits.maxBudget,
       createdAt: now,
       startedAt: now,
+      completedAt: null,
       updatedAt: now,
+      finalResult: null,
+      stopReason: null,
+      allowedTools: null,
+      disallowedTools: null,
       metadata: {},
     };
 
@@ -445,9 +448,7 @@ export class AgentSessionManagerImpl implements AgentSessionManager {
     return this.mapToAgentSession(sessionData);
   }
 
-  // ===========================================================================
   // Private Helpers
-  // ===========================================================================
 
   private async resolveTargetSessionIds(
     fromSessionId: string,
@@ -472,7 +473,7 @@ export class AgentSessionManagerImpl implements AgentSessionManager {
     }
   }
 
-  private mapToAgentSession(row: any): AgentSession {
+  private mapToAgentSession(row: typeof agentSessions.$inferSelect): AgentSession {
     return {
       id: row.id,
       parentSessionId: row.parentSessionId,
@@ -480,14 +481,14 @@ export class AgentSessionManagerImpl implements AgentSessionManager {
       name: row.name,
       description: row.description ?? undefined,
       goal: row.goal ?? undefined,
-      status: row.status,
+      status: row.status as SessionStatus,
       depth: row.depth,
       currentStep: row.currentStep,
       maxSteps: row.maxSteps,
       usedBudget: row.usedBudget,
       maxBudget: row.maxBudget,
       finalResult: row.finalResult ?? undefined,
-      stopReason: row.stopReason ?? undefined,
+      stopReason: (row.stopReason as SessionStopReason | null) ?? undefined,
       allowedTools: row.allowedTools ?? undefined,
       disallowedTools: row.disallowedTools ?? undefined,
       createdAt: row.createdAt instanceof Date ? row.createdAt : new Date(row.createdAt),
@@ -507,16 +508,16 @@ export class AgentSessionManagerImpl implements AgentSessionManager {
     };
   }
 
-  private mapToSessionMessage(row: any): SessionMessage {
+  private mapToSessionMessage(row: typeof sessionMessages.$inferSelect): SessionMessage {
     return {
       id: row.id,
       fromSessionId: row.fromSessionId,
       toSessionId: row.toSessionId,
-      type: row.type,
+      type: row.type as MessageType,
       subject: row.subject ?? undefined,
       content: row.content,
       priority: row.priority,
-      status: row.status,
+      status: row.status as MessageStatus,
       replyToMessageId: row.replyToMessageId ?? undefined,
       expiresAt: row.expiresAt
         ? row.expiresAt instanceof Date
@@ -539,9 +540,7 @@ export class AgentSessionManagerImpl implements AgentSessionManager {
   }
 }
 
-// =============================================================================
 // Singleton
-// =============================================================================
 
 let managerInstance: AgentSessionManagerImpl | null = null;
 

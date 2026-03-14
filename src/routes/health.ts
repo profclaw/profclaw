@@ -1,6 +1,6 @@
 /**
  * Detailed Health Check Endpoint
- * 
+ *
  * Provides comprehensive system health information including:
  * - Service status
  * - Queue health and metrics
@@ -10,11 +10,12 @@
  * - Recent errors
  */
 
+import { loadavg } from 'node:os';
 import type { Context } from 'hono';
-import { getTasks } from '../queue/task-queue.js';
+import { getTasks } from '../queue/index.js';
 import { getAgentRegistry } from '../adapters/registry.js';
 import { circuitBreakers } from '../utils/circuit-breaker.js';
-import { getMetricsSummary, metrics } from '../utils/metrics.js';
+import { getMetricsSummary } from '../utils/metrics.js';
 import { getDeadLetterQueueStats } from '../queue/failure-handler.js';
 
 /**
@@ -46,15 +47,11 @@ interface DetailedHealthResponse {
   uptime: number;
   components: {
     queue: ComponentHealth;
-    adapters: ComponentHealth & { adapters?: any[] };
-    circuitBreakers: ComponentHealth & { breakers?: any[] };
+    adapters: ComponentHealth & { adapters?: AdapterHealthCheck[] };
+    circuitBreakers: ComponentHealth & { breakers?: CircuitBreakerHealthCheck[] };
     deadLetterQueue: ComponentHealth;
   };
-  metrics?: {
-    tasks: any;
-    queue: any;
-    http: any;
-  };
+  metrics?: MetricsSummary;
   system?: {
     platform: string;
     nodeVersion: string;
@@ -67,6 +64,25 @@ interface DetailedHealthResponse {
       loadAverage: number[];
     };
   };
+}
+
+type MetricsSummary = ReturnType<typeof getMetricsSummary>;
+
+interface AdapterHealthCheck {
+  type: string;
+  name: string;
+  healthy: boolean;
+  latencyMs?: number;
+  message?: string;
+  error?: string;
+}
+
+interface CircuitBreakerHealthCheck {
+  name: string;
+  state: string;
+  failures: number;
+  successes: number;
+  lastFailure?: Date;
 }
 
 /**
@@ -95,7 +111,7 @@ export async function handleDetailedHealthCheck(c: Context): Promise<Response> {
 
   // Determine overall status
   const componentStatuses = Object.values(detailedResponse.components).map((c) => c.status);
-  
+
   if (componentStatuses.some((s) => s === HealthStatus.UNHEALTHY)) {
     detailedResponse.status = HealthStatus.UNHEALTHY;
   } else if (componentStatuses.some((s) => s === HealthStatus.DEGRADED)) {
@@ -103,7 +119,7 @@ export async function handleDetailedHealthCheck(c: Context): Promise<Response> {
   }
 
   // Set appropriate HTTP status code
-  const httpStatus = 
+  const httpStatus =
     detailedResponse.status === HealthStatus.HEALTHY ? 200 :
     detailedResponse.status === HealthStatus.DEGRADED ? 200 :
     503;
@@ -165,7 +181,7 @@ async function checkQueueHealth(): Promise<ComponentHealth> {
 /**
  * Check adapters health
  */
-async function checkAdaptersHealth(): Promise<ComponentHealth & { adapters?: any[] }> {
+async function checkAdaptersHealth(): Promise<ComponentHealth & { adapters?: AdapterHealthCheck[] }> {
   try {
     const registry = getAgentRegistry();
     const activeAdapters = registry.getActiveAdapters();
@@ -235,7 +251,7 @@ async function checkAdaptersHealth(): Promise<ComponentHealth & { adapters?: any
 /**
  * Check circuit breakers health
  */
-function checkCircuitBreakersHealth(): ComponentHealth & { breakers?: any[] } {
+function checkCircuitBreakersHealth(): ComponentHealth & { breakers?: CircuitBreakerHealthCheck[] } {
   try {
     const allBreakers = circuitBreakers.getAll();
     const breakerStats = circuitBreakers.getAllStats();
@@ -350,7 +366,7 @@ function getSystemInfo() {
       percentage: Math.round((usedMem / totalMem) * 100),
     },
     cpu: {
-      loadAverage: process.platform !== 'win32' ? require('os').loadavg() : [0, 0, 0],
+      loadAverage: process.platform !== 'win32' ? loadavg() : [0, 0, 0],
     },
   };
 }

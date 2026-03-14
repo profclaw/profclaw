@@ -24,9 +24,7 @@ import type {
 import { logger } from '../utils/logger.js';
 import { SAFE_BROWSER_TOOL_NAMES } from '../browser/index.js';
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface ChatToolHandlerOptions {
   conversationId: string;
@@ -61,9 +59,7 @@ export interface ChatToolHandler {
   ): Promise<ToolExecutionResult | null>;
 }
 
-// =============================================================================
 // In-Memory Session Manager for Chat
-// =============================================================================
 
 class ChatSessionManager implements SessionManager {
   private sessions = new Map<string, ToolSession>();
@@ -131,9 +127,7 @@ class ChatSessionManager implements SessionManager {
   }
 }
 
-// =============================================================================
 // Chat Tool Handler Implementation
-// =============================================================================
 
 let initialized = false;
 
@@ -305,9 +299,7 @@ export async function createChatToolHandler(
   };
 }
 
-// =============================================================================
 // Tool Categories for Chat
-// =============================================================================
 
 /**
  * Get tools by category for selective tool exposure
@@ -373,9 +365,7 @@ export function getChatTools(
   }));
 }
 
-// =============================================================================
 // Default Chat Tools (safe subset)
-// =============================================================================
 
 /**
  * Get the default set of tools for chat
@@ -409,7 +399,7 @@ export function getDefaultChatTools(): NativeToolDefinition[] {
     'memory_search',
     'memory_get',
     'memory_stats',
-    // GLINR ops tools (internal ticket/project management)
+    // profClaw ops tools (internal ticket/project management)
     'create_ticket',
     'create_project',
     'list_tickets',
@@ -430,4 +420,34 @@ export function getDefaultChatTools(): NativeToolDefinition[] {
  */
 export function getAllChatTools(): NativeToolDefinition[] {
   return getChatTools();
+}
+
+/**
+ * Get tools filtered for a specific model's capability.
+ * Uses the tool router to select appropriate tools based on model size/capability.
+ * Falls back to default tools if model routing is not applicable.
+ */
+export function getChatToolsForModel(
+  modelId: string,
+  options?: { includeAll?: boolean; conversationId?: string },
+): NativeToolDefinition[] {
+  const registry = getToolRegistry();
+  const schemas = registry.getForModel(modelId, options?.conversationId);
+
+  // Convert AIToolSchema back to NativeToolDefinition format
+  return schemas.map((schema) => {
+    const tool = registry.get(schema.function.name);
+    if (!tool) {
+      return {
+        name: schema.function.name,
+        description: schema.function.description,
+        parameters: z.object({}) as z.ZodType<unknown>,
+      };
+    }
+    return {
+      name: tool.name,
+      description: schema.function.description,
+      parameters: tool.parameters as z.ZodType<unknown>,
+    };
+  });
 }

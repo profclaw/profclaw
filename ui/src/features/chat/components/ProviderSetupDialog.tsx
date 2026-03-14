@@ -258,74 +258,98 @@ export function ProviderSetupDialog({
                   {/* Expanded Input */}
                   {isExpanded && (
                     <div className="px-3 pb-3 pt-1 border-t border-border/50">
-                      <div className="flex gap-2">
-                        <div className="relative flex-1">
-                          <input
-                            type={showApiKey[info.type] ? 'text' : 'password'}
-                            placeholder={info.placeholder}
-                            value={apiKeyInput[info.type] || ''}
-                            onChange={(e) =>
-                              setApiKeyInput((prev) => ({
-                                ...prev,
-                                [info.type]: e.target.value,
-                              }))
-                            }
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-full field pr-9"
-                            autoFocus
-                          />
-                          <button
-                            type="button"
+                      {/* Azure requires endpoint + deployment + key - redirect to full settings */}
+                      {info.type === 'azure' ? (
+                        <div className="space-y-2">
+                          <p className="text-xs text-muted-foreground">
+                            Azure OpenAI requires endpoint URL, deployment name, and API key.
+                          </p>
+                          <Button
+                            size="sm"
+                            variant="outline"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setShowApiKey((prev) => ({
-                                ...prev,
-                                [info.type]: !prev[info.type],
-                              }));
+                              onOpenChange(false);
+                              navigate('/settings/ai-providers');
                             }}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                            aria-label={showApiKey[info.type] ? 'Hide API key' : 'Show API key'}
+                            className="w-full gap-2"
                           >
-                            {showApiKey[info.type] ? (
-                              <EyeOff className="h-4 w-4" aria-hidden="true" />
-                            ) : (
-                              <Eye className="h-4 w-4" aria-hidden="true" />
-                            )}
-                          </button>
+                            <Settings2 className="h-3.5 w-3.5" />
+                            Configure in Settings
+                          </Button>
                         </div>
-                        <Button
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSaveApiKey(info.type);
-                          }}
-                          disabled={!apiKeyInput[info.type] || savingProvider === info.type}
-                          className="px-3"
-                        >
-                          {savingProvider === info.type ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            'Save'
-                          )}
-                        </Button>
-                      </div>
-                      <div className="flex items-center justify-between mt-2">
-                        <a
-                          href={info.setupUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-xs text-primary hover:underline flex items-center gap-1"
-                        >
-                          Get API Key
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                        {info.type === 'ollama' && (
-                          <span className="text-xs text-muted-foreground">
-                            Run: <code className="bg-muted px-1 rounded">ollama serve</code>
-                          </span>
-                        )}
-                      </div>
+                      ) : (
+                        <>
+                          <div className="flex gap-2">
+                            <div className="relative flex-1">
+                              <input
+                                type={showApiKey[info.type] ? 'text' : 'password'}
+                                placeholder={info.placeholder}
+                                value={apiKeyInput[info.type] || ''}
+                                onChange={(e) =>
+                                  setApiKeyInput((prev) => ({
+                                    ...prev,
+                                    [info.type]: e.target.value,
+                                  }))
+                                }
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-full field pr-9"
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowApiKey((prev) => ({
+                                    ...prev,
+                                    [info.type]: !prev[info.type],
+                                  }));
+                                }}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                aria-label={showApiKey[info.type] ? 'Hide API key' : 'Show API key'}
+                              >
+                                {showApiKey[info.type] ? (
+                                  <EyeOff className="h-4 w-4" aria-hidden="true" />
+                                ) : (
+                                  <Eye className="h-4 w-4" aria-hidden="true" />
+                                )}
+                              </button>
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSaveApiKey(info.type);
+                              }}
+                              disabled={!apiKeyInput[info.type] || savingProvider === info.type}
+                              className="px-3"
+                            >
+                              {savingProvider === info.type ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                'Save'
+                              )}
+                            </Button>
+                          </div>
+                          <div className="flex items-center justify-between mt-2">
+                            <a
+                              href={info.setupUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-xs text-primary hover:underline flex items-center gap-1"
+                            >
+                              Get API Key
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                            {info.type === 'ollama' && (
+                              <span className="text-xs text-muted-foreground">
+                                Run: <code className="bg-muted px-1 rounded">ollama serve</code>
+                              </span>
+                            )}
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>

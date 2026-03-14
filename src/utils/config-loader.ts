@@ -26,7 +26,7 @@ export function loadConfig<T>(fileName: string): T {
 
     const config = yaml.load(interpolated) as T;
     
-    logger.info(`Loaded configuration from ${fileName}`);
+    logger.debug(`Loaded configuration from ${fileName}`);
     return config;
   } catch (error) {
     logger.error(`Error loading config file ${fileName}:`, error as Error);

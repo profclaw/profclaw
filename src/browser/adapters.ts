@@ -5,7 +5,6 @@
  * This file provides browser-specific exports for backwards compatibility.
  */
 
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolDefinition as ChatToolDefinition } from '../chat/execution/types.js';
 import {
   toMCPSchema,
@@ -15,14 +14,12 @@ import {
 import { BROWSER_TOOLS } from './tools.js';
 import type { ToolDefinition } from '../tools/types.js';
 
-// =============================================================================
 // MCP Adapter (browser-specific)
-// =============================================================================
 
-const MCP_PREFIX = 'glinr__';
+const MCP_PREFIX = 'profclaw__';
 
 /**
- * MCP tool definitions for browser tools (with glinr__ prefix)
+ * MCP tool definitions for browser tools (with profclaw__ prefix)
  */
 export const MCP_BROWSER_TOOLS = (BROWSER_TOOLS as unknown as ToolDefinition[]).map(
   (t) => toMCPSchema(t, MCP_PREFIX)
@@ -36,9 +33,7 @@ export const handleMCPBrowserTool = createMCPHandler(
   MCP_PREFIX
 );
 
-// =============================================================================
 // Chat Execution Adapter (browser-specific)
-// =============================================================================
 
 /**
  * Chat execution tool definitions for browser tools
@@ -54,8 +49,6 @@ export function getChatBrowserTool(name: string): ChatToolDefinition | undefined
   return CHAT_BROWSER_TOOLS.find((t) => t.name === name);
 }
 
-// =============================================================================
 // Re-exports for backwards compatibility
-// =============================================================================
 
 export { BROWSER_TOOLS, SAFE_BROWSER_TOOL_NAMES } from './tools.js';

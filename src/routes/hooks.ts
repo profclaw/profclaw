@@ -1,4 +1,7 @@
 import { Hono } from 'hono';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('Hooks');
 import {
   handlePostToolUse,
   handleSessionEnd,
@@ -35,7 +38,7 @@ hooks.post('/tool-use', async (c) => {
       inference: result.inference,
     });
   } catch (error) {
-    console.error('[Hook] PostToolUse error:', error);
+    log.error('PostToolUse error', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         error: 'Hook processing failed',
@@ -67,7 +70,7 @@ hooks.post('/session-end', async (c) => {
       inference: result.inference,
     });
   } catch (error) {
-    console.error('[Hook] Session end error:', error);
+    log.error('Session end error', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         error: 'Hook processing failed',
@@ -98,7 +101,7 @@ hooks.post('/prompt-submit', async (c) => {
       eventId: result.eventId,
     });
   } catch (error) {
-    console.error('[Hook] Prompt submit error:', error);
+    log.error('Prompt submit error', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         error: 'Hook processing failed',
@@ -160,7 +163,7 @@ hooks.post('/webhook/openclaw', async (c) => {
       status: report.status,
     });
   } catch (error) {
-    console.error('[Webhook] OpenClaw error:', error);
+    log.error('OpenClaw webhook error', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         error: 'Webhook processing failed',
@@ -187,7 +190,7 @@ hooks.post('/webhook/agent', async (c) => {
       status: report.status,
     });
   } catch (error) {
-    console.error('[Webhook] Agent error:', error);
+    log.error('Agent webhook error', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         error: 'Webhook processing failed',

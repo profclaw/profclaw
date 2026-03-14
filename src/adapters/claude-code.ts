@@ -209,7 +209,6 @@ export class ClaudeCodeAdapter implements AgentAdapter {
 
       proc.on("error", (error) => {
         clearTimeout(timeoutId);
-        const stdout = Buffer.concat(stdoutChunks).toString();
         reject(error ?? new Error("Unknown error"));
       });
 

@@ -217,7 +217,7 @@ export function getConfiguredAIProviders(): string[] {
  */
 export function generateEnvExample(): string {
   const lines: string[] = [
-    '# GLINR Task Manager Environment Configuration',
+    '# profClaw Environment Configuration',
     '# Generated from ENV_SPEC in src/utils/env-validator.ts',
     '# Copy this file to .env and fill in your values',
     '',

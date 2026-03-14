@@ -17,6 +17,9 @@ import type { Context } from 'hono';
 import { PostToolUsePayloadSchema, type PostToolUsePayload } from './schemas.js';
 import type { HookEvent, HookEventData, HookProcessingResult } from './types.js';
 import { inferFromToolUse } from '../intelligence/rules.js';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('ToolUse');
 
 // In-memory storage for hook events (will be replaced with DB later)
 const hookEvents = new Map<string, HookEvent>();
@@ -48,7 +51,7 @@ export async function handlePostToolUse(c: Context): Promise<HookProcessingResul
     // Validate payload
     const parsed = PostToolUsePayloadSchema.safeParse(payload);
     if (!parsed.success) {
-      console.error('[Hook] Validation failed:', parsed.error.flatten());
+      log.error('Validation failed', new Error(parsed.error.message));
       return {
         success: false,
         eventId: '',
@@ -79,10 +82,11 @@ export async function handlePostToolUse(c: Context): Promise<HookProcessingResul
     storeEvent(event);
 
     // Log for debugging
-    console.log(`[Hook] PostToolUse: ${hookPayload.tool} on ${eventData.filePath || 'N/A'}`);
-    if (inference.confidence > 0) {
-      console.log(`[Hook] Inference: ${JSON.stringify(inference)}`);
-    }
+    log.info('PostToolUse', {
+      tool: hookPayload.tool,
+      filePath: eventData.filePath || 'N/A',
+      inference: inference.confidence > 0 ? inference : undefined,
+    });
 
     return {
       success: true,
@@ -90,7 +94,7 @@ export async function handlePostToolUse(c: Context): Promise<HookProcessingResul
       inference: event.inference,
     };
   } catch (error) {
-    console.error('[Hook] Error processing PostToolUse:', error);
+    log.error('Error processing PostToolUse', error instanceof Error ? error : new Error(String(error)));
     return {
       success: false,
       eventId: '',

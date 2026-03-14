@@ -1,4 +1,8 @@
 import { Hono } from 'hono';
+import type { Context } from 'hono';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('Settings');
 import {
   getSettings,
   updateSettings,
@@ -10,13 +14,34 @@ import {
 
 const settings = new Hono();
 
+async function parseJsonBody(c: Context): Promise<
+  { ok: true; body: Record<string, unknown> } | { ok: false; response: Response }
+> {
+  try {
+    const body = await c.req.json();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return {
+        ok: false,
+        response: c.json({ error: 'Request body must be a JSON object' }, 400),
+      };
+    }
+
+    return { ok: true, body: body as Record<string, unknown> };
+  } catch {
+    return {
+      ok: false,
+      response: c.json({ error: 'Invalid JSON body' }, 400),
+    };
+  }
+}
+
 // Get current settings (secrets masked)
 settings.get('/', async (c) => {
   try {
     const currentSettings = await getSettings();
     return c.json({ settings: currentSettings });
   } catch (error) {
-    console.error('[API] Error fetching settings:', error);
+    log.error('Error fetching settings', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         error: 'Failed to fetch settings',
@@ -30,8 +55,12 @@ settings.get('/', async (c) => {
 // Update settings (partial update)
 settings.patch('/', async (c) => {
   try {
-    const body = await c.req.json();
-    const parsed = UpdateSettingsSchema.safeParse(body);
+    const parsedBody = await parseJsonBody(c);
+    if (!parsedBody.ok) {
+      return parsedBody.response;
+    }
+
+    const parsed = UpdateSettingsSchema.safeParse(parsedBody.body);
 
     if (!parsed.success) {
       return c.json(
@@ -50,7 +79,7 @@ settings.patch('/', async (c) => {
       settings: updated,
     });
   } catch (error) {
-    console.error('[API] Error updating settings:', error);
+    log.error('Error updating settings', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         error: 'Failed to update settings',
@@ -70,7 +99,7 @@ settings.post('/reset', async (c) => {
       settings: resetResult,
     });
   } catch (error) {
-    console.error('[API] Error resetting settings:', error);
+    log.error('Error resetting settings', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         error: 'Failed to reset settings',
@@ -87,7 +116,7 @@ settings.get('/plugins/health', async (c) => {
     const health = await getPluginHealth();
     return c.json({ plugins: health });
   } catch (error) {
-    console.error('[API] Error checking plugin health:', error);
+    log.error('Error checking plugin health', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         error: 'Failed to check plugin health',
@@ -102,8 +131,12 @@ settings.get('/plugins/health', async (c) => {
 settings.post('/plugins/:id/toggle', async (c) => {
   try {
     const id = c.req.param('id');
-    const body = await c.req.json();
-    const enabled = Boolean(body.enabled);
+    const parsedBody = await parseJsonBody(c);
+    if (!parsedBody.ok) {
+      return parsedBody.response;
+    }
+
+    const enabled = Boolean(parsedBody.body.enabled);
 
     const result = await togglePlugin(id, enabled);
 
@@ -112,7 +145,7 @@ settings.post('/plugins/:id/toggle', async (c) => {
       settings: result,
     });
   } catch (error) {
-    console.error('[API] Error toggling plugin:', error);
+    log.error('Error toggling plugin', error instanceof Error ? error : new Error(String(error)));
     return c.json(
       {
         error: 'Failed to toggle plugin',

@@ -1,13 +1,11 @@
 /**
  * Agent Types and Interfaces
  *
- * Core type definitions for the GLINR agentic loop system.
+ * Core type definitions for the profClaw agentic loop system.
  * Follows patterns from OpenClaw pi-agent-core for session-based execution.
  */
 
-// =============================================================================
 // Agent Status
-// =============================================================================
 
 export type AgentStatus =
   | 'idle' // Created but not started
@@ -17,9 +15,7 @@ export type AgentStatus =
   | 'failed' // Failed with error
   | 'cancelled'; // Cancelled by user
 
-// =============================================================================
 // Tool Call Records
-// =============================================================================
 
 export type ToolCallStatus = 'pending' | 'approved' | 'denied' | 'executed' | 'failed';
 
@@ -44,9 +40,7 @@ export interface ToolCallRecord {
   durationMs?: number;
 }
 
-// =============================================================================
 // Agent State
-// =============================================================================
 
 export interface AgentState {
   /** Unique session identifier */
@@ -81,9 +75,7 @@ export interface AgentState {
   finalResult?: AgentResult;
 }
 
-// =============================================================================
 // Agent Context
-// =============================================================================
 
 export interface AgentContext {
   /** Last hint from a tool response */
@@ -118,9 +110,7 @@ export interface AgentContext {
   [key: string]: unknown;
 }
 
-// =============================================================================
 // Agent Result
-// =============================================================================
 
 export interface AgentArtifact {
   type: 'ticket' | 'commit' | 'file' | 'pr' | 'project' | 'other';
@@ -150,9 +140,7 @@ export interface AgentResult {
   outputTokens?: number;
 }
 
-// =============================================================================
 // Stop Conditions
-// =============================================================================
 
 export interface StopCondition {
   /** Name for logging/debugging */
@@ -161,9 +149,7 @@ export interface StopCondition {
   check: (state: AgentState, lastResult: unknown) => boolean | Promise<boolean>;
 }
 
-// =============================================================================
 // Agent Configuration
-// =============================================================================
 
 /** Thinking effort level for Anthropic models (Opus 4.6+) */
 export type ThinkingEffort = 'low' | 'medium' | 'high' | 'max';
@@ -193,9 +179,7 @@ export interface AgentConfig {
   effort?: ThinkingEffort;
 }
 
-// =============================================================================
 // Agent Events
-// =============================================================================
 
 export interface AgentEvents {
   /** Emitted when agent starts */
@@ -222,9 +206,7 @@ export interface AgentEvents {
   'stream:chunk': [chunk: string];
 }
 
-// =============================================================================
 // Step Context (passed to model at each step)
-// =============================================================================
 
 export interface StepContext {
   /** Current step number */

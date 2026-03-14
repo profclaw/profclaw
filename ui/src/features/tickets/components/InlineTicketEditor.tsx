@@ -260,8 +260,7 @@ export function InlineTicketEditor({ ticketId, onClose, className }: InlineTicke
     return PRIORITY_OPTIONS.find(p => p.value === priority) || PRIORITY_OPTIONS[4];
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const currentProject = projects.find((p: any) => p.id === ticket?.projectId);
+  const currentProject = projects.find((p) => p.id === ticket?.projectId);
 
   // Loading state
   if (isLoading) {
@@ -296,7 +295,7 @@ export function InlineTicketEditor({ ticketId, onClose, className }: InlineTicke
           <span className="text-muted-foreground">PROJECT</span>
           <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
           <span className="font-medium">
-            {currentProject?.key || 'GLINR'}-{ticket.sequence}
+            {currentProject?.key || 'PROFCLAW'}-{ticket.sequence}
           </span>
         </div>
 

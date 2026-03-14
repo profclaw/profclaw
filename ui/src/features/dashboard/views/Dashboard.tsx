@@ -696,7 +696,7 @@ export function Dashboard() {
         <Card className="glass border-dashed">
           <CardContent className="p-6">
             <div className="text-center mb-4">
-              <h3 className="text-lg font-semibold mb-1">Get Started with GLINR</h3>
+              <h3 className="text-lg font-semibold mb-1">Get Started with profClaw</h3>
               <p className="text-sm text-muted-foreground">Set up your AI-powered workflow</p>
             </div>
             <div className="grid sm:grid-cols-3 gap-3">

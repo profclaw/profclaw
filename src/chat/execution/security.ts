@@ -7,20 +7,26 @@
 
 import { minimatch } from 'minimatch';
 import type {
-  SecurityMode,
   SecurityPolicy,
   AllowlistEntry,
   ToolDefinition,
   ApprovalRequest,
   ApprovalDecision,
   ApprovalResponse,
+  DMPairingSession,
+  ChannelAllowlistEntry,
+  ExecApprovalPolicy,
+  PluginAllowlistEntry,
+  PluginPermission,
+  ChannelPolicy,
+  SecurityRiskLevel,
+  SecurityRiskAnalysis,
+  SecurityRiskFactor,
 } from './types.js';
 import { logger } from '../../utils/logger.js';
-import { randomUUID } from 'crypto';
+import { randomUUID, randomInt } from 'crypto';
 
-// =============================================================================
 // Constants
-// =============================================================================
 
 const DEFAULT_ASK_TIMEOUT_MS = 120_000; // 2 minutes
 const APPROVAL_CLEANUP_INTERVAL_MS = 60_000; // 1 minute
@@ -51,9 +57,14 @@ const SAFE_COMMANDS = new Set([
   'jq', 'yq',
 ]);
 
-// =============================================================================
+interface SecurityCheckContext {
+  conversationId: string;
+  toolCallId: string;
+  userId?: string;
+  channelId?: string;
+}
+
 // Security Policy Manager
-// =============================================================================
 
 export class SecurityPolicyManager {
   private policy: SecurityPolicy;
@@ -79,9 +90,30 @@ export class SecurityPolicyManager {
   async checkPermission(
     tool: ToolDefinition,
     params: Record<string, unknown>,
-    context: { conversationId: string; toolCallId: string },
+    context: SecurityCheckContext,
   ): Promise<SecurityCheckResult> {
     const command = this.extractCommand(tool, params);
+
+    // Check granular exec policies first (highest priority override)
+    const execPolicy = this.evaluateExecPolicies(
+      tool.name,
+      command,
+      { userId: context.userId, channelId: context.channelId },
+    );
+    if (execPolicy) {
+      if (execPolicy.action === 'allow') {
+        return { allowed: true, requiresApproval: false };
+      }
+      if (execPolicy.action === 'deny') {
+        return { allowed: false, reason: `Blocked by policy: ${execPolicy.name}`, requiresApproval: false };
+      }
+      if (execPolicy.action === 'sandbox') {
+        return { allowed: true, requiresApproval: false, sandboxRequired: true };
+      }
+      if (execPolicy.action === 'ask') {
+        return { allowed: false, reason: `Policy requires approval: ${execPolicy.name}`, requiresApproval: true, securityLevel: 'moderate' };
+      }
+    }
 
     // Deny mode blocks everything
     if (this.policy.mode === 'deny') {
@@ -320,9 +352,422 @@ export class SecurityPolicyManager {
     this.approvalResolvers.clear();
   }
 
-  // ===========================================================================
+  // Feature 1: DM Pairing Mode
+
+  private pairingSessions: Map<string, DMPairingSession> = new Map();
+
+  /**
+   * Generate a pairing code for an unknown DM sender
+   */
+  generatePairingCode(senderId: string, channelProvider: string): DMPairingSession {
+    const config = this.policy.dmPairing ?? {
+      enabled: true,
+      codeLength: 6,
+      codeExpiryMs: 300_000,
+      maxAttempts: 3,
+      trustedSenders: [],
+    };
+
+    // Check if sender is already trusted
+    if (config.trustedSenders.includes(senderId)) {
+      return {
+        code: '',
+        senderId,
+        channelProvider,
+        createdAt: Date.now(),
+        expiresAt: Date.now(),
+        attempts: 0,
+        verified: true,
+      };
+    }
+
+    // Generate numeric code
+    const max = Math.pow(10, config.codeLength);
+    const code = String(randomInt(max)).padStart(config.codeLength, '0');
+
+    const session: DMPairingSession = {
+      code,
+      senderId,
+      channelProvider,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + config.codeExpiryMs,
+      attempts: 0,
+      verified: false,
+    };
+
+    this.pairingSessions.set(`${channelProvider}:${senderId}`, session);
+    logger.info(`[Security] Pairing code generated for ${channelProvider}:${senderId}`, { component: 'Security' });
+    return session;
+  }
+
+  /**
+   * Verify a pairing code from a DM sender
+   */
+  verifyPairingCode(senderId: string, channelProvider: string, code: string): boolean {
+    const key = `${channelProvider}:${senderId}`;
+    const session = this.pairingSessions.get(key);
+
+    if (!session) return false;
+    if (session.verified) return true;
+    if (Date.now() > session.expiresAt) {
+      this.pairingSessions.delete(key);
+      return false;
+    }
+
+    session.attempts++;
+    const maxAttempts = this.policy.dmPairing?.maxAttempts ?? 3;
+
+    if (session.attempts > maxAttempts) {
+      this.pairingSessions.delete(key);
+      logger.warn(`[Security] Pairing max attempts exceeded for ${key}`, { component: 'Security' });
+      return false;
+    }
+
+    if (session.code === code) {
+      session.verified = true;
+      // Auto-add to trusted senders
+      if (this.policy.dmPairing) {
+        this.policy.dmPairing.trustedSenders.push(senderId);
+      }
+      logger.info(`[Security] Pairing verified for ${key}`, { component: 'Security' });
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Check if a DM sender is trusted
+   */
+  isDMSenderTrusted(senderId: string): boolean {
+    return this.policy.dmPairing?.trustedSenders.includes(senderId) ?? false;
+  }
+
+  // Feature 2: Channel Allowlist Management
+
+  /**
+   * Add a channel to the allowlist
+   */
+  addChannelToAllowlist(entry: ChannelAllowlistEntry): void {
+    if (!this.policy.channelAllowlist) {
+      this.policy.channelAllowlist = [];
+    }
+
+    const exists = this.policy.channelAllowlist.some(
+      (e) => e.channelId === entry.channelId && e.provider === entry.provider,
+    );
+
+    if (!exists) {
+      this.policy.channelAllowlist.push(entry);
+      logger.info(`[Security] Channel added to allowlist: ${entry.provider}/${entry.channelId}`, { component: 'Security' });
+    }
+  }
+
+  /**
+   * Remove a channel from the allowlist
+   */
+  removeChannelFromAllowlist(channelId: string, provider: string): boolean {
+    if (!this.policy.channelAllowlist) return false;
+    const before = this.policy.channelAllowlist.length;
+    this.policy.channelAllowlist = this.policy.channelAllowlist.filter(
+      (e) => !(e.channelId === channelId && e.provider === provider),
+    );
+    return this.policy.channelAllowlist.length < before;
+  }
+
+  /**
+   * Check if a channel is allowed to send messages
+   */
+  isChannelAllowed(channelId: string, provider: string): boolean {
+    // If no allowlist configured, all channels are allowed
+    if (!this.policy.channelAllowlist?.length) return true;
+    return this.policy.channelAllowlist.some(
+      (e) => e.channelId === channelId && e.provider === provider && e.enabled,
+    );
+  }
+
+  /**
+   * Get the channel allowlist
+   */
+  getChannelAllowlist(): ChannelAllowlistEntry[] {
+    return [...(this.policy.channelAllowlist ?? [])];
+  }
+
+  // Feature 3: Granular Exec Approval Policies
+
+  /**
+   * Add a granular exec approval policy
+   */
+  addExecPolicy(policy: ExecApprovalPolicy): void {
+    if (!this.policy.execPolicies) {
+      this.policy.execPolicies = [];
+    }
+    // Remove existing with same ID
+    this.policy.execPolicies = this.policy.execPolicies.filter((p) => p.id !== policy.id);
+    this.policy.execPolicies.push(policy);
+    // Sort by priority descending
+    this.policy.execPolicies.sort((a, b) => b.priority - a.priority);
+    logger.info(`[Security] Exec policy added: ${policy.name} (priority ${policy.priority})`, { component: 'Security' });
+  }
+
+  /**
+   * Remove an exec approval policy
+   */
+  removeExecPolicy(policyId: string): boolean {
+    if (!this.policy.execPolicies) return false;
+    const before = this.policy.execPolicies.length;
+    this.policy.execPolicies = this.policy.execPolicies.filter((p) => p.id !== policyId);
+    return this.policy.execPolicies.length < before;
+  }
+
+  /**
+   * Evaluate granular exec policies for a tool call
+   */
+  evaluateExecPolicies(
+    toolName: string,
+    command: string | null,
+    context: { userId?: string; channelId?: string },
+  ): ExecApprovalPolicy | null {
+    if (!this.policy.execPolicies?.length) return null;
+
+    for (const policy of this.policy.execPolicies) {
+      if (!policy.enabled) continue;
+
+      let matches = true;
+
+      // Check tool match
+      if (policy.match.tools?.length) {
+        matches = matches && policy.match.tools.includes(toolName);
+      }
+
+      // Check command match
+      if (policy.match.commands?.length && command) {
+        matches = matches && policy.match.commands.some((p) => minimatch(command, p));
+      }
+
+      // Check user match
+      if (policy.match.users?.length && context.userId) {
+        matches = matches && policy.match.users.includes(context.userId);
+      }
+
+      // Check channel match
+      if (policy.match.channels?.length && context.channelId) {
+        matches = matches && policy.match.channels.includes(context.channelId);
+      }
+
+      if (matches) return policy;
+    }
+
+    return null;
+  }
+
+  /**
+   * Get all exec policies
+   */
+  getExecPolicies(): ExecApprovalPolicy[] {
+    return [...(this.policy.execPolicies ?? [])];
+  }
+
+  // Feature 4: Plugin Allowlisting
+
+  /**
+   * Add a plugin to the allowlist
+   */
+  addPluginToAllowlist(entry: PluginAllowlistEntry): void {
+    if (!this.policy.pluginAllowlist) {
+      this.policy.pluginAllowlist = [];
+    }
+    this.policy.pluginAllowlist = this.policy.pluginAllowlist.filter(
+      (p) => p.pluginId !== entry.pluginId,
+    );
+    this.policy.pluginAllowlist.push(entry);
+    logger.info(`[Security] Plugin allowlisted: ${entry.name} (${entry.pluginId})`, { component: 'Security' });
+  }
+
+  /**
+   * Remove a plugin from the allowlist
+   */
+  removePluginFromAllowlist(pluginId: string): boolean {
+    if (!this.policy.pluginAllowlist) return false;
+    const before = this.policy.pluginAllowlist.length;
+    this.policy.pluginAllowlist = this.policy.pluginAllowlist.filter((p) => p.pluginId !== pluginId);
+    return this.policy.pluginAllowlist.length < before;
+  }
+
+  /**
+   * Check if a plugin is allowed and has a specific permission
+   */
+  isPluginAllowed(pluginId: string, permission?: PluginPermission): boolean {
+    if (!this.policy.pluginAllowlist?.length) return false;
+    const entry = this.policy.pluginAllowlist.find((p) => p.pluginId === pluginId);
+    if (!entry) return false;
+    if (!permission) return entry.trusted;
+    return entry.trusted && entry.permissions.includes(permission);
+  }
+
+  /**
+   * Get the plugin allowlist
+   */
+  getPluginAllowlist(): PluginAllowlistEntry[] {
+    return [...(this.policy.pluginAllowlist ?? [])];
+  }
+
+  // Feature 5: Security Risk Analyzer
+
+  /**
+   * Analyze the security risk of a tool call
+   * Rule-based (no LLM needed) with weighted scoring
+   */
+  analyzeRisk(
+    tool: ToolDefinition,
+    params: Record<string, unknown>,
+  ): SecurityRiskAnalysis {
+    const factors: SecurityRiskFactor[] = [];
+    const command = this.extractCommand(tool, params);
+
+    // Factor 1: Tool security level
+    factors.push({
+      name: 'tool_security_level',
+      weight: 25,
+      detected: tool.securityLevel === 'dangerous',
+      detail: `Tool security level: ${tool.securityLevel}`,
+    });
+
+    // Factor 2: Dangerous command patterns
+    const hasDangerousPattern = command ? this.isDangerousCommand(command) : false;
+    factors.push({
+      name: 'dangerous_pattern',
+      weight: 35,
+      detected: hasDangerousPattern,
+      detail: hasDangerousPattern ? 'Command matches dangerous pattern' : undefined,
+    });
+
+    // Factor 3: Requires approval flag
+    factors.push({
+      name: 'requires_approval',
+      weight: 15,
+      detected: tool.requiresApproval === true,
+      detail: tool.requiresApproval ? 'Tool explicitly requires approval' : undefined,
+    });
+
+    // Factor 4: Network access
+    const hasNetworkAccess = ['web_fetch', 'web_search', 'browser_navigate'].includes(tool.name)
+      || (command && /curl|wget|ssh|scp|rsync/i.test(command));
+    factors.push({
+      name: 'network_access',
+      weight: 10,
+      detected: !!hasNetworkAccess,
+      detail: hasNetworkAccess ? 'Tool accesses network resources' : undefined,
+    });
+
+    // Factor 5: File system write access
+    const hasFileWrite = ['write_file', 'edit_file', 'patch_apply'].includes(tool.name)
+      || (command && />\s|tee\s|mv\s|cp\s|rm\s/i.test(command));
+    factors.push({
+      name: 'filesystem_write',
+      weight: 15,
+      detected: !!hasFileWrite,
+      detail: hasFileWrite ? 'Tool can modify filesystem' : undefined,
+    });
+
+    // Calculate score
+    const score = factors.reduce((total, f) => total + (f.detected ? f.weight : 0), 0);
+
+    // Determine risk level
+    let level: SecurityRiskLevel;
+    let recommendation: 'allow' | 'review' | 'deny';
+
+    if (score >= 60) {
+      level = 'CRITICAL';
+      recommendation = 'deny';
+    } else if (score >= 40) {
+      level = 'HIGH';
+      recommendation = 'review';
+    } else if (score >= 20) {
+      level = 'MEDIUM';
+      recommendation = 'review';
+    } else {
+      level = 'LOW';
+      recommendation = 'allow';
+    }
+
+    const explanation = this.buildRiskExplanation(level, factors.filter((f) => f.detected));
+
+    return { level, score, factors, recommendation, explanation };
+  }
+
+  private buildRiskExplanation(level: SecurityRiskLevel, activeFactors: SecurityRiskFactor[]): string {
+    if (activeFactors.length === 0) {
+      return 'No security risk factors detected.';
+    }
+    const factorNames = activeFactors.map((f) => f.detail ?? f.name).join('; ');
+    return `Risk level ${level}: ${factorNames}`;
+  }
+
+  // Feature 6: Per-Channel Retry/Timeout Policies
+
+  /**
+   * Set a per-channel policy
+   */
+  setChannelPolicy(policy: ChannelPolicy): void {
+    if (!this.policy.channelPolicies) {
+      this.policy.channelPolicies = [];
+    }
+    this.policy.channelPolicies = this.policy.channelPolicies.filter(
+      (p) => !(p.channelId === policy.channelId && p.provider === policy.provider),
+    );
+    this.policy.channelPolicies.push(policy);
+    logger.info(`[Security] Channel policy set: ${policy.provider}/${policy.channelId}`, { component: 'Security' });
+  }
+
+  /**
+   * Get a per-channel policy
+   */
+  getChannelPolicy(channelId: string, provider: string): ChannelPolicy | null {
+    return this.policy.channelPolicies?.find(
+      (p) => p.channelId === channelId && p.provider === provider,
+    ) ?? null;
+  }
+
+  /**
+   * Remove a per-channel policy
+   */
+  removeChannelPolicy(channelId: string, provider: string): boolean {
+    if (!this.policy.channelPolicies) return false;
+    const before = this.policy.channelPolicies.length;
+    this.policy.channelPolicies = this.policy.channelPolicies.filter(
+      (p) => !(p.channelId === channelId && p.provider === provider),
+    );
+    return this.policy.channelPolicies.length < before;
+  }
+
+  /**
+   * Get all channel policies
+   */
+  getChannelPolicies(): ChannelPolicy[] {
+    return [...(this.policy.channelPolicies ?? [])];
+  }
+
+  /**
+   * Get effective timeout for a channel (falls back to default)
+   */
+  getEffectiveTimeout(channelId: string, provider: string): number {
+    const policy = this.getChannelPolicy(channelId, provider);
+    return policy?.timeoutMs ?? 300_000;
+  }
+
+  /**
+   * Get effective retry config for a channel
+   */
+  getEffectiveRetryConfig(channelId: string, provider: string): { attempts: number; delayMs: number } {
+    const policy = this.getChannelPolicy(channelId, provider);
+    return {
+      attempts: policy?.retryAttempts ?? 3,
+      delayMs: policy?.retryDelayMs ?? 1000,
+    };
+  }
+
   // Private Methods
-  // ===========================================================================
 
   private extractCommand(tool: ToolDefinition, params: Record<string, unknown>): string | null {
     // For exec-like tools, extract the command
@@ -441,9 +886,7 @@ export class SecurityPolicyManager {
   }
 }
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface SecurityCheckResult {
   allowed: boolean;
@@ -453,9 +896,7 @@ export interface SecurityCheckResult {
   sandboxRequired?: boolean;
 }
 
-// =============================================================================
 // Singleton
-// =============================================================================
 
 let securityManager: SecurityPolicyManager | null = null;
 

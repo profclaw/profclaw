@@ -1,4 +1,4 @@
-# Cursor AI Rules for GLINR Task Manager
+# Cursor AI Rules for profClaw
 
 ## Project Context
 Task queue orchestrator for AI agents. TypeScript + Hono + BullMQ + Redis.
@@ -81,5 +81,4 @@ Types: feat, fix, perf, refactor, docs, test, chore
 
 ## Read More
 
-- CLAUDE.md - Full project conventions
 - AGENTS.md - Detailed workflow for AI agents

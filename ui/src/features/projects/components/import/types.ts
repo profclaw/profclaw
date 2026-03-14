@@ -61,8 +61,8 @@ export interface FieldMappings {
   type: Record<string, string>;
 }
 
-// GLINR target values
-export const GLINR_STATUSES = [
+// profClaw target values
+export const PROFCLAW_STATUSES = [
   { value: 'backlog', label: 'Backlog', color: '#6b7280' },
   { value: 'todo', label: 'To Do', color: '#3b82f6' },
   { value: 'in_progress', label: 'In Progress', color: '#f59e0b' },
@@ -71,7 +71,7 @@ export const GLINR_STATUSES = [
   { value: 'cancelled', label: 'Cancelled', color: '#ef4444' },
 ] as const;
 
-export const GLINR_PRIORITIES = [
+export const PROFCLAW_PRIORITIES = [
   { value: 'critical', label: 'Critical', color: '#ef4444' },
   { value: 'high', label: 'High', color: '#f97316' },
   { value: 'medium', label: 'Medium', color: '#eab308' },
@@ -79,7 +79,7 @@ export const GLINR_PRIORITIES = [
   { value: 'none', label: 'None', color: '#6b7280' },
 ] as const;
 
-export const GLINR_TYPES = [
+export const PROFCLAW_TYPES = [
   { value: 'task', label: 'Task', icon: '📋' },
   { value: 'bug', label: 'Bug', icon: '🐛' },
   { value: 'feature', label: 'Feature', icon: '✨' },

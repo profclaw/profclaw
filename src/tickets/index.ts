@@ -1,5 +1,5 @@
 /**
- * GLINR Ticket Service
+ * profClaw Ticket Service
  *
  * Core CRUD operations for AI-native tickets
  */
@@ -9,6 +9,7 @@ import {
   eq,
   and,
   or,
+  type SQL,
   desc,
   asc,
   like,
@@ -16,8 +17,6 @@ import {
   inArray,
   gte,
   lte,
-  isNull,
-  notInArray,
 } from "drizzle-orm";
 import { getDb } from "../storage/index.js";
 import {
@@ -52,6 +51,9 @@ import type {
   TicketReaction,
   TicketComment,
   HistoryEntry,
+  ExternalPlatform,
+  SyncDirection,
+  AuthorType,
 } from "./types.js";
 import {
   CreateTicketSchema,
@@ -74,6 +76,20 @@ let syncCallbacks: {
     source: string,
   ) => Promise<void>;
 } = {};
+
+type TicketRow = typeof tickets.$inferSelect & {
+  projectKey?: string | null;
+  projectName?: string | null;
+};
+type TicketRelationRow = typeof ticketRelations.$inferSelect;
+type TicketWatcherRow = typeof ticketWatchers.$inferSelect;
+type TicketAssigneeRow = typeof ticketAssignees.$inferSelect;
+type TicketMentionRow = typeof ticketMentions.$inferSelect;
+type TicketAttachmentRow = typeof ticketAttachments.$inferSelect;
+type TicketReactionRow = typeof ticketReactions.$inferSelect;
+type ExternalLinkRow = typeof ticketExternalLinks.$inferSelect;
+type TicketCommentRow = typeof ticketComments.$inferSelect;
+type TicketHistoryRow = typeof ticketHistory.$inferSelect;
 
 /**
  * Register sync callbacks (called by sync integration module)
@@ -163,7 +179,7 @@ export async function createTicket(input: CreateTicketInput): Promise<Ticket> {
     estimateUnit: parsed.estimateUnit,
   };
 
-  await db.insert(tickets).values({
+  const ticketRow: typeof tickets.$inferInsert = {
     id: ticket.id,
     sequence: ticket.sequence,
     projectId: ticket.projectId,
@@ -182,17 +198,19 @@ export async function createTicket(input: CreateTicketInput): Promise<Ticket> {
     aiAgent: ticket.aiAgent,
     aiSessionId: ticket.aiSessionId,
     aiTaskId: ticket.aiTaskId,
-    startDate: ticket.startDate,
-    dueDate: ticket.dueDate,
+    startDate: ticket.startDate ? new Date(ticket.startDate) : undefined,
+    dueDate: ticket.dueDate ? new Date(ticket.dueDate) : undefined,
     estimate: ticket.estimate,
     estimateUnit: ticket.estimateUnit,
-  });
+  };
+
+  await db.insert(tickets).values(ticketRow);
 
   // Record creation in history
   await recordHistory(id, "created", undefined, "created", {
     type: parsed.createdBy || "human",
     name: parsed.aiAgent || "User",
-    platform: "glinr",
+    platform: "profclaw",
   });
 
   // Create external link if provided
@@ -306,7 +324,7 @@ export async function updateTicket(
   const existing = await getTicket(id);
   if (!existing) return null;
 
-  const updates: Record<string, any> = {
+  const updates: Partial<typeof tickets.$inferInsert> = {
     updatedAt: new Date(),
   };
 
@@ -444,7 +462,7 @@ export async function updateTicket(
     await recordHistory(id, change.field, change.oldValue, change.newValue, {
       type: "human",
       name: "User",
-      platform: "glinr",
+      platform: "profclaw",
     });
   }
 
@@ -485,7 +503,7 @@ export async function deleteTicket(id: string): Promise<boolean> {
   await db.delete(ticketAttachments).where(eq(ticketAttachments.ticketId, id));
   await db.delete(ticketReactions).where(eq(ticketReactions.ticketId, id));
 
-  const result = await db.delete(tickets).where(eq(tickets.id, id));
+  await db.delete(tickets).where(eq(tickets.id, id));
   return true;
 }
 
@@ -559,7 +577,7 @@ export async function queryTickets(
   const db = getDb();
   if (!db) throw new Error("Database not initialized");
 
-  const conditions: any[] = [];
+  const conditions: SQL<unknown>[] = [];
 
   // Project filter
   if (parsed.projectId) {
@@ -605,12 +623,11 @@ export async function queryTickets(
 
   // Search
   if (parsed.search) {
-    conditions.push(
-      or(
-        like(tickets.title, `%${parsed.search}%`),
-        like(tickets.description, `%${parsed.search}%`),
-      ),
+    const searchCond = or(
+      like(tickets.title, `%${parsed.search}%`),
+      like(tickets.description, `%${parsed.search}%`),
     );
+    if (searchCond) conditions.push(searchCond);
   }
 
   // Date filters
@@ -661,25 +678,23 @@ export async function queryTickets(
     const isDesc = parsed.sortOrder !== "asc";
 
     if (isDesc) {
-      conditions.push(
-        or(
-          sql`${tickets.createdAt} < ${cursorTime}`,
-          and(
-            sql`${tickets.createdAt} = ${cursorTime}`,
-            sql`${tickets.id} < ${cursorId}`,
-          ),
+      const cond = or(
+        sql`${tickets.createdAt} < ${cursorTime}`,
+        and(
+          sql`${tickets.createdAt} = ${cursorTime}`,
+          sql`${tickets.id} < ${cursorId}`,
         ),
       );
+      if (cond) conditions.push(cond);
     } else {
-      conditions.push(
-        or(
-          sql`${tickets.createdAt} > ${cursorTime}`,
-          and(
-            sql`${tickets.createdAt} = ${cursorTime}`,
-            sql`${tickets.id} > ${cursorId}`,
-          ),
+      const cond = or(
+        sql`${tickets.createdAt} > ${cursorTime}`,
+        and(
+          sql`${tickets.createdAt} = ${cursorTime}`,
+          sql`${tickets.id} > ${cursorId}`,
         ),
       );
+      if (cond) conditions.push(cond);
     }
   }
 
@@ -822,7 +837,7 @@ export async function getTicketRelations(
     )
     .orderBy(desc(ticketRelations.createdAt));
 
-  return rows.map((row: any) => ({
+  return rows.map((row: TicketRelationRow) => ({
     id: row.id,
     sourceTicketId: row.sourceTicketId,
     targetTicketId: row.targetTicketId,
@@ -946,7 +961,7 @@ export async function getTicketWatchers(
     .where(eq(ticketWatchers.ticketId, ticketId))
     .orderBy(desc(ticketWatchers.createdAt));
 
-  return rows.map((row: any) => ({
+  return rows.map((row: TicketWatcherRow) => ({
     id: row.id,
     ticketId: row.ticketId,
     userId: row.userId,
@@ -1039,7 +1054,7 @@ export async function getTicketAssignees(
     .where(eq(ticketAssignees.ticketId, ticketId))
     .orderBy(desc(ticketAssignees.createdAt));
 
-  return rows.map((row: any) => ({
+  return rows.map((row: TicketAssigneeRow) => ({
     id: row.id,
     ticketId: row.ticketId,
     userId: row.userId,
@@ -1091,7 +1106,7 @@ export async function getTicketMentions(
     .where(eq(ticketMentions.ticketId, ticketId))
     .orderBy(desc(ticketMentions.createdAt));
 
-  return rows.map((row: any) => ({
+  return rows.map((row: TicketMentionRow) => ({
     id: row.id,
     ticketId: row.ticketId,
     userId: row.userId,
@@ -1154,7 +1169,7 @@ export async function getTicketAttachments(
     .where(eq(ticketAttachments.ticketId, ticketId))
     .orderBy(desc(ticketAttachments.createdAt));
 
-  return rows.map((row: any) => ({
+  return rows.map((row: TicketAttachmentRow) => ({
     id: row.id,
     ticketId: row.ticketId,
     fileName: row.fileName,
@@ -1257,7 +1272,7 @@ export async function getTicketReactions(
     .where(eq(ticketReactions.ticketId, ticketId))
     .orderBy(desc(ticketReactions.createdAt));
 
-  return rows.map((row: any) => ({
+  return rows.map((row: TicketReactionRow) => ({
     id: row.id,
     ticketId: row.ticketId,
     userId: row.userId,
@@ -1313,7 +1328,7 @@ export async function createExternalLink(
   return {
     id,
     ticketId,
-    platform: link.platform as any,
+    platform: link.platform as ExternalPlatform,
     externalId: link.externalId,
     externalUrl: link.externalUrl,
     syncEnabled: true,
@@ -1333,14 +1348,14 @@ export async function getExternalLinks(
     .from(ticketExternalLinks)
     .where(eq(ticketExternalLinks.ticketId, ticketId));
 
-  return rows.map((row: any) => ({
+  return rows.map((row: ExternalLinkRow) => ({
     id: row.id,
     ticketId: row.ticketId,
-    platform: row.platform as any,
+    platform: row.platform as ExternalLink["platform"],
     externalId: row.externalId,
     externalUrl: row.externalUrl ?? undefined,
     syncEnabled: row.syncEnabled,
-    syncDirection: row.syncDirection as any,
+    syncDirection: row.syncDirection as SyncDirection,
     lastSyncedAt: toOptionalISOString(row.lastSyncedAt),
     syncError: row.syncError ?? undefined,
     createdAt: toISOString(row.createdAt),
@@ -1367,7 +1382,7 @@ export async function addComment(
     authorType: author.type,
     authorName: author.name,
     authorPlatform: author.platform,
-    source: author.platform as any,
+    source: author.platform as TicketComment["source"],
     isAiResponse: author.type === "ai",
   });
 
@@ -1388,7 +1403,7 @@ export async function addComment(
     ticketId,
     content,
     author: { type: author.type, name: author.name, platform: author.platform },
-    source: author.platform as any,
+    source: author.platform as TicketComment["source"],
     isAiResponse: author.type === "ai",
     createdAt: now,
   };
@@ -1404,18 +1419,18 @@ export async function getComments(ticketId: string): Promise<TicketComment[]> {
     .where(eq(ticketComments.ticketId, ticketId))
     .orderBy(asc(ticketComments.createdAt));
 
-  return rows.map((row: any) => ({
+  return rows.map((row: TicketCommentRow) => ({
     id: row.id,
     ticketId: row.ticketId,
     content: row.content,
     contentHtml: row.contentHtml ?? undefined,
     author: {
-      type: row.authorType as any,
+      type: row.authorType as AuthorType,
       name: row.authorName,
       platform: row.authorPlatform,
       avatarUrl: row.authorAvatarUrl ?? undefined,
     },
-    source: row.source as any,
+    source: row.source as TicketComment["source"],
     externalId: row.externalId ?? undefined,
     isAiResponse: row.isAiResponse,
     respondingTo: row.respondingTo ?? undefined,
@@ -1458,14 +1473,14 @@ export async function getHistory(ticketId: string): Promise<HistoryEntry[]> {
     .where(eq(ticketHistory.ticketId, ticketId))
     .orderBy(desc(ticketHistory.timestamp));
 
-  return rows.map((row: any) => ({
+  return rows.map((row: TicketHistoryRow) => ({
     id: row.id,
     ticketId: row.ticketId,
     field: row.field,
     oldValue: row.oldValue ?? undefined,
     newValue: row.newValue ?? undefined,
     changedBy: {
-      type: row.changedByType as any,
+      type: row.changedByType as AuthorType,
       name: row.changedByName,
       platform: row.changedByPlatform,
     },
@@ -1511,7 +1526,7 @@ export async function updateExternalLink(
   const db = getDb();
   if (!db) throw new Error("Database not initialized");
 
-  const updateData: Record<string, any> = {};
+  const updateData: Partial<typeof ticketExternalLinks.$inferInsert> = {};
   if (updates.lastSyncedAt)
     updateData.lastSyncedAt = new Date(updates.lastSyncedAt);
   if (updates.syncError !== undefined)
@@ -1544,7 +1559,7 @@ export async function createTicketFromSync(
     sequence,
   };
 
-  await db.insert(tickets).values({
+  const ticketRow: typeof tickets.$inferInsert = {
     id: newTicket.id,
     sequence: newTicket.sequence,
     title: newTicket.title,
@@ -1562,11 +1577,13 @@ export async function createTicketFromSync(
     aiAgent: newTicket.aiAgent,
     aiSessionId: newTicket.aiSessionId,
     aiTaskId: newTicket.aiTaskId,
-    startDate: newTicket.startDate,
-    dueDate: newTicket.dueDate,
+    startDate: newTicket.startDate ? new Date(newTicket.startDate) : undefined,
+    dueDate: newTicket.dueDate ? new Date(newTicket.dueDate) : undefined,
     estimate: newTicket.estimate,
     estimateUnit: newTicket.estimateUnit,
-  });
+  };
+
+  await db.insert(tickets).values(ticketRow);
 
   // Create external link
   await createExternalLink(id, link);
@@ -1602,7 +1619,7 @@ export async function updateTicketFromSync(
   const existing = await getTicket(id);
   if (!existing) return null;
 
-  const dbUpdates: Record<string, any> = {
+  const dbUpdates: Partial<typeof tickets.$inferInsert> = {
     updatedAt: new Date(),
   };
 
@@ -1741,7 +1758,7 @@ export async function addCommentFromSync(
     authorType: author.type,
     authorName: author.name,
     authorPlatform: author.platform,
-    source: author.platform as any,
+    source: author.platform as TicketComment["source"],
     externalId,
     isAiResponse: author.type === "ai",
   });
@@ -1751,7 +1768,7 @@ export async function addCommentFromSync(
     ticketId,
     content,
     author,
-    source: author.platform as any,
+    source: author.platform as TicketComment["source"],
     externalId,
     isAiResponse: author.type === "ai",
     createdAt: now,
@@ -1817,7 +1834,7 @@ function toOptionalISOString(value: unknown): string | undefined {
 }
 
 function rowToTicket(
-  row: any,
+  row: TicketRow,
 ): Ticket & { projectId?: string; projectKey?: string; projectName?: string } {
   return {
     id: row.id,
@@ -1829,9 +1846,9 @@ function rowToTicket(
     title: row.title,
     description: row.description,
     descriptionHtml: row.descriptionHtml ?? undefined,
-    type: row.type,
-    priority: row.priority,
-    status: row.status,
+    type: row.type as Ticket['type'],
+    priority: row.priority as Ticket['priority'],
+    status: row.status as Ticket['status'],
     labels: row.labels || [],
     assignee: row.assignee ?? undefined,
     assigneeAgent: row.assigneeAgent ?? undefined,
@@ -1845,11 +1862,11 @@ function rowToTicket(
     completedAt: toOptionalISOString(row.completedAt),
     startDate: toOptionalISOString(row.startDate),
     dueDate: toOptionalISOString(row.dueDate),
-    createdBy: row.createdBy,
+    createdBy: row.createdBy as Ticket['createdBy'],
     aiAgent: row.aiAgent ?? undefined,
     aiSessionId: row.aiSessionId ?? undefined,
     aiTaskId: row.aiTaskId ?? undefined,
     estimate: row.estimate ?? undefined,
-    estimateUnit: row.estimateUnit ?? undefined,
+    estimateUnit: row.estimateUnit as Ticket['estimateUnit'],
   };
 }

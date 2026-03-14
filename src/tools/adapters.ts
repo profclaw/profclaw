@@ -22,11 +22,9 @@ import type {
   ToolCategory,
 } from './types.js';
 
-// =============================================================================
 // MCP Adapter
-// =============================================================================
 
-const MCP_PREFIX = 'glinr__';
+const MCP_PREFIX = 'profclaw__';
 
 /**
  * Convert tool definition to MCP schema
@@ -108,9 +106,7 @@ export function createMCPHandler(
   };
 }
 
-// =============================================================================
 // Chat Execution Adapter
-// =============================================================================
 
 /**
  * Convert universal tool to chat execution format
@@ -122,6 +118,7 @@ export function toChatTool(tool: ToolDefinition): ChatToolDefinition {
     category: tool.category as ChatToolDefinition['category'],
     securityLevel: tool.securityLevel,
     allowedHosts: ['sandbox', 'gateway', 'local'],
+    isAvailable: tool.isAvailable,
     parameters: tool.parameters,
     examples: tool.examples?.map((e) => ({
       description: e.description,
@@ -147,9 +144,7 @@ export function toChatTools(tools: ToolDefinition[]): ChatToolDefinition[] {
   return tools.map(toChatTool);
 }
 
-// =============================================================================
 // AI SDK Adapter (OpenAI/Anthropic native format)
-// =============================================================================
 
 /**
  * Convert tool definition to AI SDK schema
@@ -206,9 +201,7 @@ export function toAISchemas(tools: ToolDefinition[]): AIToolSchema[] {
   return tools.map(toAISchema);
 }
 
-// =============================================================================
 // Utility Functions
-// =============================================================================
 
 /**
  * Filter tools by security level

@@ -7,9 +7,7 @@
 
 import type { z } from 'zod';
 
-// =============================================================================
 // Core Tool Definition
-// =============================================================================
 
 /**
  * Tool category determines grouping and default permissions
@@ -21,7 +19,7 @@ export type ToolCategory =
   | 'system'      // System info, env
   | 'web'         // Web fetch, search
   | 'execution'   // Shell commands
-  | 'glinr'       // GLINR-specific operations
+  | 'profclaw'       // PC-specific operations
   | 'memory'      // Conversation memory
   | 'data'        // Database, API calls
   | 'custom';     // User-defined
@@ -102,9 +100,7 @@ export interface ToolExample {
   expectedOutput?: string;
 }
 
-// =============================================================================
 // Tool Registry Types
-// =============================================================================
 
 /**
  * Tool collection with metadata
@@ -144,9 +140,7 @@ export function createToolCollection(
   };
 }
 
-// =============================================================================
 // Adapter Types (for MCP, Chat, etc.)
-// =============================================================================
 
 /**
  * MCP tool schema format

@@ -1,5 +1,5 @@
 /**
- * GLINR Projects & Sprints Types
+ * profClaw Projects profClaw Projects & Sprints Sprints Types
  *
  * Multi-project support with custom ticket prefixes and sprint management.
  * Designed for bi-directional sync with:
@@ -47,7 +47,7 @@ export const ProjectSchema = z.object({
   workspaceId: z.string().optional().default('default'),
 
   // Identity
-  key: z.string().min(2).max(10).toUpperCase(), // "GLINR", "MOBILE", "API"
+  key: z.string().min(2).max(10).toUpperCase(), // "PC", "MOBILE", "API"
   name: z.string().min(1),
   description: z.string().optional(),
   icon: z.string().default('📋'),
@@ -242,7 +242,7 @@ export type SprintQuery = z.infer<typeof SprintQuerySchema>;
 // === Platform Mappings (for sync adapters) ===
 
 /**
- * Maps GLINR sprint status to external platform equivalents
+ * Maps profClaw sprint status to external platform equivalents
  */
 export const SPRINT_STATUS_MAP: Record<SprintStatus, Record<string, string>> = {
   planning: { jira: 'future',   linear: 'planned',   github: 'open' },
@@ -252,7 +252,7 @@ export const SPRINT_STATUS_MAP: Record<SprintStatus, Record<string, string>> = {
 };
 
 /**
- * Maps external platform sprint status to GLINR
+ * Maps external platform sprint status to profClaw
  */
 export const REVERSE_SPRINT_STATUS_MAP: Record<string, Record<string, SprintStatus>> = {
   jira: {
@@ -273,7 +273,7 @@ export const REVERSE_SPRINT_STATUS_MAP: Record<string, Record<string, SprintStat
 };
 
 /**
- * Maps GLINR project to external platform entities
+ * Maps profClaw project to external platform entities
  * - Linear: Team
  * - Jira: Project
  * - GitHub: Repository + Project (board)

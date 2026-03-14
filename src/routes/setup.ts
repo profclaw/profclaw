@@ -7,8 +7,13 @@
  */
 
 import { Hono } from 'hono';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('Setup');
+import type { Context } from 'hono';
 import { randomUUID, randomBytes } from 'crypto';
 import { eq } from 'drizzle-orm';
+import { z } from 'zod';
 import { getDb } from '../storage/index.js';
 import { users, userPreferences } from '../storage/schema.js';
 import { getSettings, updateSettings, isGitHubOAuthConfigured } from '../settings/index.js';
@@ -29,9 +34,50 @@ const adminCreateLimiter = rateLimit({ windowMs: 60_000, max: 3, message: 'Too m
 const recoveryLimiter = rateLimit({ windowMs: 60_000, max: 5, message: 'Too many recovery attempts. Try again in a minute.' });
 const resetLimiter = rateLimit({ windowMs: 60_000, max: 5, message: 'Too many reset attempts. Try again in a minute.' });
 
-// =============================================================================
+const githubOAuthBodySchema = z.object({
+  clientId: z.string().min(1),
+  clientSecret: z.string().min(1),
+  redirectUri: z.string().optional(),
+});
+
+const adminSetupBodySchema = z.object({
+  email: z.string().min(1),
+  password: z.string().min(1),
+  name: z.string().min(1),
+});
+
+const verifyRecoveryCodeBodySchema = z.object({
+  email: z.string().min(1),
+  code: z.string().min(1),
+});
+
+const resetPasswordBodySchema = z.object({
+  resetToken: z.string().min(1),
+  newPassword: z.string().min(1),
+});
+
+async function parseJsonBody(c: Context): Promise<
+  { ok: true; body: Record<string, unknown> } | { ok: false; response: Response }
+> {
+  try {
+    const body = await c.req.json();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return {
+        ok: false,
+        response: c.json({ error: 'Request body must be a JSON object' }, 400),
+      };
+    }
+
+    return { ok: true, body: body as Record<string, unknown> };
+  } catch {
+    return {
+      ok: false,
+      response: c.json({ error: 'Invalid JSON body' }, 400),
+    };
+  }
+}
+
 // ROUTES
-// =============================================================================
 
 /**
  * GET /api/setup/status
@@ -85,7 +131,7 @@ setup.get('/status', async (c) => {
       showForgotPassword: settings.system?.showForgotPassword ?? true,
     });
   } catch (error) {
-    console.error('[Setup] Status check error:', error);
+    log.error('Status check error', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       configured: false,
       isFirstTimeSetup: true,
@@ -111,15 +157,20 @@ setup.get('/status', async (c) => {
  */
 setup.post('/github-oauth/validate', async (c) => {
   try {
-    const body = await c.req.json();
-    const { clientId, clientSecret } = body;
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
 
-    if (!clientId || !clientSecret) {
+    const bodyParse = githubOAuthBodySchema.safeParse(parsed.body);
+    if (!bodyParse.success) {
       return c.json({
         valid: false,
         error: 'Client ID and Client Secret are required',
       }, 400);
     }
+
+    const { clientId, clientSecret } = bodyParse.data;
 
     // Validate Client ID format
     // GitHub OAuth App Client IDs are typically 20 characters alphanumeric
@@ -188,7 +239,7 @@ setup.post('/github-oauth/validate', async (c) => {
       });
     } catch (fetchError) {
       // If GitHub API is unreachable, fall back to format validation only
-      console.warn('[Setup] Could not verify credentials with GitHub API:', fetchError);
+      log.warn('Could not verify credentials with GitHub API', { error: fetchError instanceof Error ? fetchError.message : String(fetchError) });
       return c.json({
         valid: true,
         message: 'Credentials format is valid. Could not verify with GitHub API.',
@@ -197,7 +248,7 @@ setup.post('/github-oauth/validate', async (c) => {
       });
     }
   } catch (error) {
-    console.error('[Setup] GitHub OAuth validation error:', error);
+    log.error('GitHub OAuth validation error', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       valid: false,
       error: 'Validation failed',
@@ -222,12 +273,17 @@ setup.post('/github-oauth', async (c) => {
       );
     }
 
-    const body = await c.req.json();
-    const { clientId, clientSecret, redirectUri } = body;
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
 
-    if (!clientId || !clientSecret) {
+    const bodyParse = githubOAuthBodySchema.safeParse(parsed.body);
+    if (!bodyParse.success) {
       return c.json({ error: 'Client ID and Client Secret are required' }, 400);
     }
+
+    const { clientId, clientSecret, redirectUri } = bodyParse.data;
 
     // Calculate default redirect URI based on current origin
     const defaultRedirectUri = redirectUri || 'http://localhost:5173/api/auth/github/callback';
@@ -243,14 +299,14 @@ setup.post('/github-oauth', async (c) => {
       },
     });
 
-    console.log('[Setup] GitHub OAuth credentials saved to database');
+    log.info('GitHub OAuth credentials saved to database');
 
     return c.json({
       success: true,
       message: 'GitHub OAuth configured successfully.',
     });
   } catch (error) {
-    console.error('[Setup] GitHub OAuth setup error:', error);
+    log.error('GitHub OAuth setup error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to configure GitHub OAuth' }, 500);
   }
 });
@@ -266,12 +322,17 @@ setup.post('/admin', adminCreateLimiter, async (c) => {
       return c.json({ error: 'Database not initialized' }, 500);
     }
 
-    const body = await c.req.json();
-    const { email, password, name } = body;
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
 
-    if (!email || !password || !name) {
+    const bodyParse = adminSetupBodySchema.safeParse(parsed.body);
+    if (!bodyParse.success) {
       return c.json({ error: 'Email, password, and name are required' }, 400);
     }
+
+    const { email, password, name } = bodyParse.data;
 
     // Validate email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -329,7 +390,7 @@ setup.post('/admin', adminCreateLimiter, async (c) => {
     // Create session
     const session = await createSession(userId);
 
-    console.log(`[Setup] Admin user created: ${email}`);
+    log.info('Admin user created', { email });
 
     return c.json({
       success: true,
@@ -348,8 +409,7 @@ setup.post('/admin', adminCreateLimiter, async (c) => {
       message: 'Admin account created. Save your recovery codes - they will not be shown again!',
     });
   } catch (error) {
-    console.error('[Setup] Admin creation error:', error);
-    console.error('[Setup] Error stack:', error instanceof Error ? error.stack : 'No stack');
+    log.error('Admin creation error', error instanceof Error ? error : new Error(String(error)));
     return c.json({
       error: 'Failed to create admin user',
       details: error instanceof Error ? error.message : String(error)
@@ -368,12 +428,17 @@ setup.post('/verify-recovery-code', recoveryLimiter, async (c) => {
       return c.json({ error: 'Database not initialized' }, 500);
     }
 
-    const body = await c.req.json();
-    const { email, code } = body;
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
 
-    if (!email || !code) {
+    const bodyParse = verifyRecoveryCodeBodySchema.safeParse(parsed.body);
+    if (!bodyParse.success) {
       return c.json({ error: 'Email and recovery code are required' }, 400);
     }
+
+    const { email, code } = bodyParse.data;
 
     // Find user
     const result = await db
@@ -429,7 +494,7 @@ setup.post('/verify-recovery-code', recoveryLimiter, async (c) => {
       message: 'Recovery code verified. Use the reset token to set a new password.',
     });
   } catch (error) {
-    console.error('[Setup] Recovery code verification error:', error);
+    log.error('Recovery code verification error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to verify recovery code' }, 500);
   }
 });
@@ -445,12 +510,17 @@ setup.post('/reset-password', resetLimiter, async (c) => {
       return c.json({ error: 'Database not initialized' }, 500);
     }
 
-    const body = await c.req.json();
-    const { resetToken, newPassword } = body;
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
 
-    if (!resetToken || !newPassword) {
+    const bodyParse = resetPasswordBodySchema.safeParse(parsed.body);
+    if (!bodyParse.success) {
       return c.json({ error: 'Reset token and new password are required' }, 400);
     }
+
+    const { resetToken, newPassword } = bodyParse.data;
 
     const passwordError = validatePasswordStrength(newPassword);
     if (passwordError) {
@@ -489,14 +559,14 @@ setup.post('/reset-password', resetLimiter, async (c) => {
       })
       .where(eq(users.id, user.id));
 
-    console.log(`[Setup] Password reset for user: ${user.email}`);
+    log.info('Password reset for user', { email: user.email });
 
     return c.json({
       success: true,
       message: 'Password has been reset successfully. You can now sign in.',
     });
   } catch (error) {
-    console.error('[Setup] Password reset error:', error);
+    log.error('Password reset error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to reset password' }, 500);
   }
 });
@@ -506,7 +576,7 @@ setup.post('/reset-password', resetLimiter, async (c) => {
  * Get environment variable template for manual setup
  */
 setup.get('/env-template', (c) => {
-  const template = `# GLINR Task Manager Configuration
+  const template = `# profClaw Configuration
 # Copy this to .env and fill in your values
 
 # GitHub OAuth (Required for authentication)
@@ -529,7 +599,7 @@ ANTHROPIC_API_KEY=
 OLLAMA_BASE_URL=http://localhost:11434
 
 # Database
-DATABASE_URL=file:./data/glinr.db
+DATABASE_URL=file:./data/profclaw.db
 
 # Server
 PORT=3000

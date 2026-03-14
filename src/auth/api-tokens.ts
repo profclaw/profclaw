@@ -1,4 +1,5 @@
 import { randomBytes, createHash } from 'crypto';
+import type { Context } from 'hono';
 import { getStorage } from '../storage/index.js';
 
 /**
@@ -56,7 +57,7 @@ const rateLimitTracker = new Map<string, { count: number; resetAt: number }>();
  * Generate a secure random token
  */
 function generateToken(): string {
-  return `glinr_${randomBytes(32).toString('base64url')}`;
+  return `profclaw_${randomBytes(32).toString('base64url')}`;
 }
 
 /**
@@ -89,17 +90,17 @@ export async function initApiTokensTable(): Promise<void> {
   // Migration for existing tables
   try {
     await storage.execute(`ALTER TABLE api_tokens ADD COLUMN token_prefix TEXT`);
-  } catch (e) {
+  } catch {
     // Column already exists
   }
   try {
     await storage.execute(`ALTER TABLE api_tokens ADD COLUMN rate_limit INTEGER DEFAULT 60`);
-  } catch (e) {
+  } catch {
     // Column already exists
   }
   try {
     await storage.execute(`ALTER TABLE api_tokens ADD COLUMN enabled INTEGER DEFAULT 1`);
-  } catch (e) {
+  } catch {
     // Column already exists
   }
 }
@@ -198,7 +199,7 @@ async function getTokenByHash(hash: string): Promise<ApiToken | null> {
 export async function validateToken(
   plainTextToken: string
 ): Promise<{ valid: boolean; token?: ApiToken; error?: string }> {
-  if (!plainTextToken || !plainTextToken.startsWith('glinr_')) {
+  if (!plainTextToken || !plainTextToken.startsWith('profclaw_')) {
     return { valid: false, error: 'Invalid token format' };
   }
 
@@ -314,7 +315,7 @@ export async function revokeApiToken(id: string): Promise<boolean> {
  * Hono middleware for token authentication
  */
 export function tokenAuthMiddleware(requiredScopes: TokenScope[] = []) {
-  return async (c: any, next: () => Promise<void>) => {
+  return async (c: Context, next: () => Promise<void>) => {
     const authHeader = c.req.header('Authorization');
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {

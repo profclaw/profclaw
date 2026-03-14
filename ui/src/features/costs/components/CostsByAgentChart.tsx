@@ -91,10 +91,14 @@ export function CostsByAgentChart({ data }: CostsByAgentChartProps) {
             verticalAlign="bottom"
             height={36}
             iconType="circle"
-            formatter={(value, entry: any) => {
+            formatter={(value, entry) => {
+              const total = chartData.reduce((sum, item) => sum + item.value, 0);
+              const pieValue =
+                entry && entry.payload && typeof entry.payload.value === 'number'
+                  ? entry.payload.value
+                  : 0;
               const percentage = (
-                (entry.payload.value /
-                  chartData.reduce((sum, item) => sum + item.value, 0)) *
+                (pieValue / (total || 1)) *
                 100
               ).toFixed(1);
               return (

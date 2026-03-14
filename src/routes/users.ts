@@ -5,6 +5,9 @@
  */
 
 import { Hono, Context } from 'hono';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('Users');
 import { getCookie } from 'hono/cookie';
 import { eq } from 'drizzle-orm';
 import { randomUUID, randomBytes, createHash } from 'crypto';
@@ -17,7 +20,6 @@ import {
   validatePasswordStrength,
   generateRecoveryCodes,
   hashRecoveryCodes,
-  hashRecoveryCode,
   generateInviteCode,
   hashInviteCode,
 } from '../auth/password.js';
@@ -30,9 +32,11 @@ type Variables = {
 
 export const userRoutes = new Hono<{ Variables: Variables }>();
 
+type UserPreferencesUpdate = Partial<typeof userPreferences.$inferInsert>;
+
 // Middleware to require authentication
 async function requireAuth(c: Context<{ Variables: Variables }>, next: () => Promise<void>) {
-  const token = getCookie(c, 'glinr_session');
+  const token = getCookie(c, 'profclaw_session');
 
   if (!token) {
     return c.json({ error: 'Not authenticated' }, 401);
@@ -51,9 +55,7 @@ async function requireAuth(c: Context<{ Variables: Variables }>, next: () => Pro
 // Apply auth middleware to all routes
 userRoutes.use('/*', requireAuth);
 
-// =============================================================================
 // PROFILE
-// =============================================================================
 
 /**
  * GET /api/users/me/profile
@@ -256,9 +258,7 @@ userRoutes.put('/me/password', async (c) => {
   return c.json({ message: 'Password updated successfully' });
 });
 
-// =============================================================================
 // CONNECTED ACCOUNTS (OAuth)
-// =============================================================================
 
 /**
  * GET /api/users/me/connected-accounts
@@ -376,8 +376,9 @@ userRoutes.put('/me/primary-email', async (c) => {
     }
 
     // Verify email matches provider data (if available)
-    const providerData = providerAccount.providerData as Record<string, any> | null;
-    if (providerData?.email && providerData.email.toLowerCase() !== email.toLowerCase()) {
+    const providerData = providerAccount.providerData as Record<string, unknown> | null;
+    const providerEmail = typeof providerData?.email === 'string' ? providerData.email : undefined;
+    if (providerEmail && providerEmail.toLowerCase() !== email.toLowerCase()) {
       return c.json({ error: 'Email does not match connected account' }, 400);
     }
   }
@@ -409,9 +410,7 @@ userRoutes.put('/me/primary-email', async (c) => {
   });
 });
 
-// =============================================================================
 // PREFERENCES
-// =============================================================================
 
 /**
  * GET /api/users/me/preferences
@@ -481,10 +480,10 @@ userRoutes.patch('/me/preferences', async (c) => {
   ];
 
   // Filter to allowed fields only
-  const updates: Record<string, any> = {};
+  const updates: UserPreferencesUpdate = {};
   for (const field of allowedFields) {
     if (body[field] !== undefined) {
-      updates[field] = body[field];
+      (updates as Record<string, unknown>)[field] = body[field];
     }
   }
 
@@ -519,9 +518,7 @@ userRoutes.patch('/me/preferences', async (c) => {
   return c.json({ preferences: updated[0] });
 });
 
-// =============================================================================
 // API KEYS
-// =============================================================================
 
 /**
  * GET /api/users/me/api-keys
@@ -569,7 +566,7 @@ userRoutes.post('/me/api-keys', async (c) => {
   }
 
   // Generate API key
-  const rawKey = `glinr_${randomBytes(24).toString('hex')}`;
+  const rawKey = `profclaw_${randomBytes(24).toString('hex')}`;
   const keyPrefix = rawKey.slice(0, 14) + '...';
   const keyHash = createHash('sha256').update(rawKey).digest('hex');
 
@@ -636,9 +633,7 @@ userRoutes.delete('/me/api-keys/:keyId', async (c) => {
   return c.json({ message: 'API key revoked' });
 });
 
-// =============================================================================
 // SESSIONS
-// =============================================================================
 
 /**
  * GET /api/users/me/sessions
@@ -650,7 +645,7 @@ userRoutes.get('/me/sessions', async (c) => {
 
   if (!db) return c.json({ error: 'Database not initialized' }, 500);
 
-  const currentToken = getCookie(c, 'glinr_session');
+  const currentToken = getCookie(c, 'profclaw_session');
 
   const userSessions = await db
     .select({
@@ -715,7 +710,7 @@ userRoutes.delete('/me/sessions/:sessionId', async (c) => {
  */
 userRoutes.delete('/me/sessions', async (c) => {
   const user = c.get('user');
-  const currentToken = getCookie(c, 'glinr_session');
+  const currentToken = getCookie(c, 'profclaw_session');
   const db = getDb();
 
   if (!db) return c.json({ error: 'Database not initialized' }, 500);
@@ -737,9 +732,7 @@ userRoutes.delete('/me/sessions', async (c) => {
   return c.json({ message: `Revoked ${revokedCount} sessions` });
 });
 
-// =============================================================================
 // ONBOARDING
-// =============================================================================
 
 /**
  * POST /api/users/me/complete-onboarding
@@ -759,9 +752,7 @@ userRoutes.post('/me/complete-onboarding', async (c) => {
   return c.json({ message: 'Onboarding completed' });
 });
 
-// =============================================================================
 // RECOVERY CODES
-// =============================================================================
 
 /**
  * POST /api/users/me/recovery-codes/regenerate
@@ -794,7 +785,7 @@ userRoutes.post('/me/recovery-codes/regenerate', async (c) => {
       message: 'New recovery codes generated. Save these codes securely - they will not be shown again!',
     });
   } catch (error) {
-    console.error('[Users] Recovery code regeneration error:', error);
+    log.error('Recovery code regeneration error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to regenerate recovery codes' }, 500);
   }
 });
@@ -828,14 +819,12 @@ userRoutes.get('/me/recovery-codes/count', async (c) => {
       hasRecoveryCodes: count > 0,
     });
   } catch (error) {
-    console.error('[Users] Recovery code count error:', error);
+    log.error('Recovery code count error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to get recovery code count' }, 500);
   }
 });
 
-// =============================================================================
 // ADMIN: USER MANAGEMENT
-// =============================================================================
 
 /**
  * Middleware to require admin role
@@ -874,14 +863,12 @@ userRoutes.get('/admin/list', requireAdmin, async (c) => {
 
     return c.json({ users: allUsers, total: allUsers.length });
   } catch (error) {
-    console.error('[Admin] List users error:', error);
+    log.error('List users error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to list users' }, 500);
   }
 });
 
-// =============================================================================
 // ADMIN: INVITE CODES (must be before /:userId to avoid route shadowing)
-// =============================================================================
 
 /**
  * POST /api/users/admin/invites
@@ -926,7 +913,7 @@ userRoutes.post('/admin/invites', requireAdmin, async (c) => {
       message: `Generated ${count} invite code(s)`,
     });
   } catch (err) {
-    console.error('[Admin] Generate invites error:', err);
+    log.error('Generate invites error', err instanceof Error ? err : new Error(String(err)));
     return c.json({ error: 'Failed to generate invite codes' }, 500);
   }
 });
@@ -955,7 +942,7 @@ userRoutes.get('/admin/invites', requireAdmin, async (c) => {
 
     return c.json({ invites: allInvites, total: allInvites.length });
   } catch (err) {
-    console.error('[Admin] List invites error:', err);
+    log.error('List invites error', err instanceof Error ? err : new Error(String(err)));
     return c.json({ error: 'Failed to list invite codes' }, 500);
   }
 });
@@ -984,14 +971,12 @@ userRoutes.delete('/admin/invites/:id', requireAdmin, async (c) => {
 
     return c.json({ message: 'Invite code deleted' });
   } catch (err) {
-    console.error('[Admin] Delete invite error:', err);
+    log.error('Delete invite error', err instanceof Error ? err : new Error(String(err)));
     return c.json({ error: 'Failed to delete invite code' }, 500);
   }
 });
 
-// =============================================================================
 // ADMIN: REGISTRATION MODE (must be before /:userId to avoid route shadowing)
-// =============================================================================
 
 /**
  * GET /api/users/admin/registration-mode
@@ -1002,7 +987,7 @@ userRoutes.get('/admin/registration-mode', requireAdmin, async (c) => {
     const settings = await getSettingsRaw();
     return c.json({ mode: settings.system.registrationMode });
   } catch (err) {
-    console.error('[Admin] Get registration mode error:', err);
+    log.error('Get registration mode error', err instanceof Error ? err : new Error(String(err)));
     return c.json({ error: 'Failed to get registration mode' }, 500);
   }
 });
@@ -1026,14 +1011,12 @@ userRoutes.patch('/admin/registration-mode', requireAdmin, async (c) => {
 
     return c.json({ mode, message: `Registration mode set to ${mode}` });
   } catch (err) {
-    console.error('[Admin] Set registration mode error:', err);
+    log.error('Set registration mode error', err instanceof Error ? err : new Error(String(err)));
     return c.json({ error: 'Failed to set registration mode' }, 500);
   }
 });
 
-// =============================================================================
 // ADMIN: USER CRUD (/:userId wildcard routes - must be AFTER specific routes)
-// =============================================================================
 
 /**
  * GET /api/users/admin/:userId
@@ -1073,7 +1056,7 @@ userRoutes.get('/admin/:userId', requireAdmin, async (c) => {
 
     return c.json({ user: result[0], activeSessions: userSessions.length });
   } catch (error) {
-    console.error('[Admin] Get user error:', error);
+    log.error('Get user error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to get user' }, 500);
   }
 });
@@ -1113,7 +1096,7 @@ userRoutes.patch('/admin/:userId', requireAdmin, async (c) => {
 
     return c.json({ message: 'User updated' });
   } catch (error) {
-    console.error('[Admin] Update user error:', error);
+    log.error('Update user error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to update user' }, 500);
   }
 });
@@ -1155,7 +1138,7 @@ userRoutes.post('/admin/:userId/reset-password', requireAdmin, async (c) => {
       note: 'User must change password on next login. All sessions have been revoked.',
     });
   } catch (error) {
-    console.error('[Admin] Reset password error:', error);
+    log.error('Reset password error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to reset password' }, 500);
   }
 });
@@ -1190,8 +1173,7 @@ userRoutes.delete('/admin/:userId', requireAdmin, async (c) => {
 
     return c.json({ message: 'User deleted' });
   } catch (error) {
-    console.error('[Admin] Delete user error:', error);
+    log.error('Delete user error', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to delete user' }, 500);
   }
 });
-

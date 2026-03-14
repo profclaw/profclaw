@@ -8,9 +8,7 @@
 
 import { logger } from '../utils/logger.js';
 
-// =============================================================================
 // Types
-// =============================================================================
 
 export interface DetectedApiKey {
   provider: 'openai' | 'anthropic' | 'azure' | 'google' | 'groq' | 'openrouter' | 'ollama';
@@ -26,9 +24,7 @@ export interface ApiKeyDetectionResult {
   sanitizedMessage: string; // Message with keys redacted for logging
 }
 
-// =============================================================================
 // API Key Patterns
-// =============================================================================
 
 interface ApiKeyPattern {
   provider: DetectedApiKey['provider'];
@@ -118,9 +114,7 @@ const API_KEY_PATTERNS: ApiKeyPattern[] = [
   },
 ];
 
-// =============================================================================
 // URL/Endpoint Patterns
-// =============================================================================
 
 const ENDPOINT_PATTERNS = [
   {
@@ -142,9 +136,7 @@ const ENDPOINT_PATTERNS = [
   },
 ];
 
-// =============================================================================
 // Detection Functions
-// =============================================================================
 
 /**
  * Detect API keys in a message

@@ -7,6 +7,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  type LegendType,
 } from 'recharts';
 import type { VelocityDataPoint } from '@/core/types';
 
@@ -14,9 +15,13 @@ interface VelocityChartProps {
   data: VelocityDataPoint[];
   title?: string;
   showLegend?: boolean;
+  colors?: { created: string; completed: string };
 }
 
-export function VelocityChart({ data, title, showLegend = true }: VelocityChartProps) {
+const DEFAULT_COLORS = { created: '#3b82f6', completed: '#22c55e' };
+
+export function VelocityChart({ data, title, showLegend = true, colors }: VelocityChartProps) {
+  const chartColors = { ...DEFAULT_COLORS, ...colors };
   // Format date for display
   const formattedData = data.map((d) => ({
     ...d,
@@ -49,12 +54,12 @@ export function VelocityChart({ data, title, showLegend = true }: VelocityChartP
         >
           <defs>
             <linearGradient id="colorCreated" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+              <stop offset="5%" stopColor={chartColors.created} stopOpacity={0.3} />
+              <stop offset="95%" stopColor={chartColors.created} stopOpacity={0} />
             </linearGradient>
             <linearGradient id="colorCompleted" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+              <stop offset="5%" stopColor={chartColors.completed} stopOpacity={0.3} />
+              <stop offset="95%" stopColor={chartColors.completed} stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
@@ -77,7 +82,7 @@ export function VelocityChart({ data, title, showLegend = true }: VelocityChartP
                 return (
                   <div className="glass-heavy px-3 py-2 rounded-lg text-sm border border-white/10">
                     <p className="font-medium mb-1">{label}</p>
-                    {payload.map((entry: any) => (
+                    {payload.map((entry: { name: string; value: number; color: string; type?: LegendType }) => (
                       <p key={entry.name} style={{ color: entry.color }}>
                         {entry.name}: {entry.value}
                       </p>
@@ -101,7 +106,7 @@ export function VelocityChart({ data, title, showLegend = true }: VelocityChartP
             type="monotone"
             dataKey="created"
             name="Created"
-            stroke="#3b82f6"
+            stroke={chartColors.created}
             strokeWidth={2}
             fillOpacity={1}
             fill="url(#colorCreated)"
@@ -110,7 +115,7 @@ export function VelocityChart({ data, title, showLegend = true }: VelocityChartP
             type="monotone"
             dataKey="completed"
             name="Completed"
-            stroke="#22c55e"
+            stroke={chartColors.completed}
             strokeWidth={2}
             fillOpacity={1}
             fill="url(#colorCompleted)"

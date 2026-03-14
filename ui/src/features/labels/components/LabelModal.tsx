@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Tag, Check } from 'lucide-react';
 import { api } from '@/core/api/client';
+import type { Label as ProjectLabel } from '@/core/api/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -37,7 +38,7 @@ interface LabelModalProps {
     description?: string;
     color: string;
   };
-  onSuccess?: (label: any) => void;
+  onSuccess?: (label: ProjectLabel) => void;
 }
 
 export function LabelModal({
@@ -73,8 +74,10 @@ export function LabelModal({
     }
   }, [label, open]);
 
+  type LabelFormData = { name: string; description?: string; color: string };
+
   const mutation = useMutation({
-    mutationFn: (data: any) => {
+    mutationFn: (data: LabelFormData) => {
       if (isEditing && label) {
         return api.labels.update(label.id, data);
       }

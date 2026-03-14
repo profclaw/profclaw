@@ -1,22 +1,59 @@
 import { Hono } from 'hono';
+import type { Context } from 'hono';
+import { z } from 'zod';
 import {
   createApiToken,
   listApiTokens,
   revokeApiToken,
   type TokenScope,
 } from '../auth/api-tokens.js';
+import { createContextualLogger } from '../utils/logger.js';
 
 const tokens = new Hono();
+const log = createContextualLogger('TokensRoutes');
+
+const createTokenBodySchema = z.object({
+  name: z.string().min(1),
+  scopes: z.array(z.string()).min(1),
+  expiresInDays: z.number().optional(),
+  rateLimit: z.number().optional(),
+});
+
+async function parseJsonBody(c: Context): Promise<
+  { ok: true; body: Record<string, unknown> } | { ok: false; response: Response }
+> {
+  try {
+    const body = await c.req.json();
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return {
+        ok: false,
+        response: c.json({ error: 'Request body must be a JSON object' }, 400),
+      };
+    }
+
+    return { ok: true, body: body as Record<string, unknown> };
+  } catch {
+    return {
+      ok: false,
+      response: c.json({ error: 'Invalid JSON body' }, 400),
+    };
+  }
+}
 
 // Create a new API token
 tokens.post('/', async (c) => {
   try {
-    const body = await c.req.json();
-    const { name, scopes, expiresInDays, rateLimit } = body;
+    const parsed = await parseJsonBody(c);
+    if (!parsed.ok) {
+      return parsed.response;
+    }
 
-    if (!name || !scopes || !Array.isArray(scopes)) {
+    const bodyParse = createTokenBodySchema.safeParse(parsed.body);
+    if (!bodyParse.success) {
       return c.json({ error: 'name and scopes are required' }, 400);
     }
+
+    const { name, scopes, expiresInDays, rateLimit } = bodyParse.data;
 
     const result = await createApiToken(name, scopes as TokenScope[], {
       expiresInDays,
@@ -32,7 +69,7 @@ tokens.post('/', async (c) => {
       expiresAt: result.token.expiresAt,
     }, 201);
   } catch (error) {
-    console.error('[API] Error creating token:', error);
+    log.error('Error creating token', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to create token' }, 500);
   }
 });
@@ -43,7 +80,7 @@ tokens.get('/', async (c) => {
     const tokenList = await listApiTokens();
     return c.json({ tokens: tokenList });
   } catch (error) {
-    console.error('[API] Error listing tokens:', error);
+    log.error('Error listing tokens', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to list tokens' }, 500);
   }
 });
@@ -55,7 +92,7 @@ tokens.delete('/:id', async (c) => {
     await revokeApiToken(id);
     return c.json({ message: 'Token revoked' });
   } catch (error) {
-    console.error('[API] Error revoking token:', error);
+    log.error('Error revoking token', error instanceof Error ? error : new Error(String(error)));
     return c.json({ error: 'Failed to revoke token' }, 500);
   }
 });

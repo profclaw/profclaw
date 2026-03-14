@@ -17,10 +17,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { MarkdownRenderer } from '@/components/ui/markdown-renderer';
 import { ToolCallGroup } from '@/components/ui/tool-call-card';
+import { Logo } from '@/components/shared/Logo';
 import { cn } from '@/lib/utils';
 import type { Message, ChatPreset, QuickAction } from '../types';
 import { ThinkingBlock, FilteredJsonBlock } from './ThinkingBlock';
 import { parseThinking } from '../utils/parse-thinking';
+import { CanvasArtifact } from './CanvasArtifact';
+import type { CanvasArtifactData } from './CanvasArtifact';
 
 // Preset icon helper (simplified version)
 function PresetIcon({ className }: { icon?: string; className?: string }) {
@@ -74,13 +77,17 @@ export function ChatMessages({
       <div className="flex-1 premium-card rounded-[2rem] p-8 overflow-y-auto">
         <div className="flex flex-col items-center justify-center h-full text-center max-w-lg mx-auto">
           <div className="h-24 w-24 rounded-3xl glass-heavy flex items-center justify-center mb-8 shadow-xl shadow-primary/10 border-primary/5">
-            <PresetIcon icon={currentPreset?.icon || 'bot'} className="h-12 w-12 text-primary/60" />
+            {(!currentPreset?.icon || currentPreset.icon === 'bot') ? (
+              <Logo className="h-14 w-14" />
+            ) : (
+              <PresetIcon icon={currentPreset.icon} className="h-12 w-12 text-primary/60" />
+            )}
           </div>
           <h2 className="text-3xl font-bold mb-4 tracking-tighter text-foreground font-heading graduate-text-gradient">
             {currentPreset?.name || 'Start a conversation'}
           </h2>
           <p className="text-base leading-relaxed text-muted-foreground mb-10 opacity-80">
-            {currentPreset?.description || 'Ask me anything about GLINR, your tasks, or get help with coding.'}
+            {currentPreset?.description || 'Ask me anything about profClaw, your tasks, or get help with coding.'}
           </p>
 
           {healthyProviders > 0 && quickActions.length > 0 && (
@@ -237,6 +244,34 @@ function MessageItem({
                 <ToolCallGroup tools={message.toolCalls} />
               </div>
             )}
+
+            {/* Canvas Artifacts */}
+            {message.toolCalls?.filter((tc) => tc.name === 'canvas_render').map((tc, i) => {
+              let artifact: CanvasArtifactData | null = null;
+              try {
+                const result = typeof tc.result === 'string'
+                  ? (JSON.parse(tc.result) as Record<string, unknown>)
+                  : (tc.result as Record<string, unknown> | null);
+                if (result?.artifact && typeof result.artifact === 'object') {
+                  artifact = result.artifact as CanvasArtifactData;
+                } else if (result?.data && typeof result.data === 'object') {
+                  // Fallback: reconstruct minimal artifact from the render result
+                  const data = result.data as Record<string, unknown>;
+                  if (data.artifactId && data.type) {
+                    artifact = {
+                      id: String(data.artifactId),
+                      type: data.type as CanvasArtifactData['type'],
+                      title: data.title as string | undefined,
+                      content: String(data.preview ?? ''),
+                    };
+                  }
+                }
+              } catch {
+                // Malformed result - skip rendering
+              }
+              if (!artifact) return null;
+              return <CanvasArtifact key={`canvas-${i}`} artifact={artifact} />;
+            })}
 
             {/* Message Content with Markdown - Use cleaned content for assistant */}
             <div className={cn(

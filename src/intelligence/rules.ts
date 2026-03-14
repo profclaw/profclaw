@@ -14,9 +14,7 @@
 import type { HookInference } from '../hooks/types.js';
 import type { PostToolUsePayload, BashToolInput } from '../hooks/schemas.js';
 
-// ============================================================================
 // File Path Patterns
-// ============================================================================
 
 // Pre-compiled patterns at module scope for performance
 const PATH_PATTERNS = {
@@ -47,9 +45,7 @@ const COMPONENT_PATTERNS = {
   styling: PATH_PATTERNS.styles,
 } as const;
 
-// ============================================================================
 // Issue/PR Patterns
-// ============================================================================
 
 const ISSUE_PATTERN = /#(\d+)/g;
 const PR_PATTERN = /(?:pull\/|pr\/|PR\s*#?)(\d+)/gi;
@@ -60,9 +56,7 @@ const GIT_COMMIT_PATTERN = /git\s+commit\s+(?:-m\s+)?["']([^"']+)["']/i;
 const GIT_PUSH_PATTERN = /git\s+push/i;
 const GIT_BRANCH_PATTERN = /git\s+(?:checkout|switch)\s+(?:-[bB]\s+)?(\S+)/i;
 
-// ============================================================================
 // Main Inference Functions
-// ============================================================================
 
 /**
  * Infer task metadata from a PostToolUse hook payload
@@ -224,9 +218,7 @@ export function extractLinks(content: string): Partial<HookInference> {
   return result;
 }
 
-// ============================================================================
 // Helper Functions
-// ============================================================================
 
 /**
  * Extract file path from hook payload input
@@ -295,9 +287,7 @@ function calculateConfidence(inference: HookInference): number {
   return Math.min(score, 1);
 }
 
-// ============================================================================
 // Aggregate Inference
-// ============================================================================
 
 /**
  * Combine multiple hook inferences into a session-level inference

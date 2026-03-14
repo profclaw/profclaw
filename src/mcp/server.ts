@@ -1,21 +1,21 @@
 #!/usr/bin/env node
 /**
- * GLINR MCP Server
+ * profClaw MCP Server
  *
  * Model Context Protocol server for Claude Code integration.
- * Allows Claude Code to report task progress to GLINR with minimal token usage.
+ * Allows Claude Code to report task progress to profClaw with minimal token usage.
  *
  * Usage:
- *   npx @glincker/task-manager-mcp
+ *   npx @profclaw/task-manager-mcp
  *   OR
  *   node dist/mcp/server.js
  *
  * Claude Code settings.json:
  * {
  *   "mcpServers": {
- *     "glinr": {
+ *     "profclaw": {
  *       "command": "npx",
- *       "args": ["@glincker/task-manager-mcp"]
+ *       "args": ["@profclaw/task-manager-mcp"]
  *     }
  *   }
  * }
@@ -29,9 +29,12 @@ import {
   type CallToolResult,
 } from '@modelcontextprotocol/sdk/types.js';
 import { BROWSER_TOOLS, handleBrowserTool } from './browser-tools.js';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('MCPServer', { stream: 'stderr' });
 
 // MCP Server configuration
-const GLINR_API_URL = process.env.GLINR_API_URL || 'http://localhost:3000';
+const PROFCLAW_API_URL = process.env.PROFCLAW_API_URL || process.env.PROFCLAW_API_URL || 'http://localhost:3000';
 
 // In-memory session state (MCP server is per-session)
 interface SessionState {
@@ -64,7 +67,7 @@ const sessionState: SessionState = {
 // Create MCP server
 const server = new Server(
   {
-    name: 'glinr-task-manager',
+    name: 'profclaw',
     version: '1.0.0',
   },
   {
@@ -79,8 +82,8 @@ const server = new Server(
 // Define available tools
 const TOOLS = [
   {
-    name: 'glinr__log_task',
-    description: 'Log current task progress to GLINR for tracking. Use this when starting work on a task or making significant progress.',
+    name: 'profclaw__log_task',
+    description: 'Log current task progress to profClaw for tracking. Use this when starting work on a task or making significant progress.',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -106,7 +109,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'glinr__complete_task',
+    name: 'profclaw__complete_task',
     description: 'Mark a task as complete with a final summary. Use this when you finish working on a task.',
     inputSchema: {
       type: 'object' as const,
@@ -133,8 +136,8 @@ const TOOLS = [
     },
   },
   {
-    name: 'glinr__report_usage',
-    description: 'Report token usage for cost tracking. GLINR uses this to track AI costs.',
+    name: 'profclaw__report_usage',
+    description: 'Report token usage for cost tracking. profClaw uses this to track AI costs.',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -155,7 +158,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'glinr__get_context',
+    name: 'profclaw__get_context',
     description: 'Get relevant context from past tasks. Use this to find information about previous work on similar tasks.',
     inputSchema: {
       type: 'object' as const,
@@ -174,8 +177,8 @@ const TOOLS = [
   },
   // --- Ticket Tools ---
   {
-    name: 'glinr__create_ticket',
-    description: 'Create a new ticket in GLINR. Use this when you identify a new task, bug, or feature that needs to be tracked.',
+    name: 'profclaw__create_ticket',
+    description: 'Create a new ticket in profClaw. Use this when you identify a new task, bug, or feature that needs to be tracked.',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -211,14 +214,14 @@ const TOOLS = [
     },
   },
   {
-    name: 'glinr__update_ticket',
+    name: 'profclaw__update_ticket',
     description: 'Update an existing ticket. Use this to modify ticket details.',
     inputSchema: {
       type: 'object' as const,
       properties: {
         ticketId: {
           type: 'string',
-          description: 'The ticket ID to update (e.g., GLINR-123 or UUID)',
+          description: 'The ticket ID to update (e.g., PC-123 or UUID)',
         },
         title: {
           type: 'string',
@@ -243,7 +246,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'glinr__transition_ticket',
+    name: 'profclaw__transition_ticket',
     description: 'Change the status of a ticket. Use this when starting, completing, or changing the state of work.',
     inputSchema: {
       type: 'object' as const,
@@ -262,7 +265,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'glinr__get_ticket',
+    name: 'profclaw__get_ticket',
     description: 'Get details of a specific ticket. Use this to check ticket status or get context.',
     inputSchema: {
       type: 'object' as const,
@@ -281,7 +284,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'glinr__list_tickets',
+    name: 'profclaw__list_tickets',
     description: 'List tickets with optional filtering. Use this to find tickets to work on or check progress.',
     inputSchema: {
       type: 'object' as const,
@@ -313,7 +316,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'glinr__add_comment',
+    name: 'profclaw__add_comment',
     description: 'Add a comment to a ticket. Use this to document progress, findings, or notes.',
     inputSchema: {
       type: 'object' as const,
@@ -331,7 +334,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'glinr__assign_ticket',
+    name: 'profclaw__assign_ticket',
     description: 'Assign a ticket to yourself (AI agent). Use this when starting work on a ticket.',
     inputSchema: {
       type: 'object' as const,
@@ -364,38 +367,38 @@ server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToo
 
   try {
     switch (name) {
-      case 'glinr__log_task':
+      case 'profclaw__log_task':
         return await handleLogTask(args as unknown as LogTaskArgs);
 
-      case 'glinr__complete_task':
+      case 'profclaw__complete_task':
         return await handleCompleteTask(args as unknown as CompleteTaskArgs);
 
-      case 'glinr__report_usage':
+      case 'profclaw__report_usage':
         return await handleReportUsage(args as unknown as ReportUsageArgs);
 
-      case 'glinr__get_context':
+      case 'profclaw__get_context':
         return await handleGetContext(args as unknown as GetContextArgs);
 
       // Ticket tools
-      case 'glinr__create_ticket':
+      case 'profclaw__create_ticket':
         return await handleCreateTicket(args as unknown as CreateTicketArgs);
 
-      case 'glinr__update_ticket':
+      case 'profclaw__update_ticket':
         return await handleUpdateTicket(args as unknown as UpdateTicketArgs);
 
-      case 'glinr__transition_ticket':
+      case 'profclaw__transition_ticket':
         return await handleTransitionTicket(args as unknown as TransitionTicketArgs);
 
-      case 'glinr__get_ticket':
+      case 'profclaw__get_ticket':
         return await handleGetTicket(args as unknown as GetTicketArgs);
 
-      case 'glinr__list_tickets':
+      case 'profclaw__list_tickets':
         return await handleListTickets(args as unknown as ListTicketsArgs);
 
-      case 'glinr__add_comment':
+      case 'profclaw__add_comment':
         return await handleAddComment(args as unknown as AddCommentArgs);
 
-      case 'glinr__assign_ticket':
+      case 'profclaw__assign_ticket':
         return await handleAssignTicket(args as unknown as AssignTicketArgs);
 
       default: {
@@ -510,14 +513,14 @@ export async function handleLogTask(args: LogTaskArgs): Promise<CallToolResult> 
     startedAt: new Date(),
   };
 
-  // Try to report to GLINR API
+  // Try to report to profClaw API
   try {
-    const response = await fetch(`${GLINR_API_URL}/api/hook/tool-use`, {
+    const response = await fetch(`${PROFCLAW_API_URL}/api/hook/tool-use`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         event: 'PostToolUse',
-        tool: 'glinr__log_task',
+        tool: 'profclaw__log_task',
         session_id: sessionState.sessionId,
         timestamp: new Date().toISOString(),
         input: args,
@@ -525,11 +528,11 @@ export async function handleLogTask(args: LogTaskArgs): Promise<CallToolResult> 
     });
 
     if (!response.ok) {
-      console.error('[MCP] Failed to report to GLINR:', response.statusText);
+      log.error('[MCP] Failed to report to profClaw', { statusText: response.statusText });
     }
   } catch (error) {
     // Silently fail - don't block the agent
-    console.error('[MCP] Failed to connect to GLINR:', error);
+    log.error('[MCP] Failed to connect to profClaw', error instanceof Error ? error : { error });
   }
 
   return {
@@ -554,9 +557,9 @@ export async function handleCompleteTask(args: CompleteTaskArgs): Promise<CallTo
 
   const taskId = args.taskId || sessionState.currentTask?.id || sessionState.sessionId;
 
-  // Try to report to GLINR API
+  // Try to report to profClaw API
   try {
-    const response = await fetch(`${GLINR_API_URL}/api/hook/session-end`, {
+    const response = await fetch(`${PROFCLAW_API_URL}/api/hook/session-end`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -571,10 +574,10 @@ export async function handleCompleteTask(args: CompleteTaskArgs): Promise<CallTo
     });
 
     if (!response.ok) {
-      console.error('[MCP] Failed to report completion to GLINR:', response.statusText);
+      log.error('[MCP] Failed to report completion to profClaw', { statusText: response.statusText });
     }
   } catch (error) {
-    console.error('[MCP] Failed to connect to GLINR:', error);
+    log.error('[MCP] Failed to connect to profClaw', error instanceof Error ? error : { error });
   }
 
   // Clear current task
@@ -612,10 +615,10 @@ async function handleReportUsage(args: ReportUsageArgs): Promise<CallToolResult>
 async function handleGetContext(args: GetContextArgs): Promise<CallToolResult> {
   const limit = args.limit || 5;
 
-  // Try to fetch context from GLINR API
+  // Try to fetch context from profClaw API
   try {
     const response = await fetch(
-      `${GLINR_API_URL}/api/tasks?limit=${limit}&search=${encodeURIComponent(args.query)}`,
+      `${PROFCLAW_API_URL}/api/tasks?limit=${limit}&search=${encodeURIComponent(args.query)}`,
       {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
@@ -648,7 +651,7 @@ async function handleGetContext(args: GetContextArgs): Promise<CallToolResult> {
       };
     }
   } catch (error) {
-    console.error('[MCP] Failed to fetch context from GLINR:', error);
+    log.error('[MCP] Failed to fetch context from profClaw', error instanceof Error ? error : { error });
   }
 
   // Fallback if API unavailable
@@ -656,7 +659,7 @@ async function handleGetContext(args: GetContextArgs): Promise<CallToolResult> {
     content: [
       {
         type: 'text',
-        text: 'Could not fetch context from GLINR. The server may be unavailable.',
+        text: 'Could not fetch context from profClaw. The server may be unavailable.',
       },
     ],
   };
@@ -666,7 +669,7 @@ async function handleGetContext(args: GetContextArgs): Promise<CallToolResult> {
 
 async function handleCreateTicket(args: CreateTicketArgs): Promise<CallToolResult> {
   try {
-    const response = await fetch(`${GLINR_API_URL}/api/tickets`, {
+    const response = await fetch(`${PROFCLAW_API_URL}/api/tickets`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -697,7 +700,7 @@ async function handleCreateTicket(args: CreateTicketArgs): Promise<CallToolResul
       content: [
         {
           type: 'text',
-          text: `Ticket created: GLINR-${ticket.sequence}\nID: ${ticket.id}\nTitle: ${ticket.title}`,
+          text: `Ticket created: PC-${ticket.sequence}\nID: ${ticket.id}\nTitle: ${ticket.title}`,
         },
       ],
     };
@@ -717,7 +720,7 @@ async function handleUpdateTicket(args: UpdateTicketArgs): Promise<CallToolResul
     if (args.priority) updates.priority = args.priority;
     if (args.labels) updates.labels = args.labels;
 
-    const response = await fetch(`${GLINR_API_URL}/api/tickets/${args.ticketId}`, {
+    const response = await fetch(`${PROFCLAW_API_URL}/api/tickets/${args.ticketId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
@@ -738,7 +741,7 @@ async function handleUpdateTicket(args: UpdateTicketArgs): Promise<CallToolResul
       content: [
         {
           type: 'text',
-          text: `Ticket updated: GLINR-${ticket.sequence}\nTitle: ${ticket.title}`,
+          text: `Ticket updated: PC-${ticket.sequence}\nTitle: ${ticket.title}`,
         },
       ],
     };
@@ -752,7 +755,7 @@ async function handleUpdateTicket(args: UpdateTicketArgs): Promise<CallToolResul
 
 async function handleTransitionTicket(args: TransitionTicketArgs): Promise<CallToolResult> {
   try {
-    const response = await fetch(`${GLINR_API_URL}/api/tickets/${args.ticketId}/transition`, {
+    const response = await fetch(`${PROFCLAW_API_URL}/api/tickets/${args.ticketId}/transition`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: args.status }),
@@ -773,7 +776,7 @@ async function handleTransitionTicket(args: TransitionTicketArgs): Promise<CallT
       content: [
         {
           type: 'text',
-          text: `Ticket transitioned: GLINR-${ticket.sequence} → ${ticket.status}`,
+          text: `Ticket transitioned: PC-${ticket.sequence} → ${ticket.status}`,
         },
       ],
     };
@@ -788,7 +791,7 @@ async function handleTransitionTicket(args: TransitionTicketArgs): Promise<CallT
 async function handleGetTicket(args: GetTicketArgs): Promise<CallToolResult> {
   try {
     const include = args.include ? `?include=${args.include}` : '';
-    const response = await fetch(`${GLINR_API_URL}/api/tickets/${args.ticketId}${include}`, {
+    const response = await fetch(`${PROFCLAW_API_URL}/api/tickets/${args.ticketId}${include}`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -823,7 +826,7 @@ async function handleGetTicket(args: GetTicketArgs): Promise<CallToolResult> {
     };
     const ticket = data.ticket;
 
-    let text = `GLINR-${ticket.sequence}: ${ticket.title}\n`;
+    let text = `PC-${ticket.sequence}: ${ticket.title}\n`;
     text += `Status: ${ticket.status} | Type: ${ticket.type} | Priority: ${ticket.priority}\n`;
     if (ticket.labels?.length) text += `Labels: ${ticket.labels.join(', ')}\n`;
     if (ticket.assigneeAgent) text += `Assigned to: ${ticket.assigneeAgent}\n`;
@@ -856,7 +859,7 @@ async function handleListTickets(args: ListTicketsArgs): Promise<CallToolResult>
     if (args.assignedToMe) params.set('assigneeAgent', sessionState.sessionId);
     params.set('limit', String(args.limit || 20));
 
-    const response = await fetch(`${GLINR_API_URL}/api/tickets?${params}`, {
+    const response = await fetch(`${PROFCLAW_API_URL}/api/tickets?${params}`, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -888,7 +891,7 @@ async function handleListTickets(args: ListTicketsArgs): Promise<CallToolResult>
 
     let text = `Found ${data.total} tickets:\n\n`;
     for (const t of data.tickets) {
-      text += `GLINR-${t.sequence}: ${t.title}\n`;
+      text += `PC-${t.sequence}: ${t.title}\n`;
       text += `  Status: ${t.status} | Priority: ${t.priority} | Type: ${t.type}\n`;
     }
 
@@ -905,7 +908,7 @@ async function handleListTickets(args: ListTicketsArgs): Promise<CallToolResult>
 
 async function handleAddComment(args: AddCommentArgs): Promise<CallToolResult> {
   try {
-    const response = await fetch(`${GLINR_API_URL}/api/tickets/${args.ticketId}/comments`, {
+    const response = await fetch(`${PROFCLAW_API_URL}/api/tickets/${args.ticketId}/comments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -944,7 +947,7 @@ async function handleAssignTicket(args: AssignTicketArgs): Promise<CallToolResul
   try {
     const agent = args.agent || sessionState.sessionId;
 
-    const response = await fetch(`${GLINR_API_URL}/api/tickets/${args.ticketId}/assign-agent`, {
+    const response = await fetch(`${PROFCLAW_API_URL}/api/tickets/${args.ticketId}/assign-agent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ agent }),
@@ -965,7 +968,7 @@ async function handleAssignTicket(args: AssignTicketArgs): Promise<CallToolResul
       content: [
         {
           type: 'text',
-          text: `Ticket GLINR-${ticket.sequence} assigned to: ${ticket.assigneeAgent}`,
+          text: `Ticket PC-${ticket.sequence} assigned to: ${ticket.assigneeAgent}`,
         },
       ],
     };
@@ -997,12 +1000,13 @@ async function main() {
   await server.connect(transport);
 
   // Log startup to stderr (stdout is for MCP protocol)
-  console.error('[GLINR MCP] Server started');
-  console.error(`[GLINR MCP] Session ID: ${sessionState.sessionId}`);
-  console.error(`[GLINR MCP] API URL: ${GLINR_API_URL}`);
+  log.info('[profClaw MCP] Server started', {
+    apiUrl: PROFCLAW_API_URL,
+    sessionId: sessionState.sessionId,
+  });
 }
 
 main().catch((error) => {
-  console.error('[GLINR MCP] Fatal error:', error);
+  log.error('[profClaw MCP] Fatal error', error instanceof Error ? error : { error });
   process.exit(1);
 });

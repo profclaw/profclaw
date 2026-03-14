@@ -1,5 +1,5 @@
 /**
- * GLINR AI-Native Ticket System Types
+ * profClaw AI-Native Ticket System Types
  *
  * Universal schema designed for bi-directional sync with:
  * - GitHub Issues
@@ -183,7 +183,7 @@ export const TicketCommentSchema = z.object({
   content: z.string(),
   contentHtml: z.string().optional(),
   author: CommentAuthorSchema,
-  source: z.enum(["glinr", "github", "linear", "jira", "plane"]),
+  source: z.enum(["profclaw", "github", "linear", "jira", "plane"]),
   externalId: z.string().optional(), // ID in source system
   isAiResponse: z.boolean().default(false),
   respondingTo: z.string().optional(), // Comment ID it's replying to
@@ -212,7 +212,7 @@ export type HistoryEntry = z.infer<typeof HistoryEntrySchema>;
 export const TicketSchema = z.object({
   // === Core Identity ===
   id: z.string(),
-  sequence: z.number(), // Human-readable: GLINR-123
+  sequence: z.number(), // Human-readable: PC-123
   workspaceId: z.string().optional(),
   projectId: z.string().optional(), // Multi-project support
 
@@ -249,7 +249,7 @@ export const TicketSchema = z.object({
   createdBy: AuthorType.default("human"),
   aiAgent: z.string().optional(), // Which agent created it
   aiSessionId: z.string().optional(), // Link to Claude session
-  aiTaskId: z.string().optional(), // Link to GLINR task
+  aiTaskId: z.string().optional(), // Link to profClaw task
 
   // === Estimation ===
   estimate: z.number().optional(), // Story points or hours

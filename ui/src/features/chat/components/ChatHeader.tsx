@@ -43,8 +43,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { Logo } from '@/components/shared/Logo';
 import { cn } from '@/lib/utils';
 import type { ChatPreset, MemoryStats, Provider, ModelAlias } from '../types';
+import { CapabilityIndicator } from './CapabilityIndicator';
 
 // Preset icons mapping
 const PRESET_ICONS: Record<string, LucideIcon> = {
@@ -56,6 +58,9 @@ const PRESET_ICONS: Record<string, LucideIcon> = {
 };
 
 function PresetIcon({ icon, className }: { icon: string; className?: string }) {
+  if (icon === 'bot') {
+    return <Logo className={className} />;
+  }
   const IconComponent = PRESET_ICONS[icon] || Bot;
   return <IconComponent className={className} />;
 }
@@ -73,6 +78,10 @@ interface ChatHeaderProps {
   conversationId: string | null;
   enabledPlugins?: number;
   focusedView?: boolean;
+  modelCapability?: {
+    toolTier: 'essential' | 'standard' | 'full';
+    capabilityLevel: 'basic' | 'instruction' | 'reasoning';
+  };
   // Actions
   onPresetChange: (preset: string) => void;
   onModelChange: (model: string) => void;
@@ -95,6 +104,7 @@ export function ChatHeader({
   conversationId,
   enabledPlugins = 0,
   focusedView = false,
+  modelCapability,
   onPresetChange,
   onModelChange,
   onNewChat,
@@ -272,6 +282,15 @@ export function ChatHeader({
               </SelectContent>
             </Select>
           </div>
+
+          {modelCapability && (
+            <CapabilityIndicator
+              modelId={selectedModel}
+              toolTier={modelCapability.toolTier}
+              capabilityLevel={modelCapability.capabilityLevel}
+              className="hidden sm:flex"
+            />
+          )}
 
           {/* Action Buttons */}
           {onToggleFocusedView && (

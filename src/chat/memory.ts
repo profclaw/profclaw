@@ -12,8 +12,11 @@
  * - Sliding window with importance scoring
  */
 
-import { aiProvider } from '../providers/index.js';
+import { MODEL_CATALOG } from '../providers/core/models.js';
 import type { ConversationMessage, ToolCallRecord } from './conversations.js';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('Memory');
 
 // === Configuration ===
 
@@ -68,9 +71,7 @@ export function getContextWindow(model?: string): number {
   // Default to 128k if model not specified
   if (!model) return 128000;
 
-  // Check model catalog for exact value
-  const models = aiProvider.getAllModels();
-  const modelInfo = models.find(
+  const modelInfo = MODEL_CATALOG.find(
     (m) => m.id === model || m.id.includes(model) || model.includes(m.id)
   );
 
@@ -289,6 +290,7 @@ ${content}
 SUMMARY:`;
 
   try {
+    const { aiProvider } = await import('../providers/ai-sdk.js');
     const response = await aiProvider.chat({
       messages: [
         {
@@ -306,7 +308,7 @@ SUMMARY:`;
     return response.content;
   } catch (error) {
     // Fallback to simple truncation if AI fails
-    console.warn('[Memory] AI summarization failed, using truncation:', error);
+    log.warn('AI summarization failed, using truncation', { error: error instanceof Error ? error.message : String(error) });
     return `Previous conversation summary (${messages.length} messages): ${messages
       .slice(-3)
       .map((m) => m.content.slice(0, 100))

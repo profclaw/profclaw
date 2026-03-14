@@ -1,13 +1,13 @@
 /**
- * GLINR Chat System Prompts
+ * profClaw Chat System Prompts
  *
- * Rich context prompts that give the AI intelligence about GLINR,
+ * Rich context prompts that give the AI intelligence about profClaw,
  * the user's tasks, and specialized behaviors.
  *
  * Inspired by OpenClaw's system prompt architecture.
  */
 
-import { MODEL_ALIASES } from '../providers/ai-sdk.js';
+import { MODEL_ALIASES } from '../providers/core/models.js';
 import { getSkillsRegistry } from '../skills/index.js';
 
 // === Runtime Info (injected per-request) ===
@@ -20,11 +20,11 @@ export interface RuntimeInfo {
   sessionOverride?: string;
 }
 
-// === Core GLINR Context ===
+// === Core profClaw Context ===
 
-export const GLINR_CONTEXT = `You are GLINR Assistant, an AI helper integrated into GLINR Task Manager.
+export const PROFCLAW_CONTEXT = `You are profClaw Assistant, an AI helper integrated into profClaw Task Manager.
 
-GLINR is a task orchestration platform for AI-assisted development - managing tickets, routing work to AI agents, and tracking progress.
+profClaw is a task orchestration platform for AI-assisted development - managing tickets, routing work to AI agents, and tracking progress.
 
 ## Response Style
 - Be helpful and concise
@@ -39,14 +39,14 @@ export const GROUNDING_SUFFIX = `
 ## Important Reminder
 You are a chat assistant, not an execution engine. You can:
 - Help draft content, analyze information, and answer questions
-- Provide guidance on how to use GLINR
+- Provide guidance on how to use profClaw
 
 You CANNOT:
 - Execute code, run scripts, or make API calls
 - Directly modify tasks, tickets, or any data
 - Access external systems or the user's files
 
-If asked to "run" or "execute" something, explain that you can help write or draft it, but the user needs to execute it themselves through the GLINR UI or API.`;
+If asked to "run" or "execute" something, explain that you can help write or draft it, but the user needs to execute it themselves through the profClaw UI or API.`;
 
 // === Tool-Enabled Mode Suffix (replaces grounding when tools are available) ===
 
@@ -58,7 +58,7 @@ You have access to tools that allow you to:
 - **Fetch web content** from URLs (web_fetch tool)
 - **Browse websites** interactively (browser_navigate, browser_screenshot)
 - **Execute system commands** (with user approval for dangerous ones)
-- **Access GLINR operations** (list tasks, tickets, etc.)
+- **Access profClaw operations** (list tasks, tickets, etc.)
 
 When the user asks you to do something that requires these capabilities:
 1. Use the appropriate tool - don't say you can't do it
@@ -85,7 +85,7 @@ You have access to tools. Use them when you NEED external data or actions.
 
 **USE tools when you need to:**
 - Read files, fetch web data, run commands
-- Create/update tickets, projects, or other GLINR resources
+- Create/update tickets, projects, or other profClaw resources
 - Perform any action the user explicitly requests
 
 **When using tools:**
@@ -110,11 +110,11 @@ export interface ChatPreset {
 
 export const CHAT_PRESETS: ChatPreset[] = [
   {
-    id: 'glinr-assistant',
-    name: 'GLINR Assistant',
+    id: 'profclaw-assistant',
+    name: 'profClaw Assistant',
     description: 'General helper with full app context',
     icon: 'bot',
-    prompt: `${GLINR_CONTEXT}
+    prompt: `${PROFCLAW_CONTEXT}
 
 When helping users:
 1. Reference their actual tasks and data when relevant
@@ -132,7 +132,7 @@ When helping users:
     name: 'Developer Mode',
     description: 'Code-focused assistant for technical tasks',
     icon: 'code',
-    prompt: `${GLINR_CONTEXT}
+    prompt: `${PROFCLAW_CONTEXT}
 
 You are in Developer Mode - optimized for coding assistance.
 
@@ -165,7 +165,7 @@ When showing code, always include:
     name: 'Task Manager',
     description: 'Help organize and prioritize work',
     icon: 'clipboard-list',
-    prompt: `${GLINR_CONTEXT}
+    prompt: `${PROFCLAW_CONTEXT}
 
 You are in Task Manager Mode - focused on work organization.
 
@@ -199,7 +199,7 @@ When creating tasks, always ask about:
     name: 'Analyst Mode',
     description: 'Insights, patterns, and reporting',
     icon: 'bar-chart-2',
-    prompt: `${GLINR_CONTEXT}
+    prompt: `${PROFCLAW_CONTEXT}
 
 You are in Analyst Mode - focused on insights and patterns.
 
@@ -233,7 +233,7 @@ When providing analysis:
     name: 'Writer Mode',
     description: 'Documentation, PRs, and content',
     icon: 'pen-tool',
-    prompt: `${GLINR_CONTEXT}
+    prompt: `${PROFCLAW_CONTEXT}
 
 You are in Writer Mode - focused on documentation and content.
 
@@ -300,7 +300,7 @@ export interface ChatContext {
 export async function buildSystemPrompt(
   presetId: string,
   context?: ChatContext,
-  options?: { includeGrounding?: boolean; includeModelAliases?: boolean; enableTools?: boolean; agentMode?: boolean }
+  options?: { includeGrounding?: boolean; includeModelAliases?: boolean; enableTools?: boolean; agentMode?: boolean; modelId?: string }
 ): Promise<string> {
   // Find the preset
   const preset = CHAT_PRESETS.find((p) => p.id === presetId) || CHAT_PRESETS[0];
@@ -398,6 +398,17 @@ ${context.user.role ? `- Role: ${context.user.role}` : ''}`);
     prompt += GROUNDING_SUFFIX;
   }
 
+  // Apply model-adaptive prompt modifications
+  if (context?.runtime?.model) {
+    const { adaptPromptForModel } = await import('./prompt-adapter.js');
+    const adapted = adaptPromptForModel({
+      modelId: context.runtime.model,
+      systemPrompt: prompt,
+      toolDescriptions: options?.enableTools ? 'enabled' : undefined,
+    });
+    prompt = adapted.systemPrompt;
+  }
+
   return prompt;
 }
 
@@ -447,7 +458,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
     id: 'summarize-today',
     label: 'Summarize today',
     icon: 'file-text',
-    prompt: 'Give me a brief summary of what was accomplished today in GLINR.',
+    prompt: 'Give me a brief summary of what was accomplished today in profClaw.',
   },
   {
     id: 'suggest-tasks',
@@ -477,12 +488,12 @@ export const QUICK_ACTIONS: QuickAction[] = [
     id: 'explain-agent',
     label: 'Explain agents',
     icon: 'cpu',
-    prompt: 'Explain how GLINR agents work and how to configure them effectively.',
+    prompt: 'Explain how profClaw agents work and how to configure them effectively.',
   },
 ];
 
 export default {
-  GLINR_CONTEXT,
+  PROFCLAW_CONTEXT,
   GROUNDING_SUFFIX,
   CHAT_PRESETS,
   buildSystemPrompt,

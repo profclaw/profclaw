@@ -16,6 +16,9 @@ import {
   githubCommentSyncs,
 } from '../storage/schema.js';
 import { findOrCreateLabel, setTicketLabels } from '../labels/index.js';
+import { createContextualLogger } from '../utils/logger.js';
+
+const log = createContextualLogger('GitHubSync');
 
 // Types
 export interface GitHubWebhookResult {
@@ -23,6 +26,18 @@ export interface GitHubWebhookResult {
   ticketId?: string;
   commentId?: string;
   reason?: string;
+}
+
+interface GitHubSyncWebhookPayload {
+  action?: string;
+  issue?: GitHubIssue;
+  repository?: GitHubRepository;
+  label?: { name: string; color?: string };
+  comment?: GitHubComment;
+}
+
+function isGitHubSyncWebhookPayload(payload: unknown): payload is GitHubSyncWebhookPayload {
+  return typeof payload === 'object' && payload !== null;
 }
 
 interface GitHubIssue {
@@ -56,9 +71,7 @@ interface GitHubRepository {
   name: string;
 }
 
-// =============================================================================
 // STATUS MAPPING
-// =============================================================================
 
 type TicketStatus = 'backlog' | 'todo' | 'in_progress' | 'in_review' | 'done' | 'cancelled';
 
@@ -99,9 +112,7 @@ function mapTypeFromLabels(labels: Array<{ name: string }>): string {
   return 'task';
 }
 
-// =============================================================================
 // FIND SYNCED TICKET
-// =============================================================================
 
 async function findSyncedTicket(
   repository: GitHubRepository,
@@ -153,9 +164,7 @@ async function findSyncedTicket(
   return null;
 }
 
-// =============================================================================
 // ISSUE EVENT HANDLERS
-// =============================================================================
 
 /**
  * Handle issue opened/edited/closed/reopened events
@@ -179,7 +188,7 @@ export async function handleIssueEvent(
   const { ticketId, projectId } = synced;
   const now = new Date();
 
-  // Map GitHub state to GLINR status
+  // Map GitHub state to profClaw status
   const newStatus = mapGitHubStateToStatus(issue.state, issue.state_reason);
   const newPriority = mapPriorityFromLabels(issue.labels);
   const newType = mapTypeFromLabels(issue.labels);
@@ -264,7 +273,7 @@ export async function handleIssueEvent(
       }
       await setTicketLabels(ticketId, labelIds);
     } catch (e) {
-      console.warn('[GitHub Sync] Failed to sync labels:', e);
+      log.warn('Failed to sync labels', { error: e instanceof Error ? e.message : String(e) });
     }
   }
 
@@ -274,7 +283,7 @@ export async function handleIssueEvent(
     syncError: null,
   }).where(eq(ticketExternalLinks.ticketId, ticketId));
 
-  console.log(`[GitHub Sync] Updated ticket ${ticketId} from issue #${issue.number}: ${changes.map(c => c.field).join(', ')}`);
+  log.info('Updated ticket from issue', { ticketId, issueNumber: issue.number, fields: changes.map(c => c.field) });
 
   return { action: 'updated', ticketId };
 }
@@ -286,7 +295,7 @@ export async function handleIssueLabelEvent(
   action: 'labeled' | 'unlabeled',
   issue: GitHubIssue,
   repository: GitHubRepository,
-  label: { name: string; color?: string }
+  _label: { name: string; color?: string }
 ): Promise<GitHubWebhookResult> {
   const synced = await findSyncedTicket(repository, issue);
 
@@ -298,9 +307,7 @@ export async function handleIssueLabelEvent(
   return handleIssueEvent('labeled', issue, repository);
 }
 
-// =============================================================================
 // COMMENT EVENT HANDLERS
-// =============================================================================
 
 /**
  * Handle issue comment created event
@@ -360,7 +367,7 @@ export async function handleCommentCreated(
     createdAt: now,
   });
 
-  console.log(`[GitHub Sync] Created comment ${commentId} from GitHub comment #${comment.id}`);
+  log.info('Created comment from GitHub', { commentId, githubCommentId: comment.id });
 
   return { action: 'comment_created', ticketId, commentId };
 }
@@ -400,7 +407,7 @@ export async function handleCommentEdited(
     updatedAt: new Date(),
   }).where(eq(ticketComments.id, syncRecord[0].commentId));
 
-  console.log(`[GitHub Sync] Updated comment ${syncRecord[0].commentId} from GitHub comment #${comment.id}`);
+  log.info('Updated comment from GitHub', { commentId: syncRecord[0].commentId, githubCommentId: comment.id });
 
   return { action: 'comment_updated', ticketId: synced.ticketId, commentId: syncRecord[0].commentId };
 }
@@ -437,14 +444,12 @@ export async function handleCommentDeleted(
   await db.delete(githubCommentSyncs).where(eq(githubCommentSyncs.id, syncRecord[0].id));
   await db.delete(ticketComments).where(eq(ticketComments.id, syncRecord[0].commentId));
 
-  console.log(`[GitHub Sync] Deleted comment ${syncRecord[0].commentId}`);
+  log.info('Deleted comment', { commentId: syncRecord[0].commentId });
 
   return { action: 'comment_deleted', ticketId: synced.ticketId };
 }
 
-// =============================================================================
 // MAIN WEBHOOK HANDLER
-// =============================================================================
 
 /**
  * Process GitHub webhook for ticket sync
@@ -452,38 +457,47 @@ export async function handleCommentDeleted(
  */
 export async function processGitHubWebhookForTicketSync(
   event: string,
-  payload: any
+  payload: unknown,
 ): Promise<GitHubWebhookResult> {
   try {
+    if (!isGitHubSyncWebhookPayload(payload)) {
+      return { action: 'ignored', reason: 'invalid_payload' };
+    }
+
     if (event === 'issues') {
       const { action, issue, repository, label } = payload;
 
-      if (action === 'labeled' || action === 'unlabeled') {
+      if ((action === 'labeled' || action === 'unlabeled') && issue && repository && label) {
         return handleIssueLabelEvent(action, issue, repository, label);
       }
 
-      if (['opened', 'edited', 'closed', 'reopened', 'assigned', 'unassigned'].includes(action)) {
-        return handleIssueEvent(action, issue, repository);
+      if (
+        action
+        && issue
+        && repository
+        && ['opened', 'edited', 'closed', 'reopened', 'assigned', 'unassigned'].includes(action)
+      ) {
+        return handleIssueEvent(action, issue!, repository);
       }
     }
 
     if (event === 'issue_comment') {
       const { action, issue, comment, repository } = payload;
 
-      if (action === 'created') {
+      if (action === 'created' && issue && comment && repository) {
         return handleCommentCreated(issue, comment, repository);
       }
-      if (action === 'edited') {
+      if (action === 'edited' && issue && comment && repository) {
         return handleCommentEdited(issue, comment, repository);
       }
-      if (action === 'deleted') {
+      if (action === 'deleted' && issue && comment && repository) {
         return handleCommentDeleted(issue, comment, repository);
       }
     }
 
     return { action: 'ignored', reason: `unhandled_event: ${event}` };
   } catch (error) {
-    console.error('[GitHub Sync] Error processing webhook:', error);
+    log.error('Error processing webhook', error instanceof Error ? error : new Error(String(error)));
     throw error;
   }
 }

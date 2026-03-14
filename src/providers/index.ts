@@ -1,5 +1,5 @@
 /**
- * GLINR AI Provider System
+ * profClaw AI Provider System
  *
  * Multi-provider AI chat using Vercel AI SDK.
  */

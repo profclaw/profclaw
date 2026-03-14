@@ -23,7 +23,9 @@ import {
   getScheduler,
   type JobType,
   type JobStatus,
+  type DeliveryConfig,
   type EventTriggerType,
+  type RetryPolicy,
 } from '../cron/scheduler.js';
 import {
   listJobTemplates,
@@ -40,14 +42,27 @@ const log = createContextualLogger('CronRoutes');
 
 const app = new Hono();
 
-// Initialize built-in templates on startup
-initBuiltInTemplates().catch((err) => {
-  log.warn('Failed to initialize built-in templates:', err);
+// Lazy template initialization - runs once on first request
+let templatesInitialized = false;
+async function ensureTemplatesInitialized(): Promise<void> {
+  if (templatesInitialized) return;
+  templatesInitialized = true;
+  try {
+    await initBuiltInTemplates();
+  } catch (err) {
+    templatesInitialized = false;
+    log.warn('Failed to initialize built-in templates:', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+app.use('*', async (_c, next) => {
+  await ensureTemplatesInitialized();
+  await next();
 });
 
-// =============================================================================
 // Schemas
-// =============================================================================
 
 const deliveryChannelSchema = z.object({
   type: z.enum(['slack', 'webhook', 'email']),
@@ -159,9 +174,13 @@ const createFromTemplateSchema = z.object({
   projectId: z.string().optional(),
 });
 
-// =============================================================================
 // Routes
-// =============================================================================
+
+// Ensure templates are initialized on first request to any cron endpoint
+app.use('*', async (_c, next) => {
+  await ensureTemplatesInitialized();
+  await next();
+});
 
 /**
  * GET /api/cron/jobs - List scheduled jobs
@@ -700,9 +719,7 @@ app.get('/stats', async (c) => {
   }
 });
 
-// =============================================================================
 // Template Routes
-// =============================================================================
 
 /**
  * GET /api/cron/templates - List job templates
@@ -769,8 +786,8 @@ app.post('/templates', zValidator('json', createTemplateSchema), async (c) => {
       payloadTemplate: body.payloadTemplate,
       suggestedCron: body.suggestedCron,
       suggestedIntervalMs: body.suggestedIntervalMs,
-      defaultRetryPolicy: body.defaultRetryPolicy as any,
-      defaultDelivery: body.defaultDelivery as any,
+      defaultRetryPolicy: body.defaultRetryPolicy as RetryPolicy | undefined,
+      defaultDelivery: body.defaultDelivery as DeliveryConfig | undefined,
       userId: body.userId,
       projectId: body.projectId,
     });
@@ -805,9 +822,7 @@ app.delete('/templates/:id', async (c) => {
   }
 });
 
-// =============================================================================
 // Event Trigger Routes
-// =============================================================================
 
 /**
  * POST /api/cron/events - Trigger jobs by event
@@ -844,7 +859,7 @@ app.post('/events', zValidator('json', triggerEventSchema), async (c) => {
 app.post('/webhook/:secret', async (c) => {
   try {
     const { secret } = c.req.param();
-    let eventData: Record<string, any> = {};
+    let eventData: Record<string, unknown> = {};
 
     try {
       eventData = await c.req.json();

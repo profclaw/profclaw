@@ -9,12 +9,10 @@ import { randomUUID } from 'node:crypto';
 import type { ToolDefinition, ToolResult, ToolExecutionContext } from '../types.js';
 import { getDb } from '../../../storage/index.js';
 import { summaries, summaryBlobs } from '../../../storage/schema.js';
-import { isNull, and, eq, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { logger } from '../../../utils/logger.js';
 
-// =============================================================================
 // Schemas
-// =============================================================================
 
 const DbMaintenanceParamsSchema = z.object({
   optimize: z.boolean().default(true).describe('Run VACUUM and ANALYZE'),
@@ -24,11 +22,15 @@ const DbMaintenanceParamsSchema = z.object({
 
 export type DbMaintenanceParams = z.infer<typeof DbMaintenanceParamsSchema>;
 
-// =============================================================================
-// Database Maintenance Tool
-// =============================================================================
+interface DbMaintenanceResult {
+  optimized: boolean;
+  summariesMigrated: number;
+  logsCleaned: number;
+}
 
-export const dbMaintenanceTool: ToolDefinition<DbMaintenanceParams, any> = {
+// Database Maintenance Tool
+
+export const dbMaintenanceTool: ToolDefinition<DbMaintenanceParams, DbMaintenanceResult> = {
   name: 'db_maintenance',
   description: 'Perform system maintenance tasks like database optimization and data migration.',
   category: 'system',
@@ -36,9 +38,12 @@ export const dbMaintenanceTool: ToolDefinition<DbMaintenanceParams, any> = {
   allowedHosts: ['local'],
   parameters: DbMaintenanceParamsSchema,
 
-  async execute(_context: ToolExecutionContext, params: DbMaintenanceParams): Promise<ToolResult<any>> {
+  async execute(
+    _context: ToolExecutionContext,
+    params: DbMaintenanceParams
+  ): Promise<ToolResult<DbMaintenanceResult>> {
     const db = await getDb();
-    const results: any = {
+    const results: DbMaintenanceResult = {
       optimized: false,
       summariesMigrated: 0,
       logsCleaned: 0,
