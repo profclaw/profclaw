@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.0](https://github.com/profclaw/profclaw/compare/v2.0.0...v2.1.0) (2026-03-15)
+
+
+### Features
+
+* profClaw v2.0.0 - initial public beta ([4577ce1](https://github.com/profclaw/profclaw/commit/4577ce1e93717ac8402c8045dc36cb44107a36a0))
+
 ## [2.0.0](https://github.com/profclaw/profclaw/releases/tag/v2.0.0) (2026-03-14)
 
 Initial public beta release.
