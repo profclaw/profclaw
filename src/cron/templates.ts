@@ -8,7 +8,7 @@
 import { getDb } from '../storage/index.js';
 import { jobTemplates } from '../storage/schema.js';
 import { eq } from 'drizzle-orm';
-import type { JobType, RetryPolicy, DeliveryConfig } from './scheduler.js';
+import type { JobType, RetryPolicy, DeliveryConfig, DeliveryChannelType } from './scheduler.js';
 
 // Types
 
@@ -31,7 +31,7 @@ export interface JobTemplate {
   updatedAt: Date;
 }
 
-export type TemplateCategory = 'sync' | 'report' | 'cleanup' | 'notification' | 'monitoring' | 'custom';
+export type TemplateCategory = 'sync' | 'report' | 'cleanup' | 'notification' | 'monitoring' | 'automation' | 'custom';
 
 export interface CreateTemplateParams {
   name: string;
@@ -270,6 +270,228 @@ export const BUILT_IN_TEMPLATES: Omit<JobTemplate, 'id' | 'createdAt' | 'updated
       },
     },
     suggestedCron: '0 2 * * *', // Daily at 2 AM
+    isBuiltIn: true,
+  },
+
+  // --- Feed Polling ---
+  {
+    name: 'Feed Poller',
+    description: 'Poll all enabled RSS/Atom feeds for new articles. Runs hourly by default.',
+    icon: '📡',
+    category: 'sync',
+    jobType: 'tool',
+    payloadTemplate: {
+      tool: 'poll_all_feeds',
+      params: {},
+    },
+    suggestedCron: '0 * * * *', // Every hour
+    isBuiltIn: true,
+  },
+
+  // --- Automation Templates (agent_session) ---
+  {
+    name: 'Morning AI News Digest',
+    description: 'Search for the latest AI and tech news, summarize the top stories, and deliver to your preferred channel',
+    icon: '📰',
+    category: 'automation',
+    jobType: 'agent_session' as JobType,
+    payloadTemplate: {
+      prompt: 'Search for the latest AI and technology news from today. Find the top 5 most important stories. For each story provide: 1) A one-line headline, 2) A 2-3 sentence summary, 3) Why it matters. Format the output cleanly for a messaging app. No markdown headers, use plain text with line breaks.',
+      effort: 'medium',
+    },
+    suggestedCron: '0 7 * * 1-5', // 7 AM weekdays
+    defaultDelivery: {
+      channels: [
+        { type: 'telegram' as DeliveryChannelType, target: '{{telegramChatId}}', onSuccess: true, onFailure: true },
+      ],
+    },
+    defaultRetryPolicy: {
+      enabled: true,
+      initialDelayMs: 300000,
+      backoffMultiplier: 2,
+      maxDelayMs: 1800000,
+      maxRetries: 2,
+    },
+    isBuiltIn: true,
+  },
+  {
+    name: 'Daily Standup Prep',
+    description: 'Scan GitHub activity and Linear/Jira tickets to generate a standup-ready summary of what happened yesterday',
+    icon: '🧑‍💻',
+    category: 'automation',
+    jobType: 'agent_session' as JobType,
+    payloadTemplate: {
+      prompt: 'Prepare a daily standup summary. Check recent GitHub commits, pull requests, and issue activity. Summarize: 1) What was completed yesterday, 2) What is in progress, 3) Any blockers or items needing attention. Keep it brief and actionable.',
+      effort: 'medium',
+    },
+    suggestedCron: '30 8 * * 1-5', // 8:30 AM weekdays
+    defaultDelivery: {
+      channels: [
+        { type: 'slack' as DeliveryChannelType, target: '#standup', onSuccess: true },
+      ],
+    },
+    isBuiltIn: true,
+  },
+  {
+    name: 'Weekly Repo Digest',
+    description: 'Generate a weekly summary of repository activity including PRs merged, issues closed, and key changes',
+    icon: '📊',
+    category: 'automation',
+    jobType: 'agent_session' as JobType,
+    payloadTemplate: {
+      prompt: 'Generate a weekly repository digest. Summarize: 1) Pull requests merged this week, 2) Issues opened and closed, 3) Notable code changes or patterns, 4) Contributors active this week. Format as a clean summary suitable for a team channel.',
+      effort: 'medium',
+    },
+    suggestedCron: '0 17 * * 5', // Friday 5 PM
+    defaultDelivery: {
+      channels: [
+        { type: 'slack' as DeliveryChannelType, target: '#engineering', onSuccess: true },
+      ],
+    },
+    isBuiltIn: true,
+  },
+  {
+    name: 'Security Advisory Check',
+    description: 'Scan for new security advisories and CVEs relevant to your project dependencies',
+    icon: '🔒',
+    category: 'automation',
+    jobType: 'agent_session' as JobType,
+    payloadTemplate: {
+      prompt: 'Search for the latest security advisories and CVEs published in the last 24 hours that are relevant to Node.js, TypeScript, and common web dependencies. Focus on critical and high severity issues. For each finding: 1) CVE ID and severity, 2) Affected package/version, 3) One-line description, 4) Recommended action. If nothing critical found, say so briefly.',
+      effort: 'medium',
+    },
+    suggestedCron: '0 9 * * *', // Daily 9 AM
+    defaultDelivery: {
+      channels: [
+        { type: 'slack' as DeliveryChannelType, target: '#security', onSuccess: true, onFailure: true },
+      ],
+    },
+    isBuiltIn: true,
+  },
+  {
+    name: 'Feed-Powered News Digest',
+    description: 'Poll RSS feeds and summarize new articles. Cheaper and more reliable than web search for recurring news digests.',
+    icon: '📡',
+    category: 'automation',
+    jobType: 'agent_session' as JobType,
+    payloadTemplate: {
+      prompt: 'Check the RSS feed engine for new articles from the last 24 hours. Summarize the top {{count}} most interesting stories. For each: a one-line headline and a 2-sentence summary. Focus on {{category}} feeds. Format for a messaging app - plain text, no markdown headers.',
+      effort: 'low',
+    },
+    suggestedCron: '0 7 * * *', // Daily 7 AM
+    defaultDelivery: {
+      channels: [
+        { type: 'telegram' as DeliveryChannelType, target: '{{telegramChatId}}', onSuccess: true },
+      ],
+    },
+    isBuiltIn: true,
+  },
+  {
+    name: 'Custom AI Agent Task',
+    description: 'Run any prompt on a schedule with full tool access. The agent can search the web, read files, run commands, and more.',
+    icon: '🤖',
+    category: 'automation',
+    jobType: 'agent_session' as JobType,
+    payloadTemplate: {
+      prompt: '{{prompt}}',
+      systemPrompt: '{{systemPrompt}}',
+      effort: 'medium',
+    },
+    suggestedCron: '0 9 * * *', // Daily 9 AM
+    isBuiltIn: true,
+  },
+  {
+    name: 'Competitor Watch',
+    description: 'Monitor competitor activity by searching for recent news, product launches, and announcements',
+    icon: '👁️',
+    category: 'automation',
+    jobType: 'agent_session' as JobType,
+    payloadTemplate: {
+      prompt: 'Search for the latest news and announcements from {{competitors}}. Focus on: product launches, pricing changes, major partnerships, and funding rounds from the past week. Summarize the top 3-5 developments with links where possible.',
+      effort: 'medium',
+    },
+    suggestedCron: '0 8 * * 1', // Monday 8 AM
+    defaultDelivery: {
+      channels: [
+        { type: 'telegram' as DeliveryChannelType, target: '{{telegramChatId}}', onSuccess: true },
+      ],
+    },
+    isBuiltIn: true,
+  },
+
+  // --- Feed Digest Templates ---
+  {
+    name: 'Morning AI News Digest',
+    description: 'Poll AI/tech RSS feeds and send a curated digest with summaries',
+    icon: '📰',
+    category: 'automation',
+    jobType: 'tool' as JobType,
+    payloadTemplate: {
+      tool: 'feed_digest',
+      params: {
+        category: 'ai',
+        hours: 24,
+        limit: 15,
+      },
+    },
+    suggestedCron: '0 7 * * 1-5', // Weekdays 7 AM
+    defaultDelivery: {
+      channels: [
+        { type: 'telegram' as DeliveryChannelType, target: '{{channel}}', onSuccess: true },
+      ],
+    },
+    isBuiltIn: true,
+  },
+  {
+    name: 'Dev News Digest',
+    description: 'Daily developer news from RSS feeds - frameworks, tools, releases',
+    icon: '💻',
+    category: 'automation',
+    jobType: 'tool' as JobType,
+    payloadTemplate: {
+      tool: 'feed_digest',
+      params: {
+        category: 'dev',
+        hours: 24,
+        limit: 20,
+      },
+    },
+    suggestedCron: '0 8 * * 1-5', // Weekdays 8 AM
+    isBuiltIn: true,
+  },
+  {
+    name: 'Security Alert Digest',
+    description: 'Security news and vulnerability alerts from RSS feeds',
+    icon: '🔒',
+    category: 'automation',
+    jobType: 'tool' as JobType,
+    payloadTemplate: {
+      tool: 'feed_digest',
+      params: {
+        category: 'security',
+        hours: 12,
+        limit: 10,
+      },
+    },
+    suggestedCron: '0 9,17 * * *', // Twice daily 9 AM and 5 PM
+    isBuiltIn: true,
+  },
+  {
+    name: 'Feed Poll + Digest Pipeline',
+    description: 'Poll all feeds for new articles, then generate and deliver a digest',
+    icon: '🔄📰',
+    category: 'automation',
+    jobType: 'agent_session' as JobType,
+    payloadTemplate: {
+      prompt: 'First, poll all RSS feeds for new articles using the feed_poll tool. Then use feed_digest to get the latest articles from the last {{hours}} hours. Summarize the top {{limit}} articles into a brief, scannable digest with titles, one-line summaries, and links. Group by category if multiple categories exist.',
+      effort: 'low',
+    },
+    suggestedCron: '0 7 * * *', // Daily 7 AM
+    defaultDelivery: {
+      channels: [
+        { type: 'slack' as DeliveryChannelType, target: '#news', onSuccess: true },
+      ],
+    },
     isBuiltIn: true,
   },
 ];

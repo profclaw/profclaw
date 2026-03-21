@@ -22,7 +22,7 @@ ui/dist
 .git
 .gitignore
 
-# Docker
+# Docker (no need to copy into the build context)
 docker-compose*.yml
 Dockerfile*
 docker/
@@ -36,8 +36,9 @@ coverage
 # Documentation
 *.md
 docs/
+docs-local/
 
-# SQLite databases (will use volume)
+# SQLite databases (use volume mount instead)
 *.db
 *.db-journal
 data/

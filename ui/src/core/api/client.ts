@@ -104,6 +104,10 @@ import {
   syncApi,
   statesApi,
   searchApi,
+  teamsApi,
+  memoryInsightsApi,
+  feedsApi,
+  skillsApi,
 } from './domains/stats';
 
 // Re-export domain types for convenience
@@ -212,6 +216,18 @@ export const api = {
 
   // Notifications
   notifications: notificationsApi,
+
+  // Teams (multi-user)
+  teams: teamsApi,
+
+  // Memory Insights & Import
+  memory: memoryInsightsApi,
+
+  // Feeds (RSS/news)
+  feeds: feedsApi,
+
+  // Skills & Marketplace
+  skills: skillsApi,
 };
 
 // Also export individual APIs for tree-shaking
@@ -236,4 +252,8 @@ export {
   statesApi,
   searchApi,
   notificationsApi,
+  teamsApi,
+  memoryInsightsApi,
+  feedsApi,
+  skillsApi,
 };

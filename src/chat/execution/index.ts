@@ -9,6 +9,7 @@
 export * from './types.js';
 
 // Core modules
+import { configureToolRouter } from './tool-router.js';
 export { getToolRegistry, ToolRegistryImpl } from './registry.js';
 export { getSecurityManager, initSecurityManager, SecurityPolicyManager } from './security.js';
 export { getSessionManager, ToolSessionManager } from './session-manager.js';
@@ -193,6 +194,10 @@ export async function initializeToolExecution(options?: ToolExecutionOptions): P
     registerBuiltinTools();
     logger.debug('[Execution] Built-in tools registered', { component: 'ToolExecution' });
   }
+
+  // Enable model-aware tool filtering to reduce token usage
+  configureToolRouter({ enabled: true });
+  logger.debug('[Execution] Tool router enabled', { component: 'ToolExecution' });
 
   initialized = true;
   logger.info('[Execution] Tool execution system initialized', { component: 'ToolExecution' });

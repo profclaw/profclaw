@@ -32,6 +32,7 @@ import { securityCommands } from './commands/security.js';
 import { logsCommand } from './commands/logs.js';
 import { modelsCommands } from './commands/models.js';
 import { tuiCommand } from './commands/tui.js';
+import { importCommands } from './commands/import.js';
 
 const VERSION = '2.0.0';
 
@@ -89,6 +90,7 @@ program.addCommand(securityCommands());
 program.addCommand(logsCommand());
 program.addCommand(modelsCommands());
 program.addCommand(tuiCommand());
+program.addCommand(importCommands());
 
 // Default action (no command) - show banner and help
 program.action(() => {

@@ -21,3 +21,21 @@ export {
   type NativeToolDefinition,
   type ToolExecutionResult,
 } from './ai-sdk.js';
+
+export {
+  routeQuery,
+  classifyComplexity,
+  selectModel,
+  getRoutingStats,
+  recordRoutingDecision,
+  configureSmartRouter,
+  isSmartRouterEnabled,
+  getCostComparison,
+  getCostOptimizationAdvice,
+  resolveDefaultModel,
+  type ComplexityTier,
+  type ComplexityResult,
+  type RoutingDecision,
+  type SmartRouterConfig,
+  type ProviderRecommendation,
+} from './smart-router.js';

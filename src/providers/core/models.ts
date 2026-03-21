@@ -933,6 +933,32 @@ export const MODEL_CATALOG: ModelInfo[] = [
     costPer1MOutput: 1.20,
   },
 
+  // Cerebras (fast inference)
+  {
+    id: 'llama3.1-8b',
+    name: 'Llama 3.1 8B (Cerebras)',
+    provider: 'cerebras',
+    contextWindow: 8192,
+    maxOutput: 8192,
+    supportsVision: false,
+    supportsStreaming: true,
+    supportsTools: false,
+    costPer1MInput: 0.10,
+    costPer1MOutput: 0.10,
+  },
+  {
+    id: 'llama-3.3-70b',
+    name: 'Llama 3.3 70B (Cerebras)',
+    provider: 'cerebras',
+    contextWindow: 8192,
+    maxOutput: 8192,
+    supportsVision: false,
+    supportsStreaming: true,
+    supportsTools: true,
+    costPer1MInput: 0.60,
+    costPer1MOutput: 0.60,
+  },
+
   // IBM Watsonx
   {
     id: 'watsonx/ibm/granite-13b-chat-v2',

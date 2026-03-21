@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
-import { Activity, CheckCircle, XCircle, Clock, Zap, Server, TrendingUp } from 'lucide-react';
+import { Activity, CheckCircle, XCircle, Clock, Zap, Server, TrendingUp, DollarSign, Cpu, Route } from 'lucide-react';
 
 export function GatewayDashboard() {
   const queryClient = useQueryClient();
@@ -352,24 +352,62 @@ export function GatewayDashboard() {
           <CardContent>
             {executionResult ? (
               <div className="space-y-4">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Badge variant={executionResult.success ? 'default' : 'destructive'}>
                     {executionResult.success ? 'Success' : 'Failed'}
                   </Badge>
                   {executionResult.agent && (
-                    <Badge variant="outline">{executionResult.agent}</Badge>
+                    <Badge variant="outline" className="gap-1">
+                      <Cpu className="h-3 w-3" />
+                      {executionResult.agent}
+                    </Badge>
                   )}
                   {executionResult.workflow && (
                     <Badge variant="secondary">{executionResult.workflow}</Badge>
                   )}
+                  {executionResult.cost !== undefined && executionResult.cost > 0 && (
+                    <Badge variant="outline" className="gap-1 text-emerald-600 border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 dark:border-emerald-800 dark:text-emerald-400">
+                      <DollarSign className="h-3 w-3" />
+                      {executionResult.cost < 0.001
+                        ? `$${(executionResult.cost * 1000).toFixed(3)}m`
+                        : `$${executionResult.cost.toFixed(4)}`}
+                    </Badge>
+                  )}
                 </div>
+
+                {/* Model + provider info */}
+                {(executionResult.model ?? executionResult.provider) && (
+                  <div className="rounded-lg bg-muted/50 border border-border/50 p-3 space-y-1">
+                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Model Used</div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {executionResult.model && (
+                        <span className="text-sm font-mono font-medium">{executionResult.model}</span>
+                      )}
+                      {executionResult.provider && (
+                        <Badge variant="secondary" className="text-xs">{executionResult.provider}</Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {executionResult.routing && (
                   <div className="rounded-lg bg-muted p-3 space-y-2">
-                    <div className="text-sm font-medium">Routing Decision</div>
+                    <div className="flex items-center gap-2">
+                      <Route className="h-4 w-4 text-muted-foreground" />
+                      <div className="text-sm font-medium">Routing Decision</div>
+                      {executionResult.routing.tier && (
+                        <Badge variant="outline" className="text-xs ml-auto">{executionResult.routing.tier}</Badge>
+                      )}
+                    </div>
                     <div className="text-sm text-muted-foreground">
                       {executionResult.routing.reason}
                     </div>
+                    {executionResult.routing.savingsPercent !== undefined && executionResult.routing.savingsPercent > 0 && (
+                      <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                        <DollarSign className="h-3 w-3" />
+                        Saved {executionResult.routing.savingsPercent.toFixed(0)}% vs default routing
+                      </div>
+                    )}
                     {executionResult.routing.scores.length > 0 && (
                       <div className="mt-2 space-y-1">
                         <div className="text-xs font-medium">Scores:</div>

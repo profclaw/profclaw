@@ -559,11 +559,16 @@ export interface GatewayExecuteResponse {
   success: boolean;
   result?: unknown;
   agent?: string;
+  model?: string;
+  provider?: string;
+  cost?: number;
   routing?: {
     selectedAgent: string;
     reason: string;
     scores: Array<{ agent: string; score: number; breakdown: Record<string, number> }>;
     alternatives: string[];
+    tier?: string;
+    savingsPercent?: number;
   };
   workflow?: string;
   error?: string;

@@ -146,7 +146,20 @@ app.get('/health', async (c) => {
 });
 
 // API info (mode-aware)
-app.get('/', (c) => {
+app.get('/', async (c) => {
+  // If UI is built and web_ui capability is enabled, serve the dashboard
+  if (hasCapability('web_ui')) {
+    const { existsSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { readFile } = await import('node:fs/promises');
+    const indexPath = join(process.cwd(), 'ui', 'dist', 'index.html');
+    if (existsSync(indexPath)) {
+      const html = await readFile(indexPath, 'utf-8');
+      return c.html(html);
+    }
+  }
+
+  // Fallback: API info JSON
   const mode = getMode();
   const routes = getRouteDefinitionsForMode(mode);
   const routeIds = new Set(routes.map((r) => r.id));
@@ -188,7 +201,13 @@ app.get('/', (c) => {
       sessions: 'GET /api/hook/sessions',
     };
   }
-  if (routeIds.has('tools')) endpoints.tools = 'GET /api/tools';
+  if (routeIds.has('tools')) {
+    endpoints.tools = {
+      list: 'GET /api/tools',
+      execute: 'POST /api/tools/execute',
+      security: 'GET /api/tools/security',
+    };
+  }
   if (routeIds.has('settings')) {
     endpoints.settings = {
       get: 'GET /api/settings',
@@ -201,8 +220,22 @@ app.get('/', (c) => {
   if (routeIds.has('costs')) endpoints.costs = 'GET /api/costs/summary';
   if (routeIds.has('memory')) endpoints.memory = 'GET /api/memory';
   if (routeIds.has('skills')) endpoints.skills = 'GET /api/skills';
-  if (routeIds.has('mcp')) endpoints.mcp = 'GET /api/mcp';
+  if (routeIds.has('mcp')) {
+    endpoints.mcp = {
+      status: 'GET /api/mcp',
+      tools: 'GET /api/mcp/tools',
+    };
+  }
   if (routeIds.has('tunnels')) endpoints.tunnels = 'GET /api/tunnels';
+  if (routeIds.has('teams')) {
+    endpoints.teams = {
+      list: 'GET /api/teams?userId=<id>',
+      create: 'POST /api/teams',
+      members: 'GET /api/teams/:id/members',
+      usage: 'GET /api/teams/:id/usage',
+      invites: 'POST /api/teams/:id/invites',
+    };
+  }
 
   // Web UI data routes
   if (routeIds.has('dlq')) endpoints.deadLetterQueue = 'GET /api/dlq';

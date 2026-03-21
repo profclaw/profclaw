@@ -64,7 +64,7 @@ const PROVIDER_DEFAULT_MODEL: Record<string, string> = {
   anthropic: 'claude-sonnet-4-5-20250929',
   openai: 'gpt-4o',
   google: 'gemini-2.0-flash',
-  azure: 'gpt-4o',
+  azure: 'gpt-4o', // Resolved at runtime via deploymentName config
   groq: 'llama-3.3-70b-versatile',
   cerebras: 'llama-3.3-70b',
   fireworks: 'accounts/fireworks/models/llama-v3p1-70b-instruct',
@@ -226,18 +226,18 @@ class AIProviderManager {
       });
     }
 
-    // Azure OpenAI (supports both standard and Foundry modes)
+    // Azure OpenAI (supports both base URL and resource name modes)
     if (process.env.AZURE_OPENAI_API_KEY) {
-      // Check if using Foundry (custom base URL) or standard (resource name)
       const baseUrl = process.env.AZURE_OPENAI_BASE_URL || process.env.AZURE_OPENAI_ENDPOINT;
-      const resourceName = process.env.AZURE_OPENAI_RESOURCE_NAME;
+      const resourceName = process.env.AZURE_OPENAI_RESOURCE_NAME || process.env.AZURE_RESOURCE_NAME;
 
       if (baseUrl || resourceName) {
         this.configure('azure', {
           type: 'azure',
           apiKey: process.env.AZURE_OPENAI_API_KEY,
+          // Prefer explicit base URL over resource name (resource name constructs URL automatically)
           baseUrl: baseUrl,
-          resourceName: resourceName,
+          resourceName: baseUrl ? undefined : resourceName, // Don't use resourceName if baseUrl is set
           deploymentName: process.env.AZURE_OPENAI_DEPLOYMENT_NAME,
           apiVersion: process.env.AZURE_OPENAI_API_VERSION,
           enabled: true,
@@ -806,8 +806,11 @@ class AIProviderManager {
       // For Azure, use the configured deployment name instead of the default alias model
       if (alias.provider === 'azure') {
         const azureConfig = this.configs.get('azure');
-        if (azureConfig?.defaultModel) {
-          return { provider: 'azure', model: azureConfig.defaultModel };
+        const azureModel = azureConfig?.defaultModel
+          || azureConfig?.deploymentName
+          || process.env.AZURE_OPENAI_DEPLOYMENT_NAME;
+        if (azureModel) {
+          return { provider: 'azure', model: azureModel };
         }
       }
       return alias;
@@ -869,9 +872,12 @@ class AIProviderManager {
     // Azure uses .chat() method for deployment-based access
     if (provider === 'azure') {
       let deployment = modelId;
-      if (modelId === 'default') {
+      if (deployment === 'default' || !deployment) {
         const azureConfig = this.configs.get('azure');
-        deployment = azureConfig?.defaultModel || modelId;
+        deployment = azureConfig?.defaultModel
+          || azureConfig?.deploymentName
+          || process.env.AZURE_OPENAI_DEPLOYMENT_NAME
+          || 'default';
         if (deployment === 'default') {
           throw new Error('Azure deployment not configured. Set defaultModel in Azure config or AZURE_OPENAI_DEPLOYMENT_NAME.');
         }

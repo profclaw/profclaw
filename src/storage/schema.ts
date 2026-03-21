@@ -957,7 +957,7 @@ export const scheduledJobs = sqliteTable("scheduled_jobs", {
   } | null>(),
 
   // Job type and payload
-  jobType: text("job_type").notNull(), // 'http' | 'tool' | 'script' | 'message'
+  jobType: text("job_type").notNull(), // 'http' | 'tool' | 'script' | 'message' | 'agent_session'
   payload: text("payload", { mode: "json" })
     .$type<JsonObject>()
     .notNull(),
@@ -972,7 +972,7 @@ export const scheduledJobs = sqliteTable("scheduled_jobs", {
   // Delivery configuration
   delivery: text("delivery", { mode: "json" }).$type<{
     channels: Array<{
-      type: "slack" | "webhook" | "email";
+      type: "slack" | "webhook" | "email" | "telegram" | "discord";
       target: string;
       onSuccess?: boolean;
       onFailure?: boolean;
@@ -1139,7 +1139,7 @@ export const jobTemplates = sqliteTable("job_templates", {
   }>(),
   defaultDelivery: text("default_delivery", { mode: "json" }).$type<{
     channels: Array<{
-      type: "slack" | "webhook" | "email";
+      type: "slack" | "webhook" | "email" | "telegram" | "discord";
       target: string;
       onSuccess?: boolean;
       onFailure?: boolean;

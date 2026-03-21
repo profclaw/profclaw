@@ -7,7 +7,6 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import * as readline from 'node:readline';
 import { api } from '../utils/api.js';
 import { error, success, spinner, info } from '../utils/output.js';
 
@@ -216,189 +215,24 @@ async function executeSingleShotWithTools(message: string, options: ChatOptions)
 
 /**
  * Start interactive REPL mode
+ * Uses the self-contained interactive module (extractable as standalone package)
  */
 async function startREPL(options: ChatOptions): Promise<void> {
-  console.log('');
-  console.log(chalk.cyan.bold('profClaw Chat'));
-  console.log(chalk.dim('Interactive AI assistant with profClaw intelligence'));
-  console.log(chalk.dim('Type /help for commands, /exit to quit'));
-  console.log('');
+  const { startInteractiveREPL } = await import('../interactive/index.js');
+  const { getConfig } = await import('../utils/config.js');
 
-  // Create or resume conversation
-  let conversationId = options.session;
+  const config = getConfig();
 
-  if (!conversationId) {
-    const spin = spinner('Starting session...').start();
-
-    const result = await api.post<ConversationResponse>('/api/chat/conversations', {
-      presetId: options.agentic ? 'agentic' : 'profclaw-assistant',
-      mode: options.agentic ? 'agentic' : 'chat',
-    });
-
-    spin.stop();
-
-    if (!result.ok) {
-      error(result.error || 'Failed to create conversation');
-      process.exit(1);
-    }
-
-    conversationId = result.data!.conversation.id;
-    info(`Session: ${conversationId.slice(0, 8)}... (${options.agentic ? 'agentic' : 'chat'} mode)`);
-  } else {
-    info(`Resuming session: ${conversationId.slice(0, 8)}...`);
-  }
-
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-    prompt: chalk.green('> '),
+  await startInteractiveREPL({
+    server: {
+      baseUrl: config.apiUrl || 'http://localhost:3000',
+      apiToken: config.apiToken,
+    },
+    model: options.model,
+    sessionId: options.session,
+    agentic: options.agentic,
+    effort: 'medium',
   });
-
-  const showHelp = () => {
-    console.log('');
-    console.log(chalk.yellow('Commands:'));
-    console.log('  /exit, /quit, /q  Exit chat');
-    console.log('  /clear            Clear screen');
-    console.log('  /help, /?         Show this help');
-    console.log('  /session          Show session ID');
-    console.log('  /model <name>     Change model');
-    console.log('  /tools            Toggle tool calling');
-    console.log('  /agentic          Toggle agentic mode');
-    console.log('');
-  };
-
-  let useTools = options.tools ?? false;
-  let agenticMode = options.agentic ?? false;
-  let model = options.model;
-
-  const sendMessage = async (content: string) => {
-    const spin = spinner('Thinking...').start();
-
-    try {
-      const endpoint = useTools || agenticMode
-        ? `/api/chat/conversations/${conversationId}/messages/with-tools`
-        : `/api/chat/conversations/${conversationId}/messages`;
-
-      const result = await api.post<MessageResponse>(endpoint, {
-        content,
-        model,
-        enableTools: useTools || agenticMode,
-      });
-
-      spin.stop();
-
-      if (!result.ok) {
-        error(result.error || 'Failed to send message');
-        return;
-      }
-
-      const data = result.data!;
-
-      // Print tool calls if any
-      if (data.toolCalls && data.toolCalls.length > 0) {
-        console.log('');
-        console.log(chalk.yellow('Tool Calls:'));
-        for (const tc of data.toolCalls) {
-          console.log(formatToolCall(tc));
-        }
-      }
-
-      // Print response
-      console.log('');
-      console.log(chalk.cyan('profClaw') + (data.assistantMessage.model ? chalk.dim(` (${data.assistantMessage.model})`) : '') + ':');
-      console.log(data.assistantMessage.content || '(no response)');
-
-      if (data.usage) {
-        console.log('');
-        console.log(formatUsage(data.usage));
-      }
-      console.log('');
-    } catch (err) {
-      spin.stop();
-      error(err instanceof Error ? err.message : 'Failed to send message');
-    }
-  };
-
-  // Handle input
-  rl.on('line', async (line) => {
-    const input = line.trim();
-
-    // Skip empty lines
-    if (!input) {
-      rl.prompt();
-      return;
-    }
-
-    // Handle commands
-    if (input.startsWith('/')) {
-      const [cmd, ...args] = input.slice(1).split(/\s+/);
-
-      switch (cmd.toLowerCase()) {
-        case 'exit':
-        case 'quit':
-        case 'q':
-          console.log(chalk.dim('Goodbye!'));
-          rl.close();
-          process.exit(0);
-          return;
-
-        case 'clear':
-          console.clear();
-          rl.prompt();
-          return;
-
-        case 'help':
-        case '?':
-          showHelp();
-          rl.prompt();
-          return;
-
-        case 'session':
-          console.log(chalk.dim(`Session ID: ${conversationId}`));
-          rl.prompt();
-          return;
-
-        case 'model':
-          if (args[0]) {
-            model = args[0];
-            success(`Model set to: ${model}`);
-          } else {
-            console.log(chalk.dim(`Current model: ${model || 'default'}`));
-          }
-          rl.prompt();
-          return;
-
-        case 'tools':
-          useTools = !useTools;
-          success(`Tools: ${useTools ? 'enabled' : 'disabled'}`);
-          rl.prompt();
-          return;
-
-        case 'agentic':
-          agenticMode = !agenticMode;
-          useTools = agenticMode; // Agentic mode implies tools
-          success(`Agentic mode: ${agenticMode ? 'enabled' : 'disabled'}`);
-          rl.prompt();
-          return;
-
-        default:
-          error(`Unknown command: /${cmd}`);
-          rl.prompt();
-          return;
-      }
-    }
-
-    // Send message to AI
-    await sendMessage(input);
-    rl.prompt();
-  });
-
-  rl.on('close', () => {
-    process.exit(0);
-  });
-
-  // Start prompt
-  rl.prompt();
 }
 
 // === CLI Commands ===

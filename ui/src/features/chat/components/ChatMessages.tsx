@@ -135,6 +135,7 @@ export function ChatMessages({
           copiedId={copiedId}
           onCopy={onCopy}
           onRetry={onRetry}
+          onQuickAction={onQuickAction}
         />
       ))}
       <div ref={messagesEndRef} />
@@ -150,11 +151,13 @@ function MessageItem({
   copiedId,
   onCopy,
   onRetry,
+  onQuickAction,
 }: {
   message: Message;
   copiedId: string | null;
   onCopy: (content: string, id: string) => void;
   onRetry: (messageId: string) => void;
+  onQuickAction: (prompt: string) => void;
 }) {
   // Parse thinking and filter raw JSON for assistant messages
   const processed = useProcessedMessage(
@@ -315,6 +318,40 @@ function MessageItem({
                     </>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* Smart routing badge - only shown for assistant messages with routing info */}
+            {message.role === 'assistant' && message.routing && !message.isLoading && (
+              <div className="mt-1.5 flex items-center gap-1 text-[10px] text-emerald-600/70 dark:text-emerald-400/60">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 dark:bg-emerald-500" />
+                <span>
+                  Routed to {message.routing.modelLabel}
+                  {message.routing.savingsPercent !== undefined && message.routing.savingsPercent > 0
+                    ? ` (saved ${message.routing.savingsPercent.toFixed(0)}%)`
+                    : ''}
+                </span>
+              </div>
+            )}
+
+            {/* Proactive suggestions */}
+            {message.role === 'assistant' && message.suggestions && message.suggestions.length > 0 && !message.isLoading && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {message.suggestions.slice(0, 3).map((suggestion) => (
+                  <button
+                    key={suggestion.id}
+                    onClick={() => {
+                      if (suggestion.action?.command) {
+                        onQuickAction(suggestion.action.command);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 transition-colors"
+                    title={suggestion.message}
+                  >
+                    <span className="h-1 w-1 rounded-full bg-primary/60" />
+                    {suggestion.action?.label ?? suggestion.message.slice(0, 40)}
+                  </button>
+                ))}
               </div>
             )}
 

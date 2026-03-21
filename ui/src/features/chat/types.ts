@@ -14,6 +14,15 @@ export interface ToolCall {
   duration?: number;
 }
 
+export interface MessageRouting {
+  /** Human-readable label, e.g. "Haiku" */
+  modelLabel: string;
+  /** Savings percentage vs the default model (0-100) */
+  savingsPercent?: number;
+  /** Routing tier used, e.g. "fast" | "balanced" | "powerful" */
+  tier?: string;
+}
+
 export interface Message extends ChatMessage {
   id: string;
   isLoading?: boolean;
@@ -26,6 +35,16 @@ export interface Message extends ChatMessage {
   };
   images?: string[];
   toolCalls?: ToolCall[];
+  /** Smart routing info - only present when the router selected a non-default model */
+  routing?: MessageRouting;
+  /** Proactive follow-up suggestions after task completion */
+  suggestions?: Array<{
+    id: string;
+    type: string;
+    message: string;
+    confidence: number;
+    action?: { label: string; command: string };
+  }>;
 }
 
 export type ProviderStatus = 'stable' | 'beta' | 'experimental';

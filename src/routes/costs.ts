@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import { getUsageSummary } from '../costs/token-tracker.js';
 import { getBudgetStatus } from '../costs/budget.js';
 import { getStorage } from '../storage/index.js';
+import { getRoutingStats, getCostOptimizationAdvice } from '../providers/smart-router.js';
+import type { ProviderType } from '../providers/core/types.js';
 
 const costs = new Hono();
 
@@ -22,6 +24,40 @@ costs.get('/analytics', async (c) => {
   const storage = getStorage();
   const analytics = await storage.getCostAnalytics();
   return c.json(analytics);
+});
+
+// Get smart routing stats (savings from auto-routing)
+costs.get('/routing', (_c) => {
+  const stats = getRoutingStats();
+  return _c.json({
+    success: true,
+    data: {
+      ...stats,
+      totalSaved: `$${stats.totalSaved.toFixed(4)}`,
+      avgSavingsPercent: `${Math.round(stats.avgSavingsPercent)}%`,
+      message: stats.totalRouted > 0
+        ? `Smart routing saved $${stats.totalSaved.toFixed(2)} across ${stats.totalRouted} requests (avg ${Math.round(stats.avgSavingsPercent)}% savings)`
+        : 'No queries routed yet. Smart routing will show savings as you use profClaw.',
+    },
+  });
+});
+
+// Get cost optimization advice
+costs.get('/optimize', async (c) => {
+  // Get configured providers dynamically
+  const { aiProvider } = await import('../providers/ai-sdk.js');
+  const providers = new Set(aiProvider.getConfiguredProviders() as ProviderType[]);
+  const advice = getCostOptimizationAdvice(providers);
+
+  return c.json({
+    success: true,
+    data: {
+      configuredProviders: [...providers],
+      providerCount: providers.size,
+      recommendations: advice,
+      optimalSetup: advice.some(a => a.action.includes('cost-optimal')),
+    },
+  });
 });
 
 // Export cost report as CSV

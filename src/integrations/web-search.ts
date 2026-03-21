@@ -415,10 +415,11 @@ export function isWebSearchAvailable(config?: WebSearchConfig): {
  * Get default config from environment variables
  */
 export function getDefaultWebSearchConfig(): WebSearchConfig {
-  // Auto-detect provider from available env vars
+  // Auto-detect provider: prefer paid providers over public SearXNG
   let provider: WebSearchConfig['provider'] = 'brave';
 
-  if (process.env.SERPER_API_KEY) provider = 'serper';
+  if (process.env.BRAVE_API_KEY) provider = 'brave';
+  else if (process.env.SERPER_API_KEY) provider = 'serper';
   else if (process.env.TAVILY_API_KEY) provider = 'tavily';
   else if (process.env.SEARXNG_URL) provider = 'searxng';
 

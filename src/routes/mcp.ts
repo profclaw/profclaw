@@ -36,6 +36,28 @@ async function getMcpRuntime(): Promise<MCPRuntime> {
   return runtimePromise;
 }
 
+// GET / - MCP overview (alias for /status)
+mcpRoutes.get('/', async (c) => {
+  try {
+    const { mcpClientManager, adaptToolsToMCP } = await getMcpRuntime();
+    const connectedServers = mcpClientManager.getStatus();
+    const adaptedTools = adaptToolsToMCP();
+
+    return c.json({
+      server: {
+        enabled: true,
+        toolsExposed: adaptedTools.length,
+      },
+      clients: connectedServers,
+      connectedCount: connectedServers.filter((s) => s.connected).length,
+      totalServers: connectedServers.length,
+    });
+  } catch (error) {
+    logger.error('[MCP Routes] Status error:', error instanceof Error ? error : undefined);
+    return c.json({ error: 'Failed to get MCP status' }, 500);
+  }
+});
+
 // GET /status - MCP server/client status
 mcpRoutes.get('/status', async (c) => {
   try {

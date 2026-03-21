@@ -18,7 +18,21 @@ import { zodToJsonSchema } from 'zod-to-json-schema';
 import { z } from 'zod';
 import { AgentExecutor, type AgentState, type AgentConfig, type ToolCallRecord } from '../agents/index.js';
 import { MODEL_ALIASES } from '../providers/core/models.js';
+import { routeQuery, recordRoutingDecision, isSmartRouterEnabled } from '../providers/smart-router.js';
+import { generateSuggestions, gatherContext, type Suggestion } from './proactive/index.js';
 import type { ChatMessage, ProviderType } from '../providers/core/types.js';
+
+// Experience store lazy import to avoid circular deps
+let experienceStorePromise: Promise<typeof import('../memory/experience-store.js')> | null = null;
+function getExperienceStore(): Promise<typeof import('../memory/experience-store.js')> {
+  if (!experienceStorePromise) {
+    experienceStorePromise = import('../memory/experience-store.js').catch(() => {
+      experienceStorePromise = null;
+      return null as never;
+    });
+  }
+  return experienceStorePromise;
+}
 import { normalizeToolSchema } from '../providers/schema-utils.js';
 import { logger } from '../utils/logger.js';
 import type { ChatToolHandler } from './tool-handler.js';
@@ -129,6 +143,10 @@ export interface AgenticChatRequest {
   temperature?: number;
   /** Thinking effort level for Anthropic models: low (cheap), medium, high, max (deep reasoning) */
   effort?: 'low' | 'medium' | 'high' | 'max';
+  /** User ID for budget tracking and preference recall */
+  userId?: string;
+  /** Team ID for shared budget enforcement */
+  teamId?: string;
   toolHandler: ChatToolHandler;
   tools: Array<{
     name: string;
@@ -174,6 +192,8 @@ export interface AgenticChatResponse {
     requestedModel: string;
     attempts: FallbackAttempt[];
   };
+  /** Proactive follow-up suggestions based on completed task */
+  suggestions?: Suggestion[];
 }
 
 // Shared Tool Schema Conversion
@@ -275,25 +295,84 @@ export async function executeAgenticChat(
     goal: goal.substring(0, 100),
   });
 
-  // Resolve the primary model and provider
-  const explicitProvider = request.provider as ProviderType | undefined;
-  const modelRef = request.model || 'sonnet';
-  const aliasEntry = MODEL_ALIASES[modelRef as keyof typeof MODEL_ALIASES];
-  const primaryProvider = explicitProvider || (aliasEntry?.provider || 'anthropic') as ProviderType;
-
-  // For Azure and similar providers, use the configured deployment name, not hardcoded alias
-  let primaryModel = aliasEntry?.model || modelRef;
-  try {
-    const resolved = aiProvider.resolveModel(primaryProvider);
-    if (resolved.provider === primaryProvider && resolved.model) {
-      primaryModel = resolved.model; // Use configured deployment (e.g., 'gpt4o')
+  // Team budget check (if user is in a team)
+  if (request.teamId && request.userId) {
+    try {
+      const { canMemberSpend, recordMemberUsage } = await import('../teams/index.js');
+      const budgetCheck = await canMemberSpend(request.teamId, request.userId, 0.05); // estimated min cost
+      if (!budgetCheck.allowed) {
+        return {
+          content: `Budget exceeded: ${budgetCheck.reason}. Contact your team admin to increase the budget.`,
+          model: 'none',
+          provider: 'none',
+          usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, cost: 0 },
+          agentState: { sessionId, totalSteps: 0, stopReason: 'budget_exceeded', artifacts: [] },
+        };
+      }
+    } catch {
+      // Teams module not initialized - skip budget check
     }
-  } catch {
-    // Keep the alias model if provider not configured
   }
 
-  // Get configured providers
+  // Resolve the primary model and provider - fully provider-agnostic
+  const explicitProvider = request.provider as ProviderType | undefined;
   const configuredProviders = aiProvider.getConfiguredProviders();
+  const availableProviders = new Set(configuredProviders as ProviderType[]);
+
+  // Smart Model Router: auto-select model based on query complexity
+  let modelRef = request.model;
+  let smartRouted = false;
+
+  if (!request.model && !explicitProvider && isSmartRouterEnabled()) {
+    const routingDecision = routeQuery(goal, availableProviders, {
+      conversationLength: request.messages.length,
+      hasToolUse: request.tools.length > 0,
+      hasCodeContext: request.tools.some(t => t.name.startsWith('git_') || t.name === 'exec'),
+      hasImages: false,
+    });
+    modelRef = routingDecision.selectedModel.id;
+    smartRouted = true;
+    recordRoutingDecision(routingDecision);
+
+    logger.info('[AgenticChat] Smart-routed to model', {
+      tier: routingDecision.complexity.tier,
+      model: routingDecision.selectedModel.id,
+      provider: routingDecision.selectedModel.provider,
+      savings: `${routingDecision.savingsPercent}%`,
+      reasoning: routingDecision.complexity.reasoning,
+    });
+  }
+
+  // Fall back to provider-agnostic default if no model specified
+  if (!modelRef) {
+    modelRef = aiProvider.getDefaultProvider() as string;
+    // Try to get the default model for the default provider
+    try {
+      const resolved = aiProvider.resolveModel(modelRef);
+      modelRef = resolved.model;
+    } catch {
+      modelRef = 'sonnet'; // last resort alias
+    }
+  }
+
+  const aliasEntry = MODEL_ALIASES[modelRef as keyof typeof MODEL_ALIASES];
+  // Resolve provider from alias, smart route result, or configured default
+  const primaryProvider = explicitProvider
+    ?? (aliasEntry?.provider && availableProviders.has(aliasEntry.provider as ProviderType) ? aliasEntry.provider : undefined) as ProviderType | undefined
+    ?? (aiProvider.getDefaultProvider() as ProviderType);
+
+  // For Azure and similar providers, use the configured deployment name, not hardcoded alias
+  let primaryModel = smartRouted ? modelRef : (aliasEntry?.model || modelRef);
+  if (!smartRouted) {
+    try {
+      const resolved = aiProvider.resolveModel(primaryProvider);
+      if (resolved.provider === primaryProvider && resolved.model) {
+        primaryModel = resolved.model;
+      }
+    } catch {
+      // Keep the alias model if provider not configured
+    }
+  }
 
   // Log if any providers are in cooldown
   const cooldowns = getProvidersInCooldown();
@@ -307,10 +386,63 @@ export async function executeAgenticChat(
     });
   }
 
+  // Recall relevant past experiences to enhance system prompt
+  try {
+    const store = await getExperienceStore();
+    if (store) {
+      const similar = await store.findSimilarExperiences(goal, [], 3);
+      const hints = similar
+        .filter(exp => exp.successScore >= 0.7 && exp.weight > 0.1)
+        .slice(0, 2)
+        .map(exp => {
+          if (exp.type === 'tool_chain') {
+            const chain = exp.solution as { tools: Array<{ name: string }> };
+            return `Previously solved similar task using: ${chain.tools.map(t => t.name).join(' -> ')} (used ${exp.useCount}x)`;
+          }
+          return `Past experience: ${exp.intent} (score: ${exp.successScore})`;
+        });
+
+      if (hints.length > 0) {
+        request.systemPrompt += `\n\nRelevant past experiences:\n${hints.join('\n')}`;
+        logger.debug('[AgenticChat] Injected experience context', { count: hints.length });
+        for (const exp of similar.slice(0, 2)) {
+          store.markUsed(exp.id).catch(() => {});
+        }
+      }
+    }
+  } catch {
+    // Experience recall is best-effort
+  }
+
+  // Auto-context gathering for complex queries (code/file-related tasks)
+  if (request.tools.length > 0 && goal.length > 30) {
+    try {
+      const context = await gatherContext(goal, {
+        maxSources: 4,
+        maxTokens: 2000,
+        includeFiles: true,
+        includeMemory: false, // memory handled by experience store above
+        includeHistory: false,
+      });
+      if (context.sources.length > 0) {
+        const contextBlock = context.sources
+          .map(s => `[${s.type}${s.path ? `: ${s.path}` : ''}]\n${s.content.slice(0, 500)}`)
+          .join('\n\n');
+        request.systemPrompt += `\n\nProject context (auto-gathered):\n${contextBlock}`;
+        logger.debug('[AgenticChat] Injected project context', {
+          sources: context.sources.length,
+          tokens: context.tokens,
+        });
+      }
+    } catch {
+      // Context gathering is best-effort
+    }
+  }
+
   // Create agent configuration
   const agentConfig: Partial<AgentConfig> = {
-    maxSteps: 50, // Allow up to 50 steps for complex tasks
-    maxBudget: 50000, // 50k token budget
+    maxSteps: 20, // Reasonable default
+    maxBudget: 30000, // 30k token budget to control costs
     securityMode: 'ask', // Prompt for approval when needed
     enableStreaming: true,
     effort: request.effort,
@@ -446,6 +578,52 @@ export async function executeAgenticChat(
       usedFallback,
     });
 
+    // Record team usage (async, non-blocking)
+    if (request.teamId && request.userId) {
+      import('../teams/index.js').then(({ recordMemberUsage }) => {
+        const estimatedCost = finalState.usedBudget * 0.00001; // rough token-to-cost estimate
+        recordMemberUsage(request.teamId!, request.userId!, estimatedCost).catch(() => {});
+      }).catch(() => {});
+    }
+
+    // Record successful tool chains to experience store (async, non-blocking)
+    if (toolCalls.length > 0) {
+      const successfulCalls = toolCalls.filter(tc => tc.status === 'success');
+      if (successfulCalls.length > 0) {
+        getExperienceStore().then(async (store) => {
+          if (!store) return;
+          try {
+            await store.recordExperience({
+              type: 'tool_chain',
+              intent: goal.slice(0, 200),
+              solution: {
+                tools: successfulCalls.map(tc => ({ name: tc.name, params: tc.arguments })),
+                totalDurationMs: finalState.usedBudget,
+                allSucceeded: successfulCalls.length === toolCalls.length,
+              },
+              successScore: successfulCalls.length / Math.max(toolCalls.length, 1),
+              tags: [
+                ...new Set(successfulCalls.map(tc => tc.name)),
+                actualProvider,
+                actualModel,
+              ],
+              sourceConversationId: request.conversationId,
+            });
+          } catch {
+            // Non-critical - don't break execution
+          }
+        }).catch(() => {});
+      }
+    }
+
+    // Generate proactive follow-up suggestions
+    const suggestions = generateSuggestions(goal, {
+      failedTests: toolCalls.filter(tc => tc.name === 'test_run' && tc.status === 'error').length,
+      createdFiles: toolCalls.filter(tc => tc.name === 'write_file' && tc.status === 'success')
+        .map(tc => String(tc.arguments['path'] ?? '')).filter(Boolean),
+      prCreated: toolCalls.some(tc => tc.name === 'github_pr' && tc.status === 'success'),
+    });
+
     return {
       content,
       model: actualModel,
@@ -469,6 +647,7 @@ export async function executeAgenticChat(
         requestedModel: primaryModel,
         attempts: fallbackResult.attempts,
       },
+      suggestions: suggestions.length > 0 ? suggestions : undefined,
     };
   } catch (error) {
     const err = error as Error;
@@ -571,19 +750,43 @@ export async function* streamAgenticChat(
     showThinking,
   });
 
-  // Resolve the primary model and provider
-  // If provider is explicitly given, use it directly
+  // Resolve the primary model and provider - provider-agnostic
   const explicitProvider = request.provider as ProviderType | undefined;
-  const modelRef = request.model || 'sonnet';
-  const aliasEntry = MODEL_ALIASES[modelRef as keyof typeof MODEL_ALIASES];
-  const primaryProvider = explicitProvider || (aliasEntry?.provider || 'anthropic') as ProviderType;
+  const configuredProviders = aiProvider.getConfiguredProviders();
+  const availableProviders = new Set(configuredProviders as ProviderType[]);
 
-  // For Azure and similar providers, use the configured deployment name, not hardcoded alias
+  // Use smart routing for streaming too
+  let modelRef = request.model;
+  if (!request.model && !explicitProvider && isSmartRouterEnabled()) {
+    const routingDecision = routeQuery(goal, availableProviders, {
+      conversationLength: request.messages.length,
+      hasToolUse: request.tools.length > 0,
+    });
+    modelRef = routingDecision.selectedModel.id;
+    recordRoutingDecision(routingDecision);
+  }
+
+  // Fall back to provider-agnostic default
+  if (!modelRef) {
+    try {
+      const resolved = aiProvider.resolveModel(aiProvider.getDefaultProvider() as string);
+      modelRef = resolved.model;
+    } catch {
+      modelRef = 'sonnet';
+    }
+  }
+
+  const aliasEntry = MODEL_ALIASES[modelRef as keyof typeof MODEL_ALIASES];
+  const primaryProvider = explicitProvider
+    ?? (aliasEntry?.provider && availableProviders.has(aliasEntry.provider as ProviderType) ? aliasEntry.provider : undefined) as ProviderType | undefined
+    ?? (aiProvider.getDefaultProvider() as ProviderType);
+
+  // For Azure and similar providers, use the configured deployment name
   let primaryModel = aliasEntry?.model || modelRef;
   try {
     const resolved = aiProvider.resolveModel(primaryProvider);
     if (resolved.provider === primaryProvider && resolved.model) {
-      primaryModel = resolved.model; // Use configured deployment (e.g., 'gpt4o')
+      primaryModel = resolved.model;
     }
   } catch {
     // Keep the alias model if provider not configured
@@ -595,9 +798,6 @@ export async function* streamAgenticChat(
     primaryProvider,
     primaryModel,
   });
-
-  // Get configured providers
-  const configuredProviders = aiProvider.getConfiguredProviders();
 
   if (configuredProviders.length === 0) {
     yield {
@@ -640,8 +840,10 @@ export async function* streamAgenticChat(
 
   // Create agent configuration
   const agentConfig: Partial<AgentConfig> = {
-    maxSteps: request.maxSteps ?? 50,
-    maxBudget: request.maxBudget ?? 50000,
+    maxSteps: request.maxSteps ?? 20,
+    // Azure counts cached prompt tokens in totalUsage (inflates to ~75K for tool schemas)
+    // Set budget high enough for multi-step tasks without premature abort
+    maxBudget: request.maxBudget ?? 500000,
     securityMode: 'ask',
     enableStreaming: true,
     effort: request.effort,
@@ -969,5 +1171,29 @@ export async function* streamAgenticChat(
       usedFallback,
       attempts: fallbackAttempts.length,
     });
+
+    // Record tool chain to experience store (async, non-blocking)
+    const successfulCalls = toolCalls.filter(tc => tc.status === 'success');
+    if (successfulCalls.length > 0) {
+      getExperienceStore().then(async (store) => {
+        if (!store) return;
+        try {
+          await store.recordExperience({
+            type: 'tool_chain',
+            intent: goal.slice(0, 200),
+            solution: {
+              tools: successfulCalls.map(tc => ({ name: tc.name, params: tc.arguments })),
+              totalDurationMs: state.usedBudget,
+              allSucceeded: successfulCalls.length === toolCalls.length,
+            },
+            successScore: successfulCalls.length / Math.max(toolCalls.length, 1),
+            tags: [...new Set(successfulCalls.map(tc => tc.name)), actualProvider, actualModel],
+            sourceConversationId: request.conversationId,
+          });
+        } catch {
+          // Non-critical
+        }
+      }).catch(() => {});
+    }
   }
 }

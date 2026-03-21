@@ -9,3 +9,9 @@ export {
   type ChannelFormat,
   type FormattedToolResult,
 } from './tool-result-formatter.js';
+
+export {
+  convertMarkdown,
+  stripMarkdown,
+  type FormatTarget,
+} from './markdown-convert.js';

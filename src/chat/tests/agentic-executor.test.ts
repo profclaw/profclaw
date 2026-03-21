@@ -76,6 +76,12 @@ vi.mock('../../utils/logger.js', () => ({
     error: vi.fn(),
     debug: vi.fn(),
   },
+  createContextualLogger: vi.fn(() => ({
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  })),
 }));
 
 vi.mock('ai', () => ({
@@ -92,6 +98,7 @@ vi.mock('../../providers/ai-sdk.js', () => ({
     resolveModel: mocks.mockResolveModel,
     getModel: mocks.mockGetModel,
     getConfiguredProviders: mocks.mockGetConfiguredProviders,
+    getDefaultProvider: vi.fn(() => 'anthropic'),
   },
 }));
 
@@ -102,6 +109,23 @@ vi.mock('../../providers/core/models.js', () => ({
     opus: { provider: 'anthropic', model: 'claude-opus-4' },
     gpt4o: { provider: 'openai', model: 'gpt-4o' },
   },
+  MODEL_CATALOG: [
+    { id: 'claude-sonnet-4-5', name: 'Sonnet', provider: 'anthropic', contextWindow: 200000, maxOutput: 8192, supportsVision: true, supportsStreaming: true, supportsTools: true, costPer1MInput: 3, costPer1MOutput: 15 },
+    { id: 'claude-haiku-3-5', name: 'Haiku', provider: 'anthropic', contextWindow: 200000, maxOutput: 8192, supportsVision: true, supportsStreaming: true, supportsTools: true, costPer1MInput: 0.80, costPer1MOutput: 4 },
+  ],
+}));
+
+vi.mock('../../providers/smart-router.js', () => ({
+  routeQuery: vi.fn(() => ({
+    complexity: { tier: 'standard', score: 0.4, confidence: 0.6, signals: [], reasoning: 'test' },
+    selectedModel: { id: 'claude-sonnet-4-5', provider: 'anthropic', name: 'Sonnet' },
+    alternativeModels: [],
+    estimatedCost: 0.02,
+    savedVsDefault: 0,
+    savingsPercent: 0,
+  })),
+  recordRoutingDecision: vi.fn(),
+  isSmartRouterEnabled: vi.fn(() => false), // disabled in tests so existing assertions hold
 }));
 
 vi.mock('../../providers/schema-utils.js', () => ({

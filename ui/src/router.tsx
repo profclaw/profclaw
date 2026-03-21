@@ -1,4 +1,4 @@
-import { type ReactNode, lazy, Suspense } from 'react';
+import { type ReactNode, lazy, Suspense, Component } from 'react';
 import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
 import { RootLayout } from '@/layouts/RootLayout';
 import { PageSkeleton } from '@/components/shared/PageSkeleton';
@@ -79,9 +79,46 @@ const PrivacyPolicy = lazy(() =>
 const TermsOfService = lazy(() =>
   import('@/features/legal/index').then(m => ({ default: m.TermsOfService }))
 );
+const MarketplacePage = lazy(() =>
+  import('@/features/marketplace/views/MarketplacePage').then(m => ({ default: m.MarketplacePage }))
+);
+const FeedDashboard = lazy(() =>
+  import('@/features/feeds/views/FeedDashboard').then(m => ({ default: m.FeedDashboard }))
+);
+const TeamsPage = lazy(() =>
+  import('@/features/teams/views/TeamsPage').then(m => ({ default: m.TeamsPage }))
+);
+
+class ChunkErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
+          <p className="text-muted-foreground">Page failed to load. This usually happens after an update.</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm"
+          >
+            Reload Page
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function Lazy({ children }: { children: ReactNode }) {
-  return <Suspense fallback={<PageSkeleton />}>{children}</Suspense>;
+  return (
+    <ChunkErrorBoundary>
+      <Suspense fallback={<PageSkeleton />}>{children}</Suspense>
+    </ChunkErrorBoundary>
+  );
 }
 
 const router = createBrowserRouter([
@@ -204,8 +241,20 @@ const router = createBrowserRouter([
     element: <AuthGuard><RootLayout><Lazy><CronDashboard /></Lazy></RootLayout></AuthGuard>,
   },
   {
+    path: '/marketplace',
+    element: <AuthGuard><RootLayout><Lazy><MarketplacePage /></Lazy></RootLayout></AuthGuard>,
+  },
+  {
     path: '/activity',
     element: <AuthGuard><RootLayout><Lazy><ActivityView /></Lazy></RootLayout></AuthGuard>,
+  },
+  {
+    path: '/feeds',
+    element: <AuthGuard><RootLayout><Lazy><FeedDashboard /></Lazy></RootLayout></AuthGuard>,
+  },
+  {
+    path: '/teams',
+    element: <AuthGuard><RootLayout><Lazy><TeamsPage /></Lazy></RootLayout></AuthGuard>,
   },
   // Admin routes
   {

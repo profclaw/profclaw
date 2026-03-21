@@ -25,6 +25,7 @@ import {
   Activity,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { LearningInsights } from '../components/LearningInsights';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -166,6 +167,9 @@ export function MemoryDashboard() {
           <span className="text-destructive">Sync failed: {syncMutation.error?.message}</span>
         </div>
       )}
+
+      {/* Learning Insights */}
+      <LearningInsights />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

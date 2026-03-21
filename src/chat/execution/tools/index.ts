@@ -79,6 +79,15 @@ import { sessionSpawnTools } from './session-spawn.js';
 // Integration tools (screen capture, clipboard, notifications)
 import { screenCaptureTool, clipboardReadTool, clipboardWriteTool, notifyTool } from './integrations.js';
 
+// Feed tools
+import { feedTools } from './feed-tools.js';
+
+// Code tools (typecheck, lint, build, format, project_info, create_pr)
+import { codeTools } from './code-tools.js';
+
+// Multi-file patch tool
+import { multiPatchTool } from './multi-patch.js';
+
 // Phase 3 parity tools
 import { openaiImageGenTool } from './openai-image-gen.js';
 import { ttsSpeakTool } from './tts-speak.js';
@@ -92,6 +101,8 @@ import { telegramActionsTool } from './telegram-actions.js';
 export { execTool } from './exec.js';
 export { webFetchTool } from './web-fetch.js';
 export { readFileTool, writeFileTool, searchFilesTool, grepTool, editFileTool, directoryTreeTool, patchApplyTool } from './file-ops.js';
+export { multiPatchTool } from './multi-patch.js';
+export type { MultiPatchParams, MultiPatchResult, MultiPatchFileResult } from './multi-patch.js';
 
 // GitHub tools exports
 export { githubPrTool } from './github.js';
@@ -172,6 +183,28 @@ export type {
   CronHistoryParams,
   CronHistoryResult,
 } from './cron-tool.js';
+
+// Code tools exports
+export {
+  typeCheckTool,
+  lintTool,
+  buildTool,
+  formatTool,
+  projectInfoTool,
+  createPrTool,
+  codeTools,
+} from './code-tools.js';
+
+// Feed tools exports
+export {
+  feedListTool,
+  feedAddTool,
+  feedBundleInstallTool,
+  feedPollTool,
+  feedDigestTool,
+  feedDiscoverTool,
+  feedTools,
+} from './feed-tools.js';
 
 // Browser tools exports
 export {
@@ -283,7 +316,8 @@ const TOOL_TIER_MAP: Record<string, ToolTier> = {
   git_commit: 'standard',
   git_branch: 'standard',
   patch_apply: 'standard',
-  web_search: 'standard',
+  multi_patch: 'standard',
+  web_search: 'essential',
   memory_search: 'standard',
   memory_get: 'standard',
   memory_stats: 'standard',
@@ -302,6 +336,18 @@ const TOOL_TIER_MAP: Record<string, ToolTier> = {
   link_understand: 'standard',
   github_pr: 'standard',
   notify: 'standard',
+  feed_list: 'standard',
+  feed_add: 'standard',
+  feed_bundle_install: 'standard',
+  feed_poll: 'standard',
+  feed_digest: 'standard',
+  feed_discover: 'standard',
+  typecheck: 'standard',
+  lint: 'standard',
+  build: 'standard',
+  format: 'standard',
+  project_info: 'essential',
+  create_pr: 'standard',
 
   // Full tier - only for large/frontier models (everything else)
   // git_stash, git_remote, canvas_render, all session tools,
@@ -329,6 +375,7 @@ const rawBuiltinTools = [
   grepTool,
   directoryTreeTool,
   patchApplyTool,
+  multiPatchTool,
   imageAnalyzeTool,
   canvasRenderTool,
   // Git tools (7)
@@ -379,6 +426,10 @@ const rawBuiltinTools = [
   clipboardReadTool,
   clipboardWriteTool,
   notifyTool,
+  // Feed tools (6)
+  ...feedTools,
+  // Code tools (6) - typecheck, lint, build, format, project_info, create_pr
+  ...codeTools,
   // Phase 3 parity tools (7)
   openaiImageGenTool,
   ttsSpeakTool,
@@ -403,6 +454,11 @@ const CRON_TOOL_NAMES = new Set([
   'cron_archive', 'cron_delete', 'cron_history',
 ]);
 
+const FEED_TOOL_NAMES = new Set([
+  'feed_list', 'feed_add', 'feed_bundle_install', 'feed_poll',
+  'feed_digest', 'feed_discover',
+]);
+
 const CHANNEL_TOOL_NAMES = new Set([
   'discord_actions', 'slack_actions', 'telegram_actions',
 ]);
@@ -423,6 +479,8 @@ export function registerBuiltinTools(): void {
     if (BROWSER_TOOL_NAMES.has(tool.name)) return hasCapability('browser_tools');
     // Cron tools: mini+ (cron capability)
     if (CRON_TOOL_NAMES.has(tool.name)) return hasCapability('cron');
+    // Feed tools: mini+ (cron capability - feeds are part of automation)
+    if (FEED_TOOL_NAMES.has(tool.name)) return hasCapability('cron');
     // Channel action tools: mini+ (chat_channels capability)
     if (CHANNEL_TOOL_NAMES.has(tool.name)) return hasCapability('chat_channels');
     // Integration tools: mini+ (integrations capability)

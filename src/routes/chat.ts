@@ -17,6 +17,13 @@ import type {
   ProviderConfig,
   ProviderType,
 } from "../providers/index.js";
+import {
+  routeQuery,
+  recordRoutingDecision,
+  isSmartRouterEnabled,
+  getCostComparison,
+  type RoutingDecision,
+} from "../providers/smart-router.js";
 import { logger } from "../utils/logger.js";
 import type {
   ChatContext,
@@ -202,6 +209,97 @@ chatRoutes.get("/model-capability", async (c) => {
 });
 
 /**
+ * POST /api/chat/send
+ * Simple one-shot chat - send a message and get a response
+ */
+chatRoutes.post(
+  "/send",
+  zValidator(
+    "json",
+    z.object({
+      message: z.string(),
+      model: z.string().optional(),
+      systemPrompt: z.string().optional(),
+      temperature: z.number().min(0).max(2).optional(),
+      maxTokens: z.number().positive().optional(),
+    }),
+  ),
+  async (c) => {
+    const body = c.req.valid("json");
+
+    try {
+      const messages: ChatMessage[] = [
+        {
+          id: randomUUID(),
+          role: "user",
+          content: body.message,
+          timestamp: new Date().toISOString(),
+        },
+      ];
+
+      // Smart routing: auto-select model if none specified
+      let routing: RoutingDecision | undefined;
+      let modelToUse = body.model;
+
+      if (!body.model && isSmartRouterEnabled()) {
+        const providers = new Set(aiProvider.getConfiguredProviders() as ProviderType[]);
+        routing = routeQuery(body.message, providers);
+        modelToUse = routing.selectedModel.id;
+        recordRoutingDecision(routing);
+      }
+
+      const response = await aiProvider.chat({
+        messages,
+        model: modelToUse,
+        systemPrompt: body.systemPrompt,
+        temperature: body.temperature,
+        maxTokens: body.maxTokens,
+      });
+
+      return c.json({
+        id: response.id,
+        provider: response.provider,
+        model: response.model,
+        reply: response.content,
+        finishReason: response.finishReason,
+        usage: response.usage,
+        duration: response.duration,
+        ...(routing && {
+          routing: {
+            smartRouted: true,
+            complexity: routing.complexity.tier,
+            confidence: Math.round(routing.complexity.confidence * 100),
+            reasoning: routing.complexity.reasoning,
+            savings: `${routing.savingsPercent}%`,
+            estimatedCost: `$${routing.estimatedCost.toFixed(4)}`,
+            summary: getCostComparison(routing),
+            ...(routing.missingProviderHint && {
+              tip: {
+                addProvider: routing.missingProviderHint.provider,
+                reason: routing.missingProviderHint.reason,
+                savings: routing.missingProviderHint.estimatedSavings,
+                signupUrl: routing.missingProviderHint.signupUrl,
+              },
+            }),
+          },
+        }),
+      });
+    } catch (error) {
+      logger.error(
+        "[Chat] Send error:",
+        error instanceof Error ? error : undefined,
+      );
+      return c.json(
+        {
+          error: error instanceof Error ? error.message : "Chat send failed",
+        },
+        500,
+      );
+    }
+  },
+);
+
+/**
  * POST /api/chat/completions
  * Generate a chat completion
  */
@@ -221,12 +319,43 @@ chatRoutes.post(
 
     // Handle streaming
     if (body.stream) {
+      // Smart route for streaming too
+      let streamRouting: RoutingDecision | undefined;
+      let streamModel = body.model;
+
+      if (!body.model && isSmartRouterEnabled()) {
+        const lastUserMsg = [...body.messages].reverse().find((m) => m.role === "user");
+        if (lastUserMsg) {
+          const providers = new Set(aiProvider.getConfiguredProviders() as ProviderType[]);
+          streamRouting = routeQuery(lastUserMsg.content, providers, {
+            conversationLength: body.messages.length,
+          });
+          streamModel = streamRouting.selectedModel.id;
+          recordRoutingDecision(streamRouting);
+        }
+      }
+
       return streamText(c, async (stream) => {
         try {
+          // Send routing info as first event in stream
+          if (streamRouting) {
+            await stream.write(
+              `data: ${JSON.stringify({
+                routing: {
+                  smartRouted: true,
+                  complexity: streamRouting.complexity.tier,
+                  savings: `${streamRouting.savingsPercent}%`,
+                  model: streamRouting.selectedModel.id,
+                  provider: streamRouting.selectedModel.provider,
+                },
+              })}\n\n`,
+            );
+          }
+
           const response = await aiProvider.chatStream(
             {
               messages,
-              model: body.model,
+              model: streamModel,
               systemPrompt: body.systemPrompt,
               temperature: body.temperature,
               maxTokens: body.maxTokens,
@@ -268,9 +397,25 @@ chatRoutes.post(
 
     // Non-streaming
     try {
+      // Smart routing for completions
+      let routing: RoutingDecision | undefined;
+      let modelToUse = body.model;
+
+      if (!body.model && isSmartRouterEnabled()) {
+        const lastUserMsg = [...body.messages].reverse().find((m) => m.role === "user");
+        if (lastUserMsg) {
+          const providers = new Set(aiProvider.getConfiguredProviders() as ProviderType[]);
+          routing = routeQuery(lastUserMsg.content, providers, {
+            conversationLength: body.messages.length,
+          });
+          modelToUse = routing.selectedModel.id;
+          recordRoutingDecision(routing);
+        }
+      }
+
       const response = await aiProvider.chat({
         messages,
-        model: body.model,
+        model: modelToUse,
         systemPrompt: body.systemPrompt,
         temperature: body.temperature,
         maxTokens: body.maxTokens,
@@ -287,6 +432,15 @@ chatRoutes.post(
         finishReason: response.finishReason,
         usage: response.usage,
         duration: response.duration,
+        ...(routing && {
+          routing: {
+            smartRouted: true,
+            complexity: routing.complexity.tier,
+            savings: `${routing.savingsPercent}%`,
+            estimatedCost: `$${routing.estimatedCost.toFixed(4)}`,
+            summary: getCostComparison(routing),
+          },
+        }),
       });
     } catch (error) {
       logger.error(
@@ -1751,9 +1905,6 @@ chatRoutes.post(
         sessionOverride,
       };
 
-      // Get tools - agentic mode uses model-aware filtering
-      const tools = getChatToolsForModel(resolvedRef.model, { conversationId, includeAll: true });
-
       // Build system prompt with agent mode (uses AGENT_MODE_SUFFIX)
       const systemPrompt = await buildSystemPrompt(conversation.presetId, context, {
         agentMode: true,
@@ -1808,11 +1959,15 @@ chatRoutes.post(
         timestamp: m.createdAt,
       }));
 
-      // Create tool handler
+      // Create tool handler (triggers tool registration if first call)
       const toolHandler = await createChatToolHandler({
         conversationId,
         securityMode: "full", // Full access in agentic mode (tools are pre-approved)
       });
+
+      // Get tools AFTER handler init (registry is now populated)
+      const tools = getChatToolsForModel(resolvedRef.model, { conversationId });
+      logger.info(`[Chat/Agentic] Tools for model ${resolvedRef.model}: ${tools.length}`);
 
       // Set up SSE streaming response
       c.header("Content-Type", "text/event-stream");
@@ -1884,11 +2039,15 @@ chatRoutes.post(
             provider: body.provider,
             temperature: body.temperature,
             toolHandler,
-            tools: tools.map((t) => ({
-              name: t.name,
-              description: t.description,
-              parameters: t.parameters,
-            })),
+            tools: (() => {
+              const mapped = tools.map((t) => ({
+                name: t.name,
+                description: t.description,
+                parameters: t.parameters,
+              }));
+              logger.info(`[Chat/Agentic] Sending ${mapped.length} tools: [${mapped.map(t => t.name).join(', ')}]`);
+              return mapped;
+            })(),
             showThinking: body.showThinking,
             maxSteps: body.maxSteps,
             maxBudget: body.maxBudget,

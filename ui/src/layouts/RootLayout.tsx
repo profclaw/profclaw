@@ -1,6 +1,6 @@
 import { type ReactNode, useState, useMemo, useEffect, useRef, lazy, Suspense } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { BarChart3, ListTodo, FileText, Settings, Bot, Search, Coins, Menu, X, ChevronLeft, ChevronRight, Webhook, AlertTriangle, PanelLeftClose, PanelLeft, Command, Zap, Ticket, Sparkles, FolderKanban, Users, Clock, ChevronDown, LogOut, CreditCard, KeyRound, Bell } from 'lucide-react';
+import { BarChart3, ListTodo, FileText, Settings, Bot, Search, Coins, Menu, X, ChevronLeft, ChevronRight, Webhook, AlertTriangle, PanelLeftClose, PanelLeft, Command, Zap, Ticket, Sparkles, FolderKanban, Users, Clock, ChevronDown, LogOut, CreditCard, KeyRound, Bell, Store, Rss, UsersRound, Brain } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from 'next-themes';
 import { ThemeToggle } from '@/components/shared/ThemeToggle';
@@ -87,7 +87,17 @@ const navGroups: SidebarNavGroup[] = [
     label: 'Automation',
     items: [
       { name: 'Cron Jobs', href: '/cron', icon: Clock },
+      { name: 'Feeds', href: '/feeds', icon: Rss },
       { name: 'Webhooks', href: '/webhooks', icon: Webhook },
+    ],
+  },
+  {
+    id: 'ecosystem',
+    label: 'Ecosystem',
+    items: [
+      { name: 'Marketplace', href: '/marketplace', icon: Store },
+      { name: 'Memory', href: '/memory', icon: Brain },
+      { name: 'Teams', href: '/teams', icon: UsersRound },
     ],
   },
   {

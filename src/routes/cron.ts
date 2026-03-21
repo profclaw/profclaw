@@ -36,6 +36,7 @@ import {
   initBuiltInTemplates,
   type TemplateCategory,
 } from '../cron/templates.js';
+import { parseNaturalLanguage, cronToHuman } from '../cron/natural-language.js';
 import { createContextualLogger } from '../utils/logger.js';
 
 const log = createContextualLogger('CronRoutes');
@@ -65,7 +66,7 @@ app.use('*', async (_c, next) => {
 // Schemas
 
 const deliveryChannelSchema = z.object({
-  type: z.enum(['slack', 'webhook', 'email']),
+  type: z.enum(['slack', 'webhook', 'email', 'telegram', 'discord']),
   target: z.string(),
   onSuccess: z.boolean().optional(),
   onFailure: z.boolean().optional(),
@@ -99,7 +100,7 @@ const createJobSchema = z.object({
   // Event trigger (alternative to schedule)
   eventTrigger: eventTriggerSchema.optional(),
   // Execution
-  jobType: z.enum(['http', 'tool', 'script', 'message']),
+  jobType: z.enum(['http', 'tool', 'script', 'message', 'agent_session']),
   payload: z.record(z.any()),
   templateId: z.string().optional(),
   // Delivery
@@ -135,7 +136,7 @@ const updateJobSchema = z.object({
 
 const listQuerySchema = z.object({
   status: z.enum(['active', 'paused', 'completed', 'failed', 'archived']).optional(),
-  jobType: z.enum(['http', 'tool', 'script', 'message']).optional(),
+  jobType: z.enum(['http', 'tool', 'script', 'message', 'agent_session']).optional(),
   projectId: z.string().optional(),
   userId: z.string().optional(),
   limit: z.coerce.number().min(1).max(100).optional().default(50),
@@ -145,8 +146,8 @@ const createTemplateSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional(),
   icon: z.string().max(10).optional(),
-  category: z.enum(['sync', 'report', 'cleanup', 'notification', 'monitoring', 'custom']).optional(),
-  jobType: z.enum(['http', 'tool', 'script', 'message']),
+  category: z.enum(['sync', 'report', 'cleanup', 'notification', 'monitoring', 'automation', 'custom']).optional(),
+  jobType: z.enum(['http', 'tool', 'script', 'message', 'agent_session']),
   payloadTemplate: z.record(z.any()),
   suggestedCron: z.string().optional(),
   suggestedIntervalMs: z.number().min(1000).optional(),
@@ -211,6 +212,85 @@ app.get('/jobs', zValidator('query', listQuerySchema), async (c) => {
       },
       500
     );
+  }
+});
+
+/**
+ * POST /api/cron/automate - Create a job from natural language
+ *
+ * Example: { "input": "every morning at 8am summarize my GitHub notifications and send to telegram" }
+ *
+ * Returns the parsed schedule, intent, and delivery - then creates the job.
+ * Use ?dryRun=true to preview without creating.
+ */
+app.post('/automate', zValidator('json', z.object({
+  input: z.string().min(5).max(500),
+})), async (c) => {
+  try {
+    const { input } = c.req.valid('json');
+    const dryRun = c.req.query('dryRun') === 'true';
+
+    const result = parseNaturalLanguage(input);
+
+    if (!result.success || !result.jobParams) {
+      return c.json({
+        success: false,
+        error: result.error ?? 'Could not understand the request',
+        parsed: {
+          schedule: result.schedule,
+          intent: result.intent,
+          delivery: result.delivery,
+        },
+        hint: 'Try: "every morning at 8am summarize GitHub notifications and send to telegram"',
+      }, 400);
+    }
+
+    // Dry run: return what would be created
+    if (dryRun) {
+      return c.json({
+        success: true,
+        dryRun: true,
+        parsed: {
+          schedule: result.schedule,
+          intent: result.intent,
+          delivery: result.delivery,
+          humanReadable: result.schedule?.humanReadable,
+          cronExpression: result.jobParams.cronExpression,
+          cronExplained: result.jobParams.cronExpression
+            ? cronToHuman(result.jobParams.cronExpression)
+            : undefined,
+        },
+        jobParams: result.jobParams,
+        message: `Would create: "${result.jobParams.name}" running ${result.schedule?.humanReadable ?? 'on schedule'}`,
+      });
+    }
+
+    // Create the job
+    const job = await createScheduledJob(result.jobParams);
+
+    log.info(`Created job from natural language: ${job.name} (${job.id})`, {
+      input: input.slice(0, 80),
+      cron: result.jobParams.cronExpression,
+      schedule: result.schedule?.humanReadable,
+    });
+
+    return c.json({
+      success: true,
+      job,
+      parsed: {
+        schedule: result.schedule?.humanReadable,
+        cronExpression: result.jobParams.cronExpression,
+        intent: result.intent?.action,
+        delivery: result.delivery?.channel,
+      },
+      message: `Created "${job.name}" - ${result.schedule?.humanReadable ?? 'scheduled'}`,
+    }, 201);
+  } catch (error) {
+    log.error('Failed to create job from natural language:', error instanceof Error ? error : new Error(String(error)));
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to create automation',
+    }, 500);
   }
 });
 
@@ -691,6 +771,7 @@ app.get('/stats', async (c) => {
         tool: activeJobs.filter((j) => j.jobType === 'tool').length,
         script: activeJobs.filter((j) => j.jobType === 'script').length,
         message: activeJobs.filter((j) => j.jobType === 'message').length,
+        agent_session: activeJobs.filter((j) => j.jobType === 'agent_session').length,
       },
       byScheduleType: {
         cron: activeJobs.filter((j) => j.cronExpression).length,

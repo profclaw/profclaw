@@ -6,6 +6,10 @@
  */
 
 import type { z } from 'zod';
+import type { ToolTier, ModelCapabilityLevel } from '../../providers/core/types.js';
+
+// Re-export for consumers that import from execution/types
+export type { ToolTier, ModelCapabilityLevel };
 
 // Security Types
 
@@ -208,21 +212,7 @@ export type ToolCategory =
   | 'browser'      // Browser automation (Playwright)
   | 'custom';      // User-defined
 
-/**
- * Tool tier determines which models receive this tool.
- * - essential: Core tools that work reliably with any model (8-10 tools)
- * - standard: Tools that need moderate reasoning (25-30 tools)
- * - full: All tools, only for large/capable models (72 tools)
- */
-export type ToolTier = 'essential' | 'standard' | 'full';
-
-/**
- * Model capability level for adaptive prompting and tool selection.
- * - basic: Small/local models (<14B params). Simple instruction following.
- * - instruction: Medium models (14B-70B). Can follow multi-step instructions.
- * - reasoning: Large frontier models. Chain-of-thought, complex tool orchestration.
- */
-export type ModelCapabilityLevel = 'basic' | 'instruction' | 'reasoning';
+// ToolTier and ModelCapabilityLevel imported and re-exported at top of file
 
 export interface ToolExample {
   description: string;
@@ -400,6 +390,24 @@ export interface AIToolCall {
   arguments: Record<string, unknown>;
 }
 
+export interface SelfCorrectionMeta {
+  /** Number of automatic retries performed */
+  retries: number;
+  /** Number of correction cycles applied (retries + fixable prompts) */
+  corrections: number;
+  /** Human-readable error context strings to inject into the next AI prompt */
+  promptContext: string[];
+  /** Names of alternative tools suggested by the self-correction engine */
+  alternativeTools: string[];
+  /** Parameter fix suggestions for fixable errors */
+  parameterFixes: Array<{
+    paramName: string;
+    currentValue: unknown;
+    suggestedValue: unknown;
+    reason: string;
+  }>;
+}
+
 export interface ToolCallResult {
   toolCallId: string;
   toolName: string;
@@ -410,6 +418,8 @@ export interface ToolCallResult {
     remaining: number;
     resetAt: number;
   };
+  /** Populated when self-correction was attempted (retries, fixable prompts) */
+  selfCorrection?: SelfCorrectionMeta;
 }
 
 // Registry Types

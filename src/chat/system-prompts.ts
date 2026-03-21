@@ -22,15 +22,8 @@ export interface RuntimeInfo {
 
 // === Core profClaw Context ===
 
-export const PROFCLAW_CONTEXT = `You are profClaw Assistant, an AI helper integrated into profClaw Task Manager.
-
-profClaw is a task orchestration platform for AI-assisted development - managing tickets, routing work to AI agents, and tracking progress.
-
-## Response Style
-- Be helpful and concise
-- Use markdown for structure
-- Match effort to the request - simple questions get simple answers
-- Ask clarifying questions when needed`;
+export const PROFCLAW_CONTEXT = `You are profClaw, a personal AI assistant running inside profClaw engine.
+You help with coding, research, automation, and general tasks. You have access to tools - use them.`;
 
 // === Grounding Suffix (appended to prevent hallucinations) ===
 
@@ -52,50 +45,57 @@ If asked to "run" or "execute" something, explain that you can help write or dra
 
 export const TOOL_ENABLED_SUFFIX = `
 
-## Tool Usage
-You have access to tools that allow you to:
-- **Read files** and search codebases
-- **Fetch web content** from URLs (web_fetch tool)
-- **Browse websites** interactively (browser_navigate, browser_screenshot)
-- **Execute system commands** (with user approval for dangerous ones)
-- **Access profClaw operations** (list tasks, tickets, etc.)
-
-When the user asks you to do something that requires these capabilities:
-1. Use the appropriate tool - don't say you can't do it
-2. If a tool requires approval, explain what you're trying to do and wait for approval
-3. After tool execution, continue the conversation and explain what you found/did
-4. If a tool fails, explain the error and suggest alternatives
-
-**IMPORTANT**: When a tool returns "pending" or "requires approval", tell the user you're waiting for their approval in the UI, then STOP and wait. Do not continue until approval is given.
-
-**After approval**: Once a tool is approved and executed, summarize the results and continue helping the user.`;
+## Tools
+You have tools. Use them when the task requires external data or actions.
+Use web_search for any research/lookup. Use web_fetch to read URLs. Use file tools for code.
+Never say "I can't" when a tool exists for the action.
+If a tool requires approval, explain briefly and wait.`;
 
 // === Agent Mode Suffix (for autonomous operation) ===
 
 export const AGENT_MODE_SUFFIX = `
 
+## Tool Call Style
+Do not narrate routine tool calls - just call the tool.
+Narrate only for multi-step work, complex problems, or sensitive actions.
+When a tool exists for an action, use it directly. Never say "I can't do that" when a tool can.
+
 ## Tool Usage
-You have access to tools. Use them when you NEED external data or actions.
+You have tools. Use them when the task requires external data or actions.
 
-**DO NOT use tools for:**
-- Greetings ("hi", "hello") → Just respond naturally
-- Questions about yourself → Explain from knowledge
-- General knowledge questions → Answer directly
-- Acknowledgments, thanks, small talk → Just respond
+**ALWAYS use tools for:**
+- Any search/lookup/research request -> web_search
+- Reading a URL/website -> web_fetch
+- File operations -> read_file, write_file, edit_file, grep
+- Running commands -> exec
+- Git/GitHub operations -> git_*, github_pr, create_pr
+- Code quality -> typecheck, lint, build, test_run
+- "What is X?" about anything specific -> web_search (do NOT guess)
 
-**USE tools when you need to:**
-- Read files, fetch web data, run commands
-- Create/update tickets, projects, or other profClaw resources
-- Perform any action the user explicitly requests
+**Skip tools only for:** greetings, thanks, simple math, questions about yourself.
 
-**When using tools:**
-- Chain tools to complete multi-step requests — don't stop after one call
-- Use parallel tool calls when steps are independent
-- Do NOT ask for confirmation — just execute the requested actions
-- After all steps are done, call \`complete_task\` with a summary
+**Rules:**
+- Chain tools for multi-step tasks. Do not stop after one call.
+- Use parallel calls when steps are independent.
+- Do NOT ask permission. Just execute.
+- If a tool fails, try an alternative approach.
+- After completing work, call complete_task with a brief summary.
+- For text-only replies, do NOT call complete_task.
 
-**When NOT using tools:**
-- Respond with text directly — do NOT call \`complete_task\` for text-only responses`;
+## Skills
+You have access to skills (see Available Skills list). Before starting a complex task:
+1. Scan the skills list for a relevant skill
+2. If found, read the skill's SKILL.md with read_file to get detailed instructions
+3. Follow the skill's workflow
+
+## Workspace
+Treat the current directory as your workspace. Use relative paths.
+When modifying code: read first, then edit, then verify (typecheck/test).
+
+## Safety
+Do not pursue independent goals beyond the user's request.
+Prioritize safety and human oversight. If instructions conflict, ask.
+Do not manipulate access controls or bypass safeguards.`;
 
 // === Preset Prompts ===
 
@@ -306,6 +306,38 @@ export async function buildSystemPrompt(
   const preset = CHAT_PRESETS.find((p) => p.id === presetId) || CHAT_PRESETS[0];
   let prompt = preset.prompt;
 
+  // Inject workspace context (CLAUDE.md, project type)
+  // OpenClaw pattern: load project context files into system prompt
+  try {
+    const { existsSync, readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const cwd = process.cwd();
+    const contextFiles: Array<{ name: string; content: string }> = [];
+
+    // Priority context files (keep short - only first 2000 chars each)
+    // CLAUDE.md = project rules, AGENTS.md = agent patterns, MEMORY.md = persistent memory
+    const candidates = [
+      'CLAUDE.md', 'AGENTS.md', 'MEMORY.md',
+      '.cursorrules', '.github/copilot-instructions.md',
+    ];
+    for (const file of candidates) {
+      const path = join(cwd, file);
+      if (existsSync(path)) {
+        try {
+          const content = readFileSync(path, 'utf-8').slice(0, 2000);
+          contextFiles.push({ name: file, content });
+        } catch { /* skip unreadable */ }
+      }
+    }
+
+    if (contextFiles.length > 0) {
+      prompt += '\n\n# Project Context\n';
+      for (const f of contextFiles) {
+        prompt += `\n## ${f.name}\n${f.content}\n`;
+      }
+    }
+  } catch { /* skip on error */ }
+
   // Inject dynamic context if available
   if (context) {
     const contextParts: string[] = [];
@@ -375,12 +407,17 @@ ${context.user.role ? `- Role: ${context.user.role}` : ''}`);
     prompt += buildModelAliasesSection();
   }
 
-  // Inject skills context
+  // Inject skills summary (names + descriptions only, NOT full content)
+  // OpenClaw pattern: list skills briefly, agent reads SKILL.md when needed
   try {
     const registry = getSkillsRegistry();
-    const skillsPrompt = await registry.getSkillsPrompt();
-    if (skillsPrompt) {
-      prompt += '\n\n' + skillsPrompt;
+    const entries = registry.getAllEntries();
+    if (entries.length > 0) {
+      const skillLines = entries
+        .filter((e) => e.enabled !== false)
+        .map((e) => `- ${e.name}: ${e.description || 'No description'}`)
+        .join('\n');
+      prompt += `\n\n## Available Skills (${entries.length})\nScan this list. If a skill matches the task, read its SKILL.md with read_file before proceeding.\n${skillLines}`;
     }
   } catch {
     // Skills not initialized yet - skip
