@@ -17,8 +17,11 @@ let detectPromise: Promise<string> | undefined;
  * Auto-detect the profClaw server by probing /health on candidate ports.
  * Caches the result so subsequent calls don't re-probe.
  * Uses a shared promise to deduplicate concurrent calls.
+ *
+ * Exported so callers that need the base URL directly (e.g. TUI, REPL, print
+ * mode) can share the same detection logic without duplicating it.
  */
-async function detectBaseUrl(): Promise<string> {
+export async function detectBaseUrl(): Promise<string> {
   if (resolvedBaseUrl) return resolvedBaseUrl;
   if (detectPromise) return detectPromise;
   detectPromise = doDetect();

@@ -86,6 +86,8 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { name: '/status', description: 'Server and provider health', hasSubPicker: false, immediate: true },
   { name: '/run', description: 'Execute a shell command', hasSubPicker: false, immediate: false },
   { name: '/retry', description: 'Retry last message', hasSubPicker: false, immediate: true },
+  { name: '/diff', description: 'Show unified diff of all file changes this session', hasSubPicker: false, immediate: true },
+  { name: '/rewind', description: 'List or restore file snapshots (optional: <path> or --turn <n>)', hasSubPicker: false, immediate: false },
   { name: '/clear', description: 'Clear display', hasSubPicker: false, immediate: true },
   { name: '/help', description: 'Show all commands', hasSubPicker: false, immediate: true },
   { name: '/exit', description: 'Quit', hasSubPicker: false, immediate: true },

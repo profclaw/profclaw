@@ -35,6 +35,7 @@ import { tuiCommand } from './commands/tui.js';
 import { importCommands } from './commands/import.js';
 import { historyCommands } from './commands/history.js';
 import { planCommands } from './commands/plan.js';
+import { initCommand } from './commands/init.js';
 
 const VERSION = '2.0.0';
 
@@ -95,6 +96,7 @@ program.addCommand(tuiCommand());
 program.addCommand(importCommands());
 program.addCommand(historyCommands());
 program.addCommand(planCommands());
+program.addCommand(initCommand());
 
 // Default action (no command) - show banner and help
 program.action(() => {

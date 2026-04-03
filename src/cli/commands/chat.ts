@@ -9,6 +9,8 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { api } from '../utils/api.js';
 import { error, success, spinner, info } from '../utils/output.js';
+import { getSessionDiffTracker } from '../../agents/session-diff.js';
+import { getFileSnapshotManager } from '../../agents/file-snapshots.js';
 
 // === Types ===
 
@@ -225,31 +227,14 @@ async function startTUI(options: ChatOptions): Promise<void> {
   const { ChatApp } = await import('../ink/ChatApp.js');
   const { streamChat, createConversation: createConv } = await import('../interactive/stream-client.js');
   const { getConfig } = await import('../utils/config.js');
+  const { detectBaseUrl } = await import('../utils/api.js');
   type AgentStatusState = 'idle' | 'thinking' | 'executing' | 'complete' | 'error';
 
   const config = getConfig();
-  // Auto-detect the running profClaw server
-  const CANDIDATE_PORTS = ['3000', '3001', '3002', '9100'];
-  let resolvedUrl = config.apiUrl !== 'http://localhost:3000' ? config.apiUrl : undefined;
-  if (!resolvedUrl && process.env.PORT) {
-    resolvedUrl = `http://localhost:${process.env.PORT}`;
-  }
-  if (!resolvedUrl) {
-    for (const port of CANDIDATE_PORTS) {
-      try {
-        const r = await fetch(`http://localhost:${port}/health`, { signal: AbortSignal.timeout(1000) });
-        if (r.ok) {
-          const body = await r.json() as Record<string, unknown>;
-          if (body.service === 'profclaw') {
-            resolvedUrl = `http://localhost:${port}`;
-            break;
-          }
-        }
-      } catch { /* next */ }
-    }
-  }
+  // Auto-detect the running profClaw server via shared utility
+  const resolvedUrl = await detectBaseUrl();
   const serverConfig = {
-    baseUrl: resolvedUrl || config.apiUrl || 'http://localhost:3000',
+    baseUrl: resolvedUrl,
     apiToken: config.apiToken,
   };
 
@@ -620,6 +605,112 @@ async function startTUI(options: ChatOptions): Promise<void> {
         return true;
       }
 
+      case 'diff': {
+        agentStatus = 'thinking';
+        agentAction = 'Generating diff...';
+        rerender();
+
+        const diffTracker = getSessionDiffTracker();
+        const changedFiles = diffTracker.getChangedFiles();
+
+        if (changedFiles.length === 0) {
+          agentStatus = 'idle';
+          agentAction = undefined;
+          pushInfo('No file changes in this session.');
+          return true;
+        }
+
+        const diffOutput = await diffTracker.generateDiff();
+        agentStatus = 'idle';
+        agentAction = undefined;
+
+        const summary = changedFiles
+          .map(f => `- \`${f.path}\` (${f.status})`)
+          .join('\n');
+
+        pushInfo(
+          `**Session diff** — ${changedFiles.length} file(s) changed:\n\n${summary}\n\n\`\`\`diff\n${diffOutput.trimEnd()}\n\`\`\``,
+        );
+        return true;
+      }
+
+      case 'rewind': {
+        const snapshotManager = getFileSnapshotManager();
+
+        // /rewind --turn <n>
+        const turnFlagIdx = args.indexOf('--turn');
+        if (turnFlagIdx !== -1) {
+          const turnArg = args[turnFlagIdx + 1];
+          const turnIndex = parseInt(turnArg ?? '', 10);
+
+          if (isNaN(turnIndex)) {
+            pushInfo('Usage: `/rewind --turn <n>` where n is a turn number.');
+            return true;
+          }
+
+          agentStatus = 'thinking';
+          agentAction = `Rewinding turn ${turnIndex}...`;
+          rerender();
+
+          const results = await snapshotManager.rewindTurn(turnIndex);
+          agentStatus = 'idle';
+          agentAction = undefined;
+
+          if (results.length === 0) {
+            pushInfo(`No files were modified during turn ${turnIndex}.`);
+            return true;
+          }
+
+          const lines = results.map(r =>
+            `- \`${r.path}\` — ${r.restored ? 'restored' : 'no snapshot found'}`,
+          );
+          pushInfo(
+            `**Rewind turn ${turnIndex}** — ${results.filter(r => r.restored).length}/${results.length} files restored:\n\n${lines.join('\n')}`,
+          );
+          return true;
+        }
+
+        // /rewind <path>
+        if (args[0] && !args[0].startsWith('--')) {
+          const filePath = args[0];
+
+          agentStatus = 'thinking';
+          agentAction = `Rewinding ${filePath}...`;
+          rerender();
+
+          const result = await snapshotManager.rewind(filePath);
+          agentStatus = 'idle';
+          agentAction = undefined;
+
+          if (!result.restored) {
+            pushInfo(`No snapshot found for \`${filePath}\`. The file may not have been modified this session.`);
+          } else {
+            pushInfo(`Rewound \`${result.path}\` to snapshot from turn ${result.turnIndex}.`);
+          }
+          return true;
+        }
+
+        // /rewind (no args) — list modified files
+        const modifiedFiles = snapshotManager.getModifiedFiles();
+
+        if (modifiedFiles.length === 0) {
+          pushInfo('No file snapshots in this session.');
+          return true;
+        }
+
+        const fileList = modifiedFiles
+          .map(f => {
+            const age = new Date(f.lastModified).toLocaleTimeString();
+            return `- \`${f.path}\` — ${f.snapshotCount} snapshot(s), last at ${age}`;
+          })
+          .join('\n');
+
+        pushInfo(
+          `**Snapshots this session** (${modifiedFiles.length} file(s)):\n\n${fileList}\n\nUse \`/rewind <path>\` to restore a file, or \`/rewind --turn <n>\` to rewind all changes from a turn.`,
+        );
+        return true;
+      }
+
       case 'help':
       case 'h':
       case '?': {
@@ -639,6 +730,12 @@ async function startTUI(options: ChatOptions): Promise<void> {
           '  `/sessions` — List recent conversations',
           '  `/resume <id>` — Switch to a previous session',
           '  `/clear` — Clear display (history preserved on server)',
+          '',
+          '**File Changes**',
+          '  `/diff` — Show unified diff of all file changes this session',
+          '  `/rewind` — List files with snapshots this session',
+          '  `/rewind <path>` — Restore a file to its last snapshot',
+          '  `/rewind --turn <n>` — Rewind all changes from turn N',
           '',
           '**Utilities**',
           '  `/status` — Server and provider health',
@@ -979,29 +1076,15 @@ async function startTUI(options: ChatOptions): Promise<void> {
 async function startREPL(options: ChatOptions): Promise<void> {
   const { startInteractiveREPL } = await import('../interactive/index.js');
   const { getConfig } = await import('../utils/config.js');
+  const { detectBaseUrl } = await import('../utils/api.js');
 
   const config = getConfig();
-
-  // Auto-detect server for REPL too
-  const { api: apiClient } = await import('../utils/api.js');
-  const healthCheck = await apiClient.get('/health');
-  void healthCheck; // triggers port detection cache
-
-  const REPL_PORTS = ['3000', '3001', '3002', '9100'];
-  let replBaseUrl = config.apiUrl !== 'http://localhost:3000' ? config.apiUrl : undefined;
-  if (!replBaseUrl && process.env.PORT) replBaseUrl = `http://localhost:${process.env.PORT}`;
-  if (!replBaseUrl) {
-    for (const port of REPL_PORTS) {
-      try {
-        const r = await fetch(`http://localhost:${port}/health`, { signal: AbortSignal.timeout(1000) });
-        if (r.ok) { const b = await r.json() as Record<string, unknown>; if (b.service === 'profclaw') { replBaseUrl = `http://localhost:${port}`; break; } }
-      } catch { /* next */ }
-    }
-  }
+  // Auto-detect the running profClaw server via shared utility
+  const replBaseUrl = await detectBaseUrl();
 
   await startInteractiveREPL({
     server: {
-      baseUrl: replBaseUrl || config.apiUrl || 'http://localhost:3000',
+      baseUrl: replBaseUrl,
       apiToken: config.apiToken,
     },
     model: options.model,
