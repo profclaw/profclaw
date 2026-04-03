@@ -1,0 +1,99 @@
+---
+title: "Groq"
+description: "Ultra-fast LLM inference via Groq's LPU hardware. Llama 3.3 70B at speeds up to 10x faster than GPU cloud providers."
+---
+
+Groq's Language Processing Units (LPUs) deliver the fastest inference available. Llama 3.3 70B runs at hundreds of tokens per second - ideal for real-time chat and low-latency agentic workflows.
+
+## Supported Models
+
+| Model | ID | Context | Max Output | Tools | Input $/1M | Output $/1M |
+|-------|----|---------|------------|-------|-----------|------------|
+| Llama 3.3 70B | `llama-3.3-70b-versatile` | 128K | 32K | Yes | $0.59 | $0.79 |
+| Llama 3.1 8B Instant | `llama-3.1-8b-instant` | 128K | 8K | Yes | $0.05 | $0.08 |
+| Mixtral 8x7B | `mixtral-8x7b-32768` | 32K | 8K | Yes | $0.24 | $0.24 |
+
+## Setup
+
+<Steps>
+  <Step title="Get an API key">
+    Sign up at [console.groq.com](https://console.groq.com). Free tier available.
+  </Step>
+  <Step title="Set the environment variable">
+    ```bash
+    export GROQ_API_KEY=gsk_...
+    ```
+  </Step>
+  <Step title="Verify">
+    ```bash
+    profclaw doctor --provider groq
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="GROQ_API_KEY" type="string" required>
+  Your Groq API key. Format: `gsk_...`
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    GROQ_API_KEY=gsk_...
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    providers:
+      groq:
+        api_key: "${GROQ_API_KEY}"
+    ```
+  </Tab>
+</Tabs>
+
+## Model Aliases
+
+| Alias | Model |
+|-------|-------|
+| `groq` | llama-3.3-70b-versatile |
+| `groq-fast` | llama-3.1-8b-instant |
+| `groq-mixtral` | mixtral-8x7b-32768 |
+
+## Usage Examples
+
+<CodeGroup>
+  ```bash CLI
+  # Fast general purpose
+  profclaw chat --model groq "Explain this error message"
+
+  # Fastest (8B model)
+  profclaw chat --model groq-fast "One-line summary of this PR"
+  ```
+
+  ```typescript SDK
+  import { chat } from 'profclaw';
+
+  // Groq for low-latency responses
+  const response = await chat("Is this code thread-safe?", {
+    model: "groq",
+    temperature: 0.1,
+  });
+  ```
+</CodeGroup>
+
+## Notes
+
+- Groq is ranked 5th in auto-selection priority after Anthropic, OpenAI, Azure, and Google.
+- `llama-3.1-8b-instant` is one of the cheapest available models at $0.05/1M input tokens.
+- Groq has a generous free tier with rate limits per day.
+- API is OpenAI-compatible - endpoint: `https://api.groq.com/openai/v1`
+
+## Related
+
+- [AI Providers Overview](/ai-providers/overview) - Compare all 37 supported providers
+- [Cerebras](/ai-providers/cerebras) - Wafer-scale inference for even faster token speeds
+- [Together AI](/ai-providers/together) - Hundreds of open-source models via one API
+- [profclaw provider](/cli/provider) - Add and test providers from the CLI

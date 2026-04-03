@@ -13,6 +13,7 @@ import type {
   ToolProgressUpdate,
   AIToolCall,
   ToolCallResult,
+  SelfCorrectionMeta,
   ApprovalRequest,
   ApprovalDecision,
 } from "./types.js";
@@ -37,6 +38,13 @@ import {
   redactSecrets,
 } from "./secrets.js";
 import { checkSafetyBounds } from "./guardrails.js";
+import {
+  CorrectionTracker,
+  executeWithSelfCorrection,
+  formatErrorContextForPrompt,
+  suggestParameterFixes,
+  classifyFailure,
+} from "./self-correction.js";
 
 // Constants
 
@@ -58,8 +66,43 @@ const redactToolText = (text?: string): string | undefined => {
 
 // Tool Executor
 
+/** Error codes that represent user/policy decisions - self-correction must not retry these */
+const NON_RETRYABLE_CODES = new Set([
+  'APPROVAL_REQUIRED',
+  'DENIED',
+  'USER_DENIED',
+  'SAFETY_BLOCKED',
+  'PROMPT_BLOCKED',
+  'RATE_LIMITED',
+  'TOOL_NOT_FOUND',
+  'MISSING_PARAMS',
+  'INVALID_PARAMS',
+]);
+
+/** Maximum retries per tool call enforced by the correction budget */
+const MAX_CORRECTIONS_PER_CALL = 3;
+
 export class ToolExecutor {
   private abortControllers: Map<string, AbortController> = new Map();
+  /**
+   * One CorrectionTracker per conversation, reset when a conversation ends.
+   * Key: conversationId
+   */
+  private correctionTrackers: Map<string, CorrectionTracker> = new Map();
+
+  private getOrCreateTracker(conversationId: string): CorrectionTracker {
+    let tracker = this.correctionTrackers.get(conversationId);
+    if (!tracker) {
+      tracker = new CorrectionTracker(MAX_CORRECTIONS_PER_CALL);
+      this.correctionTrackers.set(conversationId, tracker);
+    }
+    return tracker;
+  }
+
+  /** Call this when a conversation is done to free the tracker. */
+  resetCorrectionBudget(conversationId: string): void {
+    this.correctionTrackers.delete(conversationId);
+  }
 
   /**
    * Execute a single tool call
@@ -304,54 +347,124 @@ export class ToolExecutor {
       };
     }
 
-    // Execute the tool through process pool
+    // Execute the tool through process pool, wrapped with self-correction
     const processPool = getProcessPool();
+    const correctionTracker = this.getOrCreateTracker(context.conversationId);
 
-    try {
-      const result = await processPool.submit(
-        toolCallId,
-        toolCall.name,
-        context.conversationId,
-        async () => {
-          // Check if sandbox execution is required
-          if (
-            securityCheck.sandboxRequired &&
-            securityPolicy.mode === "sandbox"
-          ) {
-            return this.executeInSandbox(tool, params, context, toolCallId);
-          }
-
-          // Normal execution
-          return this.executeWithTimeout(
-            tool,
-            params,
-            {
-              ...context,
-              toolCallId,
-              sessionManager: getSessionManager(),
-              securityPolicy,
+    /**
+     * Inner executor: submits one attempt to the process pool and converts
+     * thrown pool errors (PoolFullError, TimeoutError) into ToolResult failures
+     * so the self-correction classifier can handle them uniformly.
+     */
+    const poolExecutor = async (): Promise<ToolResult> => {
+      try {
+        return await processPool.submit(
+          toolCallId,
+          toolCall.name,
+          context.conversationId,
+          async () => {
+            if (
+              securityCheck.sandboxRequired &&
+              securityPolicy.mode === "sandbox"
+            ) {
+              return this.executeInSandbox(tool, params, context, toolCallId);
+            }
+            return this.executeWithTimeout(
+              tool,
+              params,
+              {
+                ...context,
+                toolCallId,
+                sessionManager: getSessionManager(),
+                securityPolicy,
+              },
+              DEFAULT_TIMEOUT_MS,
+            );
+          },
+          {
+            userId: context.userId,
+            priority: tool.securityLevel === "safe" ? 1 : 0,
+            timeout: DEFAULT_TIMEOUT_MS,
+          },
+        );
+      } catch (err) {
+        if (err instanceof PoolFullError) {
+          return {
+            success: false,
+            error: {
+              code: "POOL_FULL",
+              message: "Too many concurrent executions. Please try again later.",
+              retryable: true,
             },
-            DEFAULT_TIMEOUT_MS,
+          };
+        }
+        if (err instanceof TimeoutError || err instanceof QueueTimeoutError) {
+          return {
+            success: false,
+            error: {
+              code: "TIMEOUT",
+              message: err instanceof Error ? err.message : "Execution timed out",
+              retryable: true,
+            },
+          };
+        }
+        return {
+          success: false,
+          error: {
+            code: "EXECUTION_ERROR",
+            message: err instanceof Error ? err.message : "Unknown error",
+          },
+        };
+      }
+    };
+
+    // Run with self-correction (auto-retry for retryable, context injection for fixable)
+    const correctionOutcome = await executeWithSelfCorrection(
+      toolCall.name,
+      poolExecutor,
+      {
+        correctionBudget: correctionTracker.canCorrect()
+          ? correctionTracker.getStatus().maxCorrections - correctionTracker.getStatus().used
+          : 0,
+        signal: undefined,
+        onRetry: (attempt, error) => {
+          logger.info(
+            `[Executor] Self-correction retry ${attempt} for "${toolCall.name}": ${error.code} - ${error.message}`,
+            { component: "ToolExecutor", toolName: toolCall.name, attempt },
           );
+          correctionTracker.recordCorrection();
         },
-        {
-          userId: context.userId,
-          priority: tool.securityLevel === "safe" ? 1 : 0,
-          timeout: DEFAULT_TIMEOUT_MS,
-        },
-      );
+      },
+    );
 
-      const durationMs = Date.now() - startTime;
-      const sanitizedOutput = redactToolText(result.output);
-      const sanitizedResult: ToolResult =
-        sanitizedOutput === result.output
-          ? result
-          : {
-              ...result,
-              output: sanitizedOutput,
-            };
+    const rawResult = correctionOutcome.result;
+    const durationMs = Date.now() - startTime;
 
-      // Log successful execution
+    // Sanitize output secrets
+    const sanitizedOutput = redactToolText(rawResult.output);
+    const sanitizedResult: ToolResult =
+      sanitizedOutput === rawResult.output
+        ? rawResult
+        : { ...rawResult, output: sanitizedOutput };
+
+    // Audit log the final outcome
+    if (rawResult.error?.code === "POOL_FULL") {
+      auditLogger.logError({
+        toolName: toolCall.name,
+        toolCallId,
+        conversationId: context.conversationId,
+        userId: context.userId,
+        error: rawResult.error.message,
+      });
+    } else if (rawResult.error?.code === "TIMEOUT") {
+      auditLogger.logTimeout({
+        toolName: toolCall.name,
+        toolCallId,
+        conversationId: context.conversationId,
+        userId: context.userId,
+        durationMs,
+      });
+    } else {
       auditLogger.logExecution({
         toolName: toolCall.name,
         toolCallId,
@@ -366,108 +479,66 @@ export class ToolExecutor {
         output: sanitizedResult.output,
         error: sanitizedResult.error?.message,
       });
+    }
 
+    if (sanitizedResult.success) {
       logger.info(
-        `[Executor] Tool ${toolCall.name} completed in ${durationMs}ms`,
+        `[Executor] Tool ${toolCall.name} completed in ${durationMs}ms` +
+          (correctionOutcome.retries > 0
+            ? ` (after ${correctionOutcome.retries} self-correction retries)`
+            : ""),
         { component: "ToolExecutor" },
       );
-
-      return {
-        toolCallId,
-        toolName: toolCall.name,
-        result: {
-          ...sanitizedResult,
-          durationMs,
-        },
-        rateLimitInfo: {
-          remaining: rateLimitResult.remaining - 1,
-          resetAt: rateLimitResult.resetAt,
-        },
-      };
-    } catch (error) {
-      const durationMs = Date.now() - startTime;
-
-      // Handle specific error types
-      if (error instanceof PoolFullError) {
-        auditLogger.logError({
-          toolName: toolCall.name,
-          toolCallId,
-          conversationId: context.conversationId,
-          userId: context.userId,
-          error: "Execution pool is full",
-        });
-
-        return {
-          toolCallId,
-          toolName: toolCall.name,
-          result: {
-            success: false,
-            error: {
-              code: "POOL_FULL",
-              message:
-                "Too many concurrent executions. Please try again later.",
-              retryable: true,
-            },
-            durationMs,
-          },
-        };
-      }
-
-      if (error instanceof TimeoutError || error instanceof QueueTimeoutError) {
-        auditLogger.logTimeout({
-          toolName: toolCall.name,
-          toolCallId,
-          conversationId: context.conversationId,
-          userId: context.userId,
-          durationMs,
-        });
-
-        return {
-          toolCallId,
-          toolName: toolCall.name,
-          result: {
-            success: false,
-            error: {
-              code: "TIMEOUT",
-              message: error.message,
-              retryable: true,
-            },
-            durationMs,
-          },
-        };
-      }
-
-      // Generic error
-      auditLogger.logExecution({
-        toolName: toolCall.name,
-        toolCallId,
-        conversationId: context.conversationId,
-        userId: context.userId,
-        params,
-        securityMode: securityPolicy.mode,
-        success: false,
-        durationMs,
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
-
+    } else {
       logger.error(
-        `[Executor] Tool ${toolCall.name} failed`,
-        error instanceof Error ? error : undefined,
+        `[Executor] Tool ${toolCall.name} failed after ${correctionOutcome.retries} retries`,
+        undefined,
       );
+    }
 
-      return {
-        toolCallId,
-        toolName: toolCall.name,
-        result: {
-          success: false,
-          error: {
-            code: "EXECUTION_ERROR",
-            message: error instanceof Error ? error.message : "Unknown error",
-          },
-          durationMs,
-        },
+    // Build self-correction metadata to attach to the result
+    const hasCorrectionActivity =
+      correctionOutcome.retries > 0 || correctionOutcome.corrections > 0;
+
+    let selfCorrection: SelfCorrectionMeta | undefined;
+    if (hasCorrectionActivity || correctionOutcome.errorContexts.length > 0) {
+      // For fixable failures, generate parameter fix suggestions
+      const parameterFixes =
+        !sanitizedResult.success && sanitizedResult.error
+          ? (() => {
+              const cls = classifyFailure(sanitizedResult.error, toolCall.name);
+              return cls.type === 'fixable'
+                ? suggestParameterFixes(sanitizedResult.error, toolCall.name, params)
+                : [];
+            })()
+          : [];
+
+      selfCorrection = {
+        retries: correctionOutcome.retries,
+        corrections: correctionOutcome.corrections,
+        promptContext: correctionOutcome.errorContexts.map(
+          formatErrorContextForPrompt,
+        ),
+        alternativeTools: correctionOutcome.alternativesSuggested.map(
+          (a) => a.toolName,
+        ),
+        parameterFixes,
       };
     }
+
+    return {
+      toolCallId,
+      toolName: toolCall.name,
+      result: {
+        ...sanitizedResult,
+        durationMs,
+      },
+      rateLimitInfo: {
+        remaining: rateLimitResult.remaining - 1,
+        resetAt: rateLimitResult.resetAt,
+      },
+      ...(selfCorrection ? { selfCorrection } : {}),
+    };
   }
 
   /**

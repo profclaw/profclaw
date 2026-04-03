@@ -34,9 +34,12 @@ import {
 } from './conversations.js';
 import { needsCompaction, compactMessages } from './memory.js';
 import { getSessionModel } from './execution/tools/session-status.js';
+import { routeQuery, recordRoutingDecision, isSmartRouterEnabled } from '../providers/smart-router.js';
+import { AutomationPatternDetector } from './proactive/index.js';
+import { observeWindow } from '../memory/observational.js';
 import type { IncomingMessage, ChatEvent, ChatContext as RegistryChatContext } from './providers/types.js';
 import type { ChatContext as PromptChatContext } from './system-prompts.js';
-import type { ChatMessage } from '../providers/core/types.js';
+import type { ChatMessage, ProviderType } from '../providers/core/types.js';
 
 // CONSTANTS
 
@@ -45,6 +48,9 @@ const MAX_CONCURRENT = parseInt(process.env['POOL_MAX_CONCURRENT'] ?? '50', 10);
 
 /** Currently processing count */
 let activeCount = 0;
+
+/** Singleton automation pattern detector - learns across all conversations */
+const patternDetector = new AutomationPatternDetector({ minOccurrences: 3 });
 
 // CONVERSATION CACHE
 
@@ -199,8 +205,24 @@ async function handleIncomingMessage(event: ChatEvent, _context: RegistryChatCon
       messages = result.messages;
     }
 
-    // Resolve model - per-conversation override or system default
-    const modelOverride = getSessionModel(conversationId);
+    // Resolve model - per-conversation override, smart routing, or system default
+    const sessionModel = getSessionModel(conversationId);
+
+    // Smart Model Router: auto-select cheapest capable model when no explicit override
+    const { aiProvider } = await import('../providers/ai-sdk.js');
+    let resolvedModel = sessionModel;
+    let routingDecision;
+
+    if (!sessionModel && isSmartRouterEnabled()) {
+      const availableProviders = new Set(aiProvider.getConfiguredProviders() as ProviderType[]);
+      routingDecision = routeQuery(message.text, availableProviders, {
+        conversationLength: messages.length,
+        hasToolUse: false, // simple chat path has no tools
+        hasImages: false,
+      });
+      resolvedModel = routingDecision.selectedModel.id;
+      recordRoutingDecision(routingDecision);
+    }
 
     // Build system prompt with channel personality
     const personality = groupManager.getPersonality(message.chatId, message.provider);
@@ -209,7 +231,7 @@ async function handleIncomingMessage(event: ChatEvent, _context: RegistryChatCon
         name: message.senderName || message.senderUsername,
       },
       runtime: {
-        model: modelOverride,
+        model: resolvedModel,
         conversationId,
       },
     };
@@ -235,11 +257,10 @@ async function handleIncomingMessage(event: ChatEvent, _context: RegistryChatCon
       timestamp: message.timestamp.toISOString(),
     });
 
-    // Call AI (lazy import to avoid loading all AI SDKs at startup)
-    const { aiProvider } = await import('../providers/ai-sdk.js');
+    // Call AI with smart-routed or user-selected model
     const response = await aiProvider.chat({
       messages: aiMessages,
-      model: modelOverride,
+      model: resolvedModel,
       systemPrompt,
       temperature: 0.7,
     });
@@ -286,7 +307,45 @@ async function handleIncomingMessage(event: ChatEvent, _context: RegistryChatCon
       conversationId,
       model: response.model,
       tokens: response.usage.totalTokens,
+      ...(routingDecision && {
+        smartRouted: true,
+        complexity: routingDecision.complexity.tier,
+        savings: `${routingDecision.savingsPercent}%`,
+      }),
     });
+
+    // Track query for automation pattern detection (non-blocking)
+    patternDetector.recordQuery(message.text);
+    const automationHint = patternDetector.detectPatterns();
+    if (automationHint) {
+      // Send a follow-up suggestion message
+      const hint = automationHint.suggestion;
+      const suggestionText = `${hint.message}\n\nI can set this up: "${hint.templateName}" (${hint.suggestedCron}).\nJust say "automate it" or "set it up" to create this automation.`;
+
+      sendProviderMessage({
+        provider: message.provider,
+        accountId: message.accountId,
+        to: message.chatId,
+        text: suggestionText,
+        threadId: replyTarget.threadId,
+      }).catch(() => {}); // fire and forget
+
+      logger.info('[MessageHandler] Automation pattern detected', {
+        pattern: automationHint.pattern,
+        count: automationHint.count,
+        template: hint.templateName,
+      });
+    }
+
+    // Observational memory: extract learnings every 10 messages (async, non-blocking)
+    if (messages.length > 0 && messages.length % 10 === 0) {
+      const observationMessages = messages.map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      }));
+      observeWindow(conversationId, observationMessages, 20, message.senderUsername)
+        .catch(() => {}); // fire and forget
+    }
   } catch (error) {
     logger.error('[MessageHandler] Failed to process message', {
       provider: message.provider,

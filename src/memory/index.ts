@@ -57,3 +57,14 @@ export {
   type MemoryWatcherOptions,
   type MemoryWatcherState,
 } from './memory-watcher.js';
+
+// Observational Memory
+export {
+  observeConversation,
+  observeWindow,
+  compressToDigest,
+  type ConversationSnapshot,
+  type Observation,
+  type ObservationResult,
+  type ObservationType,
+} from './observational.js';

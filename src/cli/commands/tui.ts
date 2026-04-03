@@ -3,6 +3,22 @@ import chalk from 'chalk';
 import { api } from '../utils/api.js';
 import { spinner, error, createTable, formatRelativeTime, truncate } from '../utils/output.js';
 
+async function launchInkDashboard(): Promise<void> {
+  // Check if we have a real TTY (Ink needs raw mode)
+  if (!process.stdin.isTTY) {
+    console.error(chalk.red('Error: Ink TUI requires an interactive terminal (TTY).'));
+    console.error(chalk.dim('Run this command directly in your terminal, not piped.'));
+    process.exit(1);
+  }
+
+  // Dynamic import so ink is only loaded when --ink flag is used
+  const { render } = await import('ink');
+  const React = await import('react');
+  const { DashboardApp } = await import('../ink/DashboardApp.js');
+  const { waitUntilExit } = render(React.createElement(DashboardApp));
+  await waitUntilExit();
+}
+
 interface SystemStatus {
   version: string;
   uptime: number;
@@ -160,9 +176,20 @@ export function tuiCommand(): Command {
   const cmd = new Command('tui')
     .description('Show terminal dashboard')
     .option('--watch', 'Refresh dashboard every 5 seconds')
-    .option('--interval <seconds>', 'Refresh interval in seconds', '5');
+    .option('--interval <seconds>', 'Refresh interval in seconds', '5')
+    .option('--ink', 'Launch rich interactive Ink dashboard (tabs, auto-refresh, keyboard nav)');
 
-  cmd.action(async (options: { watch?: boolean; interval: string }) => {
+  cmd.action(async (options: { watch?: boolean; interval: string; ink?: boolean }) => {
+    if (options.ink) {
+      try {
+        await launchInkDashboard();
+      } catch (err) {
+        error(err instanceof Error ? err.message : 'Failed to launch Ink dashboard');
+        process.exit(1);
+      }
+      return;
+    }
+
     try {
       await renderDashboard();
 

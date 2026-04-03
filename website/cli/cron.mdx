@@ -1,0 +1,119 @@
+---
+title: "profclaw cron"
+description: "Manage scheduled jobs - list, create, enable, disable, and trigger cron jobs."
+---
+
+## Synopsis
+
+```bash
+profclaw cron <subcommand> [flags]
+```
+
+## Description
+
+`cron` manages scheduled tasks that run automatically on a schedule. Cron jobs can trigger agent tasks, send notifications, sync data, or run any configured workflow. They use standard cron expression syntax for scheduling and are defined in `config/cron.yml` or via the API.
+
+## Subcommands
+
+| Subcommand | Description |
+|---|---|
+| `list` | List all configured cron jobs |
+| `show <id>` | Show details for a cron job |
+| `trigger <id>` | Manually trigger a cron job immediately |
+| `enable <id>` | Enable a disabled cron job |
+| `disable <id>` | Disable a cron job without deleting it |
+| `create` | Create a new cron job (interactive or with flags) |
+| `delete <id>` | Delete a cron job |
+
+## `cron list`
+
+<ParamField query="--enabled-only" type="boolean">
+  Show only enabled cron jobs.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output as JSON array.
+</ParamField>
+
+## `cron trigger <id>`
+
+Executes the cron job immediately regardless of its schedule. Useful for testing before deployment or running jobs on demand.
+
+<ParamField query="--json" type="boolean">
+  Output trigger result as JSON.
+</ParamField>
+
+## `cron create`
+
+<ParamField query="--name" type="string">
+  Job name (unique identifier).
+</ParamField>
+
+<ParamField query="--schedule" type="string">
+  Cron schedule expression (e.g., `0 9 * * 1-5` for weekdays at 9am).
+</ParamField>
+
+<ParamField query="--prompt" type="string">
+  Agent prompt to execute on schedule.
+</ParamField>
+
+<ParamField query="--agent" type="string">
+  Agent to assign the scheduled task to.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash List all scheduled jobs
+profclaw cron list
+```
+
+```bash List enabled jobs only
+profclaw cron list --enabled-only
+```
+
+```bash Show job details
+profclaw cron show daily-report
+```
+
+```bash Manually trigger a job
+profclaw cron trigger daily-report
+```
+
+```bash Enable a disabled job
+profclaw cron enable daily-report
+```
+
+```bash Disable a job (keep config)
+profclaw cron disable daily-report
+```
+
+```bash Create a weekday morning job
+profclaw cron create \
+  --name standup-summary \
+  --schedule "0 9 * * 1-5" \
+  --prompt "Summarize yesterday's GitHub activity" \
+  --agent claude
+```
+
+```bash Delete a job
+profclaw cron delete standup-summary
+```
+</CodeGroup>
+
+## Cron Expression Reference
+
+| Expression | Description |
+|---|---|
+| `0 9 * * 1-5` | Weekdays at 9:00 AM |
+| `0 */2 * * *` | Every 2 hours |
+| `0 0 * * *` | Daily at midnight |
+| `0 0 * * 0` | Weekly on Sunday |
+| `0 0 1 * *` | Monthly on the 1st |
+| `*/15 * * * *` | Every 15 minutes |
+
+## Related
+
+- [`profclaw task`](/cli/task) - Tasks created by cron jobs appear here
+- [`profclaw serve --no-cron`](/cli/serve) - Disable cron when starting the server
+- [Cron Templates](/configuration) - Pre-built schedule configurations

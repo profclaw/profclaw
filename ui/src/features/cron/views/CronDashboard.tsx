@@ -52,6 +52,7 @@ import { JobCard } from '../components/JobCard';
 import { JobHistoryModal } from '../components/JobHistoryModal';
 import { CreateJobModal } from '../components/CreateJobModal';
 import { EditJobModal } from '../components/EditJobModal';
+import { NaturalLanguageInput } from '../components/NaturalLanguageInput';
 import type { JobStatus, JobType, ScheduledJob } from '../types';
 
 // Filter options
@@ -239,6 +240,9 @@ export function CronDashboard() {
           <CreateJobModal />
         </div>
       </header>
+
+      {/* Natural Language Automation */}
+      <NaturalLanguageInput />
 
       {/* Stats Cards */}
       {stats && (

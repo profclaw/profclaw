@@ -1,0 +1,219 @@
+---
+title: "Plugin SDK"
+description: "Full API reference for the profClaw plugin SDK"
+---
+
+Import the SDK from `profclaw/plugins/sdk`:
+
+```typescript
+import { definePlugin } from 'profclaw/plugins/sdk';
+```
+
+## `definePlugin(plugin: ProfClawPlugin)`
+
+The main entry point. Returns the plugin definition validated and ready for registration.
+
+```typescript
+export default definePlugin({
+  metadata: {
+    id: 'my-search',
+    name: 'My Search',
+    description: 'Custom search provider',
+    category: 'search',
+    version: '1.0.0',
+    author: 'your-name',
+    pricing: { type: 'free' },
+  },
+  settingsSchema: {
+    credentials: [
+      {
+        key: 'apiKey',
+        type: 'password',
+        label: 'API Key',
+        required: true,
+      }
+    ],
+    settings: [
+      {
+        key: 'maxResults',
+        type: 'number',
+        label: 'Max Results',
+        default: 10,
+      }
+    ],
+  },
+  tools: [...],
+  searchProvider: (config) => ({ ... }),
+  async onLoad(config) {
+    // validate config, establish connections
+  },
+  async onUnload() {
+    // cleanup
+  },
+  async healthCheck() {
+    return { healthy: true, lastCheck: new Date() };
+  },
+});
+```
+
+## `ProfClawPlugin` Interface
+
+```typescript
+export interface ProfClawPlugin {
+  metadata: PluginMetadata;
+  settingsSchema?: PluginSettingsSchema;
+  tools?: PluginToolDefinition[];
+  searchProvider?: (config: PluginConfig) => SearchProvider;
+  skills?: PluginSkillDefinition[];
+  onLoad?(config: PluginConfig): Promise<void>;
+  onUnload?(): Promise<void>;
+  healthCheck?(): Promise<PluginHealth>;
+}
+```
+
+## `PluginToolDefinition`
+
+Define AI tools that the agent can call:
+
+```typescript
+export interface PluginToolDefinition {
+  name: string;
+  description: string;
+  category?: string;
+  parameters: Record<string, {
+    type: 'string' | 'number' | 'boolean' | 'array' | 'object';
+    description: string;
+    required?: boolean;
+    enum?: string[];
+    default?: unknown;
+  }>;
+  execute(params: Record<string, unknown>): Promise<ToolResult>;
+}
+```
+
+**Example tool**:
+
+```typescript
+{
+  name: 'search_docs',
+  description: 'Search internal documentation',
+  parameters: {
+    query: { type: 'string', description: 'Search query', required: true },
+    limit: { type: 'number', description: 'Max results', default: 5 },
+  },
+  async execute({ query, limit }) {
+    const results = await mySearchApi.search(query as string, limit as number);
+    return {
+      success: true,
+      data: results,
+      metadata: { executionTime: 120 },
+    };
+  },
+}
+```
+
+## `SearchProvider` Interface
+
+```typescript
+export interface SearchProvider {
+  metadata: PluginMetadata;
+  search(query: string, options?: SearchOptions): Promise<SearchResponse>;
+  isAvailable(): Promise<boolean>;
+  healthCheck(): Promise<PluginHealth>;
+}
+```
+
+**`SearchOptions`**:
+
+```typescript
+export interface SearchOptions {
+  limit?: number;
+  offset?: number;
+  language?: string;
+  region?: string;
+  freshness?: 'day' | 'week' | 'month' | 'year';
+  safeSearch?: boolean | 'moderate' | 'strict';
+  includeImages?: boolean;
+  includeNews?: boolean;
+  includeDomains?: string[];
+  excludeDomains?: string[];
+}
+```
+
+**`SearchResponse`**:
+
+```typescript
+export interface SearchResponse {
+  results: SearchResult[];
+  query: string;
+  totalResults?: number;
+  searchTime?: number;
+  provider: string;
+  cached?: boolean;
+}
+```
+
+## `PluginConfig`
+
+The config passed to your factory and `onLoad`:
+
+```typescript
+export interface PluginConfig {
+  id: string;
+  pluginId: string;
+  enabled: boolean;
+  priority: number;        // Higher = preferred when multiple providers exist
+  settings: Record<string, unknown>;
+  credentials?: {
+    apiKey?: string;
+    baseUrl?: string;
+    [key: string]: string | undefined;
+  };
+}
+```
+
+## `ToolResult`
+
+```typescript
+export interface ToolResult {
+  success: boolean;
+  data?: unknown;
+  error?: string;
+  metadata?: {
+    executionTime: number;
+    tokensUsed?: number;
+    cost?: number;
+  };
+}
+```
+
+## `PluginHealth`
+
+```typescript
+export interface PluginHealth {
+  healthy: boolean;
+  lastCheck: Date;
+  latency?: number;
+  errorMessage?: string;
+  usageStats?: {
+    requestsToday: number;
+    requestsThisMonth: number;
+    tokensUsed?: number;
+    costEstimate?: number;
+  };
+}
+```
+
+## Skills
+
+Plugins can bundle skill definitions (SKILL.md content as strings):
+
+```typescript
+skills: [
+  {
+    name: 'my-skill',
+    description: 'Does something useful',
+    content: `# my-skill\nUse this skill to...`,
+  }
+]
+```

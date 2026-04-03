@@ -35,8 +35,8 @@ const CronCreateParamsSchema = z.object({
     .describe('Cron expression (e.g., "*/5 * * * *" for every 5 minutes, "0 9 * * 1-5" for 9am weekdays)'),
   interval: z.number().min(1000).optional()
     .describe('Alternative: interval in milliseconds (minimum 1000ms = 1 second)'),
-  type: z.enum(['http', 'tool', 'script']).default('http')
-    .describe('Job type: http (webhook), tool (execute a tool), script (run command)'),
+  type: z.enum(['http', 'tool', 'script', 'agent_session']).default('http')
+    .describe('Job type: http (webhook), tool (execute a tool), script (run command), agent_session (run AI agent with prompt)'),
   url: z.string().url().optional()
     .describe('For HTTP jobs: URL to call'),
   method: z.enum(['GET', 'POST', 'PUT', 'DELETE']).optional()
@@ -54,7 +54,17 @@ const CronCreateParamsSchema = z.object({
   args: z.array(z.string()).optional()
     .describe('For script jobs: Command arguments'),
   workdir: z.string().optional()
-    .describe('For script jobs: Working directory'),
+    .describe('For script/agent_session jobs: Working directory'),
+  // Agent session params
+  prompt: z.string().optional()
+    .describe('For agent_session jobs: The prompt/instruction for the AI agent to execute'),
+  model: z.string().optional()
+    .describe('For agent_session jobs: AI model to use (e.g., sonnet, opus)'),
+  effort: z.enum(['low', 'medium', 'high']).optional()
+    .describe('For agent_session jobs: Thinking effort level'),
+  // Delivery
+  deliverTo: z.string().optional()
+    .describe('Deliver results to this target (e.g., "telegram:<chat_id>" or "slack:#channel")'),
   maxRuns: z.number().min(1).optional()
     .describe('Stop job after this many runs'),
   maxFailures: z.number().min(1).optional()
@@ -179,6 +189,43 @@ Or use \`interval\` for fixed millisecond intervals.`,
             workdir: params.workdir || context.workdir,
           };
           break;
+
+        case 'agent_session':
+          if (!params.prompt) {
+            return {
+              success: false,
+              error: {
+                code: 'MISSING_PROMPT',
+                message: 'Agent session jobs require a prompt parameter',
+              },
+            };
+          }
+          payload = {
+            prompt: params.prompt,
+            model: params.model,
+            effort: params.effort || 'medium',
+            workdir: params.workdir || context.workdir,
+          };
+          break;
+      }
+
+      // Parse delivery target (format: "telegram:chatId" or "slack:#channel")
+      let delivery: import('../../../cron/scheduler.js').DeliveryConfig | undefined;
+      if (params.deliverTo) {
+        const [channelType, ...targetParts] = params.deliverTo.split(':');
+        const target = targetParts.join(':');
+        const validTypes = ['slack', 'webhook', 'email', 'telegram', 'discord'] as const;
+        type ValidType = typeof validTypes[number];
+        if (channelType && target && validTypes.includes(channelType as ValidType)) {
+          delivery = {
+            channels: [{
+              type: channelType as ValidType,
+              target,
+              onSuccess: true,
+              onFailure: true,
+            }],
+          };
+        }
       }
 
       const job = await createScheduledJob({
@@ -186,8 +233,9 @@ Or use \`interval\` for fixed millisecond intervals.`,
         description: params.description,
         cronExpression: params.cron,
         intervalMs: params.interval,
-        jobType: params.type,
+        jobType: params.type as JobType,
         payload,
+        delivery,
         createdBy: 'ai',
         maxRuns: params.maxRuns,
         maxFailures: params.maxFailures,

@@ -1,0 +1,106 @@
+---
+title: "profclaw devices"
+description: "Manage paired devices - list, pair with a code, unpair, and inspect device details."
+---
+
+## Synopsis
+
+```bash
+profclaw devices <subcommand> [flags]
+```
+
+## Description
+
+`devices` manages the devices that are trusted to connect to your profClaw instance. Devices are paired using short pairing codes generated from the web UI or via QR code. Once paired, a device receives a session token and can authenticate with the API.
+
+## Subcommands
+
+| Subcommand | Alias | Description |
+|---|---|---|
+| `list` | `ls` | List all paired devices |
+| `pair <code>` | - | Pair a new device using a pairing code |
+| `unpair <id>` | - | Remove a paired device |
+| `info <id>` | - | Show details for a specific device |
+
+## `devices list`
+
+<ParamField query="--json" type="boolean">
+  Output as JSON array with id, name, platform, version, and last seen time.
+</ParamField>
+
+## `devices pair <code>`
+
+<ParamField query="code" type="string" required>
+  Pairing code shown in the profClaw web UI or QR code. Codes are short-lived and single-use.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output the paired device details as JSON.
+</ParamField>
+
+## `devices unpair <id>`
+
+<ParamField query="id" type="string" required>
+  Device ID to remove. After unpairing, the device loses API access.
+</ParamField>
+
+<ParamField query="--yes" type="boolean">
+  Skip the confirmation prompt.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output `{"ok": true, "id": "..."}` on success.
+</ParamField>
+
+## `devices info <id>`
+
+<ParamField query="id" type="string" required>
+  Device ID to inspect.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output device details as JSON.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash List paired devices
+profclaw devices list
+```
+
+```bash Pair a new device
+profclaw devices pair ABC-123
+```
+
+```bash Show device details
+profclaw devices info d3a4f5e6
+```
+
+```bash Unpair a device
+profclaw devices unpair d3a4f5e6
+```
+
+```bash Unpair without confirmation
+profclaw devices unpair d3a4f5e6 --yes
+```
+
+```bash List devices as JSON
+profclaw devices list --json | jq '.[].name'
+```
+</CodeGroup>
+
+## Generating Pairing Codes
+
+Pairing codes are generated from:
+
+- **Web UI**: Settings > Devices > Add Device
+- **QR code**: Scan with the profClaw mobile app
+
+Codes expire after a short window. Generate a fresh code if pairing fails.
+
+## Related
+
+- [`profclaw auth`](/cli/auth) - User and invite management
+- [`profclaw security`](/cli/security) - Security policies
+- [Security Guide](/security) - Authentication and device trust model

@@ -1,0 +1,97 @@
+---
+title: "profclaw doctor"
+description: "Run system diagnostics to detect configuration issues, missing dependencies, and environment problems."
+---
+
+## Synopsis
+
+```bash
+profclaw doctor [flags]
+```
+
+## Description
+
+`doctor` runs a series of health checks against the local environment and the running profClaw server. Each check reports `pass`, `warn`, or `fail` along with a suggested fix command.
+
+Checks performed:
+
+| Check | What it tests |
+|---|---|
+| **Node.js** | Version is >= 22 |
+| **Disk** | Sufficient free disk space (warn below 1 GB, fail below 200 MB) |
+| **Port** | Configured port is available or already in use by another process |
+| **Database** | Database is configured and accessible |
+| **Ollama** | Ollama API is reachable at `localhost:11434` (optional) |
+| **Redis** | `REDIS_URL` is reachable (optional for pico/mini) |
+| **Config** | `config/settings.yml` exists and is valid YAML |
+| **Dependencies** | `node_modules` is present and matches `package.json` |
+| **PID file** | Checks for stale `.profclaw.pid` from a previous crashed server |
+| **Server** | profClaw HTTP server responds at `/health` |
+| **AI Provider** | At least one healthy provider is configured |
+| **Memory** | Sufficient free system RAM (warn below 512 MB) |
+| **Cloudflared** | `cloudflared` binary is installed (optional) |
+| **Tailscale** | `tailscale` binary is installed (optional) |
+
+## Flags
+
+<ParamField query="--json" type="boolean">
+  Output all check results as a JSON array instead of the colored table. Each result includes `name`, `status`, `message`, and optional `fix`.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash Run all checks
+profclaw doctor
+```
+
+```bash Output as JSON (for scripting)
+profclaw doctor --json
+```
+
+```bash Check and auto-fix common issues
+profclaw doctor && echo "All checks passed"
+```
+</CodeGroup>
+
+## Example Output
+
+```
+profClaw Doctor
+
+  ✓ Node.js        v22.11.0
+  ✓ Disk           120G free (42% used)
+  ✓ Port           Port 3000 available
+  ✓ Database       Configured and accessible
+  ⚠ Ollama         Not running (optional)
+    Fix: https://ollama.com/download
+  ⚠ Redis          REDIS_URL not set (optional for pico/mini mode)
+    Fix: docker compose up redis -d
+  ✓ Config         settings.yml found (+.env)
+  ✓ Dependencies   node_modules up to date
+  ⚠ PID file       Stale PID file found (process 18432 not running)
+    Fix: rm .profclaw.pid
+  ✓ Server         Running and healthy
+  ✓ AI Provider    2/2 healthy
+  ✓ Memory         14.2 GB free
+  ⚠ Cloudflared    Not installed (optional)
+    Fix: brew install cloudflared
+  ⚠ Tailscale      Not installed (optional)
+    Fix: https://tailscale.com/download
+
+  10/14 passed, 4 warnings
+```
+
+## Exit Codes
+
+| Code | Meaning |
+|---|---|
+| `0` | All checks passed (warnings do not cause failure) |
+| `1` | One or more checks failed |
+
+## Related
+
+- [`profclaw onboard`](/cli/onboard) - Run the full setup wizard
+- [`profclaw status`](/cli/status) - Quick system status
+- [`profclaw serve`](/cli/serve) - Start the server
+- [`profclaw logs`](/cli/logs) - View server logs

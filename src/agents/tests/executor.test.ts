@@ -293,6 +293,94 @@ describe('AgentExecutor', () => {
     );
   });
 
+  it('should return a timeout error result when a tool exceeds stepTimeoutMs', async () => {
+    // Create executor with a very short timeout
+    const timeoutExecutor = new AgentExecutor(sessionId, conversationId, goal, {
+      stepTimeoutMs: 50,
+    });
+
+    // The onToolExecute never resolves within 50ms
+    const slowTool = vi.fn(() => new Promise<never>(() => { /* never resolves */ }));
+
+    let capturedResult: unknown;
+
+    (generateText as any).mockImplementation(async (opts: any) => {
+      // Simulate the SDK calling our wrapped execute function directly
+      const wrappedTools = opts.tools as Record<string, { execute: (args: Record<string, unknown>) => Promise<unknown> }>;
+      capturedResult = await wrappedTools['slow-tool'].execute({});
+
+      if (opts.onStepFinish) {
+        opts.onStepFinish({
+          text: 'Got timeout result.',
+          toolCalls: [],
+          toolResults: [],
+          usage: { promptTokens: 1, completionTokens: 1 },
+          finishReason: 'stop',
+        });
+      }
+
+      return {
+        text: 'Done.',
+        toolCalls: [],
+        toolResults: [],
+        usage: { promptTokens: 1, completionTokens: 1 },
+        totalUsage: { promptTokens: 1, completionTokens: 1 },
+        steps: [],
+        response: { messages: [] },
+      };
+    });
+
+    await timeoutExecutor.run({} as any, [], { 'slow-tool': {} }, slowTool);
+
+    expect(capturedResult).toMatchObject({
+      success: false,
+      canRetry: true,
+      error: expect.stringContaining('timed out after 50ms'),
+    });
+  });
+
+  it('should clear the timeout timer when a tool completes before the deadline', async () => {
+    // Confirm that fast tools do NOT trigger the timeout error path
+    const fastExecutor = new AgentExecutor(sessionId, conversationId, goal, {
+      stepTimeoutMs: 5000,
+    });
+
+    const fastTool = vi.fn().mockResolvedValue({ result: 'fast-output' });
+    let capturedResult: unknown;
+
+    (generateText as any).mockImplementation(async (opts: any) => {
+      const wrappedTools = opts.tools as Record<string, { execute: (args: Record<string, unknown>) => Promise<unknown> }>;
+      capturedResult = await wrappedTools['fast-tool'].execute({});
+
+      if (opts.onStepFinish) {
+        opts.onStepFinish({
+          text: 'Got fast result.',
+          toolCalls: [],
+          toolResults: [],
+          usage: { promptTokens: 1, completionTokens: 1 },
+          finishReason: 'stop',
+        });
+      }
+
+      return {
+        text: 'Done.',
+        toolCalls: [],
+        toolResults: [],
+        usage: { promptTokens: 1, completionTokens: 1 },
+        totalUsage: { promptTokens: 1, completionTokens: 1 },
+        steps: [],
+        response: { messages: [] },
+      };
+    });
+
+    await fastExecutor.run({} as any, [], { 'fast-tool': {} }, fastTool);
+
+    // Should be the actual tool result (not a timeout error)
+    // ResultStore stores and returns the parsed value
+    expect(capturedResult).not.toMatchObject({ success: false });
+    expect(capturedResult).toMatchObject({ result: 'fast-output' });
+  });
+
   it('should cancel execution', async () => {
     (generateText as any).mockImplementation(async () => {
       executor.cancel();

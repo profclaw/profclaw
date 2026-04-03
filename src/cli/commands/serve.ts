@@ -5,9 +5,12 @@ import { spawn, type ChildProcess } from 'child_process';
 import { resolve } from 'path';
 import { existsSync } from 'fs';
 import { createServer } from 'net';
+import * as readline from 'readline';
 import { success, error, info, warn } from '../utils/output.js';
+import { isServerRunning, killExistingServer } from '../../utils/pid-file.js';
 
 const MAX_RESTART_ATTEMPTS = 5;
+const MAX_PORT_ATTEMPTS = 3;
 const BASE_BACKOFF_MS = 1000;
 const MAX_BACKOFF_MS = 30000;
 const CRASH_WINDOW_MS = 10000;
@@ -20,15 +23,11 @@ interface RestartState {
   shuttingDown: boolean;
 }
 
-function checkPortAvailable(port: number): Promise<boolean> {
+export function checkPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const server = createServer();
     server.once('error', (err: NodeJS.ErrnoException) => {
-      if (err.code === 'EADDRINUSE') {
-        resolve(false);
-      } else {
-        resolve(true);
-      }
+      resolve(err.code !== 'EADDRINUSE');
     });
     server.once('listening', () => {
       server.close();
@@ -36,6 +35,22 @@ function checkPortAvailable(port: number): Promise<boolean> {
     });
     server.listen(port, '127.0.0.1');
   });
+}
+
+/**
+ * Try to find an available port starting at `startPort`.
+ * Attempts up to MAX_PORT_ATTEMPTS consecutive ports.
+ * Returns the available port, or null if all attempts fail.
+ */
+export async function resolvePort(startPort: number): Promise<number | null> {
+  for (let offset = 0; offset < MAX_PORT_ATTEMPTS; offset++) {
+    const candidate = startPort + offset;
+    const available = await checkPortAvailable(candidate);
+    if (available) {
+      return candidate;
+    }
+  }
+  return null;
 }
 
 async function healthCheck(port: number): Promise<boolean> {
@@ -69,20 +84,46 @@ export function serveCommand() {
 
       const port = parseInt(options.port, 10);
 
-      // Pre-flight: check port availability
-      const portAvailable = await checkPortAvailable(port);
-      if (!portAvailable) {
-        error(`Port ${port} is already in use.`);
-        info('Options:');
-        console.log(`  1. Stop the existing process: ${chalk.cyan(`lsof -ti:${port} | xargs kill`)}`);
-        console.log(`  2. Use a different port: ${chalk.cyan(`profclaw serve -p ${port + 1}`)}`);
+      // Pre-flight: check for an existing server instance via PID file
+      const running = isServerRunning();
+      if (running.running && running.pid !== undefined) {
+        warn(`A profClaw server is already running (PID ${running.pid}, port ${running.port}).`);
+        const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+        const answer = await new Promise<string>((resolve) => {
+          rl.question('  Kill the existing server and start a new one? [y/N] ', (ans) => {
+            rl.close();
+            resolve(ans.trim().toLowerCase());
+          });
+        });
+        if (answer === 'y' || answer === 'yes') {
+          const killed = killExistingServer();
+          if (killed) {
+            success('Existing server stopped.');
+          } else {
+            error('Could not stop the existing server within 5 seconds. Aborting.');
+            process.exit(1);
+          }
+        } else {
+          info('Aborted. The existing server is still running.');
+          process.exit(0);
+        }
+      }
+
+      // Pre-flight: find an available port (retry up to MAX_PORT_ATTEMPTS)
+      const actualPort = await resolvePort(port);
+      if (actualPort === null) {
+        error(`Ports ${port}–${port + MAX_PORT_ATTEMPTS - 1} are all in use.`);
+        info(`Free a port or specify a different one: ${chalk.cyan(`profclaw serve -p <port>`)}`);
         process.exit(1);
+      }
+      if (actualPort !== port) {
+        warn(`Port ${port} in use, started on port ${actualPort}`);
       }
 
       // Set environment variables
       const env = {
         ...process.env,
-        PORT: options.port,
+        PORT: String(actualPort),
         ENABLE_CRON: options.cron === false ? 'false' : 'true',
       };
 
@@ -104,7 +145,7 @@ export function serveCommand() {
           command = 'npx';
           args = ['tsx', 'src/server.ts'];
         }
-        console.log(chalk.blue(`Starting server on port ${options.port}...\n`));
+        console.log(chalk.blue(`Starting server on port ${actualPort}...\n`));
       }
 
       const autoRestart = options.restart !== false && !options.dev;
@@ -177,9 +218,30 @@ export function serveCommand() {
         if (!options.dev) {
           setTimeout(async () => {
             if (state.shuttingDown) return;
-            const healthy = await healthCheck(port);
+            const healthy = await healthCheck(actualPort as number);
             if (healthy) {
-              success(`Server healthy on port ${port}`);
+              success(`Server healthy on port ${actualPort}`);
+
+              // WS-1.3: detect first-run (no admin users) and print setup prompt
+              try {
+                const res = await fetch(`http://localhost:${actualPort}/`, {
+                  redirect: 'manual',
+                  signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS),
+                });
+                if (res.status === 302) {
+                  const location = res.headers.get('location') || '';
+                  if (location.includes('/setup')) {
+                    console.log('');
+                    console.log(chalk.yellow('  First run detected.'));
+                    console.log(
+                      chalk.yellow(`  Visit ${chalk.cyan(`http://localhost:${port}/setup`)} to configure profClaw`),
+                    );
+                    console.log('');
+                  }
+                }
+              } catch {
+                // Non-critical — ignore
+              }
             } else {
               warn('Server may not be fully ready yet. Check logs above.');
             }

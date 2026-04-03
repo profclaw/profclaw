@@ -1,0 +1,257 @@
+/* profClaw Docs - Brand Overrides
+   Maps profClaw design tokens onto Mintlify's theme system */
+
+/* Dark mode palette (default) */
+:root {
+  --background-dark: #050810;
+  --background-light: #fafbff;
+}
+
+/* Code blocks - match profclaw terminal style */
+[data-theme="dark"] pre {
+  background: rgba(10, 15, 26, 0.85) !important;
+  border: 1px solid rgba(136, 146, 176, 0.12);
+  border-radius: 14px;
+}
+
+[data-theme="dark"] pre code {
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+}
+
+/* Selection color */
+::selection {
+  background: #fb7185;
+  color: #fff;
+}
+
+/* Accent link hover glow */
+a:hover {
+  text-decoration-color: #fb7185;
+}
+
+/* Card hover accent border */
+[data-theme="dark"] .group-card:hover,
+[data-theme="dark"] [class*="Card"]:hover {
+  border-color: rgba(244, 63, 94, 0.3);
+}
+
+/* Sidebar active item */
+[data-theme="dark"] [aria-current="page"] {
+  color: #fb7185;
+}
+
+/* Table header styling */
+th {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Inline code styling */
+:not(pre) > code {
+  border-radius: 6px;
+  font-size: 0.875em;
+}
+
+[data-theme="dark"] :not(pre) > code {
+  background: rgba(10, 15, 26, 0.85);
+  border: 1px solid rgba(136, 146, 176, 0.12);
+  color: #fb7185;
+}
+
+[data-theme="light"] :not(pre) > code {
+  background: #f1f5f9;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  color: #e11d48;
+}
+
+/* Badge/tag styling */
+[data-theme="dark"] .badge {
+  background: linear-gradient(135deg, rgba(251, 113, 133, 0.2), rgba(225, 29, 72, 0.15));
+  color: #fb7185;
+}
+
+/* Heading letter spacing - match site */
+h1, h2, h3 {
+  letter-spacing: -0.02em;
+}
+
+/* Search modal and dropdown backdrop - increase opacity for readability */
+[data-theme="dark"] [role="dialog"],
+[data-theme="dark"] [data-radix-popper-content-wrapper],
+[data-theme="dark"] [cmdk-dialog] {
+  background: rgba(5, 8, 16, 0.92) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+}
+
+[data-theme="dark"] [cmdk-dialog] [cmdk-list],
+[data-theme="dark"] [role="dialog"] [role="listbox"] {
+  background: rgba(10, 15, 30, 0.95) !important;
+}
+
+/* Search overlay backdrop */
+[data-theme="dark"] [data-overlay],
+[data-theme="dark"] [role="dialog"]::backdrop,
+[data-theme="dark"] .fixed.inset-0 {
+  background: rgba(0, 0, 0, 0.75) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+/* Dropdown menus */
+[data-theme="dark"] [role="menu"],
+[data-theme="dark"] [data-radix-menu-content] {
+  background: rgba(10, 15, 30, 0.95) !important;
+  border: 1px solid rgba(136, 146, 176, 0.15);
+  backdrop-filter: blur(20px) !important;
+}
+
+/* ============================================
+   Background gradient - parallax scroll effect
+   Ambient glow orbs that stay fixed as user scrolls
+   ============================================ */
+
+/* Dark mode - deep space with coral accents */
+[data-theme="dark"] #content-area,
+[data-theme="dark"] main {
+  position: relative;
+}
+
+[data-theme="dark"] body::before,
+[data-theme="dark"] body::after {
+  content: '';
+  position: fixed;
+  pointer-events: none;
+  z-index: 0;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.35;
+  will-change: transform;
+}
+
+/* Top-right coral orb */
+[data-theme="dark"] body::before {
+  width: 600px;
+  height: 600px;
+  top: -120px;
+  right: -80px;
+  background: radial-gradient(circle, rgba(244, 63, 94, 0.4) 0%, rgba(225, 29, 72, 0.15) 50%, transparent 70%);
+}
+
+/* Bottom-left rose orb */
+[data-theme="dark"] body::after {
+  width: 500px;
+  height: 500px;
+  bottom: 10vh;
+  left: -100px;
+  background: radial-gradient(circle, rgba(251, 113, 133, 0.25) 0%, rgba(190, 18, 60, 0.08) 50%, transparent 70%);
+}
+
+/* Light mode - warm coral bloom with soft blue undertone */
+[data-theme="light"] body::before,
+[data-theme="light"] body::after {
+  content: '';
+  position: fixed;
+  pointer-events: none;
+  z-index: 0;
+  border-radius: 50%;
+  filter: blur(140px);
+  opacity: 0.45;
+  will-change: transform;
+}
+
+/* Top-right warm coral bloom */
+[data-theme="light"] body::before {
+  width: 700px;
+  height: 700px;
+  top: -150px;
+  right: -120px;
+  background: radial-gradient(circle, rgba(251, 113, 133, 0.35) 0%, rgba(244, 63, 94, 0.12) 45%, transparent 70%);
+}
+
+/* Bottom-left soft lavender/blue accent */
+[data-theme="light"] body::after {
+  width: 550px;
+  height: 550px;
+  bottom: 5vh;
+  left: -100px;
+  background: radial-gradient(circle, rgba(199, 210, 254, 0.5) 0%, rgba(165, 180, 252, 0.15) 45%, transparent 70%);
+}
+
+/* Mid-page accent using content area pseudo-element */
+[data-theme="light"] main::before {
+  content: '';
+  position: fixed;
+  pointer-events: none;
+  z-index: 0;
+  width: 400px;
+  height: 400px;
+  top: 50%;
+  left: 40%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(253, 164, 175, 0.2) 0%, transparent 60%);
+  filter: blur(100px);
+  border-radius: 50%;
+  opacity: 0.5;
+}
+
+[data-theme="dark"] main::before {
+  content: '';
+  position: fixed;
+  pointer-events: none;
+  z-index: 0;
+  width: 450px;
+  height: 450px;
+  top: 45%;
+  left: 35%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(244, 63, 94, 0.12) 0%, transparent 60%);
+  filter: blur(100px);
+  border-radius: 50%;
+  opacity: 0.4;
+}
+
+/* Ensure content sits above the gradient orbs */
+[data-theme="dark"] main > *,
+[data-theme="light"] main > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Light mode card hover */
+[data-theme="light"] .group-card:hover,
+[data-theme="light"] [class*="Card"]:hover {
+  border-color: rgba(244, 63, 94, 0.25);
+}
+
+/* Light mode sidebar active */
+[data-theme="light"] [aria-current="page"] {
+  color: #e11d48;
+}
+
+/* Light mode code blocks */
+[data-theme="light"] pre {
+  background: rgba(248, 250, 252, 0.9) !important;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 14px;
+}
+
+/* Light mode badge */
+[data-theme="light"] .badge {
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.12), rgba(225, 29, 72, 0.08));
+  color: #e11d48;
+}
+
+/* Light mode search modal */
+[data-theme="light"] [role="dialog"],
+[data-theme="light"] [cmdk-dialog] {
+  background: rgba(250, 251, 255, 0.95) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+}
+
+[data-theme="light"] [data-overlay],
+[data-theme="light"] [role="dialog"]::backdrop {
+  background: rgba(15, 23, 42, 0.4) !important;
+  backdrop-filter: blur(6px) !important;
+}

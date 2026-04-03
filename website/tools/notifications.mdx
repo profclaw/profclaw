@@ -1,0 +1,156 @@
+---
+title: "Notifications"
+description: "profClaw notification tools - send native OS notifications, read and write the clipboard, capture screenshots, and trigger Slack, Discord, and Telegram actions from agents."
+---
+
+## Overview
+
+Integration tools let the agent interact with the host system beyond the filesystem: send native OS notifications, read/write the clipboard, and capture screenshots. These tools are in the **Full tier** and primarily useful for desktop deployments.
+
+## Tools
+
+### `notify`
+
+Send a native operating system notification.
+
+**Security level**: `moderate` | **Tier**: Standard
+
+<ParamField path="title" type="string" required>
+  Notification title.
+</ParamField>
+
+<ParamField path="body" type="string" required>
+  Notification body text.
+</ParamField>
+
+<ParamField path="sound" type="boolean" default="false">
+  Play the system notification sound.
+</ParamField>
+
+<ParamField path="urgency" type="string" default="normal">
+  Urgency level: `low`, `normal`, `critical`. Affects display priority on Linux.
+</ParamField>
+
+<CodeGroup>
+```json Simple notification
+{
+  "title": "Build Complete",
+  "body": "Your TypeScript build finished successfully.",
+  "sound": true
+}
+```
+```json Critical alert
+{
+  "title": "Test Failures",
+  "body": "3 tests failed in src/queue/. Review required.",
+  "urgency": "critical"
+}
+```
+</CodeGroup>
+
+Platform support: macOS (via `osascript`), Linux (via `notify-send`), Windows (via PowerShell toast).
+
+---
+
+### `screen_capture`
+
+Capture a screenshot of the entire screen or a specific region.
+
+**Security level**: `moderate` | **Tier**: Full
+
+<ParamField path="region" type="object">
+  Capture region: `{ x, y, width, height }`. Omit for full screen.
+</ParamField>
+
+<ParamField path="display" type="number" default="0">
+  Display index for multi-monitor setups.
+</ParamField>
+
+Returns the screenshot as a base64-encoded PNG.
+
+<Note>
+  On macOS, screen capture requires Screen Recording permission in System Settings > Privacy & Security.
+</Note>
+
+---
+
+### `clipboard_read`
+
+Read the current clipboard contents.
+
+**Security level**: `moderate` | **Tier**: Full
+
+<ParamField path="format" type="string" default="text">
+  Content format: `text`, `image`.
+</ParamField>
+
+Returns the clipboard text or a base64 PNG for image content.
+
+---
+
+### `clipboard_write`
+
+Write text to the clipboard.
+
+**Security level**: `moderate` | **Tier**: Full
+
+<ParamField path="text" type="string" required>
+  Text to write to the clipboard.
+</ParamField>
+
+---
+
+### Channel-Specific Notification Tools
+
+For sending messages through chat channels rather than system notifications, profClaw provides channel-specific action tools:
+
+#### `slack_actions`
+
+Send messages, react to messages, or create channels in Slack.
+
+**Tier**: Full | Requires: Slack provider configured
+
+<ParamField path="action" type="string" required>
+  Action type: `send_message`, `react`, `create_channel`.
+</ParamField>
+
+<ParamField path="channel" type="string">
+  Channel ID or name.
+</ParamField>
+
+<ParamField path="text" type="string">
+  Message text.
+</ParamField>
+
+#### `discord_actions`
+
+Send messages or create threads in Discord.
+
+**Tier**: Full | Requires: Discord provider configured
+
+#### `telegram_actions`
+
+Send messages, photos, or documents via Telegram.
+
+**Tier**: Full | Requires: Telegram provider configured
+
+## Async Notification Pattern
+
+Notifications from background jobs should be dispatched asynchronously to avoid blocking:
+
+```typescript
+// In a tool or plugin
+// Do NOT block waiting for notification delivery
+void notify({ title: "Job complete", body: result.summary });
+```
+
+## Related Tools
+
+<CardGroup cols={2}>
+  <Card title="Browser Tools" icon="browser" href="/tools/browser-tools">
+    Take browser screenshots instead of system screenshots.
+  </Card>
+  <Card title="Sessions" icon="window" href="/tools/sessions">
+    Send results back to parent sessions rather than system notifications.
+  </Card>
+</CardGroup>

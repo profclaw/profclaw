@@ -152,10 +152,14 @@ export interface ChatResponse {
 
 // Tool Calling Types
 
+export type ToolTier = 'essential' | 'standard' | 'full';
+export type ModelCapabilityLevel = 'basic' | 'instruction' | 'reasoning';
+
 export interface ToolDefinition {
   name: string;
   description: string;
   parameters?: Record<string, unknown>;
+  tier?: ToolTier;
 }
 
 export interface ToolCall {

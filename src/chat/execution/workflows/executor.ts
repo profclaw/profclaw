@@ -195,7 +195,16 @@ export class WorkflowExecutor {
       context.onStepStart?.(step, i);
 
       const stepStartMs = Date.now();
-      const stepResult = await this.executeStep(step, variables, context, options);
+      const stepType = step.type || 'tool';
+      let stepResult: ToolResult;
+
+      if (stepType === 'parallel' && step.parallelSteps?.length) {
+        stepResult = await this.executeParallelSteps(step.parallelSteps, variables, context, options);
+      } else if (stepType === 'agent_session' && step.prompt) {
+        stepResult = await this.executeAgentStep(step, variables);
+      } else {
+        stepResult = await this.executeStep(step, variables, context, options);
+      }
       const durationMs = Date.now() - stepStartMs;
 
       execution.stepResults[i] = {
@@ -300,6 +309,113 @@ export class WorkflowExecutor {
         error: {
           code: 'STEP_ERROR',
           message: error instanceof Error ? error.message : 'Unknown error in step',
+        },
+      };
+    }
+  }
+
+  /**
+   * Execute multiple steps concurrently (fan-out).
+   * All parallel steps run at once; results are merged.
+   * Fails only if ALL parallel steps fail.
+   */
+  private async executeParallelSteps(
+    steps: WorkflowStep[],
+    variables: Record<string, unknown>,
+    context: WorkflowExecutionContext,
+    options: WorkflowExecuteOptions,
+  ): Promise<ToolResult> {
+    const results = await Promise.allSettled(
+      steps.map((step) => this.executeStep(step, variables, context, options)),
+    );
+
+    const outputs: Record<string, unknown> = {};
+    let anySuccess = false;
+    const errors: string[] = [];
+
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      const step = steps[i];
+      if (result.status === 'fulfilled') {
+        if (result.value.success) {
+          anySuccess = true;
+          if (step.captureOutput) {
+            outputs[step.captureOutput] = extractOutput(result.value, step.captureOutput);
+            variables[step.captureOutput] = outputs[step.captureOutput];
+          }
+        } else {
+          errors.push(`${step.name}: ${result.value.error?.message || 'failed'}`);
+        }
+      } else {
+        errors.push(`${step.name}: ${result.reason}`);
+      }
+    }
+
+    return {
+      success: anySuccess,
+      output: JSON.stringify(outputs),
+      data: outputs,
+      error: errors.length > 0 ? { code: 'PARALLEL_ERRORS', message: errors.join('; ') } : undefined,
+    };
+  }
+
+  /**
+   * Execute an agent session step - spawns an isolated AI agent.
+   * The agent runs a prompt with tool access and returns the result.
+   */
+  private async executeAgentStep(
+    step: WorkflowStep,
+    variables: Record<string, unknown>,
+  ): Promise<ToolResult> {
+    try {
+      const { executeAgenticChat } = await import('../../agentic-executor.js');
+      const { createChatToolHandler } = await import('../../tool-handler.js');
+
+      const prompt = interpolateString(step.prompt || '', variables);
+      const conversationId = `workflow-agent-${crypto.randomUUID()}`;
+
+      const toolHandler = await createChatToolHandler({
+        conversationId,
+        securityMode: 'full',
+      });
+
+      const tools = toolHandler.getTools();
+
+      const response = await Promise.race([
+        executeAgenticChat({
+          conversationId,
+          messages: [{
+            id: crypto.randomUUID(),
+            role: 'user',
+            content: prompt,
+            timestamp: new Date().toISOString(),
+          }],
+          systemPrompt: 'You are an AI agent executing a workflow step. Complete the task concisely.',
+          model: step.model,
+          effort: 'medium',
+          toolHandler,
+          tools: tools.map((t) => ({
+            name: t.name,
+            description: t.description,
+            parameters: t.parameters,
+          })),
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Agent step timed out')), step.timeoutMs || 300000),
+        ),
+      ]);
+
+      return {
+        success: true,
+        output: response.content,
+        data: { content: response.content, model: response.model, tokens: response.usage?.totalTokens },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: {
+          code: 'AGENT_STEP_ERROR',
+          message: error instanceof Error ? error.message : 'Agent step failed',
         },
       };
     }

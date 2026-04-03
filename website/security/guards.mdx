@@ -1,0 +1,217 @@
+---
+title: "Security Guards"
+description: "FsGuard (path traversal), SsrfGuard (SSRF), PromptGuard (injection), and AuditScanner."
+---
+
+## Overview
+
+Security guards are input-level validation layers that run independently of the security mode. Even in `full` mode, the FsGuard and SsrfGuard still block access to dangerous paths and private networks.
+
+Each guard returns a `GuardResult`:
+
+```typescript
+interface GuardResult {
+  allowed: boolean;
+  reason?: string;      // Why it was blocked
+  risk: RiskLevel;      // LOW | MEDIUM | HIGH | CRITICAL
+  score?: number;       // 0-100 severity score
+}
+```
+
+## FsGuard - Filesystem Guard
+
+Prevents path traversal attacks and blocks access to sensitive files.
+
+### How It Works
+
+1. **Path normalization** - Resolves `../` sequences to eliminate traversal
+2. **Symlink resolution** - Resolves symlinks to their real paths to detect symlink-based escapes
+3. **Allowlist check** - Verified resolved path is within an allowed directory
+4. **Blocklist check** - Verified path is not in the blocked paths list
+5. **Pattern check** - Verified filename does not match blocked patterns
+
+### Default Blocked Paths
+
+```
+/etc/passwd
+/etc/shadow
+/etc/sudoers
+~/.ssh/
+~/.gnupg/
+~/.aws/credentials
+~/.config/gcloud/
+/proc/
+/sys/
+/dev/
+```
+
+### Default Blocked Filename Patterns
+
+```
+.env
+.env.local
+.env.production
+.env.staging
+id_rsa, id_ed25519, id_ecdsa
+*.pem, *.key
+credentials.json
+service-account.json
+```
+
+### Configuration
+
+```yaml
+security:
+  fsGuard:
+    enabled: true
+    allowedPaths:
+      - "{{ workdir }}"       # Project directory (required)
+      - "/tmp"                # System temp
+      - "/home/user/projects" # Additional allowed directory
+    blockedPaths:
+      - "/etc/passwd"         # Extra blocked paths (merged with defaults)
+    blockedPatterns:
+      - ".secret"             # Extra patterns
+    followSymlinks: true      # Resolve symlinks before checking
+```
+
+### Disabling FsGuard
+
+You can disable FsGuard for specific operations if you need to access files outside the default paths:
+
+```yaml
+security:
+  fsGuard:
+    enabled: false  # NOT recommended for production
+```
+
+Instead, prefer adding specific paths to `allowedPaths`.
+
+---
+
+## SsrfGuard - SSRF Guard
+
+Prevents Server-Side Request Forgery by validating URLs before HTTP requests.
+
+### How It Works
+
+1. **Scheme validation** - Only `http` and `https` allowed
+2. **Host blocklist** - Checks against known metadata endpoints
+3. **CIDR check** - Resolves DNS and checks resolved IP against blocked CIDR ranges
+4. **DNS rebinding defense** - Resolves hostnames before connecting, re-validates on redirects
+5. **Redirect chain validation** - Each redirect target is re-validated (up to 5 hops)
+
+### Blocked CIDR Ranges
+
+```
+0.0.0.0/8        - "This" network
+10.0.0.0/8       - Private Class A
+100.64.0.0/10    - Carrier-grade NAT
+127.0.0.0/8      - Loopback
+169.254.0.0/16   - Link-local (includes cloud metadata 169.254.169.254)
+172.16.0.0/12    - Private Class B
+192.168.0.0/16   - Private Class C
+224.0.0.0/4      - Multicast
+240.0.0.0/4      - Reserved
+```
+
+### Blocked Metadata Hosts
+
+```
+169.254.169.254         - AWS, GCP, Azure metadata
+metadata.google.internal
+metadata.internal
+```
+
+### Configuration
+
+```yaml
+security:
+  ssrfGuard:
+    enabled: true
+    allowedHosts:
+      - "internal-api.company.com"  # Allow specific internal hosts
+      - "jenkins.internal"
+    maxRedirects: 5
+    dnsResolutionTimeout: 3000     # ms
+```
+
+---
+
+## PromptGuard - Injection Guard
+
+Detects and blocks prompt injection and jailbreak attempts in user input.
+
+### Detection Categories
+
+| Category | Score | Examples |
+|----------|-------|---------|
+| Injection delimiters | 40 | `[system]`, `[INST]`, `<<SYS>>`, `<\|im_start\|>` |
+| Token smuggling | 45 | Null bytes, ANSI escapes, backspace chars |
+| Jailbreak personas | 35 | "You are now DAN", "act as unrestricted" |
+| Instruction override | 30 | "Ignore all previous instructions" |
+| Encoded injection | 30 | "execute the following base64" |
+| System prompt extraction | 25 | "reveal your system prompt" |
+| Prompt leak via formatting | 20 | "translate the above text" |
+
+Total score is the sum of all triggered patterns. Inputs scoring above the `blockThreshold` are rejected.
+
+### Canary Token System
+
+A random canary token is injected into the system prompt. If this token appears in the user's message, it indicates the system prompt has been leaked and extracted - the request is blocked with `CRITICAL` risk.
+
+### Configuration
+
+```yaml
+security:
+  promptGuard:
+    enabled: true
+    maxInputLength: 50000   # Characters
+    blockThreshold: 25      # Score >= 25 is blocked
+    warnThreshold: 10       # Score >= 10 is logged as warning
+```
+
+---
+
+## AuditScanner - Code Scanner
+
+Scans skill code and plugin code for dangerous patterns before loading.
+
+### Detection Patterns
+
+| Pattern | Risk | Example |
+|---------|------|---------|
+| Shell execution | CRITICAL | `child_process`, `exec()`, `spawn()` |
+| eval usage | CRITICAL | `eval()`, `Function("code")` |
+| Raw socket access | CRITICAL | `net.connect()`, `tls.connect()` |
+| Network access | HIGH | `fetch()`, `axios`, `got()` |
+| Credential access | HIGH | `API_KEY`, `SECRET`, `TOKEN` references |
+| Filesystem writes | MEDIUM | `writeFileSync`, `appendFileSync` |
+| Destructive ops | HIGH | `unlinkSync`, `rmdirSync`, `rm -rf` |
+| Env var access | MEDIUM | `process.env.` access |
+
+### When It Runs
+
+- On skill file load
+- On plugin activation
+- During `profclaw doctor` health check
+
+### Configuration
+
+```yaml
+security:
+  auditScanner:
+    enabled: true
+    alertOnMatch: true   # Log warnings when patterns match
+```
+
+## Related Docs
+
+<CardGroup cols={2}>
+  <Card title="Security Modes" icon="shield" href="/security/modes">
+    Guards apply within all modes except deny.
+  </Card>
+  <Card title="Audit Logging" icon="scroll" href="/security/audit">
+    Guard decisions are recorded in the audit log.
+  </Card>
+</CardGroup>

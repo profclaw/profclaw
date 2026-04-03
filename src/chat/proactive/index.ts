@@ -952,3 +952,201 @@ export class BackgroundResearcher {
     }
   }
 }
+
+// 6.6 - Automation Pattern Detector
+//
+// Tracks repeated queries/tool usage and suggests automations.
+// "You've asked for AI news 5 times this week - want me to set up a daily digest?"
+
+export interface PatternMatch {
+  pattern: string;
+  count: number;
+  firstSeen: number;
+  lastSeen: number;
+  /** Suggested automation */
+  suggestion: AutomationSuggestion;
+}
+
+export interface AutomationSuggestion {
+  message: string;
+  templateName: string;
+  suggestedCron: string;
+  params: Record<string, unknown>;
+}
+
+interface QueryRecord {
+  query: string;
+  normalized: string;
+  timestamp: number;
+  toolsUsed: string[];
+}
+
+/**
+ * Detects repeated patterns in user queries and suggests automations.
+ *
+ * Tracks query frequency, tool usage patterns, and timing to identify
+ * tasks that should be automated via cron jobs.
+ */
+export class AutomationPatternDetector {
+  private queryHistory: QueryRecord[] = [];
+  private dismissedPatterns = new Set<string>();
+  private maxHistory = 500;
+  private readonly minOccurrences: number;
+  private readonly windowMs: number;
+  /** Max 1 suggestion per session */
+  private suggestedThisSession = false;
+
+  constructor(options?: {
+    /** Min occurrences before suggesting automation (default: 3) */
+    minOccurrences?: number;
+    /** Time window to look at (default: 7 days) */
+    windowMs?: number;
+  }) {
+    this.minOccurrences = options?.minOccurrences ?? 3;
+    this.windowMs = options?.windowMs ?? 7 * 24 * 60 * 60 * 1000;
+  }
+
+  /**
+   * Record a user query for pattern analysis.
+   */
+  recordQuery(query: string, toolsUsed: string[] = []): void {
+    this.queryHistory.push({
+      query,
+      normalized: this.normalizeQuery(query),
+      timestamp: Date.now(),
+      toolsUsed,
+    });
+
+    // Trim old entries
+    if (this.queryHistory.length > this.maxHistory) {
+      this.queryHistory = this.queryHistory.slice(-this.maxHistory);
+    }
+  }
+
+  /**
+   * Check for automation-worthy patterns.
+   * Returns a suggestion if a pattern is detected, or null.
+   * Only returns one suggestion per session to avoid fatigue.
+   */
+  detectPatterns(): PatternMatch | null {
+    if (this.suggestedThisSession) return null;
+
+    const cutoff = Date.now() - this.windowMs;
+    const recent = this.queryHistory.filter((q) => q.timestamp >= cutoff);
+
+    // Group by normalized query
+    const groups = new Map<string, QueryRecord[]>();
+    for (const record of recent) {
+      const existing = groups.get(record.normalized) || [];
+      existing.push(record);
+      groups.set(record.normalized, existing);
+    }
+
+    // Find patterns that exceed threshold
+    for (const [normalized, records] of groups) {
+      if (records.length < this.minOccurrences) continue;
+      if (this.dismissedPatterns.has(normalized)) continue;
+
+      const suggestion = this.buildSuggestion(normalized, records);
+      if (!suggestion) continue;
+
+      this.suggestedThisSession = true;
+
+      return {
+        pattern: normalized,
+        count: records.length,
+        firstSeen: records[0].timestamp,
+        lastSeen: records[records.length - 1].timestamp,
+        suggestion,
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * User dismissed a suggestion - don't suggest it again.
+   */
+  dismiss(pattern: string): void {
+    this.dismissedPatterns.add(pattern);
+  }
+
+  /**
+   * Reset session state (call at session start).
+   */
+  resetSession(): void {
+    this.suggestedThisSession = false;
+  }
+
+  /**
+   * Normalize a query for pattern matching.
+   * Strips dates, numbers, and common filler to find the core intent.
+   */
+  private normalizeQuery(query: string): string {
+    return query
+      .toLowerCase()
+      .replace(/\b(today|yesterday|this week|last week|this morning)\b/g, '')
+      .replace(/\b\d{4}[-/]\d{2}[-/]\d{2}\b/g, '')
+      .replace(/\b\d+\b/g, 'N')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /**
+   * Build an automation suggestion from a detected pattern.
+   */
+  private buildSuggestion(normalized: string, records: QueryRecord[]): AutomationSuggestion | null {
+    // Detect common tool patterns
+    const toolCounts = new Map<string, number>();
+    for (const record of records) {
+      for (const tool of record.toolsUsed) {
+        toolCounts.set(tool, (toolCounts.get(tool) || 0) + 1);
+      }
+    }
+
+    const usesWebSearch = (toolCounts.get('web_search') || 0) >= 2;
+    const usesWebFetch = (toolCounts.get('web_fetch') || 0) >= 2;
+
+    // News/research patterns
+    if (usesWebSearch || normalized.includes('news') || normalized.includes('latest') || normalized.includes('update')) {
+      return {
+        message: `You've asked about this ${records.length} times recently. Want me to set up a daily digest?`,
+        templateName: 'Morning AI News Digest',
+        suggestedCron: '0 7 * * 1-5',
+        params: { prompt: records[records.length - 1].query },
+      };
+    }
+
+    // Status/report patterns
+    if (normalized.includes('status') || normalized.includes('summary') || normalized.includes('report')) {
+      return {
+        message: `You check this regularly. Want me to generate this report automatically?`,
+        templateName: 'Daily Status Report',
+        suggestedCron: '0 9 * * 1-5',
+        params: { prompt: records[records.length - 1].query },
+      };
+    }
+
+    // Health/monitoring patterns
+    if (normalized.includes('health') || normalized.includes('check') || normalized.includes('monitor')) {
+      return {
+        message: `You run this check often. Want me to monitor this automatically?`,
+        templateName: 'Health Check',
+        suggestedCron: '*/30 * * * *',
+        params: { prompt: records[records.length - 1].query },
+      };
+    }
+
+    // Generic repeated task
+    if (records.length >= 5) {
+      return {
+        message: `You've done this ${records.length} times. Want me to automate it on a schedule?`,
+        templateName: 'Custom AI Agent Task',
+        suggestedCron: '0 9 * * *',
+        params: { prompt: records[records.length - 1].query },
+      };
+    }
+
+    return null;
+  }
+}

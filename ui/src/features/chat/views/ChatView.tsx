@@ -567,11 +567,25 @@ export function ChatView() {
             const completeData = event.data as {
               totalSteps: number;
               toolCalls: Array<{ name: string; arguments: Record<string, unknown>; result?: unknown }>;
+              suggestions?: Array<{ id: string; type: string; message: string; confidence: number; action?: { label: string; command: string } }>;
             };
             toast.success(
               `Task completed in ${completeData.totalSteps} step${completeData.totalSteps !== 1 ? 's' : ''} with ${completeData.toolCalls?.length || 0} tool call${(completeData.toolCalls?.length || 0) !== 1 ? 's' : ''}`,
               { duration: 4000 }
             );
+
+            // Attach suggestions to the last assistant message
+            if (completeData.suggestions && completeData.suggestions.length > 0) {
+              setMessages((prev) => {
+                const lastIdx = prev.length - 1;
+                if (lastIdx >= 0 && prev[lastIdx].role === 'assistant') {
+                  const updated = [...prev];
+                  updated[lastIdx] = { ...updated[lastIdx], suggestions: completeData.suggestions };
+                  return updated;
+                }
+                return prev;
+              });
+            }
           }
 
           if (event.type === 'error') {
@@ -784,16 +798,20 @@ export function ChatView() {
 
   const handleWorkflowSelect = useCallback((workflowId: string) => {
     const workflowPrompts: Record<string, string> = {
-      deploy: 'Run the deploy workflow for this project',
-      review: 'Run a code review on the recent changes',
-      debug: 'Help me debug the current issue',
-      research: 'Research this topic for me',
-      test: 'Run the test suite and analyze results',
-      refactor: 'Suggest refactoring improvements for the current code',
+      deploy: 'Run the deploy workflow for this project. Check build status, run tests, and deploy if everything passes.',
+      review: 'Run a thorough code review on the recent changes. Check for bugs, security issues, and suggest improvements.',
+      debug: 'Help me debug the current issue. Analyze logs, check error patterns, and suggest fixes.',
+      research: 'Research this topic thoroughly. Search for latest information, compare approaches, and summarize findings.',
+      test: 'Run the test suite, analyze results, and fix any failing tests.',
+      refactor: 'Analyze the current code for refactoring opportunities. Suggest improvements for readability, performance, and maintainability.',
     };
     const prompt = workflowPrompts[workflowId] || `Run the ${workflowId} workflow`;
     setInput(prompt);
-  }, []);
+    // Auto-submit after brief delay so user sees the prompt
+    setTimeout(() => {
+      handleSend();
+    }, 100);
+  }, [handleSend]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;

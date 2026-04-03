@@ -25,11 +25,11 @@ const log = createContextualLogger('Scheduler');
 
 // Types
 
-export type JobType = 'http' | 'tool' | 'script' | 'message';
+export type JobType = 'http' | 'tool' | 'script' | 'message' | 'agent_session';
 export type JobStatus = 'active' | 'paused' | 'completed' | 'failed' | 'archived';
 export type RunStatus = 'running' | 'success' | 'error' | 'timeout' | 'cancelled';
 export type EventTriggerType = 'webhook' | 'ticket' | 'file' | 'github';
-export type DeliveryChannelType = 'slack' | 'webhook' | 'email';
+export type DeliveryChannelType = 'slack' | 'webhook' | 'email' | 'telegram' | 'discord';
 
 /** Event trigger configuration */
 export interface EventTrigger {
@@ -173,6 +173,25 @@ export interface ScriptJobPayload {
 export interface MessageJobPayload {
   conversationId: string;
   content: string;
+}
+
+export interface AgentSessionPayload {
+  /** The prompt/instruction for the agent to execute */
+  prompt: string;
+  /** System prompt override (defaults to a general assistant prompt) */
+  systemPrompt?: string;
+  /** AI model to use (defaults to configured default) */
+  model?: string;
+  /** AI provider override */
+  provider?: string;
+  /** Max tokens the agent can consume per run */
+  maxTokens?: number;
+  /** Which tools the agent can access (empty = all registered tools) */
+  allowedTools?: string[];
+  /** Thinking effort: low for fast chores, high for deep research */
+  effort?: 'low' | 'medium' | 'high';
+  /** Working directory for tool execution */
+  workdir?: string;
 }
 
 // Singleton Scheduler
@@ -790,6 +809,9 @@ export class JobScheduler {
         case 'message':
           result = await this.executeMessageJob(job.payload as unknown as MessageJobPayload);
           break;
+        case 'agent_session':
+          result = await this.executeAgentSessionJob(job.payload as unknown as AgentSessionPayload);
+          break;
         default:
           result = { success: false, error: `Unknown job type: ${job.jobType}`, durationMs: 0 };
       }
@@ -936,6 +958,8 @@ export class JobScheduler {
     const delivery = job.delivery as DeliveryConfig | null;
     if (!delivery?.channels?.length) return;
 
+    const deliveryResults: Array<{ channel: string; success: boolean; error?: string }> = [];
+
     for (const channel of delivery.channels) {
       // Check if we should deliver based on result
       const shouldDeliver =
@@ -947,7 +971,13 @@ export class JobScheduler {
       try {
         switch (channel.type) {
           case 'slack':
-            await this.deliverToSlack(channel.target, job, result);
+            await this.deliverToChatProvider('slack', channel.target, job, result);
+            break;
+          case 'telegram':
+            await this.deliverToChatProvider('telegram', channel.target, job, result);
+            break;
+          case 'discord':
+            await this.deliverToChatProvider('discord', channel.target, job, result);
             break;
           case 'webhook':
             await this.deliverToWebhook(channel.target, job, result);
@@ -956,26 +986,96 @@ export class JobScheduler {
             await this.deliverToEmail(channel.target, job, result);
             break;
         }
+        deliveryResults.push({ channel: `${channel.type}:${channel.target}`, success: true });
       } catch (error) {
-        log.error(`Failed to deliver to ${channel.type}:${channel.target}:`, error instanceof Error ? error : new Error(String(error)));
+        const errMsg = error instanceof Error ? error.message : String(error);
+        log.error(`Failed to deliver to ${channel.type}:${channel.target}:`, error instanceof Error ? error : new Error(errMsg));
+        deliveryResults.push({ channel: `${channel.type}:${channel.target}`, success: false, error: errMsg });
       }
+    }
+
+    if (deliveryResults.length > 0) {
+      const succeeded = deliveryResults.filter((d) => d.success).length;
+      const failed = deliveryResults.filter((d) => !d.success).length;
+      log.info(`Delivery complete: ${succeeded} succeeded, ${failed} failed`, {
+        jobId: job.id,
+        results: deliveryResults,
+      });
     }
   }
 
   /**
-   * Deliver output to Slack channel
+   * Deliver output via a chat provider (Telegram, Slack, Discord, etc.)
+   * Uses the chat provider registry for real message delivery.
+   *
+   * Target format:
+   *   - Telegram: "<chat_id>" or "<chat_id>:topic:<topic_id>"
+   *   - Slack: "#channel-name" or "C01234ABCDE"
+   *   - Discord: "<channel_id>"
    */
-  private async deliverToSlack(
+  private async deliverToChatProvider(
+    providerName: 'telegram' | 'slack' | 'discord',
     target: string,
     job: typeof scheduledJobs.$inferSelect,
     result: JobRunResult
   ): Promise<void> {
-    // TODO: Implement Slack webhook integration
-    // For now, log the delivery attempt
-    log.info(`[Slack Delivery] Job: ${job.name}, Channel: ${target}, Success: ${result.success}`);
+    const { getChatRegistry } = await import('../chat/providers/registry.js');
+    const registry = getChatRegistry();
+    const provider = registry.get(providerName);
 
-    // This will be implemented when Slack OAuth is integrated
-    // Will use the Slack API to post to the channel
+    if (!provider) {
+      log.warn(`[Delivery] Chat provider "${providerName}" not registered, skipping`);
+      return;
+    }
+
+    // Parse target for topic support (Telegram: "chatId:topic:topicId")
+    let chatId = target;
+    let threadId: string | undefined;
+    if (providerName === 'telegram' && target.includes(':topic:')) {
+      const parts = target.split(':topic:');
+      chatId = parts[0];
+      threadId = parts[1];
+    }
+
+    // Convert markdown to channel-appropriate format
+    const { convertMarkdown } = await import('../chat/format/markdown-convert.js');
+    const formatTarget = providerName === 'telegram' ? 'telegram' as const
+      : providerName === 'slack' ? 'slack' as const
+      : 'plain' as const;
+
+    const statusIcon = result.success ? '\u2705' : '\u274c';
+    const rawBody = result.output
+      ? result.output.slice(0, 3800)
+      : result.error
+        ? `Error: ${result.error}`
+        : 'No output';
+
+    // Convert agent markdown output to channel format
+    const formattedBody = convertMarkdown(rawBody, formatTarget);
+
+    const header = providerName === 'telegram'
+      ? `${statusIcon} <b>${job.name}</b>`
+      : `${statusIcon} *${job.name}*`;
+    const footer = result.durationMs
+      ? providerName === 'telegram'
+        ? `\n\n<i>${(result.durationMs / 1000).toFixed(1)}s</i>`
+        : `\n\n_${(result.durationMs / 1000).toFixed(1)}s_`
+      : '';
+
+    const text = `${header}\n\n${formattedBody}${footer}`;
+
+    const sendResult = await provider.outbound.send({
+      provider: providerName,
+      to: chatId,
+      text,
+      threadId,
+    });
+
+    if (!sendResult.success) {
+      throw new Error(`${providerName} delivery failed: ${sendResult.error}`);
+    }
+
+    log.info(`[${providerName}] Delivered to ${target}: ${result.success ? 'success' : 'failure'}`);
   }
 
   /**
@@ -1174,6 +1274,78 @@ export class JobScheduler {
       return {
         success: true,
         output: `Message queued for conversation ${payload.conversationId}`,
+        durationMs: Date.now() - startTime,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        durationMs: Date.now() - startTime,
+      };
+    }
+  }
+
+  /**
+   * Execute an agent session job.
+   * Spawns an isolated agent with tool access, runs the prompt, returns the output.
+   * This is the core of the automation pipeline - enables "run this prompt every morning".
+   */
+  private async executeAgentSessionJob(payload: AgentSessionPayload): Promise<JobRunResult> {
+    const startTime = Date.now();
+    const timeout = 300000; // 5 min max per agent session
+
+    try {
+      const { executeAgenticChat } = await import('../chat/agentic-executor.js');
+      const { createChatToolHandler } = await import('../chat/tool-handler.js');
+
+      const conversationId = `cron-agent-${crypto.randomUUID()}`;
+
+      // Create tool handler with full access (security mode = full for automated jobs)
+      const toolHandler = await createChatToolHandler({
+        conversationId,
+        securityMode: 'full',
+        workdir: payload.workdir || process.cwd(),
+      });
+
+      // Filter tools if allowedTools specified
+      const allTools = toolHandler.getTools();
+      const tools = payload.allowedTools?.length
+        ? allTools.filter((t) => payload.allowedTools!.includes(t.name))
+        : allTools;
+
+      const systemPrompt = payload.systemPrompt ||
+        'You are profClaw, an automated AI assistant running a scheduled task. ' +
+        'Execute the user\'s request thoroughly. Use available tools (web_search, web_fetch, etc.) as needed. ' +
+        'Be concise and deliver actionable results. Format output as clean text suitable for messaging.';
+
+      const response = await Promise.race([
+        executeAgenticChat({
+          conversationId,
+          messages: [{
+            id: crypto.randomUUID(),
+            role: 'user',
+            content: payload.prompt,
+            timestamp: new Date().toISOString(),
+          }],
+          systemPrompt,
+          model: payload.model,
+          provider: payload.provider,
+          effort: payload.effort || 'medium',
+          toolHandler,
+          tools: tools.map((t) => ({
+            name: t.name,
+            description: t.description,
+            parameters: t.parameters,
+          })),
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Agent session timed out after 5 minutes')), timeout)
+        ),
+      ]);
+
+      return {
+        success: true,
+        output: response.content,
         durationMs: Date.now() - startTime,
       };
     } catch (error) {

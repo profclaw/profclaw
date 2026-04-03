@@ -5,16 +5,39 @@ export interface WorkflowDefinition {
   description: string;
   /** Keywords that trigger this workflow */
   triggers: string[];
-  /** Sequential steps */
+  /** Sequential steps (or parallel groups) */
   steps: WorkflowStep[];
   /** Variables available to all steps */
   variables?: Record<string, unknown>;
+  /** Schedule trigger - cron expression to auto-run this workflow */
+  schedule?: {
+    cron?: string;
+    intervalMs?: number;
+    timezone?: string;
+  };
+  /** Delivery configuration - where to send final output */
+  delivery?: {
+    channels: Array<{
+      type: 'telegram' | 'slack' | 'discord' | 'webhook';
+      target: string;
+    }>;
+    /** Which step output(s) to include in delivery */
+    includeOutputs?: string[];
+    /** Template for formatting the delivery message */
+    template?: string;
+  };
+  /** Max duration for entire workflow (ms) */
+  timeoutMs?: number;
 }
+
+export type WorkflowStepType = 'tool' | 'agent_session' | 'deliver' | 'parallel';
 
 export interface WorkflowStep {
   id: string;
   name: string;
-  /** Tool to execute */
+  /** Step type - defaults to 'tool' for backwards compatibility */
+  type?: WorkflowStepType;
+  /** Tool to execute (for type=tool) */
   tool: string;
   /** Parameters - supports {{variable}} interpolation from previous step outputs */
   params: Record<string, unknown>;
@@ -26,6 +49,17 @@ export interface WorkflowStep {
   continueOnError?: boolean;
   /** Timeout override in ms */
   timeoutMs?: number;
+  /** For type=parallel: steps to run concurrently */
+  parallelSteps?: WorkflowStep[];
+  /** For type=agent_session: AI prompt to execute */
+  prompt?: string;
+  /** For type=agent_session: AI model override */
+  model?: string;
+  /** For type=deliver: delivery target override */
+  deliverTo?: {
+    type: 'telegram' | 'slack' | 'discord' | 'webhook';
+    target: string;
+  };
 }
 
 export interface WorkflowExecution {

@@ -1,0 +1,297 @@
+---
+title: "CI / Script Integration"
+description: "Headless chat, piped stdin, agentic automation, exit codes, and GitHub Actions examples"
+---
+
+profClaw's headless mode lets you drive it from shell scripts, CI pipelines, and cron jobs — no interactive terminal required. Responses stream to stdout, errors go to stderr, and exit codes follow Unix conventions.
+
+## Basic Usage
+
+### Single Prompt
+
+Pass a prompt with `-p` (or `--prompt`):
+
+```bash
+profclaw chat -p "Summarise the changes in the last 5 commits"
+```
+
+Output streams as plain text by default. Add `--print` to ensure no ANSI codes:
+
+```bash
+profclaw chat -p "List all TODO comments" --print
+```
+
+### Piped Stdin
+
+Pipe content directly into profClaw:
+
+```bash
+echo "Explain this function" | profclaw chat --print
+
+# Pipe a file
+cat src/auth.ts | profclaw chat -p "Review this for security issues" --print
+
+# Combine pipe + prompt
+git diff HEAD~1 | profclaw chat -p "Write a commit message for this diff" --print
+```
+
+When stdin is a pipe, profClaw appends the piped content as the user message after the `-p` prompt.
+
+---
+
+## Agentic Mode
+
+Add `--agentic` to enable tool use. The agent can read files, run commands, search the web, and call any tool permitted by the active security mode.
+
+```bash
+profclaw chat -p "Find all deprecated API calls and fix them" --agentic
+```
+
+<Warning>
+`--agentic` in CI should always be paired with an explicit `--security` mode and `--budget` cap. Without these guardrails the agent may make unintended changes.
+</Warning>
+
+```bash
+profclaw chat \
+  -p "Update all dependencies to latest patch versions" \
+  --agentic \
+  --security sandbox \
+  --budget 0.25 \
+  --max-steps 30
+```
+
+### Security Modes in Headless
+
+| Flag | Behaviour |
+|------|-----------|
+| `--security sandbox` | Read-only tools only (safe for analysis tasks) |
+| `--security allowlist` | Only tools named in `PROFCLAW_ALLOWED_TOOLS` env var |
+| `--security full` | All tools (use only in trusted, isolated environments) |
+
+---
+
+## Output Formats
+
+```bash
+# Plain text (default)
+profclaw chat -p "..." --print
+
+# JSON — includes metadata (tokens, cost, model, duration)
+profclaw chat -p "..." --json
+
+# Markdown — preserves headers and code fences
+profclaw chat -p "..." --markdown
+```
+
+JSON output schema:
+
+```json
+{
+  "result": "The assistant's response text",
+  "model": "claude-sonnet-4-6",
+  "provider": "anthropic",
+  "usage": {
+    "inputTokens": 312,
+    "outputTokens": 87,
+    "totalTokens": 399
+  },
+  "costUsd": 0.0024,
+  "durationMs": 1843,
+  "steps": 3
+}
+```
+
+---
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success — response generated normally |
+| `1` | General error (see stderr) |
+| `2` | Invalid arguments or missing required flags |
+| `3` | Authentication error (missing or invalid API key) |
+| `4` | Budget exceeded — `--budget` cap reached |
+| `5` | Step limit reached — `--max-steps` hit before completion |
+| `6` | Provider error — upstream API returned an error |
+| `7` | Tool permission denied — security mode blocked the call |
+
+```bash
+profclaw chat -p "..." --agentic
+if [ $? -eq 4 ]; then
+  echo "Budget exceeded — increase --budget or reduce task scope"
+fi
+```
+
+---
+
+## GitHub Actions
+
+### Code Review on PR
+
+```yaml
+name: profClaw Code Review
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install profClaw
+        run: npm install -g profclaw
+
+      - name: Run code review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          git diff origin/${{ github.base_ref }}...HEAD | \
+            profclaw chat \
+              -p "Review this diff for bugs, security issues, and style violations. Be concise." \
+              --print \
+              --budget 0.30 > review.txt
+          cat review.txt
+
+      - name: Post review comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('review.txt', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `### profClaw Review\n\n${body}`
+            });
+```
+
+### Commit Message Generator
+
+```yaml
+name: Generate Commit Message
+on:
+  workflow_dispatch:
+    inputs:
+      base_branch:
+        description: Base branch
+        default: main
+
+jobs:
+  commit-msg:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - run: npm install -g profclaw
+
+      - name: Generate message
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          git diff origin/${{ inputs.base_branch }}...HEAD | \
+            profclaw chat -p "Write a conventional commit message" --print
+```
+
+### Dependency Audit
+
+```yaml
+name: Weekly Dependency Audit
+on:
+  schedule:
+    - cron: '0 9 * * 1'   # Every Monday at 09:00 UTC
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: npm install -g profclaw
+
+      - name: Audit dependencies
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          npm audit --json | \
+            profclaw chat \
+              -p "Summarise the vulnerabilities, prioritise by severity, and suggest fixes" \
+              --print \
+              --budget 0.20
+```
+
+---
+
+## Shell Scripts
+
+### Git Hook (post-commit)
+
+```bash
+#!/bin/bash
+# .git/hooks/post-commit
+# Auto-summarise commit in project log
+
+DIFF=$(git show --stat HEAD)
+SUMMARY=$(echo "$DIFF" | profclaw chat -p "One sentence summary of this commit" --print 2>/dev/null)
+
+if [ $? -eq 0 ]; then
+  echo "[profClaw] $SUMMARY" >> .git/commit-summaries.log
+fi
+```
+
+### Automated Documentation Update
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# Regenerate API docs when source changes
+if git diff --name-only HEAD~1 | grep -q "src/routes/"; then
+  profclaw chat \
+    -p "Read src/routes/ and update docs/api.md with the current endpoints" \
+    --agentic \
+    --security allowlist \
+    --budget 0.50 \
+    --print
+fi
+```
+
+---
+
+## Cron Jobs
+
+```bash
+# /etc/cron.d/profclaw-digest
+# Daily digest of open tasks at 8 AM
+0 8 * * * profclaw_user profclaw chat \
+  -p "Summarise open tasks and flag anything overdue" \
+  --print \
+  >> /var/log/profclaw-digest.log 2>&1
+```
+
+---
+
+## Environment Variables
+
+All flags have equivalent environment variables for use in CI:
+
+```bash
+ANTHROPIC_API_KEY=sk-...
+PROFCLAW_SECURITY=sandbox
+PROFCLAW_BUDGET=0.50
+PROFCLAW_MAX_STEPS=30
+PROFCLAW_MODEL=claude-sonnet-4-6
+PROFCLAW_PROVIDER=anthropic
+PROFCLAW_OUTPUT=json
+```
+
+<Note>
+Set `PROFCLAW_NO_COLOR=1` to suppress all ANSI colour codes in output — useful when piping to log aggregators.
+</Note>

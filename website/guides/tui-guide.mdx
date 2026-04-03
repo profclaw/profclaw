@@ -1,0 +1,201 @@
+---
+title: "Using the TUI"
+description: "Interactive terminal UI with streaming markdown, slash commands, model picker, and keyboard shortcuts"
+---
+
+profClaw ships two terminal UIs: the classic readline-based chat interface and a rich Ink-powered dashboard. Both stream responses in real time with syntax-highlighted code blocks and markdown rendering.
+
+## Getting Started
+
+Launch the interactive TUI:
+
+```bash
+profclaw chat --tui
+```
+
+This opens a full-screen terminal application with:
+
+- Streaming markdown output with syntax highlighting
+- A persistent input bar with multiline support
+- Live token/cost counter in the status bar
+- Model indicator showing the active provider and model
+
+### First-Run Setup
+
+If you haven't run `profclaw init` yet, the TUI launches the onboarding wizard automatically. Complete it by entering your API key for at least one provider.
+
+```bash
+profclaw init     # configure keys, then launch
+profclaw chat --tui
+```
+
+---
+
+## Slash Commands
+
+Type `/` in the input bar to see the autocomplete menu. All commands work mid-conversation.
+
+### Session Commands
+
+| Command | Description |
+|---------|-------------|
+| `/new` | Start a fresh conversation |
+| `/clear` | Clear current conversation history |
+| `/history` | Browse past conversations |
+| `/export` | Export conversation to Markdown or JSON |
+| `/save <name>` | Save current session with a label |
+| `/load <name>` | Load a previously saved session |
+
+### Model Commands
+
+| Command | Description |
+|---------|-------------|
+| `/model` | Open the model picker |
+| `/model <name>` | Switch to a specific model (e.g. `/model claude-opus-4-5`) |
+| `/provider` | List configured providers |
+| `/effort <level>` | Set effort: `low`, `medium`, `high`, `max` |
+| `/budget <usd>` | Set a per-session spend cap |
+
+### Tool Commands
+
+| Command | Description |
+|---------|-------------|
+| `/tools` | List available tools with status |
+| `/tools on <name>` | Enable a specific tool |
+| `/tools off <name>` | Disable a specific tool |
+| `/security` | Show active security mode |
+| `/security <mode>` | Switch mode: `sandbox`, `ask`, `allowlist`, `full` |
+
+### Task Commands
+
+| Command | Description |
+|---------|-------------|
+| `/task <description>` | Create an agentic task from current context |
+| `/tasks` | List recent tasks and their status |
+| `/resume <id>` | Resume a paused or interrupted task |
+
+### Utility Commands
+
+| Command | Description |
+|---------|-------------|
+| `/help` | Show all slash commands |
+| `/cost` | Show token usage and cost for this session |
+| `/status` | Show server and provider health |
+| `/debug` | Toggle debug event stream overlay |
+| `/quit` or `/exit` | Exit the TUI |
+
+---
+
+## Model / Provider Picker
+
+Press `/model` or `Ctrl+M` to open the picker. Use arrow keys to navigate, `Enter` to select, `Esc` to cancel.
+
+The picker groups models by provider and shows:
+
+- Model name and ID
+- Context window size
+- Estimated cost per 1K tokens (input / output)
+- A green dot for configured providers
+
+```
+  Anthropic
+  ● claude-opus-4-5       200K   $15 / $75
+  ● claude-sonnet-4-6     200K   $3  / $15
+  ● claude-haiku-4-5       48K   $0.80 / $4
+
+  OpenAI
+  ● gpt-4o                128K   $5  / $15
+  ○ o3                    200K   $10 / $40   (not configured)
+```
+
+The selected model persists for the session. Use `/model` again to change it.
+
+---
+
+## Multiline Input
+
+Press `Shift+Enter` to insert a newline without submitting. Useful for pasting code or writing multi-paragraph prompts.
+
+To paste a block of code:
+
+1. Press `Shift+Enter` to open multiline mode
+2. Paste your content (the input area expands)
+3. Press `Enter` to submit
+
+The input bar shows a `[multiline]` indicator when in multiline mode.
+
+---
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Enter` | Submit message |
+| `Shift+Enter` | Insert newline (multiline) |
+| `Ctrl+C` | Cancel current streaming response |
+| `Ctrl+M` | Open model picker |
+| `Ctrl+T` | Show token/cost breakdown |
+| `Ctrl+L` | Clear screen (keep history) |
+| `Ctrl+R` | Search conversation history |
+| `Ctrl+Z` | Pause current agentic task |
+| `↑` / `↓` | Navigate message input history |
+| `PgUp` / `PgDn` | Scroll output |
+| `Esc` | Close overlay / cancel picker |
+
+---
+
+## Dashboard (Ink TUI)
+
+The full dashboard provides a split-pane view with live task monitoring:
+
+```bash
+profclaw tui --ink
+```
+
+### Panes
+
+| Pane | Content |
+|------|---------|
+| Left | Chat conversation with streaming output |
+| Right-top | Active tasks with real-time status |
+| Right-mid | Tool call log (tool name, duration, status) |
+| Right-bottom | Token usage + cost graph |
+| Bottom | Input bar + status indicators |
+
+### Dashboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Tab` | Move focus between panes |
+| `Ctrl+1` | Focus chat pane |
+| `Ctrl+2` | Focus tasks pane |
+| `Ctrl+3` | Focus tool log pane |
+| `F1` | Help overlay |
+| `F5` | Refresh provider status |
+| `q` | Quit (when focus is not in input) |
+
+<Note>
+The Ink dashboard requires a terminal with at least 100 columns and 40 rows. On smaller terminals, fall back to `profclaw chat --tui` for the single-pane experience.
+</Note>
+
+---
+
+## Theming
+
+The TUI respects your terminal's colour scheme. Override with:
+
+```bash
+PROFCLAW_THEME=light profclaw chat --tui   # light background
+PROFCLAW_THEME=dark  profclaw chat --tui   # dark background (default)
+PROFCLAW_THEME=none  profclaw chat --tui   # no colour
+```
+
+Or persist in `settings.yml`:
+
+```yaml
+tui:
+  theme: dark
+  syntaxHighlight: true
+  showTokenCount: true
+  showCost: true
+```

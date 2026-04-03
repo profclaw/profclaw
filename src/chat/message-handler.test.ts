@@ -7,6 +7,7 @@ import type { IncomingMessage, ChatEvent, ChatContext, ChatAccountConfig, Outgoi
 const mocks = vi.hoisted(() => ({
   aiProvider: {
     chat: vi.fn(),
+    getConfiguredProviders: vi.fn(() => ['anthropic', 'openai']),
   },
   getChatRegistry: vi.fn(),
   sendMessage: vi.fn(),
@@ -61,8 +62,22 @@ vi.mock('./execution/tools/session-status.js', () => ({
   getSessionModel: mocks.getSessionModel,
 }));
 
+vi.mock('../providers/smart-router.js', () => ({
+  routeQuery: vi.fn(() => ({
+    complexity: { tier: 'standard', score: 0.4, confidence: 0.6, signals: [], reasoning: 'test' },
+    selectedModel: { id: 'claude-sonnet-4-5-20250929', provider: 'anthropic', name: 'Sonnet' },
+    alternativeModels: [],
+    estimatedCost: 0.02,
+    savedVsDefault: 0,
+    savingsPercent: 0,
+  })),
+  recordRoutingDecision: vi.fn(),
+  isSmartRouterEnabled: vi.fn(() => true),
+}));
+
 vi.mock('../utils/logger.js', () => ({
   logger: mocks.logger,
+  createContextualLogger: vi.fn(() => mocks.logger),
 }));
 
 import {

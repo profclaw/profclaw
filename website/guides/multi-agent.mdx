@@ -1,0 +1,127 @@
+---
+title: "Multi-Agent Workflows"
+description: "Orchestrate multiple AI agents working in parallel"
+---
+
+## Overview
+
+profClaw supports spawning multiple agent sessions that work in parallel, each with their own context, tools, and objectives. This enables complex workflows like researching multiple topics simultaneously, running parallel code reviews, or coordinating development tasks.
+
+## Spawning Sessions
+
+Use the `sessions-spawn` tool to create parallel agent sessions:
+
+```bash
+profclaw agent spawn \
+  --count 3 \
+  --task "Review the authentication module for security issues" \
+  --task "Check test coverage for the API routes" \
+  --task "Audit environment variable usage"
+```
+
+## Session Architecture
+
+Each spawned session:
+- Gets its own execution context and tool access
+- Runs independently and in parallel
+- Can use all available tools (subject to security policy)
+- Reports results back to the parent session
+- Has configurable timeout via `POOL_TIMEOUT_MS`
+
+```
+Parent Session
+├── Child Session 1 (security review)
+├── Child Session 2 (test coverage)
+└── Child Session 3 (env var audit)
+```
+
+## API Usage
+
+Spawn sessions via the REST API:
+
+```bash
+curl -X POST http://localhost:3000/api/agents/sessions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessions": [
+      {
+        "task": "Review auth module for vulnerabilities",
+        "provider": "anthropic",
+        "model": "claude-sonnet-4-6",
+        "tools": ["read_file", "grep", "glob"]
+      },
+      {
+        "task": "Check test coverage",
+        "provider": "anthropic",
+        "tools": ["read_file", "test_run", "glob"]
+      }
+    ],
+    "timeout": 300000
+  }'
+```
+
+## Concurrency Limits
+
+| Mode | Max Concurrent Sessions |
+|------|------------------------|
+| Pico | 2 |
+| Mini | 10 |
+| Pro | 50+ |
+
+Configure via:
+```bash
+export POOL_MAX_CONCURRENT=25
+```
+
+## Patterns
+
+### Fan-Out / Fan-In
+
+Distribute work across multiple agents, then aggregate results:
+
+```
+1. Parent receives complex task
+2. Decomposes into subtasks
+3. Spawns N child sessions (fan-out)
+4. Children work in parallel
+5. Parent collects all results (fan-in)
+6. Parent synthesizes final answer
+```
+
+### Pipeline
+
+Chain agents where each builds on the previous result:
+
+```
+Agent 1: Research → Agent 2: Plan → Agent 3: Implement → Agent 4: Review
+```
+
+### Specialist Teams
+
+Different agents with different provider/model configurations:
+
+```yaml
+# Fast agent for search and exploration
+- provider: groq
+  model: llama-3.3-70b
+  task: "Find all API endpoints"
+
+# Powerful agent for analysis
+- provider: anthropic
+  model: claude-sonnet-4-6
+  task: "Analyze the codebase architecture"
+```
+
+## Resource Management
+
+<Warning>
+  Each session consumes API tokens from the configured provider. Monitor costs with `profclaw cost` when running many parallel sessions.
+</Warning>
+
+```bash
+# Check active sessions
+profclaw agent sessions
+
+# View cost breakdown
+profclaw cost --today
+```

@@ -1,0 +1,223 @@
+---
+title: "First Run"
+description: "What happens when profClaw starts for the first time. Covers auto-migration, provider detection, port retry, init, doctor, CLI chat, TUI, tools, skills, and API access."
+---
+
+## What Happens on First Run
+
+When you run `profclaw serve` (or `profclaw chat`) for the first time, profClaw performs several automatic setup steps:
+
+1. **Auto-migration** — if an existing database or config from a previous version is detected, profClaw migrates it to the current schema automatically. No manual steps required.
+2. **Provider auto-detection** — profClaw scans your environment for known API keys (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OLLAMA_BASE_URL`, etc.) and activates those providers automatically.
+3. **Port auto-retry** — if the configured port (default `3000`) is already in use, profClaw increments and retries up to 10 times, then logs the actual port it bound to.
+4. **Setup redirect** — if no provider is configured and no API key is found, the web UI redirects to the onboarding wizard at `/setup`.
+
+<Tip>
+  Run `profclaw init` before first serve to generate a `PROFCLAW.md` project context file. This gives the agent awareness of your codebase, stack, and conventions from the first message.
+</Tip>
+
+## Initialize Project Context
+
+Before running for the first time in a new project:
+
+```bash
+profclaw init
+```
+
+`profclaw init` scans your project and:
+- Detects your language, framework, and package manager
+- Reads your `README.md`, `package.json`, or `pyproject.toml` for context
+- Writes a `PROFCLAW.md` file with project-specific instructions for the agent
+- Detects any AI provider keys in your environment and suggests a provider config
+
+The generated `PROFCLAW.md` is committed alongside your code so every team member benefits from the same agent context.
+
+## Verify Setup
+
+Run the doctor command to check that everything is configured correctly:
+
+```bash
+profclaw doctor
+```
+
+The doctor checks and reports on:
+- Node.js version compatibility
+- Required environment variables
+- AI provider connectivity (live ping to each configured provider)
+- Redis connection (pro mode)
+- Port availability
+- File system permissions
+- Any deprecated configuration keys
+
+Example output:
+
+```
+profClaw Doctor v2.x.x
+─────────────────────────────────────
+ ✓  Node.js 22.x                  OK
+ ✓  ANTHROPIC_API_KEY             OK
+ ✓  Anthropic API reachable       OK (142ms)
+ ✓  Ollama reachable              OK (8ms)
+ ✗  REDIS_URL                     NOT SET
+    └─ Required for pro mode. Set REDIS_URL or switch to mini mode.
+ ✓  Port 3000                     available
+ ✓  Config file                   ~/.profclaw/settings.yml
+─────────────────────────────────────
+1 warning, 0 errors
+```
+
+Fix any reported issues, then run `profclaw doctor` again to confirm.
+
+## Start the Server
+
+<Tabs>
+  <Tab title="Standard">
+    ```bash
+    profclaw serve
+    ```
+
+    Starts the HTTP server at `http://localhost:3000`. Output includes connected providers, active chat channels, and the deployment mode.
+  </Tab>
+  <Tab title="Daemon">
+    ```bash
+    profclaw daemon start
+    ```
+
+    Runs profClaw as a background service that persists after you close the terminal. Check status with `profclaw daemon status`.
+  </Tab>
+  <Tab title="Docker">
+    ```bash
+    docker start profclaw
+    ```
+
+    Or if using Docker Compose: `docker compose up -d`
+  </Tab>
+</Tabs>
+
+## Access the Web UI
+
+Open `http://localhost:3000` in your browser. You will see the profClaw web chat interface (WebChat provider).
+
+<Tip>
+  If the port is already in use, profClaw will auto-retry on the next available port and log the actual address. You can also set a specific port with `PORT=3001 profclaw serve`.
+</Tip>
+
+## Interactive TUI
+
+For a first-class terminal experience with streaming markdown and syntax highlighting:
+
+```bash
+profclaw chat --tui
+# or
+profclaw tui
+```
+
+The TUI provides:
+- Streaming markdown rendered live as the model responds
+- Syntax-highlighted code blocks for 100+ languages
+- Slash command picker — type `/` to browse all skills
+- Live model selector — switch providers mid-conversation with `Ctrl+M`
+- Tool execution panel showing every tool call and result in real time
+- Session history scrollback
+
+## CLI Chat (Inline)
+
+Interact directly from your terminal without opening a browser or TUI:
+
+```bash
+profclaw chat
+```
+
+This opens an interactive terminal session:
+
+```
+profClaw v2.x.x - Interactive Chat
+Type /help for commands, /exit to quit
+--------------------------------------
+
+You: Summarize the README.md in this directory
+
+Agent: I'll read the README.md file and summarize it for you.
+
+[Tool: read_file] Reading README.md...
+
+Here's a summary:
+...
+```
+
+Pass a one-shot message without entering the interactive session:
+
+```bash
+profclaw chat "What is the current directory?"
+```
+
+## Send Your First Message
+
+Type a message in any interface:
+
+```
+What can you help me with?
+```
+
+profClaw responds with its capabilities based on your configured tools and providers. The response varies by [deployment mode](/getting-started/deployment-modes) — pro mode has access to all 72+ tools, while pico mode provides a focused essential set.
+
+## Use Tools
+
+profClaw agents have access to tools. Try asking:
+
+```
+List the files in the current directory
+Search for TODO comments in my codebase
+Create a new file called hello.txt with "Hello World"
+Run my test suite
+Fetch the content of https://example.com
+```
+
+<Note>
+  Tools are subject to your [security policy](/security/overview). In `standard` mode, destructive operations like shell execution require explicit approval before they run.
+</Note>
+
+See [Tools Overview](/tools/overview) for the full list of available tools and how model-aware tier routing works.
+
+## Use Skills
+
+Skills are pre-built expertise modules invoked with slash commands:
+
+```
+/commit
+/review-pr 42
+/summarize src/
+/web-research "Hono middleware patterns"
+/analyze-code src/auth.ts
+```
+
+See [Skills Overview](/skills/overview) for all 50 built-in skills and how to create your own.
+
+## API Access
+
+Send messages programmatically via the REST API:
+
+```bash
+curl -X POST http://localhost:3000/api/chat/message \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hello profClaw", "provider": "anthropic"}'
+```
+
+The API returns a streaming JSON response with tool calls and the final message. See the [API Reference](/api-reference/overview) for full documentation.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Deployment Modes" icon="server" href="/getting-started/deployment-modes">
+    Understand pico, mini, and pro modes and what each enables.
+  </Card>
+  <Card title="Tools Overview" icon="wrench" href="/tools/overview">
+    Explore the 72+ built-in tools and how execution works.
+  </Card>
+  <Card title="AI Providers" icon="brain" href="/ai-providers/overview">
+    Configure additional AI providers and model aliases.
+  </Card>
+  <Card title="Chat Providers" icon="messages" href="/chat-providers/overview">
+    Connect Slack, Discord, Telegram, or other chat channels.
+  </Card>
+</CardGroup>

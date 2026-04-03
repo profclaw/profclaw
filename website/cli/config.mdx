@@ -1,0 +1,116 @@
+---
+title: "profclaw config"
+description: "Get, set, and reset CLI and server-side configuration values."
+---
+
+## Synopsis
+
+```bash
+profclaw config <subcommand> [flags]
+```
+
+## Description
+
+`config` manages two layers of configuration:
+
+- **CLI config** - stored locally in `~/.profclaw/config.json`. Controls how the CLI connects to the server (API URL and token, default agent, output format).
+- **Server settings** - stored in `config/settings.yml` and the database. Controls runtime behavior of the running server (use `--server` flag).
+
+## Subcommands
+
+| Subcommand | Description |
+|---|---|
+| `get [key]` | Print one or all configuration values |
+| `set <key> <value>` | Set a configuration value |
+| `reset` | Reset configuration to defaults |
+| `path` | Print the path to the CLI config file |
+| `login` | Configure API authentication (URL and token) |
+
+## `config get`
+
+<ParamField query="key" type="string">
+  Optional key to retrieve. Omit to print all values. For server settings, use dotted format: `system.telemetry`.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output as JSON.
+</ParamField>
+
+<ParamField query="--server" type="boolean">
+  Fetch server-side settings from the running API instead of the local CLI config.
+</ParamField>
+
+## `config set`
+
+<ParamField query="key" type="string" required>
+  Configuration key to set. CLI keys: `apiUrl`, `apiToken`, `defaultAgent`, `outputFormat`. Server keys use `category.key` format (e.g., `system.telemetry`).
+</ParamField>
+
+<ParamField query="value" type="string" required>
+  Value to set. For server settings, JSON values are parsed automatically (`true`, `false`, numbers, objects).
+</ParamField>
+
+<ParamField query="--server" type="boolean">
+  Apply change to server-side settings via API.
+</ParamField>
+
+## `config login`
+
+<ParamField query="-t, --token" type="string">
+  API bearer token. Saved to the CLI config file and used for all subsequent API calls.
+</ParamField>
+
+<ParamField query="-u, --url" type="string">
+  API base URL (e.g., `https://my-server.example.com`).
+</ParamField>
+
+## CLI Config Keys
+
+| Key | Default | Description |
+|---|---|---|
+| `apiUrl` | `http://localhost:3000` | Base URL of the profClaw API |
+| `apiToken` | - | Bearer token for authentication |
+| `defaultAgent` | - | Default agent type for task creation |
+| `outputFormat` | `table` | Output format (`table` or `json`) |
+
+## Examples
+
+<CodeGroup>
+```bash Show all CLI config
+profclaw config get
+```
+
+```bash Get a single value
+profclaw config get apiUrl
+```
+
+```bash Set the API URL
+profclaw config set apiUrl http://my-server:3000
+```
+
+```bash Configure authentication
+profclaw config login --url https://my-server.com --token eyJ...
+```
+
+```bash View server-side settings
+profclaw config get --server
+```
+
+```bash Update a server setting
+profclaw config set --server system.telemetry false
+```
+
+```bash Reset CLI config to defaults
+profclaw config reset
+```
+
+```bash Show config file location
+profclaw config path
+```
+</CodeGroup>
+
+## Related
+
+- [`profclaw auth`](/cli/auth) - User and invite management
+- [`profclaw onboard`](/cli/onboard) - First-run configuration wizard
+- [Configuration Reference](/configuration) - Full settings documentation

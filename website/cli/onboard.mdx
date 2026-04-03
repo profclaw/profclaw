@@ -1,0 +1,92 @@
+---
+title: "profclaw onboard"
+description: "Zero-to-running onboarding wizard - environment detection, mode selection, provider setup, and server start in one command."
+---
+
+## Synopsis
+
+```bash
+profclaw onboard [flags]
+```
+
+## Description
+
+`onboard` is the recommended first command to run after installing profClaw. It walks through a 6-step wizard:
+
+1. **Environment Detection** - scans for Node.js, Redis, Ollama, Claude CLI, Git, Docker
+2. **Deployment Mode** - recommends `pico`, `mini`, or `pro` based on available resources
+3. **AI Provider** - configure Anthropic, OpenAI, or Ollama (or skip for later)
+4. **Configuration** - generates `.env` and `config/settings.yml`
+5. **Setup** - creates the admin account and database
+6. **Validation** - verifies all required files were created
+
+## Flags
+
+<ParamField query="--non-interactive" type="boolean">
+  Run without prompts. Useful for Docker builds, CI pipelines, and automated deployments. Uses defaults or values from other flags.
+</ParamField>
+
+<ParamField query="--mode" type="string">
+  Deployment mode to configure. One of `pico`, `mini`, or `pro`. If omitted in interactive mode, recommended based on detected resources.
+</ParamField>
+
+<ParamField query="--provider" type="string">
+  AI provider to configure in non-interactive mode. One of `anthropic`, `openai`, `ollama`. API keys must already be set as environment variables.
+</ParamField>
+
+<ParamField query="--port" type="string" default="3000">
+  Server port to write into the generated `.env` file.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash Interactive (recommended for first-time setup)
+profclaw onboard
+```
+
+```bash Non-interactive (CI / Docker)
+profclaw onboard --non-interactive --mode mini
+```
+
+```bash Non-interactive with Anthropic
+ANTHROPIC_API_KEY=sk-ant-... profclaw onboard --non-interactive --mode mini --provider anthropic
+```
+
+```bash Pro mode with Redis
+REDIS_URL=redis://localhost:6379 profclaw onboard --non-interactive --mode pro
+```
+</CodeGroup>
+
+## Deployment Modes
+
+| Mode | RAM | Use case |
+|---|---|---|
+| `pico` | ~50 MB | Agent + tools only, IoT, edge devices, personal use |
+| `mini` | ~150 MB | Dashboard, cron, integrations - small teams and home servers |
+| `pro` | ~300 MB | Everything, requires Redis - production and enterprise |
+
+## What Gets Created
+
+After onboarding succeeds:
+
+```
+.env                     # Environment configuration
+config/settings.yml      # Server settings
+data/profclaw.db         # SQLite database
+```
+
+## After Onboarding
+
+```bash
+profclaw serve           # Start the server
+profclaw doctor          # Verify everything is healthy
+profclaw chat            # Start an interactive chat session
+```
+
+## Related
+
+- [`profclaw init`](/cli/init) - Lightweight init without the wizard
+- [`profclaw doctor`](/cli/doctor) - Diagnose environment issues
+- [`profclaw serve`](/cli/serve) - Start the HTTP server
+- [`profclaw config`](/cli/config) - Manage configuration

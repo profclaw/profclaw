@@ -109,6 +109,8 @@ const WEB_UI_ROUTE_DEFINITIONS: RouteDefinition[] = [
 
 const CRON_ROUTE_DEFINITIONS: RouteDefinition[] = [
   { id: 'cron', mountPaths: ['/api/cron'], load: namedRoute(() => import('../routes/cron.js'), 'cronRoutes') },
+  { id: 'feeds', mountPaths: ['/api/feeds'], load: defaultRoute(() => import('../routes/feeds.js')) },
+  { id: 'teams', mountPaths: ['/api/teams'], load: namedRoute(() => import('../routes/teams.js'), 'teamRoutes') },
 ];
 
 const INTEGRATION_ROUTE_DEFINITIONS: RouteDefinition[] = [

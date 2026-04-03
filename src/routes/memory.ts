@@ -39,6 +39,8 @@ import {
   trackPreference,
   getUserPreferences,
 } from '../memory/experience-store.js';
+import { observeConversation } from '../memory/observational.js';
+import { importFrom, listImportSources, type ImportSource } from '../cli/commands/import.js';
 import { logger } from '../utils/logger.js';
 
 const memory = new Hono();
@@ -763,6 +765,149 @@ memory.get('/preferences/:userId', async (c) => {
     return c.json(
       { error: 'Failed to get preferences', message: error instanceof Error ? error.message : 'Unknown error' },
       500
+    );
+  }
+});
+
+/**
+ * POST /api/memory/observe - Extract observations from a conversation
+ * Manually trigger observational memory on a conversation snapshot.
+ */
+memory.post('/observe', zValidator('json', z.object({
+  conversationId: z.string(),
+  messages: z.array(z.object({
+    role: z.enum(['user', 'assistant', 'system']),
+    content: z.string(),
+    toolsUsed: z.array(z.string()).optional(),
+  })),
+  userId: z.string().optional(),
+})), async (c) => {
+  try {
+    const body = c.req.valid('json');
+    const result = await observeConversation({
+      conversationId: body.conversationId,
+      messages: body.messages,
+      metadata: { userId: body.userId },
+    });
+
+    return c.json({
+      success: true,
+      data: {
+        observations: result.observations.map(o => ({
+          type: o.type,
+          summary: o.summary,
+          confidence: o.confidence,
+        })),
+        experiencesRecorded: result.experiencesRecorded,
+        preferencesTracked: result.preferencesTracked,
+        processingTimeMs: result.processingTimeMs,
+      },
+    });
+  } catch (error) {
+    logger.error('[Memory API] Observe failed:', error as Error);
+    return c.json(
+      { error: 'Failed to observe conversation', message: error instanceof Error ? error.message : 'Unknown error' },
+      500,
+    );
+  }
+});
+
+/**
+ * GET /api/memory/insights - Dashboard summary of what profClaw has learned
+ * Shows learned patterns, top tool chains, preferences, and learning velocity.
+ */
+memory.get('/insights', async (c) => {
+  try {
+    const stats = await getExperienceStats();
+    const recentChains = await listExperiences({ type: 'tool_chain', limit: 10, minWeight: 0.1 });
+    const recentPrefs = await listExperiences({ type: 'user_preference', limit: 10 });
+    const recentSolutions = await listExperiences({ type: 'task_solution', limit: 5 });
+    const recentRecoveries = await listExperiences({ type: 'error_recovery', limit: 5 });
+
+    // Build top tool chains summary
+    const topChains = recentChains.experiences
+      .filter(e => e.useCount >= 2)
+      .sort((a, b) => b.useCount - a.useCount)
+      .slice(0, 5)
+      .map(e => {
+        const chain = e.solution as { tools: Array<{ name: string }>; allSucceeded: boolean };
+        return {
+          intent: e.intent.slice(0, 100),
+          tools: chain.tools?.map(t => t.name) ?? [],
+          useCount: e.useCount,
+          successScore: e.successScore,
+          lastUsed: new Date(e.lastUsedAt).toISOString(),
+        };
+      });
+
+    // Learning velocity: experiences recorded per day (last 7 days)
+    const now = Date.now();
+    const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+    const allRecent = await listExperiences({ limit: 100 });
+    const recentCount = allRecent.experiences.filter(e => e.createdAt > sevenDaysAgo).length;
+    const learningRate = Math.round((recentCount / 7) * 10) / 10;
+
+    return c.json({
+      success: true,
+      data: {
+        stats,
+        learningRate: `${learningRate} experiences/day`,
+        topToolChains: topChains,
+        recentPreferences: recentPrefs.experiences.slice(0, 5).map(e => ({
+          intent: e.intent,
+          useCount: e.useCount,
+          weight: Math.round(e.weight * 100) / 100,
+        })),
+        recentSolutions: recentSolutions.total,
+        errorRecoveries: recentRecoveries.total,
+        summary: stats.total === 0
+          ? 'No experiences recorded yet. profClaw learns as you use it - tool chains, preferences, and error recovery patterns improve over time.'
+          : `profClaw has learned ${stats.total} experiences across ${Object.keys(stats.byType).length} categories. Learning rate: ${learningRate}/day. ${topChains.length > 0 ? `Most-used pattern: ${topChains[0].tools.join(' -> ')} (${topChains[0].useCount}x).` : ''}`,
+      },
+    });
+  } catch (error) {
+    logger.error('[Memory API] Insights failed:', error as Error);
+    return c.json(
+      { error: 'Failed to generate insights', message: error instanceof Error ? error.message : 'Unknown error' },
+      500,
+    );
+  }
+});
+
+/**
+ * GET /api/memory/import/sources - List available import sources
+ */
+memory.get('/import/sources', (_c) => {
+  return _c.json({ success: true, sources: listImportSources() });
+});
+
+/**
+ * POST /api/memory/import - Import data from another AI assistant
+ */
+memory.post('/import', zValidator('json', z.object({
+  source: z.enum(['openclaw', 'chatgpt', 'aider']),
+  path: z.string().optional(),
+  file: z.string().optional(),
+  dryRun: z.boolean().optional().default(false),
+})), async (c) => {
+  try {
+    const body = c.req.valid('json');
+    const result = await importFrom(body.source as ImportSource, {
+      path: body.path,
+      file: body.file,
+      dryRun: body.dryRun,
+    });
+
+    return c.json({
+      success: result.errors.length === 0,
+      data: result,
+      summary: `Imported from ${result.source}: ${result.memories} memories, ${result.conversations} conversations, ${result.skills} skills, ${result.preferences} preferences${result.errors.length > 0 ? ` (${result.errors.length} errors)` : ''}`,
+    });
+  } catch (error) {
+    logger.error('[Memory API] Import failed:', error as Error);
+    return c.json(
+      { error: 'Import failed', message: error instanceof Error ? error.message : 'Unknown error' },
+      500,
     );
   }
 });

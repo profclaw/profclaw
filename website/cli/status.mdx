@@ -1,0 +1,62 @@
+---
+title: "profclaw status"
+description: "Compact one-line system status overview showing server health, providers, skills, memory, and tunnels."
+---
+
+## Synopsis
+
+```bash
+profclaw status [flags]
+```
+
+## Description
+
+`status` fetches key metrics from the running profClaw server in parallel and displays a compact summary. It checks:
+
+- Server health, version, and uptime
+- Configured AI providers and their health
+- Loaded skills (total and enabled count)
+- Memory index statistics (chunks and files)
+- Tunnel status (Cloudflare Tunnel and Tailscale)
+
+Unlike `profclaw tui`, `status` is non-interactive and designed for quick checks from the terminal or in shell scripts.
+
+## Flags
+
+<ParamField query="--json" type="boolean">
+  Output all data as structured JSON. Includes the full response from each subsystem.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash Quick status check
+profclaw status
+```
+
+```bash JSON output for scripting
+profclaw status --json
+```
+
+```bash Use in a health-check script
+profclaw status --json | jq '.health.healthy'
+```
+</CodeGroup>
+
+## Example Output
+
+```
+profClaw v2.0.0 | Mode: mini | Status: healthy
+
+Providers    3 configured (anthropic, openai, ollama)
+Skills       12 loaded, 10 enabled
+Memory       2,841 chunks across 47 files
+Tunnels      Cloudflare: active | Tailscale: not running
+```
+
+## Related
+
+- [`profclaw tui`](/cli/tui) - Full terminal dashboard with watch mode
+- [`profclaw doctor`](/cli/doctor) - Detailed diagnostics with fix suggestions
+- [`profclaw agent status`](/cli/agent) - Per-agent health details
+- [`profclaw logs`](/cli/logs) - View server logs

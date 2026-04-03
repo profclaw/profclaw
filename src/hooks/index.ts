@@ -67,3 +67,25 @@ export {
   type AgentCompletion,
   type OpenClawCompletion,
 } from './agent-webhook.js';
+
+// Hook Registry (WS-4.1)
+export {
+  HookRegistry,
+  getHookRegistry,
+  type HookPoint,
+  type HookContext,
+  type HookResult,
+  type Hook,
+} from './registry.js';
+
+// Hook Loader (WS-4.1)
+export { loadHooks } from './loader.js';
+
+// Built-in Hooks (WS-4.2)
+export {
+  costWarningHook,
+  dangerousToolHook,
+  auditLogHook,
+  registerBuiltInHooks,
+  DANGEROUS_TOOLS,
+} from './built-in/index.js';

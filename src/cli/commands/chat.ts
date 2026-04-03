@@ -7,9 +7,14 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import * as readline from 'node:readline';
+import type { ModelMessage } from 'ai';
 import { api } from '../utils/api.js';
 import { error, success, spinner, info } from '../utils/output.js';
+import { getSessionDiffTracker } from '../../agents/session-diff.js';
+import { getFileSnapshotManager } from '../../agents/file-snapshots.js';
+import { getPromptSuggestionEngine } from '../../agents/prompt-suggestions.js';
+import { getRateLimitMonitor } from '../../agents/rate-limit-monitor.js';
+import { getErrorRecoveryAdvisor } from '../../agents/error-recovery.js';
 
 // === Types ===
 
@@ -79,6 +84,9 @@ interface ChatOptions {
   agentic?: boolean;
   session?: string;
   stream?: boolean;
+  tui?: boolean;
+  print?: boolean;
+  resumeCheckpoint?: string;
 }
 
 // === Helpers ===
@@ -215,190 +223,1429 @@ async function executeSingleShotWithTools(message: string, options: ChatOptions)
 }
 
 /**
- * Start interactive REPL mode
+ * Launch the Ink-based TUI chat interface.
+ * Wired to the actual profClaw streaming API via SSE.
  */
-async function startREPL(options: ChatOptions): Promise<void> {
-  console.log('');
-  console.log(chalk.cyan.bold('profClaw Chat'));
-  console.log(chalk.dim('Interactive AI assistant with profClaw intelligence'));
-  console.log(chalk.dim('Type /help for commands, /exit to quit'));
-  console.log('');
+async function startTUI(options: ChatOptions): Promise<void> {
+  const { render } = await import('ink');
+  const React = (await import('react')).default;
+  const { ChatApp } = await import('../ink/ChatApp.js');
+  const { streamChat, createConversation: createConv } = await import('../interactive/stream-client.js');
+  const { getConfig } = await import('../utils/config.js');
+  const { detectBaseUrl } = await import('../utils/api.js');
+  const { getOfflineDetector } = await import('../../utils/offline-detect.js');
+  type AgentStatusState = 'idle' | 'thinking' | 'executing' | 'complete' | 'error';
 
-  // Create or resume conversation
-  let conversationId = options.session;
-
-  if (!conversationId) {
-    const spin = spinner('Starting session...').start();
-
-    const result = await api.post<ConversationResponse>('/api/chat/conversations', {
-      presetId: options.agentic ? 'agentic' : 'profclaw-assistant',
-      mode: options.agentic ? 'agentic' : 'chat',
-    });
-
-    spin.stop();
-
-    if (!result.ok) {
-      error(result.error || 'Failed to create conversation');
-      process.exit(1);
-    }
-
-    conversationId = result.data!.conversation.id;
-    info(`Session: ${conversationId.slice(0, 8)}... (${options.agentic ? 'agentic' : 'chat'} mode)`);
-  } else {
-    info(`Resuming session: ${conversationId.slice(0, 8)}...`);
-  }
-
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-    prompt: chalk.green('> '),
-  });
-
-  const showHelp = () => {
-    console.log('');
-    console.log(chalk.yellow('Commands:'));
-    console.log('  /exit, /quit, /q  Exit chat');
-    console.log('  /clear            Clear screen');
-    console.log('  /help, /?         Show this help');
-    console.log('  /session          Show session ID');
-    console.log('  /model <name>     Change model');
-    console.log('  /tools            Toggle tool calling');
-    console.log('  /agentic          Toggle agentic mode');
-    console.log('');
+  const config = getConfig();
+  // Auto-detect the running profClaw server via shared utility
+  const resolvedUrl = await detectBaseUrl();
+  const serverConfig = {
+    baseUrl: resolvedUrl,
+    apiToken: config.apiToken,
   };
 
-  let useTools = options.tools ?? false;
-  let agenticMode = options.agentic ?? false;
-  let model = options.model;
+  // Fetch providers and models dynamically from the server
+  type ModelEntry = { id: string; name: string; provider: string; costPer1MInput?: number; costPer1MOutput?: number };
+  type ProviderEntry = { type: string; enabled: boolean; healthy: boolean; message?: string; latencyMs?: number };
 
-  const sendMessage = async (content: string) => {
-    const spin = spinner('Thinking...').start();
+  let availableProviders: Array<{ label: string; value: string; description: string; active: boolean; disabled?: boolean }> = [];
+  let availableModels: Array<{ label: string; value: string; description: string; active: boolean; disabled?: boolean }> = [];
+  let detectedModel = options.model ?? 'auto';
+  let detectedProvider = 'auto';
 
-    try {
-      const endpoint = useTools || agenticMode
-        ? `/api/chat/conversations/${conversationId}/messages/with-tools`
-        : `/api/chat/conversations/${conversationId}/messages`;
+  try {
+    const headers: Record<string, string> = { 'Accept': 'application/json' };
+    if (serverConfig.apiToken) headers['Authorization'] = `Bearer ${serverConfig.apiToken}`;
 
-      const result = await api.post<MessageResponse>(endpoint, {
-        content,
-        model,
-        enableTools: useTools || agenticMode,
-      });
+    const [provRes, modRes] = await Promise.allSettled([
+      fetch(`${serverConfig.baseUrl}/api/chat/providers`, { headers }).then(r => r.ok ? r.json() : null) as Promise<{ default: string; providers: ProviderEntry[] } | null>,
+      fetch(`${serverConfig.baseUrl}/api/chat/models`, { headers }).then(r => r.ok ? r.json() : null) as Promise<{ models: ModelEntry[] } | null>,
+    ]);
 
-      spin.stop();
+    // Build providers list from API
+    if (provRes.status === 'fulfilled' && provRes.value?.providers) {
+      const provData = provRes.value;
+      const healthy = provData.providers.filter(p => p.enabled && p.healthy);
 
-      if (!result.ok) {
-        error(result.error || 'Failed to send message');
-        return;
+      // Auto-detect best provider (prefer local first)
+      if (!options.model) {
+        const preferred = ['ollama', 'anthropic', 'openai', 'azure', 'google', 'cerebras'];
+        const best = preferred.find(p => healthy.some(h => h.type === p)) ?? healthy[0]?.type ?? provData.default;
+        detectedProvider = best ?? 'auto';
+
+        const modelMap: Record<string, string> = {
+          ollama: 'llama3.2',
+          anthropic: 'claude-sonnet',
+          openai: 'gpt-4o',
+          azure: 'gpt-4o',
+          google: 'gemini-2.0-flash',
+          cerebras: 'llama-3.3-70b',
+        };
+        detectedModel = modelMap[detectedProvider] ?? 'auto';
       }
 
-      const data = result.data!;
+      // Show all providers: configured ones at top, unconfigured greyed out
+      const configured = provData.providers.filter(p => p.enabled && p.healthy);
+      const unconfigured = provData.providers.filter(p => !p.enabled || !p.healthy);
+      availableProviders = [
+        ...configured.map(p => ({
+          label: p.type,
+          value: p.type,
+          description: `${p.message ?? 'configured'}${p.latencyMs ? ` · ${p.latencyMs}ms` : ''}`,
+          active: p.type === detectedProvider,
+        })),
+        ...unconfigured.map(p => ({
+          label: `${p.type} (not configured)`,
+          value: p.type,
+          description: p.healthy ? 'no API key' : (p.message ?? 'offline'),
+          active: false,
+          disabled: true,
+        })),
+      ];
+    }
 
-      // Print tool calls if any
-      if (data.toolCalls && data.toolCalls.length > 0) {
-        console.log('');
-        console.log(chalk.yellow('Tool Calls:'));
-        for (const tc of data.toolCalls) {
-          console.log(formatToolCall(tc));
+    // Build models list from API
+    if (modRes.status === 'fulfilled' && modRes.value?.models) {
+      // Only show models from configured (non-disabled) providers
+      const configuredProviders = new Set(
+        availableProviders.filter(p => !p.disabled).map(p => p.value)
+      );
+      const seen = new Set<string>();
+
+      availableModels = modRes.value.models
+        .filter(m => {
+          if (seen.has(m.id)) return false;
+          seen.add(m.id);
+          return configuredProviders.size === 0 || configuredProviders.has(m.provider);
+        })
+        .map(m => {
+          const costIn = m.costPer1MInput ?? 0;
+          const costOut = m.costPer1MOutput ?? 0;
+          const cost = costIn === 0 && costOut === 0 ? 'free' : `$${costIn}/$${costOut} per 1M`;
+          return {
+            label: m.name || m.id,
+            value: m.id,
+            description: `${m.provider} · ${cost}`,
+            active: m.id === detectedModel,
+          };
+        });
+    }
+  } catch { /* fall back to empty lists */ }
+
+  const sessionId = options.session ?? `tui-${Date.now().toString(36).slice(-4)}`;
+
+  // Mutable TUI state — mutated in place, then rerender() flushes to Ink
+  let currentModel = detectedModel;
+  let currentProvider = detectedProvider;
+  let agenticMode = options.agentic ?? false;
+  let showThinking = false;
+  let showTools = true;
+  let effort: 'low' | 'medium' | 'high' = 'medium';
+
+  let tokensUsed = 0;
+  let estimatedCost = 0;
+  const tokensMax = 100_000;
+  const sessionStartTime = Date.now();
+  let agentStatus: AgentStatusState = 'idle';
+  let agentAction: string | undefined;
+  let stepCount = 0;
+  let elapsedMs = 0;
+  let streamingContent: string | undefined;
+  let conversationId: string | undefined;
+  let lastUserMessage = '';
+  let lastAssistantContent = '';
+  let currentSuggestions: Array<{ text: string; category: 'follow-up' | 'deeper' | 'related' | 'action' }> = [];
+  let rerenderFn: (() => void) | null = null;
+  let activeAbort: AbortController | null = null;
+
+  // ── Connection / offline state ───────────────────────────────────────────────
+  let connectionStatus: 'connected' | 'reconnecting' | 'disconnected' = 'connected';
+  let connectionLatencyMs: number | undefined;
+
+  // Start the offline detector
+  const offlineDetector = getOfflineDetector();
+  offlineDetector.start(resolvedUrl);
+  offlineDetector.onStatusChange((online) => {
+    connectionStatus = online ? 'connected' : 'disconnected';
+    if (online) {
+      // Replay any queued messages when server comes back
+      const queued = offlineDetector.drainQueue();
+      for (const cmd of queued) {
+        const payload = cmd.payload as { message: string };
+        if (payload.message) {
+          void handleSubmit(payload.message);
         }
       }
-
-      // Print response
-      console.log('');
-      console.log(chalk.cyan('profClaw') + (data.assistantMessage.model ? chalk.dim(` (${data.assistantMessage.model})`) : '') + ':');
-      console.log(data.assistantMessage.content || '(no response)');
-
-      if (data.usage) {
-        console.log('');
-        console.log(formatUsage(data.usage));
-      }
-      console.log('');
-    } catch (err) {
-      spin.stop();
-      error(err instanceof Error ? err.message : 'Failed to send message');
     }
-  };
+    rerender();
+  });
 
-  // Handle input
-  rl.on('line', async (line) => {
-    const input = line.trim();
+  const messages: Array<{
+    role: 'user' | 'assistant';
+    content: string;
+    model?: string;
+    timestamp: Date;
+  }> = [];
 
-    // Skip empty lines
-    if (!input) {
-      rl.prompt();
+  function rerender() {
+    rerenderFn?.();
+  }
+
+  function pushInfo(content: string) {
+    messages.push({ role: 'assistant', content, timestamp: new Date() });
+    rerender();
+  }
+
+  /** Fetch recent sessions from server */
+  async function fetchSessions(limit = 15): Promise<Array<{ id: string; title?: string; mode: string; createdAt: string }>> {
+    try {
+      const headers: Record<string, string> = { 'Accept': 'application/json' };
+      if (serverConfig.apiToken) headers['Authorization'] = `Bearer ${serverConfig.apiToken}`;
+      const res = await fetch(`${serverConfig.baseUrl}/api/chat/conversations/recent?limit=${limit}`, { headers });
+      if (!res.ok) return [];
+      const data = await res.json() as { conversations?: Array<{ id: string; title?: string; mode: string; createdAt: string }> };
+      return data.conversations ?? [];
+    } catch { return []; }
+  }
+
+  /** Auto-title a conversation from the first message */
+  async function autoTitleConversation(convId: string, firstMsg: string): Promise<void> {
+    const title = firstMsg.length <= 50 ? firstMsg : firstMsg.slice(0, 47).replace(/\s+\S*$/, '') + '...';
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (serverConfig.apiToken) headers['Authorization'] = `Bearer ${serverConfig.apiToken}`;
+      await fetch(`${serverConfig.baseUrl}/api/chat/conversations/${convId}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ title }),
+      });
+    } catch { /* fire-and-forget */ }
+  }
+
+  /** Ensure a conversation exists, create one if not */
+  async function ensureConversation(): Promise<string | null> {
+    if (conversationId) return conversationId;
+
+    const result = await createConv(serverConfig, {
+      mode: agenticMode ? 'agentic' : 'chat',
+      presetId: agenticMode ? 'agentic' : 'profclaw-assistant',
+    });
+
+    if ('error' in result) {
+      pushInfo(`**Error:** ${result.error}`);
+      return null;
+    }
+
+    conversationId = result.conversationId;
+    return conversationId;
+  }
+
+  /** Handle slash commands — returns true if handled */
+  async function handleSlashCommand(cmd: string): Promise<boolean> {
+    const parts = cmd.slice(1).trim().split(/\s+/);
+    const command = parts[0]?.toLowerCase();
+    const args = parts.slice(1);
+
+    switch (command) {
+      case 'model':
+      case 'm': {
+        if (args[0]) {
+          currentModel = args[0];
+          // Update active flag in picker list
+          availableModels = availableModels.map(m => ({ ...m, active: m.value === currentModel }));
+          pushInfo(`Model switched to **${currentModel}**`);
+        } else {
+          pushInfo(`Current model: **${currentModel}** via ${currentProvider}\n\nUsage: \`/model <name>\` (e.g. \`/model gpt-4o\`, \`/model claude-opus\`, \`/model llama3.2\`)`);
+        }
+        return true;
+      }
+
+      case 'provider':
+      case 'p': {
+        if (args[0]) {
+          currentProvider = args[0];
+          availableProviders = availableProviders.map(p => ({ ...p, active: p.value === currentProvider }));
+          pushInfo(`Provider switched to **${currentProvider}**`);
+        } else {
+          pushInfo(`Current provider: **${currentProvider}**\n\nUsage: \`/provider <name>\` (e.g. \`/provider ollama\`, \`/provider anthropic\`)`);
+        }
+        return true;
+      }
+
+      case 'agentic':
+      case 'agent': {
+        agenticMode = !agenticMode;
+        pushInfo(`Agentic mode: **${agenticMode ? 'ON' : 'OFF'}**${agenticMode ? '\nAgent has access to web search, file ops, code execution, and more.' : ''}`);
+        return true;
+      }
+
+      case 'effort': {
+        const level = args[0]?.toLowerCase();
+        if (level === 'low' || level === 'medium' || level === 'high') {
+          effort = level;
+          pushInfo(`Effort level set to **${effort}**`);
+        } else {
+          pushInfo(`Current effort: **${effort}**\n\nUsage: \`/effort <low|medium|high>\``);
+        }
+        return true;
+      }
+
+      case 'thinking': {
+        showThinking = !showThinking;
+        pushInfo(`Thinking display: **${showThinking ? 'ON' : 'OFF'}**`);
+        return true;
+      }
+
+      case 'tools': {
+        showTools = !showTools;
+        pushInfo(`Tool display: **${showTools ? 'verbose' : 'minimal'}**`);
+        return true;
+      }
+
+      case 'new': {
+        conversationId = undefined;
+        messages.length = 0;
+        tokensUsed = 0;
+        estimatedCost = 0;
+        stepCount = 0;
+        lastUserMessage = '';
+        lastAssistantContent = '';
+        pushInfo('Started new conversation.');
+        return true;
+      }
+
+      case 'clear': {
+        messages.length = 0;
+        pushInfo('Display cleared. Conversation history is preserved on the server.');
+        return true;
+      }
+
+      case 'sessions':
+      case 'ls': {
+        agentStatus = 'thinking';
+        agentAction = 'Fetching sessions...';
+        rerender();
+        const sessions = await fetchSessions(20);
+        agentStatus = 'idle';
+        agentAction = undefined;
+        if (sessions.length === 0) {
+          pushInfo('No sessions found.');
+        } else {
+          const list = sessions.map(s => {
+            const created = new Date(s.createdAt).toLocaleDateString();
+            const title = s.title || '(untitled)';
+            const modeIcon = s.mode === 'agentic' ? '🤖' : '💬';
+            return `${modeIcon} \`${s.id.slice(0, 8)}\` **${title}** — ${created}`;
+          }).join('\n');
+          pushInfo(`**Recent Sessions:**\n\n${list}\n\nResume with: \`/resume <id>\``);
+        }
+        return true;
+      }
+
+      case 'resume':
+      case 'switch': {
+        if (!args[0]) {
+          // No arg: show list and prompt
+          const sessions = await fetchSessions(20);
+          if (sessions.length === 0) {
+            pushInfo('No sessions to resume.');
+            return true;
+          }
+          const list = sessions.map(s => {
+            const created = new Date(s.createdAt).toLocaleDateString();
+            return `\`${s.id.slice(0, 8)}\` ${s.title || '(untitled)'} — ${created}`;
+          }).join('\n');
+          pushInfo(`**Sessions:**\n\n${list}\n\nUsage: \`/resume <id-prefix>\``);
+          return true;
+        }
+        const sessions = await fetchSessions(50);
+        const match = sessions.find(s => s.id.startsWith(args[0]));
+        if (!match) {
+          pushInfo(`No session found matching \`${args[0]}\`.`);
+          return true;
+        }
+        conversationId = match.id;
+        messages.length = 0;
+        tokensUsed = 0;
+        estimatedCost = 0;
+        stepCount = 0;
+        pushInfo(`Resumed session \`${match.id.slice(0, 8)}\`: **${match.title || '(untitled)'}**`);
+        return true;
+      }
+
+      case 'status': {
+        agentStatus = 'thinking';
+        agentAction = 'Checking server...';
+        rerender();
+        try {
+          const headers: Record<string, string> = { 'Accept': 'application/json' };
+          if (serverConfig.apiToken) headers['Authorization'] = `Bearer ${serverConfig.apiToken}`;
+          const res = await fetch(`${serverConfig.baseUrl}/api/chat/providers`, { headers });
+          agentStatus = 'idle';
+          agentAction = undefined;
+          if (!res.ok) {
+            pushInfo(`**Server:** ${serverConfig.baseUrl} — offline (HTTP ${res.status})`);
+          } else {
+            const data = await res.json() as { providers: Array<{ type: string; enabled: boolean; healthy: boolean; message?: string; latencyMs?: number }> };
+            const lines = (data.providers ?? []).map(p => {
+              const status = p.healthy ? '🟢' : p.enabled ? '🟡' : '⚫';
+              const latency = p.latencyMs ? ` · ${p.latencyMs}ms` : '';
+              return `${status} **${p.type}** ${p.message ?? ''}${latency}`;
+            });
+            pushInfo(`**Server:** ${serverConfig.baseUrl}\n\n${lines.join('\n')}`);
+          }
+        } catch (err) {
+          agentStatus = 'idle';
+          agentAction = undefined;
+          pushInfo(`**Server:** ${serverConfig.baseUrl} — unreachable\n${err instanceof Error ? err.message : ''}`);
+        }
+        return true;
+      }
+
+      case 'run':
+      case 'exec': {
+        if (args.length === 0) {
+          pushInfo('Usage: `/run <command>`');
+          return true;
+        }
+        const cmdStr = args.join(' ');
+        agentStatus = 'executing';
+        agentAction = `$ ${cmdStr}`;
+        rerender();
+        try {
+          const { exec } = await import('node:child_process');
+          const output = await new Promise<string>((resolve, reject) => {
+            exec(cmdStr, { encoding: 'utf-8', timeout: 30_000, maxBuffer: 500_000 }, (err, stdout, stderr) => {
+              if (err) {
+                const detail = (stderr?.trim() || err.message || 'Command failed');
+                reject(Object.assign(err, { detail }));
+              } else {
+                resolve(stdout + (stderr ? `\nSTDERR:\n${stderr}` : ''));
+              }
+            });
+          });
+          agentStatus = 'idle';
+          agentAction = undefined;
+          pushInfo(`**$ ${cmdStr}**\n\`\`\`\n${output.trimEnd()}\n\`\`\``);
+        } catch (err) {
+          agentStatus = 'idle';
+          agentAction = undefined;
+          const e = err as { detail?: string; message?: string };
+          pushInfo(`**$ ${cmdStr}** — failed\n\`\`\`\n${e.detail ?? e.message ?? 'Command failed'}\n\`\`\``);
+        }
+        return true;
+      }
+
+      case 'retry': {
+        if (!lastUserMessage) {
+          pushInfo('No previous message to retry.');
+          return true;
+        }
+        // Optionally use a different model for retry
+        if (args[0]) {
+          currentModel = args[0];
+          availableModels = availableModels.map(m => ({ ...m, active: m.value === currentModel }));
+        }
+        // Re-submit the last user message
+        await handleSubmit(lastUserMessage, true);
+        return true;
+      }
+
+      case 'diff': {
+        agentStatus = 'thinking';
+        agentAction = 'Generating diff...';
+        rerender();
+
+        const diffTracker = getSessionDiffTracker();
+        const changedFiles = diffTracker.getChangedFiles();
+
+        if (changedFiles.length === 0) {
+          agentStatus = 'idle';
+          agentAction = undefined;
+          pushInfo('No file changes in this session.');
+          return true;
+        }
+
+        const diffOutput = await diffTracker.generateDiff();
+        agentStatus = 'idle';
+        agentAction = undefined;
+
+        const summary = changedFiles
+          .map(f => `- \`${f.path}\` (${f.status})`)
+          .join('\n');
+
+        pushInfo(
+          `**Session diff** — ${changedFiles.length} file(s) changed:\n\n${summary}\n\n\`\`\`diff\n${diffOutput.trimEnd()}\n\`\`\``,
+        );
+        return true;
+      }
+
+      case 'rewind': {
+        const snapshotManager = getFileSnapshotManager();
+
+        // /rewind --turn <n>
+        const turnFlagIdx = args.indexOf('--turn');
+        if (turnFlagIdx !== -1) {
+          const turnArg = args[turnFlagIdx + 1];
+          const turnIndex = parseInt(turnArg ?? '', 10);
+
+          if (isNaN(turnIndex)) {
+            pushInfo('Usage: `/rewind --turn <n>` where n is a turn number.');
+            return true;
+          }
+
+          agentStatus = 'thinking';
+          agentAction = `Rewinding turn ${turnIndex}...`;
+          rerender();
+
+          const results = await snapshotManager.rewindTurn(turnIndex);
+          agentStatus = 'idle';
+          agentAction = undefined;
+
+          if (results.length === 0) {
+            pushInfo(`No files were modified during turn ${turnIndex}.`);
+            return true;
+          }
+
+          const lines = results.map(r =>
+            `- \`${r.path}\` — ${r.restored ? 'restored' : 'no snapshot found'}`,
+          );
+          pushInfo(
+            `**Rewind turn ${turnIndex}** — ${results.filter(r => r.restored).length}/${results.length} files restored:\n\n${lines.join('\n')}`,
+          );
+          return true;
+        }
+
+        // /rewind <path>
+        if (args[0] && !args[0].startsWith('--')) {
+          const filePath = args[0];
+
+          agentStatus = 'thinking';
+          agentAction = `Rewinding ${filePath}...`;
+          rerender();
+
+          const result = await snapshotManager.rewind(filePath);
+          agentStatus = 'idle';
+          agentAction = undefined;
+
+          if (!result.restored) {
+            pushInfo(`No snapshot found for \`${filePath}\`. The file may not have been modified this session.`);
+          } else {
+            pushInfo(`Rewound \`${result.path}\` to snapshot from turn ${result.turnIndex}.`);
+          }
+          return true;
+        }
+
+        // /rewind (no args) — list modified files
+        const modifiedFiles = snapshotManager.getModifiedFiles();
+
+        if (modifiedFiles.length === 0) {
+          pushInfo('No file snapshots in this session.');
+          return true;
+        }
+
+        const fileList = modifiedFiles
+          .map(f => {
+            const age = new Date(f.lastModified).toLocaleTimeString();
+            return `- \`${f.path}\` — ${f.snapshotCount} snapshot(s), last at ${age}`;
+          })
+          .join('\n');
+
+        pushInfo(
+          `**Snapshots this session** (${modifiedFiles.length} file(s)):\n\n${fileList}\n\nUse \`/rewind <path>\` to restore a file, or \`/rewind --turn <n>\` to rewind all changes from a turn.`,
+        );
+        return true;
+      }
+
+      case 'compact': {
+        const useLLM = args.includes('--llm');
+        const { ContextCompactor } = await import('../../agents/context-compactor.js');
+
+        const compactor = new ContextCompactor({
+          maxContextTokens: tokensMax,
+          compactionThreshold: Math.floor(tokensMax * 0.7),
+          preserveRecentTurns: 5,
+          summaryMaxTokens: 2_000,
+        });
+
+        // Build a ModelMessage[] from the display messages for token estimation
+        const modelMessages: ModelMessage[] = messages.map((m) => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+        }));
+
+        const currentTokens = compactor.estimateTokens(modelMessages);
+        const threshold = Math.floor(tokensMax * 0.7);
+
+        if (currentTokens < threshold && !useLLM) {
+          pushInfo(
+            `No compaction needed (${currentTokens.toLocaleString()}/${tokensMax.toLocaleString()} tokens — threshold: ${threshold.toLocaleString()})`,
+          );
+          return true;
+        }
+
+        agentStatus = 'thinking';
+        agentAction = useLLM ? 'Compacting with LLM...' : 'Compacting context...';
+        rerender();
+
+        try {
+          let result;
+
+          if (useLLM) {
+            // Build an apiCall using the current server/model config
+            const apiCall = async (prompt: string): Promise<string> => {
+              const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+              };
+              if (serverConfig.apiToken) {
+                headers['Authorization'] = `Bearer ${serverConfig.apiToken}`;
+              }
+              const res = await fetch(`${serverConfig.baseUrl}/api/chat/completions`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                  messages: [{ role: 'user', content: prompt }],
+                  model: currentModel,
+                  provider: currentProvider,
+                  stream: false,
+                }),
+              });
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              const data = await res.json() as { content?: string; message?: { content?: string } };
+              return data.content ?? data.message?.content ?? '';
+            };
+
+            result = await compactor.compactWithLLM(modelMessages, apiCall);
+          } else {
+            result = await compactor.compact(modelMessages);
+          }
+
+          agentStatus = 'idle';
+          agentAction = undefined;
+
+          if (!result.compacted) {
+            pushInfo(
+              `No compaction needed (${currentTokens.toLocaleString()}/${tokensMax.toLocaleString()} tokens)`,
+            );
+            return true;
+          }
+
+          // Replace display messages with compacted set (convert back to display format)
+          messages.length = 0;
+          for (const m of result.messages) {
+            if (m.role === 'system') {
+              const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+              messages.push({ role: 'assistant', content, timestamp: new Date() });
+            } else if (m.role === 'user' || m.role === 'assistant') {
+              const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+              messages.push({ role: m.role, content, timestamp: new Date() });
+            }
+          }
+
+          // Update token counter
+          tokensUsed = result.compactedTokens;
+
+          pushInfo(
+            `**Context compacted** (${useLLM ? 'LLM' : 'local'} mode)\n` +
+            `${result.originalTokens.toLocaleString()} → ${result.compactedTokens.toLocaleString()} tokens · ${result.turnsCompacted} turn(s) summarized`,
+          );
+        } catch (err) {
+          agentStatus = 'idle';
+          agentAction = undefined;
+          pushInfo(
+            `**Compaction failed:** ${err instanceof Error ? err.message : 'Unknown error'}`,
+          );
+        }
+        return true;
+      }
+
+      case 'copy': {
+        const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
+        if (!lastAssistant) {
+          pushInfo('No assistant message to copy.');
+          return true;
+        }
+        try {
+          const { spawn } = await import('node:child_process');
+          const clipCmd =
+            process.platform === 'darwin' ? 'pbcopy' :
+            process.platform === 'win32'  ? 'clip'   :
+            'xclip';
+          const clipArgs = process.platform === 'linux' ? ['-selection', 'clipboard'] : [];
+          const proc = spawn(clipCmd, clipArgs, { stdio: ['pipe', 'ignore', 'ignore'] });
+          proc.stdin.write(lastAssistant.content, 'utf-8');
+          proc.stdin.end();
+          await new Promise<void>((resolve) => proc.on('close', () => resolve()));
+          pushInfo('Copied last response to clipboard.');
+        } catch (err) {
+          pushInfo(`**Copy failed:** ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+        return true;
+      }
+
+      case 'save': {
+        const savePath = args.join(' ').trim();
+        if (!savePath) {
+          pushInfo('Usage: `/save <filepath>`');
+          return true;
+        }
+        const lastAssistantMsg = [...messages].reverse().find(m => m.role === 'assistant');
+        if (!lastAssistantMsg) {
+          pushInfo('No assistant message to save.');
+          return true;
+        }
+        try {
+          const { writeFile } = await import('node:fs/promises');
+          await writeFile(savePath, lastAssistantMsg.content, 'utf-8');
+          pushInfo(`Saved to \`${savePath}\`.`);
+        } catch (err) {
+          pushInfo(`**Save failed:** ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+        return true;
+      }
+
+      case 'whoami': {
+        const msgCount = messages.length;
+        const tokenStr = tokensUsed >= 1000
+          ? `${(tokensUsed / 1000).toFixed(1)}K`
+          : String(tokensUsed);
+        const costStr = estimatedCost > 0
+          ? `$${estimatedCost.toFixed(4)}`
+          : '$0.000';
+        pushInfo([
+          '**Session Info**',
+          '',
+          `  **Model:**    ${currentModel} via ${currentProvider}`,
+          `  **Mode:**     ${agenticMode ? 'agentic (tools on)' : 'chat (agentic: off)'}`,
+          `  **Effort:**   ${effort}`,
+          `  **Thinking:** ${showThinking ? 'visible' : 'hidden'}`,
+          `  **Tools:**    ${showTools ? 'verbose' : 'minimal'}`,
+          `  **Server:**   ${serverConfig.baseUrl}`,
+          `  **Session:**  ${sessionId} (${msgCount} message${msgCount !== 1 ? 's' : ''}, ${tokenStr} tokens, ${costStr})`,
+        ].join('\n'));
+        return true;
+      }
+
+      case 'help':
+      case 'h':
+      case '?': {
+        pushInfo([
+          '**Slash Commands**',
+          '',
+          '**Chat**',
+          '  `/model <name>` — Switch AI model (e.g. gpt-4o, claude-opus, llama3.2)',
+          '  `/provider <name>` — Switch provider (anthropic, openai, ollama, etc.)',
+          '  `/agentic` — Toggle agentic mode (tools + multi-step reasoning)',
+          '  `/effort <low|medium|high>` — Set reasoning effort level',
+          '  `/thinking` — Toggle thinking display',
+          '  `/tools` — Toggle tool call verbosity',
+          '',
+          '**Session**',
+          '  `/new` — Start a fresh conversation',
+          '  `/sessions` — List recent conversations',
+          '  `/resume <id>` — Switch to a previous session',
+          '  `/checkpoints` — List agent execution checkpoints (auto-saved every 5 steps)',
+          '  `/clear` — Clear display (history preserved on server)',
+          '',
+          '**File Changes**',
+          '  `/diff` — Show unified diff of all file changes this session',
+          '  `/rewind` — List files with snapshots this session',
+          '  `/rewind <path>` — Restore a file to its last snapshot',
+          '  `/rewind --turn <n>` — Rewind all changes from turn N',
+          '',
+          '**Utilities**',
+          '  `/compact` — Compact context (summarize old turns)',
+          '  `/compact --llm` — Compact using LLM for richer summary',
+          '  `/status` — Server and provider health',
+          '  `/insights` — Session and server usage analytics',
+          '  `/run <cmd>` — Execute a shell command',
+          '  `/copy` — Copy last assistant message to clipboard',
+          '  `/save <path>` — Save last assistant message to a file',
+          '  `/whoami` — Show current model, mode, and session info',
+          '  `/retry [model]` — Retry last message (optionally with different model)',
+          '  `/help` — Show this help',
+          '  `/exit` — Quit',
+        ].join('\n'));
+        return true;
+      }
+
+      case 'checkpoints':
+      case 'cp': {
+        const { getCheckpointManager } = await import('../../agents/checkpoint-manager.js');
+        const cpManager = getCheckpointManager();
+        agentStatus = 'thinking';
+        agentAction = 'Loading checkpoints...';
+        rerender();
+        const list = await cpManager.list();
+        agentStatus = 'idle';
+        agentAction = undefined;
+
+        if (list.length === 0) {
+          pushInfo('No agent checkpoints found.\n\nCheckpoints are saved automatically every 5 steps during agentic execution.\nResume a checkpoint with: `profclaw chat --resume-checkpoint <sessionId>`');
+          return true;
+        }
+
+        const rows = list.map((cp) => {
+          const age = new Date(cp.updatedAt).toLocaleString();
+          const task = cp.taskDescription
+            ? cp.taskDescription.slice(0, 60) + (cp.taskDescription.length > 60 ? '...' : '')
+            : '(no description)';
+          return `\`${cp.sessionId.slice(0, 12)}\` step **${cp.step}** — ${task} — _${age}_`;
+        }).join('\n');
+
+        pushInfo(
+          `**Agent Checkpoints** (${list.length}):\n\n${rows}\n\n` +
+          `Resume with: \`profclaw chat --resume-checkpoint <sessionId>\``,
+        );
+        return true;
+      }
+
+      case 'insights':
+      case 'stats': {
+        const sessionDuration = Date.now() - sessionStartTime;
+        const toolCallCount = messages.filter((m) => m.content.includes('⚙')).length;
+        const tokenStr = tokensUsed >= 1_000
+          ? `${(tokensUsed / 1000).toFixed(1)}K`
+          : String(tokensUsed);
+        const costStr = `$${(estimatedCost).toFixed(4)}`;
+        const durationStr = sessionDuration < 60_000
+          ? `${Math.floor(sessionDuration / 1000)}s`
+          : `${Math.floor(sessionDuration / 60_000)}m ${Math.floor((sessionDuration % 60_000) / 1000)}s`;
+
+        agentStatus = 'thinking';
+        agentAction = 'Fetching server stats...';
+        rerender();
+
+        interface ServerStatsPayload {
+          totalTasks?: number;
+          activeSessions?: number;
+          uptime?: string;
+        }
+
+        const serverStatsRes = await api.get<ServerStatsPayload>('/api/stats').catch(() => null);
+        const serverStats: ServerStatsPayload | undefined = serverStatsRes?.data;
+
+        agentStatus = 'idle';
+        agentAction = undefined;
+
+        pushInfo([
+          '**Session Insights**',
+          '',
+          `  Messages:      ${messages.length}`,
+          `  Tokens used:   ${tokenStr}`,
+          `  Est. cost:     ${costStr}`,
+          `  Duration:      ${durationStr}`,
+          `  Tool calls:    ${toolCallCount}`,
+          `  Model:         ${currentModel} via ${currentProvider}`,
+          `  Mode:          ${agenticMode ? 'agentic' : 'chat'}`,
+          '',
+          '**Server Stats**',
+          '',
+          `  Total tasks:    ${serverStats?.totalTasks ?? 'N/A'}`,
+          `  Active sessions:${serverStats?.activeSessions ?? 'N/A'}`,
+          `  Uptime:         ${serverStats?.uptime ?? 'N/A'}`,
+        ].join('\n'));
+        return true;
+      }
+
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * Attempt to switch to the next healthy provider when the current one fails.
+   * Returns true if a switch was made (caller should retry).
+   */
+  function trySwitchProvider(errMsg: string, statusCode?: number): boolean {
+    const isProviderError =
+      statusCode === 429 ||
+      statusCode === 503 ||
+      errMsg.includes('ECONNREFUSED') ||
+      errMsg.includes('fetch failed') ||
+      errMsg.includes('Connection refused');
+
+    if (!isProviderError) return false;
+
+    const healthy = availableProviders.filter(p => !p.disabled && p.value !== currentProvider);
+    if (healthy.length === 0) return false;
+
+    const next = healthy[0];
+    if (!next) return false;
+
+    const previous = currentProvider;
+    currentProvider = next.value;
+    availableProviders = availableProviders.map(p => ({ ...p, active: p.value === currentProvider }));
+
+    // Update model to a sensible default for the new provider
+    const modelMap: Record<string, string> = {
+      ollama: 'llama3.2',
+      anthropic: 'claude-sonnet',
+      openai: 'gpt-4o',
+      azure: 'gpt-4o',
+      google: 'gemini-2.0-flash',
+      cerebras: 'llama-3.3-70b',
+    };
+    if (modelMap[currentProvider]) {
+      currentModel = modelMap[currentProvider];
+      availableModels = availableModels.map(m => ({ ...m, active: m.value === currentModel }));
+    }
+
+    messages.push({
+      role: 'assistant',
+      content: `**${previous} unavailable**, switching to **${currentProvider}**...`,
+      timestamp: new Date(),
+    });
+    rerender();
+    return true;
+  }
+
+  /** Send a message and stream the response via SSE */
+  async function handleSubmit(userMessage: string, isRetry = false): Promise<void> {
+    // Slash commands
+    if (userMessage.startsWith('/')) {
+      const handled = await handleSlashCommand(userMessage);
+      if (handled) return;
+      // Unknown slash command — fall through to send as message
+    }
+
+    // Queue the message locally if server is unreachable
+    if (!offlineDetector.getStatus()) {
+      offlineDetector.queueCommand({ message: userMessage });
+      messages.push({
+        role: 'assistant',
+        content: `**Offline** — message queued. Will send when server is back online.`,
+        timestamp: new Date(),
+      });
+      rerender();
       return;
     }
 
-    // Handle commands
-    if (input.startsWith('/')) {
-      const [cmd, ...args] = input.slice(1).split(/\s+/);
-
-      switch (cmd.toLowerCase()) {
-        case 'exit':
-        case 'quit':
-        case 'q':
-          console.log(chalk.dim('Goodbye!'));
-          rl.close();
-          process.exit(0);
-          return;
-
-        case 'clear':
-          console.clear();
-          rl.prompt();
-          return;
-
-        case 'help':
-        case '?':
-          showHelp();
-          rl.prompt();
-          return;
-
-        case 'session':
-          console.log(chalk.dim(`Session ID: ${conversationId}`));
-          rl.prompt();
-          return;
-
-        case 'model':
-          if (args[0]) {
-            model = args[0];
-            success(`Model set to: ${model}`);
-          } else {
-            console.log(chalk.dim(`Current model: ${model || 'default'}`));
-          }
-          rl.prompt();
-          return;
-
-        case 'tools':
-          useTools = !useTools;
-          success(`Tools: ${useTools ? 'enabled' : 'disabled'}`);
-          rl.prompt();
-          return;
-
-        case 'agentic':
-          agenticMode = !agenticMode;
-          useTools = agenticMode; // Agentic mode implies tools
-          success(`Agentic mode: ${agenticMode ? 'enabled' : 'disabled'}`);
-          rl.prompt();
-          return;
-
-        default:
-          error(`Unknown command: /${cmd}`);
-          rl.prompt();
-          return;
-      }
+    // Cancel any in-flight request
+    if (activeAbort) {
+      activeAbort.abort();
+      activeAbort = null;
     }
 
-    // Send message to AI
-    await sendMessage(input);
-    rl.prompt();
-  });
+    if (!isRetry) {
+      lastUserMessage = userMessage;
+    }
 
-  rl.on('close', () => {
-    process.exit(0);
-  });
+    messages.push({ role: 'user', content: userMessage, timestamp: new Date() });
+    currentSuggestions = [];
+    agentStatus = 'thinking';
+    agentAction = 'Connecting...';
+    streamingContent = '';
+    const startTime = Date.now();
+    rerender();
 
-  // Start prompt
-  rl.prompt();
+    // Ensure conversation exists
+    const convId = await ensureConversation();
+    if (!convId) {
+      agentStatus = 'error';
+      streamingContent = undefined;
+      rerender();
+      return;
+    }
+
+    // Auto-title on first message
+    const isFirstMessage = messages.filter(m => m.role === 'user').length === 1;
+    if (isFirstMessage) {
+      void autoTitleConversation(convId, userMessage);
+    }
+
+    agentAction = 'Waiting for response...';
+    rerender();
+
+    const abortController = new AbortController();
+    activeAbort = abortController;
+
+    let assistantStarted = false;
+    let accumulatedContent = '';
+    const toolsUsedThisTurn: string[] = [];
+
+    try {
+      for await (const event of streamChat(serverConfig, {
+        conversationId: convId,
+        content: userMessage,
+        model: currentModel !== 'auto' ? currentModel : undefined,
+        provider: currentProvider !== 'auto' ? currentProvider : undefined,
+        agentic: agenticMode,
+        showThinking,
+        effort,
+        signal: abortController.signal,
+      })) {
+        if (abortController.signal.aborted) break;
+
+        elapsedMs = Date.now() - startTime;
+
+        switch (event.type) {
+          case 'thinking_start':
+          case 'thinking:start': {
+            agentStatus = 'thinking';
+            agentAction = 'Thinking...';
+            rerender();
+            break;
+          }
+
+          case 'thinking_update':
+          case 'thinking:update': {
+            if (showThinking) {
+              const chunk = event.data.content as string;
+              if (chunk) {
+                streamingContent = (streamingContent ?? '') + `*${chunk}*`;
+                rerender();
+              }
+            }
+            break;
+          }
+
+          case 'thinking:end':
+          case 'thinking_end': {
+            // In agentic mode, thinking:end.text may contain the actual response text
+            const responseText = event.data.text as string | undefined;
+            if (responseText) {
+              if (!assistantStarted) {
+                assistantStarted = true;
+                agentStatus = 'executing';
+                agentAction = 'Responding...';
+                streamingContent = '';
+              }
+              accumulatedContent += responseText;
+              streamingContent = accumulatedContent;
+              rerender();
+            }
+            break;
+          }
+
+          case 'content_delta': {
+            if (!assistantStarted) {
+              assistantStarted = true;
+              agentStatus = 'executing';
+              agentAction = 'Responding...';
+              streamingContent = '';
+            }
+            const chunk = event.data.content as string;
+            if (chunk) {
+              accumulatedContent += chunk;
+              streamingContent = accumulatedContent;
+              rerender();
+            }
+            break;
+          }
+
+          case 'tool_call':
+          case 'tool:call': {
+            agentStatus = 'executing';
+            const toolName = (event.data.name as string) || (event.data.toolName as string) || 'tool';
+            const toolArgs = (event.data.arguments as Record<string, unknown>) || {};
+            toolsUsedThisTurn.push(toolName);
+            agentAction = `Using ${toolName}`;
+            stepCount++;
+
+            if (showTools) {
+              // Verbose: show tool name + args as a message
+              const argsPreview = Object.entries(toolArgs)
+                .slice(0, 3)
+                .map(([k, v]) => `${k}: ${String(v).slice(0, 60)}`)
+                .join(', ');
+              messages.push({
+                role: 'assistant',
+                content: `**Tool:** \`${toolName}\`${argsPreview ? `\n\`\`\`\n${argsPreview}\n\`\`\`` : ''}`,
+                timestamp: new Date(),
+              });
+            }
+            rerender();
+            break;
+          }
+
+          case 'tool_result':
+          case 'tool:result': {
+            const resultName = (event.data.name as string) || (event.data.toolName as string) || 'tool';
+            const succeeded = event.data.success !== false;
+            const durMs = event.data.durationMs as number | undefined;
+
+            if (showTools) {
+              const durStr = durMs ? ` (${durMs}ms)` : '';
+              const icon = succeeded ? '✓' : '✗';
+              messages.push({
+                role: 'assistant',
+                content: `**${icon} ${resultName}**${durStr}`,
+                timestamp: new Date(),
+              });
+            }
+            agentAction = undefined;
+            rerender();
+            break;
+          }
+
+          case 'step_start':
+          case 'step:start': {
+            const stepNum = event.data.step as number | undefined;
+            if (stepNum && stepNum > 1) {
+              agentAction = `Step ${stepNum}...`;
+              rerender();
+            }
+            break;
+          }
+
+          case 'step_complete':
+          case 'step:complete': {
+            agentAction = 'Processing...';
+            rerender();
+            break;
+          }
+
+          case 'summary': {
+            const summaryText = (event.data.summary as string) || (event.data.content as string) || (event.data.text as string);
+            if (summaryText && !accumulatedContent) {
+              if (!assistantStarted) {
+                assistantStarted = true;
+                agentStatus = 'executing';
+                streamingContent = '';
+              }
+              accumulatedContent += summaryText;
+              streamingContent = accumulatedContent;
+              rerender();
+            }
+            break;
+          }
+
+          case 'complete': {
+            // Extract usage from event
+            const rawUsage = event.data.usage as Record<string, unknown> | undefined;
+            const totalTok = (rawUsage?.totalTokens as number) || (event.data.totalTokens as number) || 0;
+            const cost = (rawUsage?.cost as number) || (event.data.cost as number) || 0;
+
+            if (totalTok > 0) {
+              tokensUsed += totalTok;
+              estimatedCost += cost;
+            }
+
+            // Finalize message
+            if (accumulatedContent) {
+              lastAssistantContent = accumulatedContent;
+              messages.push({
+                role: 'assistant',
+                content: accumulatedContent,
+                model: currentModel !== 'auto' ? currentModel : undefined,
+                timestamp: new Date(),
+              });
+            }
+
+            streamingContent = undefined;
+            agentStatus = 'complete';
+            agentAction = undefined;
+            elapsedMs = Date.now() - startTime;
+
+            // Generate prompt suggestions for display in SuggestionBar
+            if (accumulatedContent) {
+              const suggestionEngine = getPromptSuggestionEngine();
+              currentSuggestions = suggestionEngine.generateSuggestions({
+                lastUserMessage: lastUserMessage,
+                lastAssistantResponse: accumulatedContent,
+                toolsUsed: toolsUsedThisTurn,
+                conversationLength: messages.length,
+              });
+            } else {
+              currentSuggestions = [];
+            }
+
+            // Update rate limit state from response headers if provided
+            const rlHeaders = event.data.rateLimitHeaders as Record<string, string> | undefined;
+            if (rlHeaders && currentProvider !== 'auto') {
+              const rateLimitMonitor = getRateLimitMonitor();
+              rateLimitMonitor.updateFromHeaders(currentProvider, rlHeaders);
+
+              // Show rate limit warning below the response if thresholds are crossed
+              const warnResult = rateLimitMonitor.shouldWarn(currentProvider);
+              if (warnResult.warn) {
+                const warnColor = warnResult.level === 'critical'
+                  ? chalk.red
+                  : warnResult.level === 'warning'
+                    ? chalk.yellow
+                    : chalk.dim;
+                messages.push({
+                  role: 'assistant',
+                  content: warnColor(warnResult.message),
+                  timestamp: new Date(),
+                });
+
+                // Suggest an alternative provider if approaching limits
+                const knownProviders = availableProviders
+                  .filter(p => !p.disabled)
+                  .map(p => p.value);
+                const suggestion = rateLimitMonitor.suggestAlternative(currentProvider, knownProviders);
+                if (suggestion) {
+                  messages.push({
+                    role: 'assistant',
+                    content: chalk.dim(`Tip: switch to ${suggestion} with /provider ${suggestion}`),
+                    timestamp: new Date(),
+                  });
+                }
+              }
+            }
+
+            rerender();
+
+            // Return to idle
+            setTimeout(() => {
+              agentStatus = 'idle';
+              rerender();
+            }, 1500);
+            break;
+          }
+
+          case 'error': {
+            const errMsg = (event.data.message as string) || 'Unknown error';
+            const errStatusCode = event.data.statusCode as number | undefined;
+            const errRlHeaders = event.data.rateLimitHeaders as Record<string, string> | undefined;
+
+            // Update rate limit state even on error responses (headers may still be present)
+            if (errRlHeaders && currentProvider !== 'auto') {
+              getRateLimitMonitor().updateFromHeaders(currentProvider, errRlHeaders);
+            }
+
+            // Auto-switch provider on transient failures (429, 503, ECONNREFUSED)
+            const switched = trySwitchProvider(errMsg, errStatusCode);
+            if (switched) {
+              // Abort current stream and retry the last message on the new provider
+              abortController.abort();
+              streamingContent = undefined;
+              agentStatus = 'idle';
+              agentAction = undefined;
+              rerender();
+              // Small delay for the switch message to render, then retry
+              setTimeout(() => { void handleSubmit(userMessage, true); }, 500);
+              return;
+            }
+
+            // Get recovery suggestions from the error recovery advisor
+            const knownProviders = availableProviders
+              .filter(p => !p.disabled)
+              .map(p => p.value);
+            const recoveryActions = getErrorRecoveryAdvisor().advise(
+              {
+                message: errMsg,
+                provider: currentProvider,
+                model: currentModel,
+                statusCode: errStatusCode,
+              },
+              {
+                availableProviders: knownProviders,
+                retryCount: 0,
+                maxRetries: 3,
+              },
+            );
+
+            // Build the error message with recovery suggestions appended
+            const suggestionLines = recoveryActions
+              .slice(0, 3)
+              .map(a => chalk.dim(`  • ${a.description}`));
+            const fullErrContent = suggestionLines.length > 0
+              ? `**Error:** ${errMsg}\n\n${chalk.dim('Suggestions:')}\n${suggestionLines.join('\n')}`
+              : `**Error:** ${errMsg}`;
+
+            messages.push({
+              role: 'assistant',
+              content: fullErrContent,
+              timestamp: new Date(),
+            });
+            streamingContent = undefined;
+            agentStatus = 'error';
+            agentAction = undefined;
+            rerender();
+
+            setTimeout(() => {
+              agentStatus = 'idle';
+              rerender();
+            }, 2000);
+            break;
+          }
+
+          case 'connection_lost': {
+            const attempt = event.data.attempt as number;
+            const maxRetries = event.data.maxRetries as number;
+            connectionStatus = 'reconnecting';
+            agentAction = `Reconnecting (${attempt}/${maxRetries})...`;
+            rerender();
+            break;
+          }
+
+          case 'reconnected': {
+            connectionStatus = 'connected';
+            agentAction = 'Reconnected — resuming...';
+            rerender();
+            break;
+          }
+
+          case 'session_start':
+          case 'session:start':
+          case 'user_message':
+          case 'message_saved':
+            // Acknowledgment events — no UI update needed
+            break;
+
+          default:
+            // Forward-compatible: ignore unknown event types
+            break;
+        }
+      }
+    } catch (err) {
+      if (!abortController.signal.aborted) {
+        const errMsg = err instanceof Error ? err.message : 'Stream error';
+        messages.push({ role: 'assistant', content: `**Error:** ${errMsg}`, timestamp: new Date() });
+        streamingContent = undefined;
+        agentStatus = 'error';
+        agentAction = undefined;
+        rerender();
+
+        setTimeout(() => {
+          agentStatus = 'idle';
+          rerender();
+        }, 2000);
+      }
+    } finally {
+      if (activeAbort === abortController) activeAbort = null;
+    }
+  }
+
+  // Snapshot for Ink — all mutable state read at call time
+  function buildProps() {
+    return {
+      sessionInfo: {
+        model: currentModel,
+        provider: currentProvider,
+        sessionId,
+        mode: (agenticMode ? 'agentic' : 'chat') as 'chat' | 'agentic',
+      },
+      tokensUsed,
+      tokensMax,
+      estimatedCost: estimatedCost > 0 ? estimatedCost : undefined,
+      agentStatus,
+      agentAction,
+      stepCount,
+      elapsedMs,
+      messages: [...messages],
+      streamingContent,
+      suggestions: [...currentSuggestions],
+      availableModels,
+      availableProviders,
+      connectionStatus,
+      connectionLatencyMs,
+      onSubmit: (msg: string) => { void handleSubmit(msg); },
+      onCancel: () => {
+        if (activeAbort) {
+          activeAbort.abort();
+          activeAbort = null;
+          streamingContent = undefined;
+          agentStatus = 'idle';
+          agentAction = undefined;
+          rerender();
+        }
+      },
+    };
+  }
+
+  const { rerender: inkRerender, waitUntilExit } = render(
+    React.createElement(ChatApp, buildProps())
+  );
+
+  rerenderFn = () => {
+    inkRerender(React.createElement(ChatApp, buildProps()));
+  };
+
+  await waitUntilExit();
+
+  // Clean up the offline detector polling loop
+  offlineDetector.stop();
+}
+
+/**
+ * Start interactive REPL mode
+ * Uses the self-contained interactive module (extractable as standalone package)
+ */
+async function startREPL(options: ChatOptions): Promise<void> {
+  const { startInteractiveREPL } = await import('../interactive/index.js');
+  const { getConfig } = await import('../utils/config.js');
+  const { detectBaseUrl } = await import('../utils/api.js');
+
+  const config = getConfig();
+  // Auto-detect the running profClaw server via shared utility
+  const replBaseUrl = await detectBaseUrl();
+
+  await startInteractiveREPL({
+    server: {
+      baseUrl: replBaseUrl,
+      apiToken: config.apiToken,
+    },
+    model: options.model,
+    sessionId: options.session,
+    agentic: options.agentic,
+    effort: 'medium',
+  });
+}
+
+// === Print Mode (headless / CI) ===
+
+/**
+ * Execute a single-shot chat and print ONLY the response text to stdout.
+ * No spinners, no colors, no usage stats.
+ * Errors go to stderr; exit code 1 on failure.
+ */
+async function executePrint(message: string, options: ChatOptions): Promise<void> {
+  try {
+    let responseContent: string;
+
+    if (options.agentic) {
+      type WithToolsResponse = ChatResponse & {
+        toolCalls?: Array<{ name: string; arguments: unknown; result?: unknown }>;
+      };
+      const result = await api.post<WithToolsResponse>('/api/chat/with-tools', {
+        messages: [{ role: 'user', content: message }],
+        model: options.model,
+        presetId: 'agentic',
+        enableAllTools: true,
+        securityMode: 'full',
+      });
+
+      if (!result.ok || result.data?.error) {
+        process.stderr.write((result.error || result.data?.error || 'Chat failed') + '\n');
+        process.exit(1);
+      }
+
+      responseContent = result.data?.content ?? result.data?.message?.content ?? '';
+    } else {
+      const result = await api.post<ChatResponse>('/api/chat/quick', {
+        prompt: message,
+        model: options.model,
+      });
+
+      if (!result.ok || result.data?.error) {
+        process.stderr.write((result.error || result.data?.error || 'Chat failed') + '\n');
+        process.exit(1);
+      }
+
+      responseContent = result.data?.content ?? result.data?.message?.content ?? '';
+    }
+
+    process.stdout.write(responseContent + '\n');
+  } catch (err) {
+    process.stderr.write((err instanceof Error ? err.message : 'Chat failed') + '\n');
+    process.exit(1);
+  }
+}
+
+/**
+ * Read all of stdin until EOF and return as a string.
+ */
+async function readStdin(): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    process.stdin.on('data', (chunk: Buffer) => chunks.push(chunk));
+    process.stdin.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8').trim()));
+    process.stdin.on('error', reject);
+  });
 }
 
 // === CLI Commands ===
@@ -412,7 +1659,45 @@ export function chatCommands() {
     .option('-a, --agentic', 'Enable agentic mode with all tools')
     .option('-s, --session <id>', 'Resume existing session')
     .option('--json', 'Output as JSON (single-shot only)')
+    .option('--tui', 'Launch the Ink-based interactive TUI (experimental)')
+    .option('-p, --print', 'Print mode: output response to stdout and exit (CI/scripts)')
+    .option('--resume-checkpoint <sessionId>', 'Resume a saved agent checkpoint by session ID')
     .action(async (message: string | undefined, options: ChatOptions) => {
+      // --print mode: headless, stdout only, no formatting
+      if (options.print) {
+        let msg = message;
+        if (!msg) {
+          // No inline argument — try reading from stdin pipe
+          if (!process.stdin.isTTY) {
+            msg = await readStdin();
+          }
+          if (!msg) {
+            process.stderr.write('Error: --print requires a message argument or piped stdin\n');
+            process.exit(1);
+          }
+        }
+        await executePrint(msg, options);
+        return;
+      }
+
+      // --resume-checkpoint: load a saved agent checkpoint and print summary
+      if (options.resumeCheckpoint) {
+        const { getCheckpointManager } = await import('../../agents/checkpoint-manager.js');
+        const cpManager = getCheckpointManager();
+        const cp = await cpManager.load(options.resumeCheckpoint);
+        if (!cp) {
+          error(`No checkpoint found for session ID: ${options.resumeCheckpoint}`);
+          process.exit(1);
+        }
+        info(`Resuming from checkpoint — session ${cp.sessionId.slice(0, 12)} at step ${cp.currentStep}`);
+        if (cp.taskDescription) {
+          info(`Task: ${cp.taskDescription}`);
+        }
+        info(`To continue this session, open the TUI: profclaw chat --tui --session ${cp.sessionId}`);
+        success(`Checkpoint loaded. ${cp.toolCallHistory.length} tool calls, ${cp.tokensUsed} tokens used.`);
+        return;
+      }
+
       if (message) {
         // Single-shot mode
         if (options.tools || options.agentic) {
@@ -420,6 +1705,9 @@ export function chatCommands() {
         } else {
           await executeSingleShot(message, options);
         }
+      } else if (options.tui) {
+        // Ink TUI mode
+        await startTUI(options);
       } else {
         // Interactive REPL mode
         await startREPL(options);
@@ -493,6 +1781,54 @@ export function chatCommands() {
 
       console.log('');
       console.log(chalk.dim(`Resume with: profclaw chat -s <session-id>`));
+    });
+
+  chat
+    .command('checkpoints')
+    .alias('cp')
+    .description('List agent execution checkpoints saved to .profclaw/checkpoints/')
+    .option('--json', 'Output as JSON')
+    .option('--remove <sessionId>', 'Delete a checkpoint by session ID')
+    .action(async (options: { json?: boolean; remove?: string }) => {
+      const { getCheckpointManager } = await import('../../agents/checkpoint-manager.js');
+      const cpManager = getCheckpointManager();
+
+      if (options.remove) {
+        await cpManager.remove(options.remove);
+        success(`Checkpoint removed: ${options.remove}`);
+        return;
+      }
+
+      const spin = spinner('Loading checkpoints...').start();
+      const list = await cpManager.list();
+      spin.stop();
+
+      if (options.json) {
+        console.log(JSON.stringify(list, null, 2));
+        return;
+      }
+
+      if (list.length === 0) {
+        console.log('No agent checkpoints found.');
+        console.log(chalk.dim('Checkpoints are saved automatically every 5 steps during agentic execution.'));
+        return;
+      }
+
+      console.log('');
+      console.log(chalk.bold(`Agent Checkpoints (${list.length}):`));
+      console.log('');
+
+      for (const cp of list) {
+        const updated = new Date(cp.updatedAt).toLocaleString();
+        const task = cp.taskDescription
+          ? `  ${chalk.dim('"')}${chalk.white(cp.taskDescription.slice(0, 55))}${cp.taskDescription.length > 55 ? chalk.dim('...') : ''}${chalk.dim('"')}`
+          : '';
+        console.log(`  ${chalk.cyan(cp.sessionId.slice(0, 12))}  step ${chalk.yellow(String(cp.step))}  ${chalk.dim(updated)}`);
+        if (task) console.log(task);
+      }
+
+      console.log('');
+      console.log(chalk.dim('Resume with: profclaw chat --resume-checkpoint <sessionId>'));
     });
 
   return chat;

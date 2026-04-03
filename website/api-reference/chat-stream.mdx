@@ -1,0 +1,186 @@
+---
+title: "Chat Streaming"
+description: "profClaw chat streaming via SSE - real-time token delivery for agentic execution. Event types, tool call streaming, and error handling for Server-Sent Events."
+---
+
+profClaw supports two streaming mechanisms: SSE (Server-Sent Events) for agentic execution, and inline SSE for streaming completions.
+
+## Agentic SSE Stream
+
+**Endpoint**: `POST /api/chat/conversations/:id/messages/agentic`
+
+The response uses `Content-Type: text/event-stream`. Each line follows the SSE format:
+
+```
+data: {"type": "...", "data": {...}, "timestamp": 1710000000000}\n\n
+```
+
+### Request body
+
+```json
+{
+  "content": "Refactor the auth module to use async/await",
+  "model": "claude-sonnet-4-6",
+  "provider": "anthropic",
+  "temperature": 0.3,
+  "showThinking": true,
+  "maxSteps": 50,
+  "maxBudget": 100000,
+  "effort": "high"
+}
+```
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `content` | string | The user message |
+| `model` | string | Optional model override |
+| `provider` | string | Optional provider override |
+| `showThinking` | boolean | Stream thinking/reasoning blocks |
+| `maxSteps` | number | 1-200, default depends on effort |
+| `maxBudget` | number | Token budget (min 1000) |
+| `effort` | string | `low` \| `medium` \| `high` \| `max` |
+
+### Event Types
+
+#### `user_message`
+
+Sent immediately with the saved user message.
+
+```json
+{
+  "type": "user_message",
+  "data": {
+    "id": "msg_01",
+    "content": "Refactor the auth module...",
+    "compactionApplied": false,
+    "messageCount": 5
+  }
+}
+```
+
+#### `session:start`
+
+Agent session initialized.
+
+#### `thinking:start` / `thinking:update` / `thinking:end`
+
+Reasoning process events (when `showThinking: true` and the model supports extended thinking).
+
+#### `step:start` / `step:complete`
+
+Each autonomous step the agent takes.
+
+#### `tool:call`
+
+```json
+{
+  "type": "tool:call",
+  "data": {
+    "toolCallId": "tc_01",
+    "name": "read_file",
+    "arguments": { "path": "src/auth/auth-service.ts" }
+  }
+}
+```
+
+#### `tool:result`
+
+```json
+{
+  "type": "tool:result",
+  "data": {
+    "toolCallId": "tc_01",
+    "result": { "success": true, "content": "..." }
+  }
+}
+```
+
+#### `summary`
+
+```json
+{
+  "type": "summary",
+  "data": { "summary": "Refactored 3 files in the auth module..." }
+}
+```
+
+#### `complete`
+
+```json
+{
+  "type": "complete",
+  "data": {
+    "totalTokens": 4820,
+    "inputTokens": 3100,
+    "outputTokens": 1720,
+    "model": "claude-sonnet-4-6",
+    "provider": "anthropic",
+    "toolCalls": [...]
+  }
+}
+```
+
+#### `message_saved`
+
+```json
+{ "type": "message_saved", "data": { "id": "msg_02" } }
+```
+
+#### `error`
+
+```json
+{
+  "type": "error",
+  "data": { "message": "Tool execution failed", "code": "TOOL_ERROR" }
+}
+```
+
+The special code `TIMEOUT` is sent when the 3-minute session timeout is reached.
+
+---
+
+## Streaming Completions (SSE)
+
+For `POST /api/chat/completions` with `"stream": true`, each chunk is:
+
+```
+data: {"content": "Hello"}\n\n
+data: {"content": " world"}\n\n
+data: {"done": true, "usage": {...}, "finishReason": "stop"}\n\n
+```
+
+---
+
+## JavaScript Example
+
+```javascript
+const response = await fetch('/api/chat/conversations/conv_01/messages/agentic', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ content: 'Fix all TypeScript errors', effort: 'high' }),
+  credentials: 'include',
+});
+
+const reader = response.body.getReader();
+const decoder = new TextDecoder();
+
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+
+  const lines = decoder.decode(value).split('\n');
+  for (const line of lines) {
+    if (line.startsWith('data: ')) {
+      const event = JSON.parse(line.slice(6));
+      console.log(event.type, event.data);
+    }
+  }
+}
+```
+
+## Related
+
+- [Chat API](/api-reference/chat) - Send messages and trigger agentic execution
+- [Agent Sessions API](/api-reference/agent-sessions) - Monitor and cancel sessions
+- [Tools Overview](/tools/overview) - Tools the agent emits during execution
+- [Security Overview](/security/overview) - Tool approval and execution policies

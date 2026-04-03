@@ -1,0 +1,146 @@
+---
+title: "profclaw plan"
+description: "List, inspect, approve, or reject AI-proposed execution plans before the agent carries them out."
+---
+
+## Synopsis
+
+```bash
+profclaw plan <subcommand> [flags]
+```
+
+## Description
+
+When an agent runs in plan mode, it proposes a structured execution plan before taking any action. The plan lists the steps it intends to take, the tools it will call, and the expected outcomes. You review and approve (or reject) the plan before execution begins.
+
+This provides a human checkpoint before the agent touches files, runs commands, or calls external services.
+
+## How Plan Mode Works
+
+1. You send a task to the agent (via `profclaw chat -a` or `profclaw task`).
+2. The agent generates a plan: a numbered list of steps with tool names and arguments.
+3. The plan is saved with a unique ID and status `pending`.
+4. `profclaw plan list` shows pending plans waiting for your review.
+5. You run `profclaw plan approve <id>` to execute, or `profclaw plan reject <id>` to cancel.
+6. Approved plans execute step-by-step; each step result is logged to the plan record.
+
+<Note>
+  Plan mode is enabled per-session via the `/agentic` slash command in the TUI, or by setting `planMode: true` in `config/agents.yml`.
+</Note>
+
+## Subcommands
+
+### `plan list`
+
+List all plans, optionally filtered by status.
+
+```bash
+profclaw plan list [flags]
+```
+
+<ParamField query="--status" type="string">
+  Filter by status: `pending`, `approved`, `rejected`, `running`, `completed`, `failed`. Defaults to showing all statuses.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output as a JSON array.
+</ParamField>
+
+### `plan show <id>`
+
+Display the full plan with all steps, arguments, and current execution state.
+
+```bash
+profclaw plan show <id>
+```
+
+Each step shows:
+- Step number and description
+- Tool name and arguments
+- Status: `pending` / `running` / `done` / `skipped` / `failed`
+- Output or error (after execution)
+
+### `plan approve <id>`
+
+Approve a pending plan and begin execution immediately.
+
+```bash
+profclaw plan approve <id> [flags]
+```
+
+<ParamField query="--step-by-step" type="boolean">
+  Pause after each step and require confirmation before proceeding to the next. Useful for high-risk plans.
+</ParamField>
+
+### `plan reject <id>`
+
+Cancel a pending plan. The agent is notified and no steps are executed.
+
+```bash
+profclaw plan reject <id> [--reason <text>]
+```
+
+<ParamField query="--reason" type="string">
+  Optional free-text reason sent back to the agent so it can propose a revised plan.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash List all pending plans
+profclaw plan list --status pending
+```
+
+```bash Inspect a plan before deciding
+profclaw plan show plan_abc123
+```
+
+```bash Approve and execute a plan
+profclaw plan approve plan_abc123
+```
+
+```bash Step through a plan one action at a time
+profclaw plan approve plan_abc123 --step-by-step
+```
+
+```bash Reject a plan with a reason
+profclaw plan reject plan_abc123 --reason "Don't modify the prod database directly"
+```
+
+```bash Output all plans as JSON
+profclaw plan list --json
+```
+</CodeGroup>
+
+## Example Output
+
+```
+profClaw Plans
+
+  ID              Status     Steps  Created         Task
+  plan_abc123     pending    5      2 minutes ago   Refactor auth module
+  plan_def456     completed  8      1 hour ago      Add unit tests for billing
+  plan_ghi789     rejected   3      3 hours ago     Drop unused tables
+
+profclaw plan show plan_abc123
+
+  Plan: plan_abc123
+  Task: Refactor auth module
+  Status: pending
+  Created: 2 minutes ago
+
+  Steps
+  1. [pending] read_file  src/auth/index.ts
+  2. [pending] read_file  src/auth/middleware.ts
+  3. [pending] write_file src/auth/index.ts  (refactored)
+  4. [pending] write_file src/auth/middleware.ts  (refactored)
+  5. [pending] run_tests  src/auth/
+
+  Approve with: profclaw plan approve plan_abc123
+```
+
+## Related
+
+- [`profclaw chat`](/cli/chat) - Start a session with agentic mode
+- [`profclaw task`](/cli/task) - Create and manage agentic tasks
+- [`profclaw history`](/cli/history) - View session transcripts

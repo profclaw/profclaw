@@ -1,0 +1,106 @@
+---
+title: "profclaw memory"
+description: "Manage the profClaw memory index - search, sync, list indexed files, and clear stored context."
+---
+
+## Synopsis
+
+```bash
+profclaw memory <subcommand> [flags]
+```
+
+## Description
+
+`memory` manages profClaw's context memory index. The memory system indexes files and conversation history into chunks that are retrieved during agent execution to provide relevant context. Commands let you search the index, trigger a sync from disk, inspect what is indexed, and clear everything.
+
+## Subcommands
+
+| Subcommand | Alias | Description |
+|---|---|---|
+| `search <query>` | - | Search memory for relevant chunks |
+| `stats` | - | Show index statistics |
+| `sync` | - | Sync memory index from disk files |
+| `files` | `ls` | List all indexed files |
+| `clear` | - | Delete all memory chunks and the index |
+
+## `memory search <query>`
+
+Performs a semantic search over the memory index and returns the most relevant chunks.
+
+<ParamField query="query" type="string" required>
+  Search query string. Matched semantically against indexed content.
+</ParamField>
+
+<ParamField query="-l, --limit" type="string" default="10">
+  Maximum number of chunks to return.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output as JSON with scores, file paths, and content.
+</ParamField>
+
+## `memory stats`
+
+<ParamField query="--json" type="boolean">
+  Output statistics as JSON including chunk count, file count, token estimate, embedding model, and last sync time.
+</ParamField>
+
+## `memory sync`
+
+Crawls the configured memory directories and updates the index - adding new files, updating changed files, and removing deleted files.
+
+<ParamField query="--json" type="boolean">
+  Output sync result as JSON with counts for added, updated, and removed chunks.
+</ParamField>
+
+## `memory clear`
+
+<ParamField query="--yes" type="boolean">
+  Skip the confirmation prompt. Required for non-interactive use.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output `{"ok": true}` on success.
+</ParamField>
+
+<Warning>
+`memory clear` permanently deletes all indexed content. The index must be rebuilt from disk with `memory sync`.
+</Warning>
+
+## Examples
+
+<CodeGroup>
+```bash Search memory
+profclaw memory search "authentication flow"
+```
+
+```bash Search with more results
+profclaw memory search "database schema" --limit 20
+```
+
+```bash Show index stats
+profclaw memory stats
+```
+
+```bash Sync index from disk
+profclaw memory sync
+```
+
+```bash List indexed files
+profclaw memory files
+```
+
+```bash Clear all memory (with confirmation)
+profclaw memory clear
+```
+
+```bash Clear without prompt (non-interactive)
+profclaw memory clear --yes
+```
+</CodeGroup>
+
+## Related
+
+- [`profclaw summary`](/cli/summary) - Browse AI work summaries (separate from memory)
+- [`profclaw status`](/cli/status) - Shows memory chunk count in the overview
+- [Memory Configuration](/configuration) - Configure which directories to index

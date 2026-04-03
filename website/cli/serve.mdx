@@ -1,0 +1,127 @@
+---
+title: "profclaw serve"
+description: "Start the profClaw HTTP API server with auto-restart on crash."
+---
+
+## Synopsis
+
+```bash
+profclaw serve [flags]
+```
+
+## Description
+
+`serve` starts the profClaw HTTP API server. It displays an ASCII banner, checks that the configured port is available, then spawns the server process. In production mode it monitors the child process and automatically restarts it on crash using exponential backoff (up to 5 restart attempts).
+
+If the requested port is already in use, `serve` automatically tries up to 2 additional ports before giving up. For example, if port 3000 is taken it tries 3001, then 3002. The port actually bound is printed to stdout.
+
+A PID file is written to `.profclaw.pid` when the server starts and removed when it exits cleanly. If a stale PID file is detected on startup (the recorded process is no longer running), it is removed automatically before proceeding. If an existing profClaw server is already running on the target port, `serve` exits with a message rather than starting a duplicate.
+
+The server exposes:
+- REST API at `http://localhost:<port>/api`
+- Health endpoint at `http://localhost:<port>/health`
+- Web UI at `http://localhost:<port>/`
+
+## Flags
+
+<ParamField query="-p, --port" type="string" default="3000">
+  Preferred port to listen on. If unavailable, the next 2 ports are tried automatically before the command exits with an error.
+</ParamField>
+
+<ParamField query="--no-cron" type="boolean">
+  Disable scheduled cron jobs. The server starts normally but no cron triggers will fire.
+</ParamField>
+
+<ParamField query="--dev" type="boolean">
+  Run in development mode with file watching via `tsx watch`. Auto-restarts on source changes. Disables the crash-restart loop.
+</ParamField>
+
+<ParamField query="--no-restart" type="boolean">
+  Disable automatic restart on crash. Used internally by the `daemon` subcommand — the OS service manager handles restarts.
+</ParamField>
+
+## Port Auto-Retry
+
+When the requested port is occupied, `serve` tries the next two consecutive ports before failing:
+
+```
+Requested port 3000 is in use — trying 3001...
+Port 3001 is in use — trying 3002...
+Server started on port 3002
+```
+
+<Tip>
+  Set the `PORT` environment variable to lock a specific port and skip auto-retry.
+</Tip>
+
+## PID File Management
+
+On startup, `serve` writes the server's process ID to `.profclaw.pid` in the working directory. This file is used by:
+- `profclaw doctor` — to detect stale PIDs from crashed servers
+- `profclaw daemon stop` — to gracefully signal the running process
+- Port conflict detection — to identify if the process on the port is a profClaw instance
+
+On clean exit (Ctrl+C or `daemon stop`) the PID file is removed. On crash it persists until the next `serve` start, which detects and cleans it up automatically.
+
+## Existing Server Detection
+
+Before starting, `serve` checks if a profClaw server is already listening on the target port by sending a request to `/health`. If a healthy response is received:
+
+```
+profClaw is already running on port 3000 (PID 18432).
+Use `profclaw status` to check it, or stop it first with `profclaw daemon stop`.
+```
+
+## Crash Recovery
+
+In production mode (`serve` without `--dev`), the process manager applies exponential backoff:
+
+| Attempt | Wait |
+|---|---|
+| 1 | 1s |
+| 2 | 2s |
+| 3 | 4s |
+| 4 | 8s |
+| 5 | 16s |
+
+After 5 consecutive crashes in quick succession the process exits. Fix the underlying issue and run `profclaw serve` again.
+
+## Examples
+
+<CodeGroup>
+```bash Start on default port 3000
+profclaw serve
+```
+
+```bash Start on a custom port
+profclaw serve -p 8080
+```
+
+```bash Development mode with watch
+profclaw serve --dev
+```
+
+```bash Disable cron jobs
+profclaw serve --no-cron
+```
+
+```bash Run as a managed daemon (systemd / launchd)
+profclaw daemon install
+profclaw daemon start
+```
+</CodeGroup>
+
+## Environment Variables
+
+| Variable | Description |
+|---|---|
+| `PORT` | Overrides the `--port` flag and disables port auto-retry |
+| `ENABLE_CRON` | Set to `false` to disable cron (same as `--no-cron`) |
+| `PROFCLAW_MODE` | Deployment mode (`pico`, `mini`, `pro`) |
+
+## Related
+
+- [`profclaw daemon`](/cli/daemon) - Run as a system service (launchd/systemd)
+- [`profclaw status`](/cli/status) - Check server health
+- [`profclaw logs`](/cli/logs) - View server logs
+- [`profclaw doctor`](/cli/doctor) - Diagnose startup issues

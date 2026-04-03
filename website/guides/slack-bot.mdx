@@ -1,0 +1,175 @@
+---
+title: "Build a Slack Bot"
+description: "Connect profClaw to your Slack workspace as an AI assistant. Step-by-step guide to creating a Slack app, configuring Socket Mode, and enabling tools."
+---
+
+## Overview
+
+This guide walks you through setting up profClaw as a Slack bot that can respond to messages, execute tools, and run agentic workflows directly in your Slack channels.
+
+## Prerequisites
+
+- profClaw installed and running (mini or pro mode) - see [Installation](/getting-started/installation)
+- A Slack workspace where you have admin access
+- An AI provider configured (e.g., Anthropic or OpenAI) - see [AI Providers](/ai-providers/overview)
+
+## Step 1: Create a Slack App
+
+<Steps>
+  <Step title="Create the app">
+    Go to [api.slack.com/apps](https://api.slack.com/apps) and click **Create New App**.
+
+    Select **From scratch**, name it "profClaw", and choose your workspace.
+  </Step>
+  <Step title="Configure Bot Token Scopes">
+    Navigate to **OAuth and Permissions** and add these Bot Token Scopes:
+
+    | Scope | Purpose |
+    |-------|---------|
+    | `chat:write` | Send messages |
+    | `app_mentions:read` | Respond to @mentions |
+    | `channels:history` | Read channel messages |
+    | `channels:read` | List channels |
+    | `files:read` | Access shared files |
+    | `files:write` | Upload files |
+    | `im:history` | Read direct messages |
+    | `im:read` | Access DM channels |
+    | `im:write` | Send direct messages |
+  </Step>
+  <Step title="Enable Socket Mode">
+    Go to **Socket Mode** and enable it. Create an app-level token with `connections:write` scope.
+
+    Save the token - it starts with `xapp-`.
+
+    Socket Mode connects to Slack over a persistent WebSocket, so you do not need a public webhook URL for development.
+  </Step>
+  <Step title="Enable Events">
+    Go to **Event Subscriptions** and enable events. Subscribe to:
+    - `message.channels`
+    - `message.im`
+    - `app_mention`
+  </Step>
+  <Step title="Install to workspace">
+    Go to **Install App** and click **Install to Workspace**. Authorize the permissions.
+
+    Save the **Bot User OAuth Token** - it starts with `xoxb-`.
+  </Step>
+  <Step title="Copy the Signing Secret">
+    Go to **Basic Information** and copy the **Signing Secret** from the App Credentials section.
+  </Step>
+</Steps>
+
+## Step 2: Configure profClaw
+
+Set the required environment variables:
+
+```bash
+export SLACK_BOT_TOKEN=xoxb-your-bot-token
+export SLACK_APP_TOKEN=xapp-your-app-token
+export SLACK_SIGNING_SECRET=your-signing-secret
+```
+
+Or add to `.profclaw/settings.yml`:
+
+```yaml
+chat:
+  channels:
+    slack:
+      enabled: true
+      botToken: ${SLACK_BOT_TOKEN}
+      appToken: ${SLACK_APP_TOKEN}
+      signingSecret: ${SLACK_SIGNING_SECRET}
+```
+
+## Step 3: Start profClaw
+
+```bash
+profclaw serve
+```
+
+You should see:
+```
+✓ Slack bot connected via Socket Mode
+✓ Listening for events in workspace: Your Workspace
+```
+
+<Tip>
+  Run `profclaw doctor --chat` to verify Slack connectivity without starting the full server.
+</Tip>
+
+## Step 4: Test It
+
+Invite the bot to a channel first:
+
+```
+/invite @profClaw
+```
+
+Then mention it or send a direct message:
+
+```
+@profClaw What files are in the src/ directory?
+@profClaw Summarize the open issues in our repo
+```
+
+The bot replies in a thread by default, showing tool execution progress as it runs.
+
+## Configuration Options
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SLACK_RESPONSE_THREAD` | `true` | Reply in threads instead of inline |
+| `SLACK_TYPING_INDICATOR` | `true` | Show typing indicator while processing |
+| `SLACK_MAX_MESSAGE_LENGTH` | `4000` | Max message length (Slack API limit) |
+| `SLACK_ALLOWED_CHANNELS` | `*` | Comma-separated channel IDs to respond in |
+
+## Security Considerations
+
+<Warning>
+  The Slack bot inherits your profClaw security mode. In `permissive` mode, anyone who can message the bot can execute file operations and shell commands. Use `standard` or `ask` mode for any shared workspace.
+</Warning>
+
+Restrict which channels the bot responds in using allowlists:
+
+```yaml
+chat:
+  channels:
+    slack:
+      allowedChannels:
+        - C0123456789  # #engineering
+        - C9876543210  # #devops
+      allowedUsers:
+        - U012345678   # restrict to specific users
+```
+
+See [Security Overview](/security/overview) for how security modes affect tool execution.
+
+## Multi-Workspace Setup
+
+To run the bot across multiple Slack workspaces, configure multiple accounts:
+
+```yaml
+chat:
+  slack:
+    accounts:
+      - id: work
+        botToken: xoxb-work-...
+        appToken: xapp-work-...
+        signingSecret: ...
+        isDefault: true
+      - id: community
+        botToken: xoxb-community-...
+        appToken: xapp-community-...
+        signingSecret: ...
+```
+
+## Related Guides
+
+<CardGroup cols={2}>
+  <Card title="Chat Providers Overview" icon="messages" href="/chat-providers/overview">
+    Connect profClaw to Discord, Telegram, WhatsApp, and more.
+  </Card>
+  <Card title="Docker Deployment" icon="docker" href="/guides/docker-deployment">
+    Run profClaw and your Slack bot in production with Docker.
+  </Card>
+</CardGroup>

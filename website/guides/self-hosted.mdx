@@ -1,0 +1,148 @@
+---
+title: "Self-Hosted Production"
+description: "Deploy profClaw on your own server with systemd, TLS, and monitoring"
+---
+
+## Overview
+
+Run profClaw on a VPS or bare-metal server with production-grade configuration: systemd service management, TLS via Caddy or Nginx, and basic monitoring.
+
+## Server Requirements
+
+| Component | Minimum | Recommended |
+|-----------|---------|-------------|
+| OS | Ubuntu 22.04+ / Debian 12+ | Ubuntu 24.04 LTS |
+| RAM | 2GB (mini) | 4GB+ |
+| CPU | 2 cores | 4 cores |
+| Disk | 10GB | 50GB SSD |
+| Node.js | 22+ | 22 LTS |
+
+## Installation
+
+```bash
+# Install Node.js 22
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo bash -
+sudo apt-get install -y nodejs
+
+# Install profClaw
+npm install -g profclaw
+
+# Initialize
+profclaw init
+profclaw onboard
+```
+
+## Systemd Service
+
+Create `/etc/systemd/system/profclaw.service`:
+
+```ini
+[Unit]
+Description=profClaw AI Agent Engine
+After=network.target redis-server.service
+
+[Service]
+Type=simple
+User=profclaw
+Group=profclaw
+WorkingDirectory=/opt/profclaw
+ExecStart=/usr/bin/profclaw serve
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=PROFCLAW_MODE=pro
+Environment=PORT=3000
+EnvironmentFile=/opt/profclaw/.env
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable profclaw
+sudo systemctl start profclaw
+```
+
+## TLS with Caddy
+
+Install Caddy for automatic HTTPS:
+
+```bash
+sudo apt install -y caddy
+```
+
+Edit `/etc/caddy/Caddyfile`:
+```
+profclaw.example.com {
+    reverse_proxy localhost:3000
+}
+```
+
+```bash
+sudo systemctl restart caddy
+```
+
+Caddy automatically provisions and renews Let's Encrypt certificates.
+
+## Firewall
+
+```bash
+sudo ufw allow 22/tcp    # SSH
+sudo ufw allow 80/tcp    # HTTP (redirect)
+sudo ufw allow 443/tcp   # HTTPS
+sudo ufw enable
+```
+
+## Redis (Pro Mode)
+
+```bash
+sudo apt install redis-server
+sudo systemctl enable redis-server
+```
+
+Add to your `.env`:
+```bash
+REDIS_URL=redis://localhost:6379
+```
+
+## Backup Cron
+
+Add to crontab:
+```bash
+0 2 * * * profclaw backup create --output /opt/profclaw/backups/
+0 3 * * 0 find /opt/profclaw/backups/ -mtime +30 -delete
+```
+
+## Monitoring
+
+Check status:
+```bash
+sudo systemctl status profclaw
+profclaw status
+profclaw doctor
+```
+
+Health endpoint for uptime monitors:
+```bash
+curl -f https://profclaw.example.com/api/health
+```
+
+## Log Management
+
+```bash
+# View live logs
+sudo journalctl -u profclaw -f
+
+# View recent logs
+profclaw logs --since 1h
+```
+
+Configure log rotation in settings.yml:
+```yaml
+logging:
+  level: info
+  maxFiles: 10
+  maxSize: 10m
+```

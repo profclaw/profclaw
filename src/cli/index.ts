@@ -2,6 +2,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import figlet from 'figlet';
+import { checkForUpdate, formatUpdateMessage } from '../utils/auto-update.js';
 import { taskCommands } from './commands/task.js';
 import { ticketCommands } from './commands/ticket.js';
 import { summaryCommands } from './commands/summary.js';
@@ -32,6 +33,10 @@ import { securityCommands } from './commands/security.js';
 import { logsCommand } from './commands/logs.js';
 import { modelsCommands } from './commands/models.js';
 import { tuiCommand } from './commands/tui.js';
+import { importCommands } from './commands/import.js';
+import { historyCommands } from './commands/history.js';
+import { planCommands } from './commands/plan.js';
+import { initCommand } from './commands/init.js';
 
 const VERSION = '2.0.0';
 
@@ -89,6 +94,10 @@ program.addCommand(securityCommands());
 program.addCommand(logsCommand());
 program.addCommand(modelsCommands());
 program.addCommand(tuiCommand());
+program.addCommand(importCommands());
+program.addCommand(historyCommands());
+program.addCommand(planCommands());
+program.addCommand(initCommand());
 
 // Default action (no command) - show banner and help
 program.action(() => {
@@ -126,3 +135,14 @@ program.action(() => {
 
 // Parse and execute (parseAsync required for async command actions)
 await program.parseAsync();
+
+// Non-blocking update check — runs after the main command completes.
+// Only checks if 24h have elapsed (enforced inside checkForUpdate via cache).
+checkForUpdate().then((info) => {
+  const msg = formatUpdateMessage(info);
+  if (msg) {
+    console.log('\n' + chalk.yellow('  ' + msg));
+  }
+}).catch(() => {
+  // Update check is best-effort; never surface errors to the user
+});

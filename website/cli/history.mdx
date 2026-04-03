@@ -1,0 +1,157 @@
+---
+title: "profclaw history"
+description: "Browse, search, and replay past conversation transcripts stored in JSONL format."
+---
+
+## Synopsis
+
+```bash
+profclaw history <subcommand> [flags]
+```
+
+## Description
+
+`history` provides access to the persistent transcript store. Every chat session and agentic run is recorded as a JSONL file — one JSON object per turn — under `data/history/`. Commands let you list recent sessions, full-text search across all transcripts, and view individual turns in detail.
+
+## Transcript Format
+
+Each turn in a session is appended as one line of JSON:
+
+```json
+{"ts":"2026-04-02T10:15:30Z","role":"user","content":"Explain the auth flow","sessionId":"abc12345","model":null}
+{"ts":"2026-04-02T10:15:32Z","role":"assistant","content":"The auth flow works as follows...","sessionId":"abc12345","model":"claude-sonnet-4-6","tokens":{"input":320,"output":512},"cost":0.0091}
+```
+
+Files are stored at:
+
+```
+data/history/
+  <sessionId>.jsonl     # one file per session
+```
+
+<Note>
+  History files are append-only. Each file grows as the session progresses. They are never modified retroactively.
+</Note>
+
+## Subcommands
+
+### `history list`
+
+List recent sessions sorted by last activity.
+
+```bash
+profclaw history list [flags]
+```
+
+<ParamField query="-n, --limit" type="number" default="20">
+  Maximum number of sessions to show.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output as a JSON array.
+</ParamField>
+
+### `history search <query>`
+
+Full-text search across all stored transcripts.
+
+```bash
+profclaw history search <query> [flags]
+```
+
+<ParamField query="-n, --limit" type="number" default="10">
+  Maximum number of matching turns to return.
+</ParamField>
+
+<ParamField query="--session <id>" type="string">
+  Restrict search to a single session.
+</ParamField>
+
+<ParamField query="--role <user|assistant>" type="string">
+  Filter results to only user messages or only assistant messages.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output matching turns as a JSON array.
+</ParamField>
+
+### `history show <id>`
+
+Display the full transcript for a session, formatted as a readable conversation.
+
+```bash
+profclaw history show <id> [flags]
+```
+
+<ParamField query="--raw" type="boolean">
+  Print the raw JSONL lines instead of the formatted conversation view.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output each turn as a JSON object (pretty-printed array).
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash List the 20 most recent sessions
+profclaw history list
+```
+
+```bash List the last 5 sessions
+profclaw history list -n 5
+```
+
+```bash Search all transcripts for a keyword
+profclaw history search "docker compose"
+```
+
+```bash Search within a specific session
+profclaw history search "auth" --session abc12345
+```
+
+```bash Show only user turns that mention "error"
+profclaw history search "error" --role user
+```
+
+```bash Read the full transcript for a session
+profclaw history show abc12345
+```
+
+```bash Get raw JSONL for a session (e.g. for piping to jq)
+profclaw history show abc12345 --raw | jq '.cost' | paste -sd+ | bc
+```
+
+```bash Export a session as JSON
+profclaw history show abc12345 --json > session.json
+```
+</CodeGroup>
+
+## Example Output
+
+```
+profclaw history list
+
+  ID          Model               Turns  Last active       First message
+  abc12345    claude-sonnet-4-6   12     5 minutes ago     Explain the auth flow
+  def67890    gpt-4o              7      2 hours ago       Review my Dockerfile
+  ghi11223    claude-opus-4-6     3      yesterday         Summarize this PR
+
+profclaw history show abc12345
+
+  Session abc12345  •  claude-sonnet-4-6  •  12 turns  •  Apr 2, 2026
+
+  [10:15] You
+  Explain the auth flow
+
+  [10:15] Assistant
+  The auth flow works as follows...
+  ...
+```
+
+## Related
+
+- [`profclaw chat`](/cli/chat) - Start a new conversation
+- [`profclaw plan`](/cli/plan) - View execution plans from agentic sessions
+- [`profclaw summary`](/cli/summary) - Browse AI-generated summaries of completed work
+- [`profclaw cost`](/cli/cost) - Token usage and cost breakdown

@@ -1,0 +1,227 @@
+---
+title: "Introduction"
+description: "profClaw is a local-first AI agent engine. 35 providers, 72 tools, 22 channels. Run on anything from a Raspberry Pi to a VPS. Open source, self-hosted."
+---
+
+## The AI Agent Engine That Runs Anywhere
+
+profClaw is a lightweight, self-hosted AI agent engine built for developers who want full control. Wire together AI providers, chat channels, and tools in a single install — then interact via browser, CLI, TUI, or REST API.
+
+No cloud lock-in. No usage fees. Your data stays on your hardware.
+
+<CardGroup cols={3}>
+  <Card title="35 AI Providers" icon="brain">
+    Anthropic, OpenAI, Google, Ollama, Groq, Mistral, DeepSeek, and 28 more. Mix cloud and local models in the same session.
+  </Card>
+  <Card title="22 Chat Channels" icon="messages">
+    Slack, Discord, Telegram, WhatsApp, Teams, Matrix, iMessage, IRC, and 14 more. One agent, every platform.
+  </Card>
+  <Card title="72 Built-in Tools" icon="wrench">
+    File ops, git, browser automation, web search, cron, memory, sessions, voice, canvas, and custom tools.
+  </Card>
+</CardGroup>
+
+<CardGroup cols={4}>
+  <Card title="50 Skills" icon="bolt">
+    Slash-command expertise modules: `/commit`, `/review-pr`, `/deploy`, and more.
+  </Card>
+  <Card title="3 Deploy Modes" icon="server">
+    Pico (~140MB), Mini, Pro. Scales from a $5 VPS to a team server.
+  </Card>
+  <Card title="Interactive TUI" icon="terminal">
+    Streaming markdown, syntax highlighting, slash command picker, model selector — all in the terminal.
+  </Card>
+  <Card title="MCP Server" icon="plug">
+    Native Model Context Protocol. Connect Claude Desktop, Cursor, or any MCP client.
+  </Card>
+</CardGroup>
+
+## Quick Start
+
+Get profClaw running in under 3 minutes.
+
+<Steps>
+  <Step title="Install">
+    ```bash
+    npm install -g profclaw
+    ```
+  </Step>
+  <Step title="Initialize project context">
+    ```bash
+    profclaw init
+    ```
+    Scans your project, detects your stack, and writes a `PROFCLAW.md` context file. The wizard also auto-detects any AI provider keys in your environment.
+  </Step>
+  <Step title="Start chatting">
+    ```bash
+    profclaw chat --tui
+    ```
+    Opens the interactive TUI with streaming responses, syntax-highlighted code, slash commands, and a live model selector. Or run `profclaw serve` to get the full web UI at `http://localhost:3000`.
+  </Step>
+</Steps>
+
+<Card
+  title="Full Installation Guide"
+  icon="arrow-right"
+  href="/getting-started/installation"
+  horizontal
+>
+  Docker, one-liner, Docker Compose, and post-install verification with `profclaw doctor`.
+</Card>
+
+## Why profClaw vs Claude Code / OpenClaw
+
+<Note>
+  Claude Code and OpenClaw are excellent tools. profClaw solves a different problem: **orchestration across providers, channels, and hardware** — not just coding in one terminal session.
+</Note>
+
+| | profClaw | Claude Code | OpenClaw |
+|---|---|---|---|
+| **Self-hosted** | Yes | No | Yes |
+| **Multi-provider** | 35 providers | Anthropic only | ~5 providers |
+| **Chat channels** | 22 (Slack, Discord, WhatsApp...) | Terminal only | Terminal only |
+| **Headless / API mode** | Yes | No | Partial |
+| **Raspberry Pi / $5 VPS** | Yes (pico mode, ~140MB) | No | No |
+| **Project management** | Tickets, Kanban, GitHub/Jira sync | No | No |
+| **Cost tracking** | Per-token budgets + alerts | No | No |
+| **Plugin SDK** | Yes (npm + ClawHub) | No | No |
+| **MCP server** | Yes | Client only | No |
+| **Voice I/O** | Yes (Whisper + ElevenLabs) | No | No |
+| **Open source** | AGPL-3.0 | No | MIT |
+
+## Interactive TUI
+
+profClaw ships with a first-class terminal UI — no browser required.
+
+```bash
+profclaw chat --tui
+```
+
+Features of the TUI:
+- **Streaming markdown** rendered live as the model responds
+- **Syntax-highlighted code blocks** for 100+ languages
+- **Slash command picker** — type `/` to browse all skills
+- **Live model selector** — switch providers mid-conversation
+- **Tool execution panel** — see every tool call and result in real time
+- **Session history** — scroll back through previous conversations
+- **Keyboard-driven** — full navigation without a mouse
+
+## Headless Mode
+
+Run agents programmatically from scripts, CI, or other services:
+
+```bash
+# One-shot message, JSON output
+profclaw chat "Summarize the last 10 git commits" --output json
+
+# Run a skill headlessly
+profclaw skill run commit --message "feat: add auth"
+
+# Agent task with file context
+profclaw agent run "Review src/ for security issues" --files src/
+```
+
+Or via REST API:
+
+```bash
+curl -X POST http://localhost:3000/api/chat/message \
+  -H "Content-Type: application/json" \
+  -d '{"message": "List open GitHub issues", "provider": "anthropic"}'
+```
+
+## Slash Commands
+
+Skills are pre-built expertise modules invoked with slash commands in chat or the TUI:
+
+| Command | What it does |
+|---|---|
+| `/commit` | Write a conventional commit message for staged changes |
+| `/review-pr 42` | Full code review of a pull request |
+| `/deploy` | Run your deploy script with rollback awareness |
+| `/summarize src/` | Summarize all files in a directory |
+| `/web-research "topic"` | Research a topic across the web |
+| `/analyze-code file.ts` | Security, performance, and style analysis |
+| `/ticket PROJ-123` | Pull ticket context into the conversation |
+| `/image "prompt"` | Generate an image via configured image provider |
+
+See [Skills Overview](/skills/overview) for all 50 built-in skills and how to create your own with a plain Markdown file.
+
+## Deployment Modes
+
+profClaw scales from a Raspberry Pi to a full production cluster. Choose the mode that fits your hardware.
+
+| Mode | RAM | AI Providers | Chat Channels | Tools | Best For |
+|------|-----|-------------|---------------|-------|----------|
+| **Pico** | ~140MB | 3 | 2 | 15 | IoT, edge, Raspberry Pi, $5 VPS |
+| **Mini** | ~145MB | 15 | 10 | 50 | Personal dev server, home lab |
+| **Pro** | 200MB+ | 35 | 22 | 72+ | Teams, production, full features |
+
+```bash
+PROFCLAW_MODE=pico profclaw serve   # Raspberry Pi Zero 2W
+PROFCLAW_MODE=mini profclaw serve   # Home server
+PROFCLAW_MODE=pro profclaw serve    # Team / production
+```
+
+<Card title="Deployment Modes" icon="server" href="/getting-started/deployment-modes" horizontal>
+  Compare features in detail and choose the right mode for your setup.
+</Card>
+
+## Key Features
+
+<AccordionGroup>
+  <Accordion title="Agentic Execution Engine">
+    Multi-step tool execution with self-correction, smart prompts, and sandboxed environments. Supports parallel tool calls and streaming responses. Model-aware tool routing ensures small local models only receive tools they can handle reliably. Automatic retry with backoff on tool failures.
+  </Accordion>
+  <Accordion title="Interactive TUI with Streaming Markdown">
+    A fully keyboard-driven terminal UI with live streaming responses, syntax-highlighted code blocks, a slash command picker, live model switching, and a real-time tool execution panel. Launch with `profclaw chat --tui` or the dedicated `profclaw tui` command.
+  </Accordion>
+  <Accordion title="50 Built-in Skills">
+    Pre-built expertise modules like `commit`, `review-pr`, `deploy`, `analyze-code`, and more. Invoked with slash commands (`/commit`, `/review-pr 42`). Create custom skills with a plain Markdown `SKILL.md` file — no code required. See [Skills](/skills/overview).
+  </Accordion>
+  <Accordion title="Multi-Provider Routing">
+    Route tasks to the right model based on capability scoring, not round-robin. Use a fast local Ollama model for simple lookups, a frontier model for complex reasoning, and an image model for generation — all in the same agent session.
+  </Accordion>
+  <Accordion title="Cost Tracking and Budgets">
+    Per-token cost tracking with configurable budget alerts at 50%, 80%, and 100%. See real-time spend with `profclaw cost`. Never get surprised by an API bill.
+  </Accordion>
+  <Accordion title="Plugin System">
+    Extend profClaw with custom plugins using the TypeScript SDK. Add new tools, search providers, integrations, or model adapters. Browse and install community plugins via ClawHub. See [Plugins](/plugins/overview).
+  </Accordion>
+  <Accordion title="Security First">
+    Five security modes (deny, sandbox, standard, ask, full), per-tool approval gates, filesystem path guards, SSRF protection, prompt injection detection, audit logging, and QR-based device pairing. See [Security Overview](/security/overview).
+  </Accordion>
+  <Accordion title="Configuration">
+    130+ environment variables for fine-grained control. All settings configurable via env vars or `settings.yml`. Run `profclaw doctor` to verify your setup at any time. See [Configuration Overview](/configuration/overview).
+  </Accordion>
+</AccordionGroup>
+
+## Choose Your Path
+
+<CardGroup cols={2}>
+  <Card title="Set up a Slack Bot" icon="slack" href="/guides/slack-bot">
+    Connect profClaw to your Slack workspace as an AI assistant with full tool access.
+  </Card>
+  <Card title="Run Local LLMs" icon="microchip" href="/guides/local-llm">
+    Use Ollama or LM Studio for fully offline, zero-cost AI on your own hardware.
+  </Card>
+  <Card title="Docker Deployment" icon="docker" href="/guides/docker-deployment">
+    Production-ready Docker setup with Redis, persistent storage, and reverse proxy.
+  </Card>
+  <Card title="GitHub Workflow" icon="github" href="/guides/github-workflow">
+    Automate issue triage, PRs, and code reviews with profClaw agents.
+  </Card>
+</CardGroup>
+
+## Reference
+
+<CardGroup cols={3}>
+  <Card title="CLI Reference" icon="terminal" href="/cli/chat">
+    All CLI commands: chat, tui, serve, agent, doctor, config, cost, and more.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/overview">
+    REST API for chat, agents, tasks, memory, and webhooks.
+  </Card>
+  <Card title="Configuration" icon="sliders" href="/configuration/overview">
+    settings.yml schema, environment variables, and security config.
+  </Card>
+</CardGroup>

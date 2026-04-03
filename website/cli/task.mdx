@@ -1,0 +1,137 @@
+---
+title: "profclaw task"
+description: "Create, list, inspect, cancel, and retry agentic tasks."
+---
+
+## Synopsis
+
+```bash
+profclaw task <subcommand> [flags]
+```
+
+## Description
+
+`task` manages the agentic work queue. Tasks are units of work assigned to agents - they can originate from GitHub issues, Jira tickets, Linear cards, Slack messages, cron schedules, or the CLI. Each task progresses through a lifecycle: `pending` -> `queued` -> `in_progress` -> `completed` (or `failed` / `cancelled`).
+
+## Subcommands
+
+| Subcommand | Alias | Description |
+|---|---|---|
+| `list` | `ls` | List all tasks with filtering |
+| `show <id>` | `get` | Show detailed information for a task |
+| `create <title>` | - | Create a new task |
+| `cancel <id>` | - | Cancel a running or pending task |
+| `retry <id>` | - | Requeue a failed task |
+| `status [id]` | - | Quick status check or summary counts |
+
+## `task list`
+
+<ParamField query="-s, --status" type="string">
+  Filter by task status: `pending`, `queued`, `in_progress`, `completed`, `failed`, `cancelled`.
+</ParamField>
+
+<ParamField query="-l, --limit" type="string" default="20">
+  Maximum number of tasks to return.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output as JSON array.
+</ParamField>
+
+## `task create <title>`
+
+<ParamField query="title" type="string" required>
+  Task title. The title is also used as the initial prompt if no description is provided.
+</ParamField>
+
+<ParamField query="-d, --description" type="string">
+  Task description / detailed prompt for the agent.
+</ParamField>
+
+<ParamField query="-p, --priority" type="string" default="3">
+  Priority level from 1 (critical) to 5 (low). Affects queue ordering.
+</ParamField>
+
+<ParamField query="-a, --agent" type="string">
+  Agent name to assign the task to. Defaults to the system's configured default agent.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output created task as JSON.
+</ParamField>
+
+## `task show <id>`
+
+<ParamField query="id" type="string" required>
+  Task ID or ID prefix (first 8 characters are sufficient).
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output as JSON.
+</ParamField>
+
+## `task status [id]`
+
+Without an ID, prints a summary count by status. With an ID, prints just the status string for that task - useful in scripts.
+
+## Examples
+
+<CodeGroup>
+```bash List all tasks
+profclaw task list
+```
+
+```bash List only failed tasks
+profclaw task list --status failed
+```
+
+```bash Create a simple task
+profclaw task create "Review pull request #123"
+```
+
+```bash Create a detailed task with priority
+profclaw task create "Analyze codebase dependencies" \
+  --description "Check all npm packages for outdated versions and security issues" \
+  --priority 2 \
+  --agent claude
+```
+
+```bash Show task details
+profclaw task show abc12345
+```
+
+```bash Cancel a task
+profclaw task cancel abc12345
+```
+
+```bash Retry a failed task
+profclaw task retry abc12345
+```
+
+```bash Count tasks by status
+profclaw task status
+```
+
+```bash Quick status check in a script
+STATUS=$(profclaw task status abc12345)
+echo "Task is: $STATUS"
+```
+</CodeGroup>
+
+## Task Status Values
+
+| Status | Description |
+|---|---|
+| `pending` | Waiting to be picked up by the queue |
+| `queued` | In the queue, waiting for an available agent |
+| `in_progress` | Currently being executed by an agent |
+| `completed` | Finished successfully |
+| `failed` | Execution ended with an error |
+| `cancelled` | Manually cancelled before completion |
+
+## Related
+
+- [`profclaw agent`](/cli/agent) - View agent health and stats
+- [`profclaw queue`](/cli/queue) - Inspect the task queue
+- [`profclaw summary`](/cli/summary) - Browse completed work summaries
+- [`profclaw chat`](/cli/chat) - Interactive agentic chat

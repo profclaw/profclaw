@@ -1,0 +1,129 @@
+---
+title: "Amazon Bedrock"
+description: "Access Claude, Llama, Titan, and other foundation models via AWS Bedrock. Enterprise-grade with VPC support and AWS IAM auth."
+---
+
+AWS Bedrock provides managed access to foundation models from Anthropic, Meta, Amazon, and others. It integrates with AWS IAM, VPC, CloudWatch, and other AWS services for enterprise deployments.
+
+## Supported Models
+
+| Model | Bedrock ID | Provider | Notes |
+|-------|-----------|---------|-------|
+| Claude Sonnet 3.5 v2 | `anthropic.claude-3-5-sonnet-20241022-v2:0` | Anthropic | Default |
+| Claude Haiku 3.5 | `anthropic.claude-3-5-haiku-20241022-v1:0` | Anthropic | Fast/cheap |
+| Llama 3.1 70B | `meta.llama3-1-70b-instruct-v1:0` | Meta | Open-source |
+| Titan Text G1 | `amazon.titan-text-express-v1` | Amazon | Native AWS |
+
+## Setup
+
+<Steps>
+  <Step title="Enable models in AWS Console">
+    Go to **AWS Console > Bedrock > Model access** and request access to the models you need.
+  </Step>
+  <Step title="Create IAM credentials">
+    Create an IAM user or role with the `AmazonBedrockFullAccess` policy (or a scoped policy for specific models).
+  </Step>
+  <Step title="Set environment variables">
+    ```bash
+    export AWS_ACCESS_KEY_ID=AKIA...
+    export AWS_SECRET_ACCESS_KEY=...
+    export AWS_REGION=us-east-1
+    ```
+    Or use an IAM role (EC2 instance profile, ECS task role, etc.) - no keys needed.
+  </Step>
+  <Step title="Configure profClaw">
+    ```bash
+    # profClaw auto-detects AWS credentials from environment
+    profclaw config provider add bedrock
+    profclaw doctor --provider bedrock
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="AWS_ACCESS_KEY_ID" type="string">
+  AWS access key ID. Not needed when using IAM roles.
+</ParamField>
+
+<ParamField path="AWS_SECRET_ACCESS_KEY" type="string">
+  AWS secret access key. Not needed when using IAM roles.
+</ParamField>
+
+<ParamField path="AWS_REGION" type="string">
+  AWS region where your Bedrock models are available (e.g., `us-east-1`, `eu-west-1`). Defaults to `us-east-1`.
+</ParamField>
+
+<ParamField path="AWS_SESSION_TOKEN" type="string">
+  Temporary session token for STS-based credentials.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env (IAM user)">
+    ```bash
+    AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+    AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+    AWS_REGION=us-east-1
+    ```
+  </Tab>
+  <Tab title="IAM Role (EC2/ECS)">
+    ```bash
+    # No credentials needed - profClaw uses the instance/task role
+    AWS_REGION=us-east-1
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    providers:
+      bedrock:
+        region: "${AWS_REGION}"
+        # API keys not needed if using IAM roles
+    ```
+  </Tab>
+</Tabs>
+
+## Model Aliases
+
+| Alias | Bedrock Model ID |
+|-------|-----------------|
+| `bedrock` | anthropic.claude-3-5-sonnet-20241022-v2:0 |
+| `bedrock-haiku` | anthropic.claude-3-5-haiku-20241022-v1:0 |
+| `bedrock-llama` | meta.llama3-1-70b-instruct-v1:0 |
+
+## Usage Examples
+
+<CodeGroup>
+  ```bash CLI
+  profclaw chat --model bedrock "Review this security policy"
+  profclaw chat --model bedrock-haiku "Quick summarization task"
+  profclaw chat --model bedrock-llama "Open-source model analysis"
+
+  # Use any Bedrock model directly
+  profclaw chat --model bedrock/amazon.titan-text-express-v1 "Hello"
+  ```
+
+  ```typescript SDK
+  import { chat } from 'profclaw';
+
+  const response = await chat("Analyze this CloudFormation template", {
+    model: "bedrock",
+  });
+  ```
+</CodeGroup>
+
+## Notes
+
+- Bedrock is stable and recommended for enterprise AWS-native deployments.
+- Bedrock pricing is per-token, similar to direct API pricing, plus AWS fees.
+- Supports VPC endpoints for fully private traffic (no internet required).
+- Use AWS SCP (Service Control Policies) to restrict which models are accessible.
+- Cross-region inference is supported - specify a different region per request if needed.
+
+## Related
+
+- [AI Providers Overview](/ai-providers/overview) - Compare all 37 supported providers
+- [Azure OpenAI](/ai-providers/azure-openai) - Microsoft Azure alternative for enterprise
+- [Anthropic](/ai-providers/anthropic) - Direct Anthropic API for lower complexity
+- [profclaw provider](/cli/provider) - Add and test providers from the CLI

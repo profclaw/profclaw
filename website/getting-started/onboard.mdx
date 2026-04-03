@@ -1,0 +1,167 @@
+---
+title: "Onboarding Wizard"
+description: "Walk through the interactive profclaw onboard wizard. Covers environment detection, deployment mode selection, AI provider setup, chat channels, and security policy."
+---
+
+## The Onboarding Wizard
+
+The `profclaw onboard` command launches an interactive wizard that configures your instance in 5 steps. Run it after `profclaw init`:
+
+```bash
+profclaw init
+profclaw onboard
+```
+
+<Note>
+  You can re-run `profclaw onboard` at any time to change your configuration. Existing settings are preserved - the wizard only overwrites what you explicitly change.
+</Note>
+
+## Step 1: Environment Detection
+
+profClaw automatically detects your runtime environment and applies appropriate defaults:
+
+| Environment | Detection Method | Applied Defaults |
+|------------|-----------------|-----------------|
+| Docker | `/.dockerenv` present | Persistent volume paths, no hot reload |
+| VPS / Cloud | Non-interactive TTY, public IP | Systemd service hints, `WEBHOOK_BASE_URL` prompt |
+| Local Machine | Interactive TTY, macOS/Linux desktop | Hot reload, `localhost` defaults |
+| Raspberry Pi / ARM | CPU architecture check | Pico mode defaults, memory limits |
+
+## Step 2: Deployment Mode
+
+Choose your deployment mode based on available hardware resources:
+
+<Tabs>
+  <Tab title="Pico">
+    **Best for**: IoT, edge devices, Raspberry Pi, personal use on constrained hardware.
+
+    - 512MB RAM, 1 CPU core
+    - Up to 3 AI providers
+    - 2 chat channels
+    - 15 essential tools
+    - In-memory queue only (no Redis required)
+  </Tab>
+  <Tab title="Mini (Default)">
+    **Best for**: Small teams, home servers, development environments.
+
+    - 2GB RAM, 2 CPU cores
+    - Up to 15 AI providers
+    - 10 chat channels
+    - 50 tools
+    - In-memory queue with optional Redis
+    - Background job support
+  </Tab>
+  <Tab title="Pro">
+    **Best for**: Production deployments, enterprise, multi-team environments.
+
+    - 8GB+ RAM, 4+ CPU cores
+    - All 37 AI providers
+    - All 27 chat channels
+    - All 77+ tools
+    - Redis-backed BullMQ (required)
+    - Full audit logging and clustering support
+  </Tab>
+</Tabs>
+
+Set via environment variable to skip the wizard prompt:
+```bash
+export PROFCLAW_MODE=mini
+```
+
+See [Deployment Modes](/getting-started/deployment-modes) for a detailed feature comparison.
+
+## Step 3: AI Provider Setup
+
+Configure at least one AI provider. The wizard prompts for API keys:
+
+```
+? Select your primary AI provider:
+  > Anthropic (Claude)
+    OpenAI (GPT-4o)
+    Google (Gemini)
+    Ollama (Local)
+    Other...
+
+? Enter your Anthropic API key: sk-ant-***
+? Test connection? Yes
+  ✓ Connected to Anthropic - Claude Sonnet 4.6 available
+```
+
+<Tip>
+  If you want to run fully offline without cloud API costs, choose **Ollama (Local)**. Make sure Ollama is installed and running first: `brew install ollama && ollama serve`. See the [Local LLM guide](/guides/local-llm).
+</Tip>
+
+You can add more providers later:
+```bash
+profclaw config providers add openai --key sk-...
+```
+
+See [AI Providers Overview](/ai-providers/overview) for the full list of supported providers and configuration options.
+
+## Step 4: Chat Channel (Optional)
+
+Connect a chat channel for conversational access from outside the web UI:
+
+```
+? Set up a chat channel now?
+  > Webchat (built-in, no setup needed)
+    Slack
+    Discord
+    Telegram
+    Skip for now
+```
+
+WebChat is enabled by default at `http://localhost:3000` and requires no additional configuration.
+
+For Slack, Discord, or other platforms, the wizard walks you through credential collection. You can also skip this step and configure channels later. See [Chat Providers Overview](/chat-providers/overview) for setup guides per platform.
+
+## Step 5: Security Policy
+
+Choose the security posture that fits your deployment:
+
+```
+? Select security mode:
+  > Standard (recommended)
+    Permissive (development only)
+    Strict (production/enterprise)
+```
+
+| Mode | Description | Best For |
+|------|-------------|----------|
+| `permissive` | Tools execute without approval prompts | Local development, trusted users only |
+| `standard` | Destructive operations require approval | Most deployments |
+| `strict` | All write operations require approval, extra guards active | Production, shared environments |
+
+<Warning>
+  Do not use `permissive` mode in any deployment accessible by untrusted users. Anyone who can message the agent can execute file operations and shell commands.
+</Warning>
+
+See [Security Overview](/security/overview) for a full description of all five security modes and the defense-in-depth architecture.
+
+## Verify Setup
+
+After onboarding, confirm everything works:
+
+```bash
+profclaw doctor
+```
+
+Expected output:
+```
+profClaw Doctor v2.x.x
+--------------------------
+✓ Node.js 22.x detected
+✓ Configuration valid
+✓ AI Provider: Anthropic connected
+✓ Chat: Webchat ready on :3000
+✓ Security: Standard mode active
+✓ Storage: SQLite initialized
+--------------------------
+All checks passed!
+```
+
+If any checks fail, the `doctor` command prints the specific issue and remediation steps.
+
+<Card title="Next: First Run" icon="arrow-right" href="/getting-started/first-run" horizontal>
+  Start profClaw and send your first message to the agent.
+</Card>

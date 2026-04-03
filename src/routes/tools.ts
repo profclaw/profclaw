@@ -326,6 +326,22 @@ tools.delete("/security/allowlist/:pattern", (c) => {
 /**
  * List available tools
  */
+tools.get("/", (c) => {
+  const registry = getToolRegistry();
+  const toolList = registry.list();
+
+  return c.json({
+    tools: toolList.map((t) => ({
+      name: t.name,
+      description: t.description,
+      category: t.category,
+      securityLevel: t.securityLevel,
+      requiresApproval: t.requiresApproval,
+    })),
+    total: toolList.length,
+  });
+});
+
 tools.get("/list", (c) => {
   const registry = getToolRegistry();
   const toolList = registry.list();

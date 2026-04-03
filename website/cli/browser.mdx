@@ -1,0 +1,62 @@
+---
+title: "profclaw browser"
+description: "profclaw browser - control headless CDP browser sessions. Open pages, take screenshots, list tabs, and run web automation from the terminal."
+---
+
+## Synopsis
+
+```bash
+profclaw browser <subcommand> [flags]
+```
+
+## Description
+
+Control headless browser sessions via Chrome DevTools Protocol (CDP). Open pages, take screenshots, and manage browser automation from the CLI.
+
+## Subcommands
+
+| Subcommand | Description |
+|-----------|-------------|
+| `open <url>` | Open a URL in the browser |
+| `screenshot [url]` | Take a screenshot of the current page or a URL |
+| `close [pageId]` | Close a browser page or all pages |
+| `pages` | List open browser pages |
+
+## Flags
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--output <path>` | string | | Screenshot output path |
+| `--json` | boolean | | Output as JSON |
+
+## Examples
+
+<CodeGroup>
+```bash Open a page
+profclaw browser open https://example.com
+```
+
+```bash Take a screenshot
+profclaw browser screenshot https://example.com --output shot.png
+```
+
+```bash List open pages
+profclaw browser pages
+```
+
+```bash Close all pages
+profclaw browser close
+```
+</CodeGroup>
+
+## Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BROWSER_POOL_SIZE` | `3` | Max concurrent browser sessions |
+| `BROWSER_TIMEOUT` | `30000` | Page load timeout in ms |
+
+## Related
+
+- [Browser Tools](/tools/browser-tools)
+- [Web Fetch Tool](/tools/web-fetch)

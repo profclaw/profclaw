@@ -1,0 +1,274 @@
+---
+title: "Docker Deployment"
+description: "Production-ready Docker setup for profClaw with Redis, persistent storage, Nginx reverse proxy, health checks, and backup procedures."
+---
+
+## Overview
+
+Deploy profClaw in Docker for production use with persistent storage, Redis for job queues, and optional Nginx for TLS termination.
+
+## Quick Start
+
+For a minimal single-container setup without Redis:
+
+```bash
+docker run -d \
+  --name profclaw \
+  -p 3000:3000 \
+  -v profclaw-data:/data \
+  -e PROFCLAW_MODE=mini \
+  -e ANTHROPIC_API_KEY=sk-ant-your-key \
+  profclaw/profclaw:latest
+```
+
+<Note>
+  This runs in `mini` mode without Redis. Background jobs use an in-memory queue, which does not persist across restarts. For production, use the Docker Compose setup below with Redis.
+</Note>
+
+## Docker Compose (Recommended)
+
+Create a `docker-compose.yml` file:
+
+```yaml
+services:
+  profclaw:
+    image: profclaw/profclaw:latest
+    container_name: profclaw
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - profclaw-data:/data
+      - ./settings.yml:/app/.profclaw/settings.yml:ro
+    environment:
+      - PROFCLAW_MODE=pro
+      - REDIS_URL=redis://redis:6379
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - SECURITY_MODE=standard
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    container_name: profclaw-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  profclaw-data:
+  redis-data:
+```
+
+Start the stack:
+```bash
+docker compose up -d
+```
+
+Verify it is running:
+```bash
+docker compose ps
+curl http://localhost:3000/api/health
+```
+
+## Pico Mode (Resource-Constrained)
+
+For Raspberry Pi or other devices with limited resources, use the pico image with explicit memory limits:
+
+```yaml
+services:
+  profclaw:
+    image: profclaw/profclaw:pico
+    container_name: profclaw
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+    environment:
+      - PROFCLAW_MODE=pico
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+```
+
+This configuration uses Ollama running on the host for AI inference, keeping all model compute off the constrained container. See the [Local LLM guide](/guides/local-llm) for Ollama setup.
+
+## With Nginx Reverse Proxy
+
+Add Nginx for TLS termination and a clean public URL:
+
+```yaml
+services:
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - profclaw
+
+  profclaw:
+    image: profclaw/profclaw:latest
+    expose:
+      - "3000"
+    environment:
+      - PROFCLAW_MODE=pro
+      - REDIS_URL=redis://redis:6379
+      - WEBHOOK_BASE_URL=https://profclaw.example.com
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  profclaw-data:
+  redis-data:
+```
+
+Example `nginx.conf`:
+```nginx
+server {
+    listen 80;
+    server_name profclaw.example.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name profclaw.example.com;
+
+    ssl_certificate     /etc/nginx/certs/cert.pem;
+    ssl_certificate_key /etc/nginx/certs/key.pem;
+
+    location / {
+        proxy_pass http://profclaw:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+<Tip>
+  For automatic certificate renewal, replace the `nginx` service with Caddy, which handles TLS automatically: `caddy:2-alpine`. The Caddyfile is simpler than the nginx config above.
+</Tip>
+
+## Environment Variables
+
+Pass secrets via environment variables rather than mounting them into the settings.yml file. Use a `.env` file with `docker compose --env-file`:
+
+```bash
+# .env (do not commit to git)
+ANTHROPIC_API_KEY=sk-ant-...
+SLACK_BOT_TOKEN=xoxb-...
+SLACK_APP_TOKEN=xapp-...
+SLACK_SIGNING_SECRET=...
+```
+
+```bash
+docker compose --env-file .env up -d
+```
+
+## Health Checks
+
+```bash
+# profClaw API health
+curl http://localhost:3000/api/health
+
+# Docker container health status
+docker inspect --format='{{.State.Health.Status}}' profclaw
+
+# View logs
+docker logs profclaw --follow --tail 100
+```
+
+Add a health check to the profclaw service in your Compose file for automatic restart on failure:
+
+```yaml
+profclaw:
+  # ...
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+    start_period: 15s
+```
+
+## Backup
+
+Backup the profclaw data volume before upgrades or regularly via cron:
+
+```bash
+# Create a dated backup archive
+docker run --rm \
+  -v profclaw-data:/data \
+  -v $(pwd)/backups:/backup \
+  alpine tar czf /backup/profclaw-$(date +%Y%m%d).tar.gz /data
+```
+
+Restore from backup:
+
+```bash
+docker run --rm \
+  -v profclaw-data:/data \
+  -v $(pwd)/backups:/backup \
+  alpine tar xzf /backup/profclaw-20240101.tar.gz -C /
+```
+
+See the [Backup and Restore guide](/guides/backup-restore) for scheduled backup configuration.
+
+## Updating
+
+Pull the latest image and recreate the containers:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+Docker Compose only recreates containers whose image has changed, so Redis is not disrupted if only the profclaw image updated.
+
+## Related Guides
+
+<CardGroup cols={2}>
+  <Card title="Self-Hosted Deployment" icon="server" href="/guides/self-hosted">
+    Configure public webhooks and systemd for VPS deployments.
+  </Card>
+  <Card title="Backup and Restore" icon="database" href="/guides/backup-restore">
+    Automated backups, retention policies, and restore procedures.
+  </Card>
+  <Card title="Monitoring" icon="chart-line" href="/guides/monitoring">
+    Health endpoints, metrics, and alerting for production deployments.
+  </Card>
+  <Card title="Security Overview" icon="shield" href="/security/overview">
+    Configure security modes and guards for production.
+  </Card>
+</CardGroup>

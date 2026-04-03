@@ -44,7 +44,7 @@ interface ModelPattern {
 const MODEL_PATTERNS: ModelPattern[] = [
   // Large reasoning models (full tier)
   { pattern: /claude-(3\.5|4|opus|sonnet-4)/i, capability: 'reasoning', tier: 'full' },
-  { pattern: /gpt-4o|gpt-4-turbo|gpt-4\.5/i, capability: 'reasoning', tier: 'full' },
+  { pattern: /gpt-?4o|gpt-4-turbo|gpt-4\.5|gpt-4\.1/i, capability: 'reasoning', tier: 'full' },
   { pattern: /gemini-(pro|1\.5|2)/i, capability: 'reasoning', tier: 'full' },
   { pattern: /o[13]-/i, capability: 'reasoning', tier: 'full' },
   { pattern: /deepseek-(v3|r1|chat)/i, capability: 'reasoning', tier: 'full' },
@@ -139,7 +139,7 @@ export function classifyModel(modelId: string): ModelProfile {
       return {
         capability: entry.capability,
         tier: entry.tier,
-        maxTools: entry.tier === 'essential' ? 10 : entry.tier === 'standard' ? 30 : 100,
+        maxTools: entry.tier === 'essential' ? 10 : entry.tier === 'standard' ? 15 : 15,
         contextWindow,
         toolTokenBudget: Math.floor(contextWindow * (config.maxToolTokenPercent / 100)),
       };
@@ -171,12 +171,12 @@ export function classifyModel(modelId: string): ModelProfile {
     }
   }
 
-  // Unknown model: default to configured tier (safe, won't break)
+  // Unknown model: default to standard tier (balances capability vs token cost)
   const contextWindow = 128000;
   return {
     capability: 'reasoning',
-    tier: config.defaultTier,
-    maxTools: 100,
+    tier: 'standard',
+    maxTools: 35,
     contextWindow,
     toolTokenBudget: Math.floor(contextWindow * (config.maxToolTokenPercent / 100)),
   };

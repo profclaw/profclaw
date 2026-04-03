@@ -1,0 +1,145 @@
+---
+title: "Ollama"
+description: "Run local AI models with Ollama. Zero API costs, full privacy, works offline. Default provider when no cloud keys are set."
+---
+
+Ollama lets you run open-source models locally. profClaw connects to Ollama automatically - it's always enabled and is the fallback when no cloud API keys are configured.
+
+## Supported Models
+
+Ollama supports hundreds of models. Popular choices in profClaw:
+
+| Alias | Model | Best For |
+|-------|-------|----------|
+| `local` / `llama` | llama3.2 | General purpose |
+| `deepseek-local` | deepseek-r1:7b | Reasoning tasks |
+| `qwen` | qwen2.5:14b | Multilingual |
+| `mistral-local` | mistral:7b | Fast inference |
+
+Any model available in `ollama list` can be used by its full name.
+
+<Note>
+  Most local Ollama models do not support native tool calling. profClaw automatically falls back to manual tool prompting for these models.
+</Note>
+
+## Setup
+
+<Steps>
+  <Step title="Install Ollama">
+    ```bash
+    # macOS
+    brew install ollama
+
+    # Linux
+    curl -fsSL https://ollama.com/install.sh | sh
+
+    # Windows: download from https://ollama.com
+    ```
+  </Step>
+  <Step title="Pull a model">
+    ```bash
+    ollama pull llama3.2
+    ollama pull deepseek-r1:7b
+    ollama pull qwen2.5:14b
+    ```
+  </Step>
+  <Step title="Start the Ollama server">
+    ```bash
+    ollama serve
+    # Runs at http://localhost:11434 by default
+    ```
+  </Step>
+  <Step title="profClaw connects automatically">
+    No API key needed. profClaw connects to Ollama at `http://localhost:11434`.
+
+    ```bash
+    profclaw doctor --provider ollama
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="OLLAMA_BASE_URL" type="string">
+  Ollama server URL. Defaults to `http://localhost:11434`. Override for remote Ollama instances.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env (remote Ollama)">
+    ```bash
+    OLLAMA_BASE_URL=http://192.168.1.100:11434
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    providers:
+      ollama:
+        base_url: "${OLLAMA_BASE_URL}"
+        default_model: "llama3.2"
+    ```
+  </Tab>
+  <Tab title="Docker Compose">
+    ```yaml
+    services:
+      profclaw:
+        image: profclaw/profclaw:latest
+        environment:
+          OLLAMA_BASE_URL: "http://ollama:11434"
+      ollama:
+        image: ollama/ollama:latest
+        volumes:
+          - ollama_data:/root/.ollama
+    volumes:
+      ollama_data:
+    ```
+  </Tab>
+</Tabs>
+
+## Model Aliases
+
+| Alias | Model |
+|-------|-------|
+| `local` | llama3.2 |
+| `llama` | llama3.2 |
+| `deepseek-local` | deepseek-r1:7b |
+| `qwen` | qwen2.5:14b |
+| `mistral-local` | mistral:7b |
+
+## Usage Examples
+
+<CodeGroup>
+  ```bash CLI
+  # Use default local model
+  profclaw chat --model local "What is dependency injection?"
+
+  # Use a specific model by name
+  profclaw chat --model llama3.2 "Explain this code"
+
+  # Use any installed model
+  profclaw chat --model codellama:13b "Write a binary search"
+  ```
+
+  ```typescript SDK
+  import { chat } from 'profclaw';
+
+  const response = await chat("Summarize this text", {
+    model: "local",
+  });
+  ```
+</CodeGroup>
+
+## Notes
+
+- Ollama is always lowest priority in auto-selection. If any cloud key is set, it takes precedence.
+- Local models work without internet access - useful for air-gapped environments.
+- GPU acceleration significantly improves performance. Ollama auto-detects CUDA/Metal.
+- Tool calling is available via manual prompting fallback for models that don't support it natively.
+
+## Related
+
+- [AI Providers Overview](/ai-providers/overview) - Compare all 37 supported providers
+- [LM Studio](/ai-providers/lmstudio) - Alternative local model runner with a GUI
+- [Local LLM Guide](/guides/local-llm) - Run profClaw with fully local models
+- [profclaw provider](/cli/provider) - Add and test providers from the CLI

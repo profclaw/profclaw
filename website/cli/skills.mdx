@@ -1,0 +1,109 @@
+---
+title: "profclaw skill"
+description: "List, inspect, enable, disable, and reload profClaw skills."
+---
+
+## Synopsis
+
+```bash
+profclaw skill <subcommand> [flags]
+```
+
+## Description
+
+`skill` manages profClaw's skill system. Skills are pre-built, reusable AI agent capabilities defined in `SKILL.md` files. They extend what agents can do when invoked by name (e.g., `commit`, `review-pr`, `deploy`). Skills can be enabled or disabled at runtime without restarting the server.
+
+## Subcommands
+
+| Subcommand | Alias | Description |
+|---|---|---|
+| `list` | `ls` | List all skills with enabled status and source |
+| `info <name>` | - | Show detailed information for a skill |
+| `enable <name>` | - | Enable a disabled skill |
+| `disable <name>` | - | Disable an enabled skill |
+| `reload` | - | Hot-reload all skills from disk |
+
+## `skill list`
+
+<ParamField query="--json" type="boolean">
+  Output as JSON with the full skill list and summary stats.
+</ParamField>
+
+## `skill info <name>`
+
+Displays name, description, enabled status, source path, eligibility, capabilities, dependencies, and usage statistics (invocation count, average duration, last used).
+
+<ParamField query="--json" type="boolean">
+  Output as JSON.
+</ParamField>
+
+## `skill enable <name>` / `skill disable <name>`
+
+Toggles a skill on or off. The change takes effect immediately - no server restart needed.
+
+<ParamField query="--json" type="boolean">
+  Output result as JSON.
+</ParamField>
+
+## `skill reload`
+
+Rescans the `skills/` directory and reloads all skill definitions from disk. Use this after adding, editing, or removing a `SKILL.md` file without restarting the server.
+
+<ParamField query="--json" type="boolean">
+  Output reload stats (loaded, failed, total) as JSON.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash List all skills
+profclaw skill list
+```
+
+```bash Show skill details
+profclaw skill info commit
+profclaw skill info review-pr
+```
+
+```bash Enable a skill
+profclaw skill enable deploy
+```
+
+```bash Disable a skill
+profclaw skill disable web-search
+```
+
+```bash Reload after adding a new SKILL.md
+profclaw skill reload
+```
+
+```bash List skills as JSON for scripting
+profclaw skill list --json | jq '[.skills[] | select(.enabled)]'
+```
+</CodeGroup>
+
+## Skill Sources
+
+| Source | Location | Description |
+|---|---|---|
+| `builtin` | `skills/` in profClaw install | Shipped with profClaw |
+| `local` | `~/.profclaw/skills/` | User-defined skills |
+| `plugin` | Plugin package | Provided by installed plugins |
+
+## Built-in Skills (examples)
+
+| Skill | Description |
+|---|---|
+| `commit` | Generate and create a git commit with a good message |
+| `review-pr` | Code review a GitHub pull request |
+| `deploy` | Deploy an application using configured deployment scripts |
+| `analyze-code` | Static analysis and suggestions for a codebase |
+| `fix-tests` | Diagnose and fix failing tests |
+| `write-docs` | Generate documentation for code |
+
+## Related
+
+- [`profclaw plugin`](/cli/plugins) - Install plugins that provide additional skills
+- [`profclaw tools`](/cli/tools) - Built-in execution tools used by skills
+- [`profclaw chat`](/cli/chat) - Invoke skills in a chat session
+- [Skills Guide](/skills) - Writing custom skills

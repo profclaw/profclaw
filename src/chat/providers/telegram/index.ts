@@ -52,6 +52,7 @@ interface TelegramChat {
 
 interface TelegramMessage {
   message_id: number;
+  message_thread_id?: number; // Forum topic ID
   from?: TelegramUser;
   chat: TelegramChat;
   date: number;
@@ -64,6 +65,7 @@ interface TelegramMessage {
   reply_to_message?: TelegramMessage;
   photo?: Array<{ file_id: string; width: number; height: number }>;
   document?: { file_id: string; file_name?: string; mime_type?: string };
+  is_topic_message?: boolean;
 }
 
 interface TelegramCallbackQuery {
@@ -135,7 +137,7 @@ const capabilities: ChatProviderCapabilities = {
   reactions: true,
   edit: true,
   delete: true,
-  threads: false, // Telegram uses reply-to
+  threads: true, // Forum topics via message_thread_id
   media: true,
   richBlocks: false, // Uses HTML/Markdown
   oauth: false,
@@ -297,11 +299,28 @@ const outboundAdapter: OutboundAdapter = {
     let replyToId = message.replyToId ? parseInt(message.replyToId, 10) : undefined;
     let firstMessage: TelegramMessage | undefined;
 
+    // Parse topic from threadId or "chatId:topic:topicId" format in `to`
+    let targetChatId = message.to;
+    let topicId: number | undefined;
+
+    if (message.threadId) {
+      topicId = parseInt(message.threadId, 10);
+    } else if (targetChatId.includes(':topic:')) {
+      const parts = targetChatId.split(':topic:');
+      targetChatId = parts[0];
+      topicId = parseInt(parts[1], 10);
+    }
+
     for (const [index, chunk] of chunks.entries()) {
       const params: Record<string, unknown> = {
-        chat_id: message.to,
+        chat_id: targetChatId,
         parse_mode: 'HTML',
       };
+
+      // Forum topic support
+      if (topicId && !isNaN(topicId)) {
+        params.message_thread_id = topicId;
+      }
 
       if (chunk !== undefined) {
         params.text = chunk;
@@ -452,6 +471,10 @@ const inboundAdapter: InboundAdapter = {
       chatType: getChatType(message.chat.type),
       chatId: String(message.chat.id),
       chatName: message.chat.title || message.chat.first_name,
+      // Forum topic support: include topic ID as threadId
+      threadId: message.message_thread_id
+        ? String(message.message_thread_id)
+        : undefined,
       replyToId: message.reply_to_message
         ? String(message.reply_to_message.message_id)
         : undefined,

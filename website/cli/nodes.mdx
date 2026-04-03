@@ -1,0 +1,62 @@
+---
+title: "profclaw nodes"
+description: "profclaw nodes - add, remove, sync, and monitor distributed profClaw nodes for multi-instance deployments. Requires pro mode and Redis."
+---
+
+## Synopsis
+
+```bash
+profclaw nodes <subcommand> [flags]
+```
+
+## Description
+
+Manage distributed profClaw nodes for multi-instance deployments. Add remote nodes, sync configuration, and monitor health across your cluster.
+
+<Note>
+  Distributed nodes require **pro mode** and a shared Redis instance for coordination.
+</Note>
+
+## Subcommands
+
+| Subcommand | Alias | Description |
+|-----------|-------|-------------|
+| `list` | `ls` | List connected nodes |
+| `add <url>` | | Add a remote node by URL |
+| `remove <id>` | | Remove a node by ID |
+| `sync` | | Sync configuration across all nodes |
+| `status [id]` | | Show status for all or a specific node |
+
+## Flags
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--name <name>` | string | Node display name (add) |
+| `--yes` | boolean | Skip confirmation (remove) |
+| `--json` | boolean | Output as JSON |
+
+## Examples
+
+<CodeGroup>
+```bash List nodes
+profclaw nodes list
+```
+
+```bash Add a remote node
+profclaw nodes add https://node2.internal:3000 --name "Worker 2"
+```
+
+```bash Sync configuration
+profclaw nodes sync
+```
+
+```bash Check cluster status
+profclaw nodes status
+```
+</CodeGroup>
+
+## Related
+
+- [Architecture Overview](/architecture/overview)
+- [Sync System](/architecture/sync)
+- [Self-Hosted Guide](/guides/self-hosted)

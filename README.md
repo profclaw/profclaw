@@ -5,8 +5,8 @@
 <h1 align="center">profClaw</h1>
 
 <p align="center">
-  <b>Smart, lightweight AI agent engine.</b><br>
-  Run locally on anything from a Raspberry Pi to a production VPS.
+  <b>Self-hosted AI agent engine for developers.</b><br>
+  35 providers · 72 tools · 22 channels · runs on anything.
 </p>
 
 <p align="center">
@@ -14,6 +14,9 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-blue.svg?style=for-the-badge" alt="License: AGPL-3.0"></a>
   <img src="https://img.shields.io/badge/Node.js-22%2B-339933?style=for-the-badge&logo=node.js&logoColor=white" alt="Node.js 22+">
   <a href="https://github.com/profclaw/profclaw/pkgs/container/profclaw"><img src="https://img.shields.io/badge/Docker-ghcr.io-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker"></a>
+  <img src="https://img.shields.io/badge/providers-35-f43f5e?style=for-the-badge" alt="35 providers">
+  <img src="https://img.shields.io/badge/tools-72-fb7185?style=for-the-badge" alt="72 tools">
+  <img src="https://img.shields.io/badge/channels-22-e11d48?style=for-the-badge" alt="22 channels">
 </p>
 
 <p align="center">
@@ -28,7 +31,10 @@
 
 - [Why profClaw](#why-profclaw)
 - [Features](#features)
-- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Interactive TUI](#interactive-tui)
+- [Slash Commands](#slash-commands)
+- [Headless Mode](#headless-mode)
 - [Deployment Modes](#deployment-modes)
 - [Where It Runs](#where-it-runs)
 - [Configuration](#configuration)
@@ -45,47 +51,51 @@
 
 Most AI coding tools are either cloud-only (Cursor, Devin) or single-purpose CLIs (Aider, SWE-Agent). profClaw is different:
 
-- **Local-first** - runs on your machine, your data stays local
-- **Multi-agent orchestration** - routes tasks to the right agent (Claude, GPT, Ollama) based on capability scoring, not just round-robin
-- **Real task queue** - BullMQ with dead letter queue, retry with backoff, priority scheduling
-- **Built-in project management** - tickets, Kanban, sprints, burndown charts, bi-directional sync with GitHub/Jira/Linear
-- **22 chat channels** - talk to your AI through Slack, Discord, Telegram, WhatsApp, Teams, or 17 others
-- **Cost tracking** - per-token budget management with alerts at 50/80/100%
-- **72 built-in tools** - file ops, git, browser automation, cron, web search, canvas, voice
-- **Mode-aware** - scales from a Raspberry Pi (pico) to a full team server (pro)
+- **Local-first** — runs on your machine, your data stays local
+- **Multi-provider** — 35 AI providers including Ollama for fully offline usage
+- **Interactive TUI** — streaming markdown, syntax highlighting, slash commands, and model selector in the terminal
+- **Multi-agent orchestration** — routes tasks to the right agent (Claude, GPT, Ollama) based on capability scoring
+- **Real task queue** — BullMQ with dead letter queue, retry with backoff, priority scheduling
+- **22 chat channels** — talk to your AI through Slack, Discord, Telegram, WhatsApp, Teams, or 17 others
+- **Cost tracking** — per-token budget management with alerts at 50/80/100%
+- **72 built-in tools** — file ops, git, browser automation, cron, web search, canvas, voice
+- **Scales to edge** — pico mode runs on a Raspberry Pi Zero 2W in ~140MB RAM
 
-No other open-source tool combines task orchestration, project management, and cost tracking in one self-hosted package.
+No other open-source tool combines task orchestration, project management, cost tracking, and a first-class TUI in one self-hosted package.
 
 ## Features
 
 | | |
 |---|---|
-| **35 AI providers** | Anthropic, OpenAI, Google, Groq, Ollama, DeepSeek, Bedrock, and more |
+| **35 AI providers** | Anthropic, OpenAI, Google, Groq, Ollama, DeepSeek, Bedrock, and 28 more |
 | **22 chat channels** | Slack, Discord, Telegram, WhatsApp, iMessage, Matrix, Teams, and 15 more |
 | **72 built-in tools** | File ops, git, browser automation, cron, web search, canvas, voice |
 | **50 skills** | Coding agent, GitHub issues, Notion, Obsidian, image gen, and more |
-| **MCP server** | Native Model Context Protocol - connect to any MCP-compatible client |
+| **Interactive TUI** | Streaming markdown, syntax highlighting, slash picker, model selector |
+| **MCP server** | Native Model Context Protocol — connect Claude Desktop, Cursor, any MCP client |
 | **Voice I/O** | STT (Whisper) + TTS (ElevenLabs/OpenAI/system) + Talk Mode |
 | **Plugin SDK** | Build and share third-party plugins via npm or ClawHub |
 | **3 deployment modes** | Pico (~140MB), Mini (~145MB), Pro (full features) |
 
-## Installation
+## Quick Start
 
-### npm (recommended)
+```bash
+npm install -g profclaw
+profclaw init
+profclaw chat --tui
+```
+
+`profclaw init` scans your project, detects your stack, and writes a `PROFCLAW.md` context file. It also auto-detects any AI provider keys in your environment.
+
+`profclaw chat --tui` opens the interactive TUI with streaming responses, syntax-highlighted code, slash commands, and a live model selector.
+
+### Full setup wizard
 
 ```bash
 npx profclaw onboard
 ```
 
-This runs the zero-to-running wizard: picks your AI provider, sets up config, and starts the server.
-
-Or install globally:
-
-```bash
-npm install -g profclaw@latest
-profclaw setup
-profclaw serve
-```
+Picks your AI provider, sets up config, and starts the server — zero to running in under 5 minutes.
 
 ### Docker
 
@@ -118,6 +128,91 @@ docker compose --profile ai up -d
 curl -fsSL https://raw.githubusercontent.com/profclaw/profclaw/main/install.sh | bash
 ```
 
+## Interactive TUI
+
+profClaw ships with a first-class terminal UI — no browser required.
+
+```bash
+profclaw chat --tui
+# or
+profclaw tui
+```
+
+The TUI provides:
+
+- **Streaming markdown** rendered live as the model responds
+- **Syntax-highlighted code blocks** for 100+ languages
+- **Slash command picker** — type `/` to browse all 50 skills with descriptions
+- **Live model selector** — switch providers mid-conversation with `Ctrl+M`
+- **Tool execution panel** — see every tool call, argument, and result in real time
+- **Session history** — scroll back through previous conversations
+- **Keyboard-driven** — full navigation without a mouse
+
+```
+┌─ profClaw v2.x.x ─────────────────────────────────────────────┐
+│  [Chat]                               [Tools]                  │
+│                                                                 │
+│  You: Review src/auth.ts for security issues                    │
+│                                                                 │
+│  Agent: I'll analyze auth.ts for security issues.     read_file │
+│                                                       ───────── │
+│  ## Security Analysis                                 auth.ts   │
+│                                                                 │
+│  **Critical**: JWT secret read from env without      analyze   │
+│  fallback guard on line 42. If `JWT_SECRET` is       ──────── │
+│  undefined the app will sign tokens with `undefined`. auth.ts  │
+│  ...                                                            │
+└─────────────────────────────── [claude-sonnet-4-6] [pro] ──────┘
+```
+
+## Slash Commands
+
+Skills are pre-built expertise modules invoked with `/` in any chat interface or the TUI:
+
+| Command | What it does |
+|---|---|
+| `/commit` | Write a conventional commit message for staged changes |
+| `/review-pr 42` | Full code review of a pull request |
+| `/deploy` | Run your deploy script with rollback awareness |
+| `/summarize src/` | Summarize all files in a directory |
+| `/web-research "topic"` | Research a topic across the web |
+| `/analyze-code file.ts` | Security, performance, and style analysis |
+| `/ticket PROJ-123` | Pull ticket context into the conversation |
+| `/image "prompt"` | Generate an image via configured image provider |
+| `/help` | List all available slash commands |
+| `/exit` | Exit the current session |
+
+See [Skills docs](https://profclaw.ai/docs/skills/overview) for all 50 built-in skills and how to create your own with a plain Markdown file.
+
+## Headless Mode
+
+Run agents from scripts, CI pipelines, or other services:
+
+```bash
+# One-shot message
+profclaw chat "Summarize the last 10 git commits"
+
+# JSON output for scripting
+profclaw chat "List open TODOs in src/" --output json
+
+# Run a skill headlessly
+profclaw skill run commit --message "feat: add auth"
+
+# Agent task with file context
+profclaw agent run "Review src/ for security issues" --files src/
+
+# Verify your setup
+profclaw doctor
+```
+
+REST API:
+
+```bash
+curl -X POST http://localhost:3000/api/chat/message \
+  -H "Content-Type: application/json" \
+  -d '{"message": "List open GitHub issues", "provider": "anthropic"}'
+```
+
 ## Deployment Modes
 
 profClaw scales from a Raspberry Pi to a full production server:
@@ -126,7 +221,7 @@ profClaw scales from a Raspberry Pi to a full production server:
 |------|-------------|-----|----------|
 | **pico** | Agent + tools + 1 chat channel + cron. No UI. | ~140MB | Raspberry Pi, $5 VPS, home server |
 | **mini** | + Dashboard, integrations, 3 channels | ~145MB | Personal dev server, small VPS |
-| **pro** | + All channels, Redis queues, plugins, browser tools | ~120-200MB | Teams, production |
+| **pro** | + All channels, Redis queues, plugins, browser tools | ~200MB | Teams, production |
 
 Set via `PROFCLAW_MODE=pico|mini|pro` environment variable.
 
@@ -146,7 +241,7 @@ profClaw requires Node.js 22+. For bare-metal embedded devices (ESP32, Arduino),
 
 ## Configuration
 
-The setup wizard (`profclaw setup`) handles everything interactively. Or set environment variables:
+The setup wizard (`profclaw onboard`) handles everything interactively. Or set environment variables:
 
 ```bash
 # AI Provider (pick one)
@@ -162,7 +257,9 @@ PORT=3000
 REDIS_URL=redis://localhost:6379   # Required for pro mode
 ```
 
-See [`.env.example`](.env.example) for all options.
+Run `profclaw doctor` to verify your configuration at any time.
+
+See [`.env.example`](.env.example) for all 130+ options.
 
 ## AI Providers
 
@@ -183,7 +280,8 @@ See [`.env.example`](.env.example) for all options.
 | Together | Open models | No |
 | Fireworks | Open models | No |
 | Mistral | Mistral Large, Codestral | No |
-| ... and 22 more | HuggingFace, NVIDIA NIM, Cerebras, Replicate, Zhipu, Moonshot, Qwen, etc. | |
+| LM Studio | Local models | Yes |
+| ... and 21 more | HuggingFace, NVIDIA NIM, Cerebras, Replicate, Zhipu, Moonshot, Qwen, etc. | |
 
 ## Chat Channels
 
@@ -219,6 +317,8 @@ See [`.env.example`](.env.example) for all options.
 | **GitHub** | Webhooks, OAuth, issue sync, PR automation |
 | **Jira** | Webhooks, OAuth, issue sync, transitions |
 | **Linear** | Webhooks, OAuth, issue sync |
+| **Cloudflare** | Workers deployment, KV, D1 |
+| **Tailscale** | Private network access |
 
 ## Architecture
 
@@ -234,11 +334,20 @@ src/
   providers/      35 AI SDK providers
   skills/         Skill loader and registry
   mcp/            MCP server (stdio + SSE)
+  tui/            Interactive terminal UI (ink + blessed)
   types/          Shared TypeScript types
 
 ui/src/           React 19 + Vite dashboard (mini/pro only)
-skills/           Built-in skill definitions
+skills/           Built-in skill definitions (Markdown)
 ```
+
+**Key design decisions:**
+- **Mode-aware feature flags** — the same binary scales from pico to pro; features are gated at runtime
+- **Adapter pattern for providers** — adding a new AI provider is a single file implementing the `ModelAdapter` interface
+- **Skill-as-Markdown** — skills are plain `.md` files with a structured header; no code required to create new ones
+- **BullMQ for production queues** — optional Redis dependency; falls back to in-memory queue in pico/mini mode
+
+See [Architecture docs](https://profclaw.ai/docs/architecture/overview) for a deep dive.
 
 ## Development
 

@@ -1,0 +1,105 @@
+---
+title: "profclaw summary"
+description: "Browse, search, and inspect AI work summaries generated after agentic task completion."
+---
+
+## Synopsis
+
+```bash
+profclaw summary <subcommand> [flags]
+```
+
+## Description
+
+`summary` provides access to the AI-generated work summaries that profClaw creates after completing agentic tasks. Each summary captures what changed, why it changed, and how it was accomplished, along with a list of affected files. Summaries are useful for reviewing what agents have done, understanding code changes, and building institutional knowledge.
+
+## Subcommands
+
+| Subcommand | Alias | Description |
+|---|---|---|
+| `list` | `ls` | List recent summaries |
+| `show <id>` | `get` | Show full details for a summary |
+| `search <query>` | - | Full-text search across all summaries |
+| `stats` | - | Show aggregate statistics |
+
+## `summary list`
+
+<ParamField query="-a, --agent" type="string">
+  Filter by agent name.
+</ParamField>
+
+<ParamField query="-l, --limit" type="string" default="20">
+  Maximum number of summaries to return.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output as JSON array.
+</ParamField>
+
+## `summary show <id>`
+
+Displays the full summary including the "What Changed", "Why", "How", and list of files modified.
+
+<ParamField query="id" type="string" required>
+  Summary ID or prefix.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output as JSON.
+</ParamField>
+
+## `summary search <query>`
+
+<ParamField query="query" type="string" required>
+  Search terms to match against summary titles and content.
+</ParamField>
+
+<ParamField query="-l, --limit" type="string" default="10">
+  Maximum results to return.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output as JSON.
+</ParamField>
+
+## `summary stats`
+
+Shows total summary count, total tokens consumed, total cost, files changed, and a breakdown by agent.
+
+<ParamField query="--json" type="boolean">
+  Output stats as JSON.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash List recent summaries
+profclaw summary list
+```
+
+```bash List summaries from a specific agent
+profclaw summary list --agent claude
+```
+
+```bash Show a summary's full details
+profclaw summary show abc12345
+```
+
+```bash Search summaries
+profclaw summary search "authentication refactor"
+```
+
+```bash View summary statistics
+profclaw summary stats
+```
+
+```bash Export recent summaries as JSON
+profclaw summary list --json | jq '.[].title'
+```
+</CodeGroup>
+
+## Related
+
+- [`profclaw task`](/cli/task) - View task status (summaries are generated on completion)
+- [`profclaw agent`](/cli/agent) - Agent health and performance stats
+- [`profclaw memory`](/cli/memory) - Search the memory index

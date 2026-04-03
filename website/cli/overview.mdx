@@ -1,0 +1,141 @@
+---
+title: "CLI Overview"
+description: "The profClaw command-line interface - manage every aspect of your AI agent engine from the terminal."
+---
+
+## Installation
+
+<CodeGroup>
+```bash npm (global)
+npm install -g profclaw
+```
+
+```bash pnpm (global)
+pnpm add -g profclaw
+```
+
+```bash From source
+git clone https://github.com/profclaw/profclaw
+cd profclaw
+pnpm install && pnpm build
+npm link
+```
+</CodeGroup>
+
+## Verify Installation
+
+```bash
+profclaw --version
+profclaw doctor
+```
+
+## Quick Setup
+
+<Steps>
+  <Step title="Initialize">
+    ```bash
+    profclaw init
+    ```
+    Creates the default configuration files in the current directory.
+  </Step>
+  <Step title="Run the onboarding wizard">
+    ```bash
+    profclaw onboard
+    ```
+    Detects your environment, selects the right deployment mode, and configures your first AI provider.
+  </Step>
+  <Step title="Start the server">
+    ```bash
+    profclaw serve
+    ```
+    Starts the HTTP API server on port 3000 (configurable with `-p`).
+  </Step>
+</Steps>
+
+## Global Flags
+
+These flags are available on every command.
+
+<ParamField query="--help" type="boolean">
+  Show help text for the command.
+</ParamField>
+
+<ParamField query="--version" type="boolean">
+  Print the installed profClaw version and exit.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output raw JSON instead of formatted tables. Available on most subcommands. Useful for scripting and piping to `jq`.
+</ParamField>
+
+## Environment Variables
+
+The CLI reads these variables for its own configuration (separate from the server).
+
+| Variable | Default | Description |
+|---|---|---|
+| `PROFCLAW_API_URL` | `http://localhost:3000` | URL of the profClaw server |
+| `PROFCLAW_API_TOKEN` | - | Bearer token for API authentication |
+| `PROFCLAW_MODE` | `mini` | Deployment mode (`pico`, `mini`, `pro`) |
+| `PORT` | `3000` | Server port (used by `serve` and `daemon`) |
+
+Set API credentials permanently:
+
+```bash
+profclaw config set apiUrl http://my-server:3000
+profclaw config login --token eyJ...
+```
+
+Or via environment:
+
+```bash
+export PROFCLAW_API_URL=http://my-server:3000
+export PROFCLAW_API_TOKEN=eyJ...
+```
+
+## Command Groups
+
+| Group | Description |
+|---|---|
+| [`init`](/cli/init) / [`onboard`](/cli/onboard) | First-run setup |
+| [`serve`](/cli/serve) / [`daemon`](/cli/daemon) | Run the server |
+| [`chat`](/cli/chat) | Interactive AI chat |
+| [`agent`](/cli/agent) / [`task`](/cli/task) | Agent and task management |
+| [`config`](/cli/config) | Configuration management |
+| [`auth`](/cli/auth) | User and invite management |
+| [`skill`](/cli/skills) / [`plugin`](/cli/plugins) | Extend functionality |
+| [`tools`](/cli/tools) / [`mcp`](/cli/mcp) | Tool and MCP management |
+| [`memory`](/cli/memory) / [`summary`](/cli/summary) | Knowledge and history |
+| [`cost`](/cli/cost) / [`status`](/cli/status) | Monitoring |
+| [`security`](/cli/security) / [`audit`](/cli/audit) | Security management |
+| [`doctor`](/cli/doctor) / [`logs`](/cli/logs) | Diagnostics |
+| [`device`](/cli/device) | Device pairing |
+| [`backup`](/cli/backup) / [`reset`](/cli/reset) | Data management |
+| [`update`](/cli/update) / [`version`](/cli/version) | Lifecycle |
+
+## Shell Completion
+
+Generate shell completion scripts to enable tab completion.
+
+<CodeGroup>
+```bash bash
+profclaw completion bash >> ~/.bashrc
+source ~/.bashrc
+```
+
+```bash zsh
+profclaw completion zsh >> ~/.zshrc
+source ~/.zshrc
+```
+
+```bash fish
+profclaw completion fish > ~/.config/fish/completions/profclaw.fish
+```
+</CodeGroup>
+
+## Related
+
+- [Getting Started](/getting-started/installation) - Full installation guide
+- [Configuration](/configuration) - Configuration reference
+- [`profclaw doctor`](/cli/doctor) - Diagnose environment issues
+- [`profclaw onboard`](/cli/onboard) - Interactive setup wizard

@@ -1,0 +1,146 @@
+---
+title: "Environment Variables"
+description: "Complete reference of all profClaw environment variables"
+---
+
+## Core Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PROFCLAW_MODE` | `mini` | Deployment mode: `pico`, `mini`, or `pro` |
+| `PORT` | `3000` | HTTP server port |
+| `HOST` | `0.0.0.0` | HTTP bind address |
+| `NODE_ENV` | `production` | Node environment |
+| `LOG_LEVEL` | `info` | Log level: `debug`, `info`, `warn`, `error` |
+| `DATA_DIR` | `.profclaw` | Data directory path |
+| `PROFCLAW_SECRET` | auto-generated | Secret key for signing tokens |
+
+## AI Provider Keys
+
+| Variable | Provider | Required |
+|----------|----------|----------|
+| `ANTHROPIC_API_KEY` | Anthropic (Claude) | For Anthropic provider |
+| `OPENAI_API_KEY` | OpenAI (GPT) | For OpenAI provider |
+| `GOOGLE_GENERATIVE_AI_API_KEY` | Google (Gemini) | For Google provider |
+| `GROQ_API_KEY` | Groq | For Groq provider |
+| `MISTRAL_API_KEY` | Mistral | For Mistral provider |
+| `COHERE_API_KEY` | Cohere | For Cohere provider |
+| `PERPLEXITY_API_KEY` | Perplexity | For Perplexity provider |
+| `TOGETHER_API_KEY` | Together AI | For Together provider |
+| `FIREWORKS_API_KEY` | Fireworks AI | For Fireworks provider |
+| `DEEPSEEK_API_KEY` | DeepSeek | For DeepSeek provider |
+| `XAI_API_KEY` | xAI (Grok) | For xAI provider |
+| `OPENROUTER_API_KEY` | OpenRouter | For OpenRouter provider |
+| `CEREBRAS_API_KEY` | Cerebras | For Cerebras provider |
+| `SAMBANOVA_API_KEY` | SambaNova | For SambaNova provider |
+| `AZURE_OPENAI_API_KEY` | Azure OpenAI | For Azure provider |
+| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI | Azure endpoint URL |
+| `AWS_ACCESS_KEY_ID` | Amazon Bedrock | For Bedrock provider |
+| `AWS_SECRET_ACCESS_KEY` | Amazon Bedrock | For Bedrock provider |
+| `AWS_REGION` | Amazon Bedrock | AWS region |
+
+## Local AI Providers
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL |
+| `OLLAMA_MODEL` | `llama3.2` | Default Ollama model |
+| `LMSTUDIO_BASE_URL` | `http://localhost:1234` | LM Studio server URL |
+| `LMSTUDIO_MODEL` | none | Default LM Studio model |
+
+## Chat Provider Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SLACK_BOT_TOKEN` | none | Slack bot OAuth token |
+| `SLACK_APP_TOKEN` | none | Slack app-level token (Socket Mode) |
+| `SLACK_SIGNING_SECRET` | none | Slack request signing secret |
+| `DISCORD_BOT_TOKEN` | none | Discord bot token |
+| `DISCORD_APPLICATION_ID` | none | Discord application ID |
+| `TELEGRAM_BOT_TOKEN` | none | Telegram bot token |
+| `WHATSAPP_ACCESS_TOKEN` | none | WhatsApp Business API token |
+| `WHATSAPP_PHONE_NUMBER_ID` | none | WhatsApp phone number ID |
+| `WHATSAPP_VERIFY_TOKEN` | none | Webhook verification token |
+| `MATRIX_HOMESERVER_URL` | none | Matrix homeserver URL |
+| `MATRIX_ACCESS_TOKEN` | none | Matrix access token |
+| `MATRIX_USER_ID` | none | Matrix bot user ID |
+| `TEAMS_APP_ID` | none | Microsoft Teams app ID |
+| `TEAMS_APP_PASSWORD` | none | Microsoft Teams app password |
+| `ROCKETCHAT_URL` | none | Rocket.Chat server URL |
+| `ROCKETCHAT_USER` | none | Rocket.Chat bot username |
+| `ROCKETCHAT_PASSWORD` | none | Rocket.Chat bot password |
+| `LINE_CHANNEL_ACCESS_TOKEN` | none | LINE channel token |
+| `LINE_CHANNEL_SECRET` | none | LINE channel secret |
+| `SIGNAL_PHONE_NUMBER` | none | Signal phone number |
+| `VIBER_AUTH_TOKEN` | none | Viber bot auth token |
+
+## Queue Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `REDIS_URL` | none | Redis connection URL (required for pro mode) |
+| `POOL_MAX_CONCURRENT` | `50` | Max concurrent tool executions |
+| `POOL_TIMEOUT_MS` | `300000` | Tool execution timeout (5 min) |
+| `QUEUE_RETRY_ATTEMPTS` | `3` | Failed job retry count |
+| `QUEUE_RETRY_DELAY` | `5000` | Retry delay in ms |
+| `QUEUE_STALLED_INTERVAL` | `30000` | Stalled job check interval |
+
+## Security Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SECURITY_MODE` | `standard` | Security mode: `permissive`, `standard`, `strict` |
+| `AUDIT_LOG_ENABLED` | `true` | Enable audit logging |
+| `AUDIT_LOG_RETENTION_DAYS` | `90` | Audit log retention period |
+| `DEVICE_PAIRING_ENABLED` | `true` | Enable QR code device pairing |
+| `DEVICE_PAIRING_EXPIRY` | `300` | Pairing code expiry in seconds |
+| `MAX_DEVICES` | `10` | Maximum paired devices |
+| `PLUGIN_SANDBOX_ENABLED` | `true` | Enable plugin sandboxing |
+| `CORS_ORIGINS` | `*` | Allowed CORS origins |
+| `RATE_LIMIT_WINDOW` | `60000` | Rate limit window in ms |
+| `RATE_LIMIT_MAX` | `100` | Max requests per window |
+
+## Integration Settings
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GITHUB_APP_ID` | none | GitHub App ID |
+| `GITHUB_PRIVATE_KEY` | none | GitHub App private key |
+| `GITHUB_CLIENT_ID` | none | GitHub OAuth client ID |
+| `GITHUB_CLIENT_SECRET` | none | GitHub OAuth client secret |
+| `GITHUB_WEBHOOK_SECRET` | none | GitHub webhook secret |
+| `JIRA_CLIENT_ID` | none | Jira OAuth client ID |
+| `JIRA_CLIENT_SECRET` | none | Jira OAuth client secret |
+| `JIRA_BASE_URL` | none | Jira instance URL |
+| `LINEAR_API_KEY` | none | Linear API key |
+| `LINEAR_WEBHOOK_SECRET` | none | Linear webhook secret |
+| `CLOUDFLARE_API_TOKEN` | none | Cloudflare API token |
+| `CLOUDFLARE_ACCOUNT_ID` | none | Cloudflare account ID |
+| `TAILSCALE_AUTH_KEY` | none | Tailscale auth key |
+
+## Memory and Storage
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MEMORY_BACKEND` | `sqlite` | Memory storage backend |
+| `MEMORY_MAX_ENTRIES` | `10000` | Maximum memory entries |
+| `MEMORY_WATCH_INTERVAL` | `5000` | File watch interval in ms |
+| `SQLITE_PATH` | `.profclaw/profclaw.db` | SQLite database path |
+| `BACKUP_ENABLED` | `false` | Enable automatic backups |
+| `BACKUP_INTERVAL` | `86400000` | Backup interval in ms (24h) |
+| `BACKUP_RETENTION` | `7` | Number of backups to retain |
+
+## Advanced
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MCP_ENABLED` | `true` | Enable MCP server support |
+| `MCP_MAX_SERVERS` | `5` | Max concurrent MCP servers |
+| `SYNC_ENABLED` | `false` | Enable multi-device sync |
+| `SYNC_INTERVAL` | `30000` | Sync interval in ms |
+| `CRON_ENABLED` | `true` | Enable cron scheduler |
+| `PLUGINS_DIR` | `.profclaw/plugins` | Plugin directory |
+| `SKILLS_DIR` | `skills` | Skills directory |
+| `BROWSER_POOL_SIZE` | `3` | Browser automation pool size |
+| `WEB_SEARCH_PROVIDER` | `auto` | Web search provider |
+| `NOTIFICATIONS_ENABLED` | `true` | Enable notifications |

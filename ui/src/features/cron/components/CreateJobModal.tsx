@@ -595,9 +595,9 @@ export function CreateJobModal({ open: controlledOpen, onOpenChange }: CreateJob
           Create Job
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl w-[90vw] max-h-[85vh] my-8 flex flex-col p-0 overflow-hidden [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+      <DialogContent className="max-w-4xl w-[90vw] max-h-[85vh] my-8 flex flex-col p-0 overflow-hidden shadow-2xl border-border/40 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {/* Header */}
-        <div className="border-b border-border/20 bg-linear-to-r from-primary/5 to-transparent">
+        <div className="border-b border-border/30 bg-gradient-to-r from-primary/8 via-primary/4 to-transparent">
           <DialogHeader className="px-6 pt-5 pb-3">
             <div className="flex items-center justify-between">
               <DialogTitle className="flex items-center gap-3">
@@ -654,7 +654,7 @@ export function CreateJobModal({ open: controlledOpen, onOpenChange }: CreateJob
                         'flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all',
                         isActive && 'bg-primary text-primary-foreground shadow-md shadow-primary/30',
                         isComplete && 'bg-primary/20 text-primary hover:bg-primary/30',
-                        !isActive && !isComplete && 'bg-muted text-muted-foreground',
+                        !isActive && !isComplete && 'bg-accent text-muted-foreground border border-border/30',
                         i > currentStepIndex && 'opacity-50 cursor-not-allowed'
                       )}
                     >
@@ -699,7 +699,7 @@ export function CreateJobModal({ open: controlledOpen, onOpenChange }: CreateJob
                             'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium transition-all',
                             isActive
                               ? 'bg-foreground text-background shadow-sm'
-                              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                              : 'bg-accent text-muted-foreground hover:bg-accent/80 border border-border/30'
                           )}
                         >
                           <Icon className="h-3 w-3" />
@@ -718,15 +718,15 @@ export function CreateJobModal({ open: controlledOpen, onOpenChange }: CreateJob
                           key={template.id}
                           onClick={() => handleTemplateSelect(template)}
                           className={cn(
-                            'flex items-start gap-3 p-3 rounded-xl text-left transition-all hover:scale-[1.01]',
+                            'flex items-start gap-3 p-3 rounded-xl text-left transition-all hover:scale-[1.01] border',
                             selectedTemplate?.id === template.id
-                              ? 'bg-primary/5 ring-2 ring-primary/20'
-                              : 'bg-muted/30 hover:bg-muted/50'
+                              ? 'bg-primary/10 ring-2 ring-primary/30 border-primary/20 shadow-sm'
+                              : 'bg-card hover:bg-accent/50 border-border/50 hover:border-border hover:shadow-sm'
                           )}
                         >
                           <div className={cn(
                             'p-1.5 rounded-lg shrink-0',
-                            selectedTemplate?.id === template.id ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'
+                            selectedTemplate?.id === template.id ? 'bg-primary/20 text-primary shadow-sm' : 'bg-accent text-muted-foreground'
                           )}>
                             <TemplateIcon className="h-4 w-4" />
                           </div>
@@ -755,7 +755,7 @@ export function CreateJobModal({ open: controlledOpen, onOpenChange }: CreateJob
                               payload: t.payloadTemplate,
                               suggestedCron: t.suggestedCron,
                             } satisfies TemplateSelection)}
-                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/30 hover:bg-muted/50 text-xs"
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card hover:bg-accent/50 border border-border/40 text-xs hover:shadow-sm"
                           >
                             <FileCode className="h-3 w-3 text-primary" />
                             {t.name}
@@ -792,16 +792,16 @@ export function CreateJobModal({ open: controlledOpen, onOpenChange }: CreateJob
                           setSelectedTemplate(null);
                         }}
                         className={cn(
-                          'relative overflow-hidden group p-4 rounded-2xl text-left transition-all duration-200',
+                          'relative overflow-hidden group p-4 rounded-2xl text-left transition-all duration-200 border',
                           isSelected
-                            ? 'bg-primary/5 ring-2 ring-primary/20 scale-[1.02]'
-                            : 'bg-muted/30 hover:bg-muted/50 hover:scale-[1.01]'
+                            ? 'bg-primary/10 ring-2 ring-primary/30 scale-[1.02] border-primary/20 shadow-md'
+                            : 'bg-card hover:bg-accent/50 hover:scale-[1.01] border-border/50 hover:border-border hover:shadow-sm'
                         )}
                       >
                         <div className={cn('absolute inset-0 bg-linear-to-br opacity-0 transition-opacity', type.color, isSelected && 'opacity-100', 'group-hover:opacity-50')} />
                         <div className="relative">
                           <div className="flex items-center gap-3 mb-2">
-                            <div className={cn('p-2 rounded-lg transition-colors', isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted')}>
+                            <div className={cn('p-2 rounded-lg transition-colors shadow-sm', isSelected ? 'bg-primary text-primary-foreground' : 'bg-accent border border-border/30')}>
                               <Icon className="h-5 w-5" />
                             </div>
                             <div className="flex-1">
@@ -813,7 +813,7 @@ export function CreateJobModal({ open: controlledOpen, onOpenChange }: CreateJob
                           {mode === 'advanced' && (
                             <div className="flex flex-wrap gap-1 mt-3">
                               {type.examples.map((ex, i) => (
-                                <span key={i} className="px-2 py-0.5 rounded-full bg-muted/80 text-[10px] text-muted-foreground">
+                                <span key={i} className="px-2 py-0.5 rounded-full bg-accent text-[10px] text-muted-foreground border border-border/20">
                                   {ex}
                                 </span>
                               ))}
@@ -851,7 +851,7 @@ export function CreateJobModal({ open: controlledOpen, onOpenChange }: CreateJob
                         onClick={() => setScheduleType(type.type)}
                         className={cn(
                           'flex flex-col items-center gap-2 p-4 rounded-xl transition-all',
-                          isSelected ? 'bg-primary/5 ring-2 ring-primary/20' : 'bg-muted/30 hover:bg-muted/50'
+                          isSelected ? 'bg-primary/10 ring-2 ring-primary/30 shadow-sm border border-primary/20' : 'bg-card hover:bg-accent/50 border border-border/40 hover:shadow-sm'
                         )}
                       >
                         <Icon className={cn('h-6 w-6', isSelected ? 'text-primary' : 'text-muted-foreground')} />
@@ -890,7 +890,7 @@ export function CreateJobModal({ open: controlledOpen, onOpenChange }: CreateJob
                           onClick={() => setCronExpression(preset.value)}
                           className={cn(
                             'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
-                            cronExpression === preset.value ? 'bg-primary text-primary-foreground shadow-md' : 'bg-muted hover:bg-muted/80'
+                            cronExpression === preset.value ? 'bg-primary text-primary-foreground shadow-md' : 'bg-accent hover:bg-accent/80 border border-border/30'
                           )}
                         >
                           {preset.label}
@@ -899,9 +899,9 @@ export function CreateJobModal({ open: controlledOpen, onOpenChange }: CreateJob
                     </div>
                   </div>
                   <GuideBox type="info">
-                    Cron format: <code className="font-mono bg-muted px-1 rounded">minute hour day month weekday</code>
+                    Cron format: <code className="font-mono bg-accent px-1.5 py-0.5 rounded border border-border/20">minute hour day month weekday</code>
                     <br />
-                    Use <code className="font-mono bg-muted px-1 rounded">*</code> for any value, <code className="font-mono bg-muted px-1 rounded">*/N</code> for every N units.
+                    Use <code className="font-mono bg-accent px-1.5 py-0.5 rounded border border-border/20">*</code> for any value, <code className="font-mono bg-accent px-1.5 py-0.5 rounded border border-border/20">*/N</code> for every N units.
                   </GuideBox>
                 </div>
               )}
@@ -934,7 +934,7 @@ export function CreateJobModal({ open: controlledOpen, onOpenChange }: CreateJob
                         onClick={() => setIntervalSeconds(preset.value)}
                         className={cn(
                           'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
-                          intervalSeconds === preset.value ? 'bg-primary text-primary-foreground shadow-md' : 'bg-muted hover:bg-muted/80'
+                          intervalSeconds === preset.value ? 'bg-primary text-primary-foreground shadow-md' : 'bg-accent hover:bg-accent/80 border border-border/30'
                         )}
                       >
                         {preset.label}
@@ -1063,7 +1063,7 @@ export function CreateJobModal({ open: controlledOpen, onOpenChange }: CreateJob
 
               {/* Advanced Options */}
               {mode === 'advanced' && (
-                <div className="p-4 rounded-xl bg-muted/30 space-y-4">
+                <div className="p-4 rounded-xl bg-card border border-border/40 shadow-sm space-y-4">
                   <div className="text-xs uppercase tracking-wider text-muted-foreground font-medium flex items-center gap-2">
                     <Settings2 className="h-3.5 w-3.5" />
                     Advanced Options
@@ -1187,7 +1187,7 @@ export function CreateJobModal({ open: controlledOpen, onOpenChange }: CreateJob
 
                 <div>
                   <div className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Payload</div>
-                  <pre className="p-3 rounded-lg bg-muted/50 text-xs font-mono overflow-x-auto max-h-24">{payload}</pre>
+                  <pre className="p-3 rounded-lg bg-accent border border-border/30 text-xs font-mono overflow-x-auto max-h-24">{payload}</pre>
                 </div>
 
                 {mode === 'advanced' && (retryEnabled || deliveryEnabled || maxRuns || maxFailures) && (
@@ -1236,7 +1236,7 @@ export function CreateJobModal({ open: controlledOpen, onOpenChange }: CreateJob
         </div>
 
         {/* Footer */}
-        <div className="border-t border-border/20 p-4 flex items-center justify-between bg-muted/30">
+        <div className="border-t border-border/30 p-4 flex items-center justify-between bg-gradient-to-r from-accent/50 to-transparent">
           <Button variant="ghost" onClick={currentStepIndex === 0 ? () => setOpen(false) : goBack} className="gap-2">
             <ChevronLeft className="h-4 w-4" />
             {currentStepIndex === 0 ? 'Cancel' : 'Back'}

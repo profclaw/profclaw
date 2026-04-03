@@ -1,0 +1,111 @@
+---
+title: "WebChat"
+description: "Built-in browser chat widget. Zero setup - access profClaw from any browser via Server-Sent Events. Available instantly after install."
+---
+
+WebChat is profClaw's built-in browser interface. It requires no third-party accounts or webhooks - just start profClaw and open a browser.
+
+## Overview
+
+WebChat uses Server-Sent Events (SSE) for real-time streaming responses. Sessions are managed server-side with configurable timeouts.
+
+- Streaming responses in real time
+- Anonymous access optional
+- Rate limiting per IP
+- Session-based (30 min timeout by default)
+- No JavaScript framework dependency
+
+## Setup
+
+WebChat is enabled automatically when profClaw starts. No configuration required.
+
+```bash
+profclaw serve
+# Open http://localhost:3000 in your browser
+```
+
+## Environment Variables
+
+<ParamField path="WEBCHAT_ALLOW_ANONYMOUS" type="boolean">
+  Allow unauthenticated sessions. Defaults to `false`. Set to `true` for open access.
+</ParamField>
+
+<ParamField path="WEBCHAT_MAX_SESSIONS_PER_IP" type="number">
+  Maximum concurrent sessions per IP address. Defaults to `5`.
+</ParamField>
+
+<ParamField path="WEBCHAT_SESSION_TIMEOUT_MS" type="number">
+  Session expiry in milliseconds. Defaults to `1800000` (30 minutes).
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    WEBCHAT_ALLOW_ANONYMOUS=false
+    WEBCHAT_MAX_SESSIONS_PER_IP=5
+    WEBCHAT_SESSION_TIMEOUT_MS=1800000
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    chat:
+      webchat:
+        allow_anonymous: false
+        max_sessions_per_ip: 5
+        session_timeout_ms: 1800000
+    ```
+  </Tab>
+</Tabs>
+
+## Embedding the Widget
+
+You can embed the WebChat widget in your own web application:
+
+```html
+<!-- Add to your HTML -->
+<script src="https://profclaw.yourdomain.com/widget.js"></script>
+<profclaw-chat
+  server="https://profclaw.yourdomain.com"
+  title="AI Assistant"
+  theme="dark"
+></profclaw-chat>
+```
+
+## API Endpoints
+
+WebChat exposes these HTTP endpoints:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/chat/sessions` | POST | Create a new session |
+| `/chat/sessions/:id/stream` | GET | SSE stream for a session |
+| `/chat/sessions/:id/message` | POST | Send a message |
+| `/chat/sessions/:id` | DELETE | End a session |
+
+## Capabilities
+
+| Feature | Supported |
+|---------|-----------|
+| Direct messages | Yes |
+| Streaming responses | Yes |
+| Anonymous access | Configurable |
+| File upload | No |
+| Slash commands | No |
+| Rate limiting | Yes (per IP) |
+| Session management | Yes |
+
+## Notes
+
+- WebChat sessions auto-expire after inactivity to free server resources.
+- Sessions run cleanup every 5 minutes.
+- The SSE stream format is compatible with standard `EventSource` API.
+- WebChat is always available on port `3000` (configurable via `PORT`).
+
+## Related
+
+- [Chat Providers Overview](/chat-providers/overview) - Compare all 27 supported channels
+- [Chat API](/api-reference/chat) - Build a custom UI using the REST API and SSE streaming
+- [Getting Started](/getting-started/first-run) - Access WebChat on your first run
+- [profclaw serve](/cli/serve) - Start the server that powers WebChat

@@ -1,0 +1,132 @@
+---
+title: "Agents API"
+description: "profClaw Agents API - list and inspect registered AI agent adapters, check health status, capabilities, and runtime statistics per adapter type."
+---
+
+The agents API surfaces the registered AI agent adapters and their runtime status. Agents are the execution backends that process tasks - each adapter type (Claude Code, custom, etc.) exposes capabilities, health, and stats.
+
+## GET /api/agents
+
+List all active agent adapters with health and execution statistics.
+
+```bash
+curl http://localhost:3000/api/agents \
+  --cookie "profclaw_session=<token>"
+```
+
+**Response `200`**
+
+```json
+{
+  "agents": [
+    {
+      "type": "claude-code",
+      "name": "Claude Code",
+      "description": "Autonomous coding agent powered by Claude",
+      "capabilities": ["code", "git", "terminal", "file-ops"],
+      "configured": true,
+      "healthy": true,
+      "lastActivity": "2026-03-12T10:30:00Z",
+      "stats": {
+        "completed": 142,
+        "failed": 3,
+        "avgDuration": 45230
+      }
+    }
+  ]
+}
+```
+
+**Response fields**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | string | Adapter type identifier |
+| `name` | string | Display name |
+| `description` | string | Human-readable description |
+| `capabilities` | string[] | List of capability tags |
+| `configured` | boolean | Adapter has required config |
+| `healthy` | boolean | Last health check passed |
+| `lastActivity` | ISO string | Timestamp of last task completion |
+| `stats.completed` | number | Total tasks completed |
+| `stats.failed` | number | Total tasks failed |
+| `stats.avgDuration` | number | Average execution time in ms |
+
+---
+
+## GET /api/agents/types
+
+List registered adapter type identifiers.
+
+```bash
+curl http://localhost:3000/api/agents/types
+```
+
+**Response `200`**
+
+```json
+{
+  "types": ["claude-code", "openai-assistant", "custom"]
+}
+```
+
+---
+
+## Agent Adapter Interface
+
+Adapters are registered via `getAgentRegistry()` from `src/adapters/registry.ts`. Each adapter implements:
+
+```typescript
+interface AgentAdapter {
+  type: string;
+  name: string;
+  description: string;
+  capabilities: string[];
+  healthCheck(): Promise<{ healthy: boolean; latencyMs?: number; message?: string }>;
+  execute(task: Task): Promise<TaskResult>;
+}
+```
+
+---
+
+## Health Checks
+
+Agent health is checked on demand when `GET /api/agents` is called. Each adapter runs its own `healthCheck()` which typically:
+
+1. Verifies API key is present
+2. Makes a lightweight probe request to the underlying AI service
+3. Returns `healthy: boolean` and `latencyMs`
+
+If all adapters are unhealthy, the overall system health degrades to `degraded` or `unhealthy` (visible at `GET /api/health`).
+
+---
+
+## Registering Custom Adapters
+
+Custom adapters are registered programmatically at startup:
+
+```typescript
+import { getAgentRegistry } from './adapters/registry.js';
+
+const registry = getAgentRegistry();
+registry.register({
+  type: 'my-agent',
+  name: 'My Custom Agent',
+  description: 'Handles specialized tasks',
+  capabilities: ['custom-domain'],
+  async healthCheck() {
+    return { healthy: true };
+  },
+  async execute(task) {
+    // process task
+    return { success: true, output: '...' };
+  },
+});
+```
+
+## Related
+
+- [Agent Sessions API](/api-reference/agent-sessions) - Start and monitor execution sessions
+- [Tasks API](/api-reference/tasks) - Create tasks that agents process
+- [Health API](/api-reference/health) - System-wide health including agent status
+- [profclaw agent](/cli/agent) - Inspect agents from the CLI

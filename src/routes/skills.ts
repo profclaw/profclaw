@@ -175,3 +175,157 @@ skillsRoutes.post('/:name/toggle', async (c) => {
     enabled: skill.enabled,
   });
 });
+
+// --- Marketplace Routes ---
+
+import { getMarketplace } from '../skills/marketplace.js';
+import { getSkillEffectiveness } from '../skills/compiler.js';
+
+/** Search marketplace for skills */
+skillsRoutes.get('/marketplace/search', async (c) => {
+  const marketplace = getMarketplace();
+  const query = c.req.query('q');
+  const category = c.req.query('category');
+  const tag = c.req.query('tag');
+  const sortBy = c.req.query('sortBy') as 'installs' | 'rating' | 'updated' | 'name' | undefined;
+  const limit = c.req.query('limit');
+
+  const results = await marketplace.search({
+    query: query || undefined,
+    category: category || undefined,
+    tag: tag || undefined,
+    sortBy,
+    limit: limit ? parseInt(limit) : undefined,
+  });
+
+  return c.json({ success: true, data: results });
+});
+
+/** Install a skill from marketplace, GitHub, or URL */
+skillsRoutes.post('/marketplace/install', async (c) => {
+  const body = await c.req.json() as { source?: string };
+  if (!body.source) {
+    return c.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'source is required' } }, 400);
+  }
+
+  const marketplace = getMarketplace();
+  const result = await marketplace.install(body.source);
+
+  if (result.success) {
+    // Reload skills registry to pick up new skill
+    const registry = getSkillsRegistry();
+    await registry.reload();
+  }
+
+  return c.json({ success: result.success, data: result });
+});
+
+/** Uninstall a managed skill */
+skillsRoutes.delete('/marketplace/:name', async (c) => {
+  const marketplace = getMarketplace();
+  const removed = await marketplace.uninstall(c.req.param('name'));
+
+  if (removed) {
+    const registry = getSkillsRegistry();
+    await registry.reload();
+  }
+
+  return c.json({ success: removed });
+});
+
+/** Check for skill updates */
+skillsRoutes.get('/marketplace/updates', async (c) => {
+  const marketplace = getMarketplace();
+  const updates = await marketplace.checkUpdates();
+  return c.json({ success: true, data: updates });
+});
+
+/** List configured registries */
+skillsRoutes.get('/marketplace/registries', (c) => {
+  const marketplace = getMarketplace();
+  return c.json({ success: true, data: marketplace.listRegistries() });
+});
+
+/** Get all categories from installed skills */
+skillsRoutes.get('/categories', (_c) => {
+  const registry = getSkillsRegistry();
+  const entries = registry.getAllEntries();
+  const categories = new Map<string, number>();
+
+  for (const entry of entries) {
+    const cats = entry.metadata?.toolCategories ?? [];
+    if (cats.length === 0) {
+      categories.set('uncategorized', (categories.get('uncategorized') ?? 0) + 1);
+    }
+    for (const cat of cats) {
+      categories.set(cat, (categories.get(cat) ?? 0) + 1);
+    }
+  }
+
+  const sorted = [...categories.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count);
+
+  return _c.json({ success: true, data: sorted });
+});
+
+/** Get skill effectiveness/usage stats */
+skillsRoutes.get('/:name/effectiveness', (c) => {
+  const name = c.req.param('name');
+  const records = getSkillEffectiveness(name);
+
+  const totalAttempts = records.reduce((s, r) => s + r.attempts, 0);
+  const totalSuccesses = records.reduce((s, r) => s + r.successes, 0);
+  const overallRate = totalAttempts > 0 ? totalSuccesses / totalAttempts : 0;
+
+  return c.json({
+    success: true,
+    data: {
+      skillId: name,
+      totalAttempts,
+      totalSuccesses,
+      overallSuccessRate: Math.round(overallRate * 100),
+      byModel: records.map(r => ({
+        model: r.modelId,
+        attempts: r.attempts,
+        successRate: Math.round(r.successRate * 100),
+        avgDurationMs: Math.round(r.avgDurationMs),
+      })),
+    },
+  });
+});
+
+/** Get aggregate skill stats for dashboard */
+skillsRoutes.get('/stats/overview', (_c) => {
+  const registry = getSkillsRegistry();
+  const entries = registry.getAllEntries();
+  const registryStats = registry.getStats();
+
+  // Group by category
+  const byCategory: Record<string, number> = {};
+  for (const entry of entries) {
+    for (const cat of entry.metadata?.toolCategories ?? ['other']) {
+      byCategory[cat] = (byCategory[cat] ?? 0) + 1;
+    }
+  }
+
+  // Count user vs model invocable
+  const userInvocable = entries.filter(e => e.invocation.userInvocable).length;
+  const modelInvocable = entries.filter(e => e.invocation.modelInvocable).length;
+  const eligible = entries.filter(e => e.eligible !== false).length;
+  const enabled = entries.filter(e => e.enabled !== false).length;
+
+  return _c.json({
+    success: true,
+    data: {
+      total: registryStats.totalSkills,
+      enabled,
+      eligible,
+      bySource: registryStats.bySource,
+      byCategory,
+      userInvocable,
+      modelInvocable,
+      mcpServers: registryStats.mcpServers,
+    },
+  });
+});

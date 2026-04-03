@@ -1,0 +1,180 @@
+---
+title: "AI Providers Overview"
+description: "profClaw supports 37 AI providers. Mix cloud and local models, configure fallbacks, and use model aliases for concise references."
+---
+
+profClaw routes requests to the right AI provider based on configured API keys. Every provider is lazily loaded - unused providers add zero startup cost.
+
+## Provider List
+
+| Provider | Type | Status | Key Variable |
+|----------|------|--------|--------------|
+| [Anthropic](/ai-providers/anthropic) | Cloud | Stable | `ANTHROPIC_API_KEY` |
+| [OpenAI](/ai-providers/openai) | Cloud | Stable | `OPENAI_API_KEY` |
+| [Azure OpenAI](/ai-providers/azure-openai) | Cloud | Stable | `AZURE_OPENAI_API_KEY` |
+| [Google Gemini](/ai-providers/google) | Cloud | Stable | `GOOGLE_API_KEY` |
+| [Ollama](/ai-providers/ollama) | Local | Stable | `OLLAMA_BASE_URL` |
+| [OpenRouter](/ai-providers/openrouter) | Gateway | Stable | `OPENROUTER_API_KEY` |
+| [Groq](/ai-providers/groq) | Cloud | Stable | `GROQ_API_KEY` |
+| [Mistral](/ai-providers/mistral) | Cloud | Stable | `MISTRAL_API_KEY` |
+| [DeepSeek](/ai-providers/deepseek) | Cloud | Beta | `DEEPSEEK_API_KEY` |
+| [xAI / Grok](/ai-providers/xai) | Cloud | Beta | `XAI_API_KEY` |
+| [Cohere](/ai-providers/cohere) | Cloud | Beta | `COHERE_API_KEY` |
+| [Perplexity](/ai-providers/perplexity) | Cloud | Beta | `PERPLEXITY_API_KEY` |
+| [Together AI](/ai-providers/together) | Cloud | Beta | `TOGETHER_API_KEY` |
+| [Fireworks AI](/ai-providers/fireworks) | Cloud | Beta | `FIREWORKS_API_KEY` |
+| [Cerebras](/ai-providers/cerebras) | Cloud | Experimental | `CEREBRAS_API_KEY` |
+| [AWS Bedrock](/ai-providers/amazon-bedrock) | Cloud | Stable | `AWS_ACCESS_KEY_ID` |
+| [LM Studio](/ai-providers/lmstudio) | Local | Beta | `LM_STUDIO_BASE_URL` |
+| Zhipu AI | Cloud | Beta | `ZHIPU_API_KEY` |
+| Moonshot (Kimi) | Cloud | Beta | `MOONSHOT_API_KEY` |
+| Qwen | Cloud | Beta | `QWEN_API_KEY` |
+| Replicate | Cloud | Beta | `REPLICATE_API_KEY` |
+| GitHub Models | Cloud | Beta | `GITHUB_TOKEN` |
+| Volcengine (Doubao) | Cloud | Beta | `VOLCENGINE_API_KEY` |
+| BytePlus | Cloud | Beta | `BYTEPLUS_API_KEY` |
+| Baidu Qianfan | Cloud | Beta | `QIANFAN_API_KEY` |
+| ModelStudio | Cloud | Experimental | `MODELSTUDIO_API_KEY` |
+| Minimax | Cloud | Beta | `MINIMAX_API_KEY` |
+| Xiaomi MiLM | Cloud | Experimental | `XIAOMI_API_KEY` |
+| HuggingFace | Cloud | Beta | `HUGGINGFACE_API_TOKEN` |
+| NVIDIA NIM | Cloud | Beta | `NVIDIA_NIM_API_KEY` |
+| Venice AI | Cloud | Beta | `VENICE_API_KEY` |
+| Kilocode | Cloud | Beta | `KILOCODE_API_KEY` |
+| Vercel AI Gateway | Gateway | Beta | `VERCEL_AI_API_KEY` |
+| Cloudflare AI | Gateway | Beta | `CLOUDFLARE_AI_API_KEY` |
+| IBM Watsonx | Cloud | Beta | `WATSONX_API_KEY` |
+| GitHub Copilot | Proxy | Experimental | `COPILOT_API_URL` |
+| SambaNova | Cloud | Beta | `SAMBANOVA_API_KEY` |
+
+<Note>
+  "Stable" providers are fully tested and used in production deployments. "Beta" providers work but may have edge cases. "Experimental" providers are early integrations that may change.
+</Note>
+
+## Auto-Selection
+
+When multiple providers are configured, profClaw picks the best available one based on a priority order. Cloud providers with tool-calling support are preferred over local models for full tool tier access.
+
+```bash
+# Default priority order (first configured wins):
+# anthropic -> openai -> azure -> google -> groq -> xai -> mistral
+# -> deepseek -> cohere -> perplexity -> together -> fireworks
+# -> bedrock -> openrouter -> ... -> ollama (always last)
+```
+
+Override the default at any time:
+
+```bash
+profclaw config set provider anthropic
+```
+
+Or per-session with the `--model` flag:
+
+```bash
+profclaw chat --model groq
+```
+
+## Configuration
+
+<Tabs>
+  <Tab title="Environment Variables">
+    Set API keys in your environment or `.env` file. profClaw reads these at startup and configures each provider:
+
+    ```bash
+    ANTHROPIC_API_KEY=sk-ant-...
+    OPENAI_API_KEY=sk-...
+    GOOGLE_API_KEY=AIza...
+    GROQ_API_KEY=gsk_...
+    ```
+
+    See [Environment Variables](/configuration/environment-variables) for the complete list.
+  </Tab>
+  <Tab title="settings.yml">
+    Reference env vars in your `settings.yml` for explicit per-provider config:
+
+    ```yaml
+    providers:
+      default: anthropic
+      anthropic:
+        api_key: "${ANTHROPIC_API_KEY}"
+      openai:
+        api_key: "${OPENAI_API_KEY}"
+      ollama:
+        base_url: "http://localhost:11434"
+        default_model: "llama3.2"
+    ```
+
+    See [settings.yml Reference](/configuration/settings-yml) for all options.
+  </Tab>
+  <Tab title="CLI">
+    Add and manage providers interactively:
+
+    ```bash
+    profclaw config provider add anthropic --key sk-ant-...
+    profclaw config provider list
+    profclaw config provider set-default openai
+    ```
+  </Tab>
+</Tabs>
+
+## Model Aliases
+
+Model aliases let you reference models by short names instead of full IDs:
+
+```bash
+# These are equivalent:
+profclaw chat --model opus
+profclaw chat --model claude-opus-4-6
+
+# Provider/model shorthand also works:
+profclaw chat --model anthropic/claude-opus-4-6
+```
+
+Common aliases:
+
+| Alias | Provider | Model |
+|-------|----------|-------|
+| `opus` | Anthropic | claude-opus-4-6 |
+| `sonnet` | Anthropic | claude-sonnet-4-5 |
+| `haiku` | Anthropic | claude-haiku-4-5 |
+| `gpt` | OpenAI | gpt-4o |
+| `gemini` | Google | gemini-1.5-pro |
+| `groq` | Groq | llama-3.3-70b-versatile |
+| `local` | Ollama | llama3.2 |
+| `grok` | xAI | grok-2 |
+| `mistral` | Mistral | mistral-large-latest |
+| `deepseek` | DeepSeek | deepseek-chat |
+
+## Local Models
+
+For fully offline usage without API costs, profClaw supports [Ollama](/ai-providers/ollama) and [LM Studio](/ai-providers/lmstudio). Both run models locally on your hardware.
+
+<Tip>
+  Local models receive the Essential tool tier (10 tools) by default. Model-aware routing ensures small models are not overwhelmed with too many tool choices. See [Tools Overview](/tools/overview) for details on tier routing.
+</Tip>
+
+See the [Local LLM guide](/guides/local-llm) for setup instructions.
+
+## Resilience
+
+All providers include automatic retry with exponential backoff for transient errors (429, 503, network timeouts):
+
+```bash
+AI_MAX_RETRIES=2               # Default: 2 retries
+AI_PROVIDER_TIMEOUT_MS=120000  # Default: 120 seconds
+```
+
+## Health Check
+
+```bash
+profclaw doctor --providers
+```
+
+This checks connectivity for all configured providers and reports latency. Any provider that fails to respond within the timeout is flagged.
+
+## Related
+
+- [profclaw provider](/cli/provider) - Add, remove, and test AI providers from the CLI
+- [profclaw models](/cli/models) - List available models and manage aliases
+- [Configuration Overview](/configuration/overview) - settings.yml and environment variables
+- [Local LLM Guide](/guides/local-llm) - Run profClaw fully offline with Ollama or LM Studio

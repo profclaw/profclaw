@@ -5,6 +5,13 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     isolate: true,
+    exclude: [
+      'node_modules/**',
+      'ui/**',
+      'docs-local/**',
+      'website/**',
+      '.claude/worktrees/**',
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
@@ -12,6 +19,7 @@ export default defineConfig({
         'node_modules/**',
         'dist/**',
         '**/*.test.ts',
+        '**/*.test.tsx',
         '**/*.bench.test.ts',
         '**/*.config.ts',
         'scripts/**',

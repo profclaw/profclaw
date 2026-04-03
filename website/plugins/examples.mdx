@@ -1,0 +1,239 @@
+---
+title: "Plugin Examples"
+description: "Complete example plugins: a search provider and a custom tool"
+---
+
+## Example 1: Brave Search Provider
+
+A full search plugin using the Brave Search API.
+
+```typescript
+// src/index.ts
+import { definePlugin } from 'profclaw/plugins/sdk';
+import type { SearchOptions, SearchResponse, PluginConfig, PluginHealth } from 'profclaw/plugins/sdk';
+
+export default definePlugin({
+  metadata: {
+    id: 'brave-search',
+    name: 'Brave Search',
+    description: 'Privacy-focused web search via Brave API',
+    category: 'search',
+    icon: 'search',
+    version: '1.0.0',
+    author: 'your-name',
+    pricing: { type: 'freemium', freeQuota: 2000 },
+    rateLimit: { requestsPerSecond: 1, requestsPerDay: 2000 },
+  },
+  settingsSchema: {
+    credentials: [
+      {
+        key: 'apiKey',
+        type: 'password',
+        label: 'Brave API Key',
+        description: 'Get your key at api.search.brave.com',
+        required: true,
+        placeholder: 'BSA...',
+      },
+    ],
+    settings: [
+      {
+        key: 'maxResults',
+        type: 'number',
+        label: 'Max Results',
+        default: 10,
+        validation: { min: 1, max: 20 },
+      },
+      {
+        key: 'safeSearch',
+        type: 'select',
+        label: 'Safe Search',
+        default: 'moderate',
+        options: [
+          { value: 'off', label: 'Off' },
+          { value: 'moderate', label: 'Moderate' },
+          { value: 'strict', label: 'Strict' },
+        ],
+      },
+    ],
+  },
+
+  searchProvider: (config: PluginConfig) => ({
+    metadata: {
+      id: 'brave-search',
+      name: 'Brave Search',
+      description: 'Privacy-focused web search',
+      category: 'search' as const,
+      version: '1.0.0',
+    },
+
+    async search(query: string, options: SearchOptions = {}): Promise<SearchResponse> {
+      const apiKey = config.credentials?.apiKey;
+      if (!apiKey) throw new Error('Brave API key not configured');
+
+      const params = new URLSearchParams({
+        q: query,
+        count: String(options.limit ?? config.settings.maxResults ?? 10),
+        safesearch: config.settings.safeSearch as string ?? 'moderate',
+      });
+
+      const start = Date.now();
+      const res = await fetch(`https://api.search.brave.com/res/v1/web/search?${params}`, {
+        headers: { 'X-Subscription-Token': apiKey, 'Accept': 'application/json' },
+      });
+
+      if (!res.ok) throw new Error(`Brave API error: ${res.status}`);
+      const data = await res.json() as {
+        web?: { results?: Array<{ title: string; url: string; description?: string }> };
+        query?: { original: string };
+      };
+
+      return {
+        provider: 'brave',
+        query,
+        searchTime: Date.now() - start,
+        results: (data.web?.results ?? []).map((r) => ({
+          title: r.title,
+          url: r.url,
+          snippet: r.description ?? '',
+        })),
+      };
+    },
+
+    async isAvailable(): Promise<boolean> {
+      return Boolean(config.credentials?.apiKey);
+    },
+
+    async healthCheck(): Promise<PluginHealth> {
+      try {
+        await this.search('test', { limit: 1 });
+        return { healthy: true, lastCheck: new Date() };
+      } catch (err) {
+        return {
+          healthy: false,
+          lastCheck: new Date(),
+          errorMessage: err instanceof Error ? err.message : 'Unknown error',
+        };
+      }
+    },
+  }),
+});
+```
+
+---
+
+## Example 2: Custom Tool Plugin
+
+A tool plugin that fetches data from an internal API.
+
+```typescript
+// src/index.ts
+import { definePlugin } from 'profclaw/plugins/sdk';
+
+export default definePlugin({
+  metadata: {
+    id: 'internal-api',
+    name: 'Internal API Tools',
+    description: 'Tools for querying the internal company API',
+    category: 'tool',
+    version: '1.0.0',
+    author: 'your-team',
+    pricing: { type: 'free' },
+  },
+  settingsSchema: {
+    credentials: [
+      { key: 'apiKey', type: 'password', label: 'API Key', required: true },
+    ],
+    settings: [
+      { key: 'baseUrl', type: 'url', label: 'API Base URL', required: true,
+        placeholder: 'https://api.internal.example.com' },
+    ],
+  },
+
+  tools: [
+    {
+      name: 'get_customer',
+      description: 'Fetch customer details by ID or email',
+      parameters: {
+        identifier: {
+          type: 'string',
+          description: 'Customer ID or email address',
+          required: true,
+        },
+      },
+      async execute({ identifier }) {
+        // Note: access config via closure in a real plugin
+        const res = await fetch(`https://api.internal.example.com/customers/${identifier}`, {
+          headers: { 'Authorization': 'Bearer YOUR_KEY' },
+        });
+        if (!res.ok) {
+          return { success: false, error: `API error ${res.status}` };
+        }
+        return { success: true, data: await res.json(), metadata: { executionTime: 100 } };
+      },
+    },
+    {
+      name: 'list_open_tickets',
+      description: 'List open support tickets for a customer',
+      parameters: {
+        customerId: { type: 'string', description: 'Customer ID', required: true },
+        limit: { type: 'number', description: 'Max results', default: 10 },
+      },
+      async execute({ customerId, limit }) {
+        const res = await fetch(
+          `https://api.internal.example.com/tickets?customerId=${customerId}&limit=${limit}`
+        );
+        if (!res.ok) return { success: false, error: `API error ${res.status}` };
+        return { success: true, data: await res.json() };
+      },
+    },
+  ],
+
+  async onLoad(config) {
+    // Validate connectivity on load
+    const res = await fetch(`${config.settings.baseUrl}/health`, {
+      headers: { 'Authorization': `Bearer ${config.credentials?.apiKey}` },
+    });
+    if (!res.ok) throw new Error('Internal API unreachable on load');
+  },
+
+  async healthCheck() {
+    return { healthy: true, lastCheck: new Date() };
+  },
+});
+```
+
+---
+
+## Example 3: Skill Plugin
+
+Add a custom skill that the AI can invoke:
+
+```typescript
+export default definePlugin({
+  metadata: {
+    id: 'code-standards',
+    name: 'Code Standards',
+    description: 'Company-specific coding standards as a skill',
+    category: 'tool',
+    version: '1.0.0',
+    pricing: { type: 'free' },
+  },
+  settingsSchema: { credentials: [], settings: [] },
+
+  skills: [
+    {
+      name: 'apply-code-standards',
+      description: 'Apply company TypeScript and formatting standards',
+      content: `# apply-code-standards
+
+When reviewing or writing TypeScript code, enforce:
+- No \`any\` types - use \`unknown\` with type guards
+- All exported functions must have explicit return types
+- Use \`import type\` for type-only imports
+- Max file length: 500 lines
+- Tailwind v4 only for styles - no inline style props
+`,
+    },
+  ],
+});
+```

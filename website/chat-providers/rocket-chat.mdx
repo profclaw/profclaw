@@ -1,0 +1,104 @@
+---
+title: "Rocket.Chat"
+description: "Connect profClaw to your self-hosted Rocket.Chat instance. Supports slash commands, channels, and direct messages."
+---
+
+Rocket.Chat is an open-source Slack alternative. profClaw connects via Rocket.Chat's bot API to respond in channels, DMs, and via slash commands.
+
+## Capabilities
+
+| Feature | Supported |
+|---------|-----------|
+| Direct messages | Yes |
+| Channels | Yes |
+| Threads | Yes |
+| Slash commands | Yes |
+| File uploads | Yes |
+| Reactions | Yes |
+| Webhooks | Yes |
+| REST API | Yes |
+
+## Setup
+
+<Steps>
+  <Step title="Create a bot user">
+    In Rocket.Chat Admin: **Administration > Users > New User**
+
+    - Set role to **bot**
+    - Generate a random password
+    - Enable the account
+  </Step>
+  <Step title="Get credentials">
+    Log in as the bot user via REST API:
+
+    ```bash
+    curl -X POST https://your-rocketchat.com/api/v1/login \
+      -d "user=profclaw-bot&password=your-password"
+    # Copy authToken and userId
+    ```
+  </Step>
+  <Step title="Configure profClaw">
+    ```bash
+    ROCKETCHAT_URL=https://your-rocketchat.com
+    ROCKETCHAT_BOT_TOKEN=your-auth-token
+    ROCKETCHAT_BOT_USER_ID=your-user-id
+    ```
+  </Step>
+  <Step title="Configure webhook (optional)">
+    For incoming webhooks, go to **Administration > Integrations > New Integration > Incoming WebHook**.
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="ROCKETCHAT_URL" type="string" required>
+  Your Rocket.Chat server URL (e.g., `https://chat.yourdomain.com`).
+</ParamField>
+
+<ParamField path="ROCKETCHAT_BOT_TOKEN" type="string" required>
+  Bot user auth token from REST API login.
+</ParamField>
+
+<ParamField path="ROCKETCHAT_BOT_USER_ID" type="string" required>
+  Bot user ID from REST API login.
+</ParamField>
+
+<ParamField path="ROCKETCHAT_WEBHOOK_URL" type="string">
+  Incoming webhook URL for outbound messages.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    ROCKETCHAT_URL=https://chat.example.com
+    ROCKETCHAT_BOT_TOKEN=authToken123
+    ROCKETCHAT_BOT_USER_ID=userId456
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    chat:
+      rocketchat:
+        url: "${ROCKETCHAT_URL}"
+        bot_token: "${ROCKETCHAT_BOT_TOKEN}"
+        bot_user_id: "${ROCKETCHAT_BOT_USER_ID}"
+    ```
+  </Tab>
+</Tabs>
+
+## Notes
+
+- Status: Beta
+- Rocket.Chat uses real-time API (WebSocket) for message events.
+- Slash commands require a Rocket.Chat admin to register them under **Administration > Integrations**.
+- Self-hosted Rocket.Chat requires no external dependencies for profClaw to connect.
+- Compatible with Rocket.Chat Community Edition (open-source) and Enterprise.
+
+## Related
+
+- [Chat Providers Overview](/chat-providers/overview) - Compare all 27 supported channels
+- [Slack](/chat-providers/slack) - Slack is the cloud-hosted alternative to Rocket.Chat
+- [Matrix](/chat-providers/matrix) - Another open-source self-hosted messaging option
+- [Self-Hosted Guide](/guides/self-hosted) - Deploy profClaw alongside self-hosted chat tools

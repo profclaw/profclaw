@@ -14,6 +14,7 @@ import { CostStatsCards } from '../components/CostStatsCards';
 import { DailyCostsChart } from '../components/DailyCostsChart';
 import { CostsByAgentChart } from '../components/CostsByAgentChart';
 import { BudgetTracker } from '../components/BudgetTracker';
+import { SmartRoutingSavings } from '../components/SmartRoutingSavings';
 
 export function CostsDashboard() {
   const { data: summary, isLoading: summaryLoading } = useQuery({
@@ -72,6 +73,9 @@ export function CostsDashboard() {
       {summary && (
         <CostStatsCards summary={summary} analytics={analytics} />
       )}
+
+      {/* Smart Routing Savings */}
+      <SmartRoutingSavings />
 
       {/* Budget Tracker */}
       {budget && (

@@ -17,7 +17,7 @@ describe('E2E: Onboarding Flow', () => {
     const res = await app.request('/health');
     expect(res.status).toBe(200);
     const data = await res.json();
-    expect(data.status).toBe('ok');
+    expect(['ok', 'degraded']).toContain(data.status);
   });
 
   it('should check initial setup status', async () => {

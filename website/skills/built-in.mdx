@@ -1,0 +1,331 @@
+---
+title: "Built-in Skills"
+description: "Complete list of 50 pre-installed skills organized by category."
+---
+
+## Overview
+
+profClaw ships with 50 built-in skills ready to use immediately. They cover software development, productivity tools, media, system administration, and smart home/personal integrations.
+
+All built-in skills can be invoked with `/skill-name` or auto-activate on matching phrases.
+
+## Development
+
+<AccordionGroup>
+  <Accordion title="code-review - Analyze and review code">
+    Reviews code diffs, pull requests, and functions with structured, actionable feedback.
+
+    **Triggers**: "review this", "review my code", "check this code", "review PR"
+
+    **Output**: Structured feedback with Critical/Suggestion/Nitpick severity levels and file:line citations.
+  </Accordion>
+
+  <Accordion title="code-generation - Generate TypeScript, Python, and more">
+    Generates production-quality code with proper types, error handling, and tests.
+
+    **Triggers**: "generate", "write code for", "implement", "create a function"
+
+    **Best for**: Boilerplate, utilities, data transformation functions.
+  </Accordion>
+
+  <Accordion title="debug-helper - Diagnose and fix bugs">
+    Structured debugging methodology: hypothesis, investigation, fix, verification.
+
+    **Triggers**: "debug this", "why is this failing", "help me fix", "error in"
+  </Accordion>
+
+  <Accordion title="git-workflow - Branching, commits, PRs">
+    Branching conventions, commit message formatting, PR creation, merge strategies.
+
+    **Triggers**: "commit", "branch", "pull request", "merge", "push", "git"
+
+    **Enforces**: Conventional commit format, no force push to main, no .env commits.
+  </Accordion>
+
+  <Accordion title="api-tester - Test HTTP APIs">
+    Makes HTTP requests, validates responses, and helps debug API issues.
+
+    **Triggers**: "test this API", "call this endpoint", "check this curl"
+  </Accordion>
+
+  <Accordion title="docker-ops - Docker container operations">
+    Build, run, inspect, and manage Docker containers and images.
+
+    **Triggers**: "docker", "container", "build image", "dockerfile"
+  </Accordion>
+
+  <Accordion title="github-issues - GitHub issue management">
+    Create, update, and triage GitHub issues directly from chat.
+
+    **Triggers**: "create GitHub issue", "open an issue", "close issue"
+  </Accordion>
+
+  <Accordion title="coding-agent - Autonomous coding tasks">
+    Long-running autonomous agent for multi-step coding tasks. Plans, implements, tests.
+
+    **Best for**: Feature implementation, refactoring sessions, multi-file changes.
+  </Accordion>
+</AccordionGroup>
+
+## profClaw Management
+
+<AccordionGroup>
+  <Accordion title="profclaw-assistant - General profClaw assistance">
+    The default assistant skill. Helps with all profClaw features and configuration.
+  </Accordion>
+
+  <Accordion title="profclaw-tickets - Ticket creation and management">
+    Create tickets, update status, assign work, and manage sprints through chat.
+
+    **Triggers**: "create a ticket", "new task", "open a bug for", "update ticket"
+  </Accordion>
+
+  <Accordion title="profclaw-projects - Project setup and management">
+    Create projects, configure settings, manage team members.
+
+    **Triggers**: "create a project", "set up a project", "new project"
+  </Accordion>
+
+  <Accordion title="cron-manager - Schedule management">
+    Create, modify, and monitor scheduled jobs through natural language.
+
+    **Triggers**: "schedule", "run every", "set up a cron", "every morning"
+  </Accordion>
+
+  <Accordion title="memory-manager - Memory file management">
+    Search, read, and update MEMORY.md and memory/*.md files.
+
+    **Triggers**: "remember this", "update memory", "recall when", "what was decided"
+  </Accordion>
+
+  <Accordion title="model-usage - Cost and token tracking">
+    View token usage, costs, and model selection recommendations.
+
+    **Triggers**: "how much have I spent", "token usage", "cost report"
+  </Accordion>
+
+  <Accordion title="session-logs - View session history">
+    Browse and search past conversation logs.
+
+    **Triggers**: "show my history", "find past conversation about"
+  </Accordion>
+</AccordionGroup>
+
+## Research & Information
+
+<AccordionGroup>
+  <Accordion title="web-research - Structured web research">
+    Multi-source research with citations, summaries, and fact-checking.
+
+    **Triggers**: "research", "find information about", "look up", "search for"
+  </Accordion>
+
+  <Accordion title="summarize - Summarize documents and content">
+    Summarizes long text, documents, URLs, and conversations.
+
+    **Triggers**: "summarize", "tl;dr", "give me a summary of"
+  </Accordion>
+
+  <Accordion title="blogwatcher - Monitor blogs and feeds">
+    Track and summarize updates from configured blog URLs and RSS feeds.
+  </Accordion>
+
+  <Accordion title="xurl - URL analysis and expansion">
+    Expand shortened URLs, analyze link destinations, extract metadata.
+
+    **Triggers**: "what is this URL", "expand this link", "analyze this link"
+  </Accordion>
+
+  <Accordion title="link-understand - Deep link analysis">
+    Fetches and deeply analyzes a URL: extracts key information, purpose, and structure.
+  </Accordion>
+</AccordionGroup>
+
+## Productivity & Notes
+
+<AccordionGroup>
+  <Accordion title="notion - Notion workspace operations">
+    Create pages, update databases, search content in Notion.
+
+    **Requires**: Notion API key configured.
+  </Accordion>
+
+  <Accordion title="obsidian - Obsidian vault management">
+    Create notes, search the vault, manage backlinks in Obsidian.
+
+    **Requires**: Obsidian vault path configured.
+  </Accordion>
+
+  <Accordion title="apple-notes - Apple Notes integration">
+    Create and search Apple Notes. macOS only.
+  </Accordion>
+
+  <Accordion title="bear-notes - Bear app integration">
+    Create notes, add tags, and search Bear. macOS only.
+  </Accordion>
+
+  <Accordion title="apple-reminders - Apple Reminders">
+    Create, complete, and search reminders. macOS only.
+  </Accordion>
+
+  <Accordion title="things-mac - Things 3 task manager">
+    Add tasks and projects to Things 3. macOS only.
+  </Accordion>
+
+  <Accordion title="trello - Trello board management">
+    Create cards, move tasks, manage boards in Trello.
+
+    **Requires**: Trello API key configured.
+  </Accordion>
+</AccordionGroup>
+
+## Media & Creative
+
+<AccordionGroup>
+  <Accordion title="openai-image-gen - DALL-E image generation">
+    Generate images via OpenAI DALL-E 3.
+
+    **Requires**: OpenAI API key with image generation access.
+    **Triggers**: "generate an image", "create an image of", "draw"
+  </Accordion>
+
+  <Accordion title="openai-whisper - Local audio transcription">
+    Transcribe audio files using the local Whisper model.
+
+    **Requires**: whisper.cpp or similar installed locally.
+  </Accordion>
+
+  <Accordion title="openai-whisper-api - Cloud audio transcription">
+    Transcribe audio via OpenAI Whisper API.
+
+    **Requires**: OpenAI API key.
+  </Accordion>
+
+  <Accordion title="sherpa-onnx-tts - Local text-to-speech">
+    Convert text to speech using local Sherpa-ONNX models.
+
+    **Requires**: sherpa-onnx installed locally.
+  </Accordion>
+
+  <Accordion title="video-frames - Extract video frames">
+    Extract frames from video files for analysis.
+
+    **Requires**: ffmpeg installed.
+  </Accordion>
+
+  <Accordion title="camsnap - Webcam snapshot">
+    Capture a photo from the webcam for analysis.
+
+    **Requires**: Camera access permission.
+  </Accordion>
+
+  <Accordion title="nano-pdf - PDF reading and analysis">
+    Read, search, and summarize PDF documents.
+  </Accordion>
+</AccordionGroup>
+
+## System & Developer Tools
+
+<AccordionGroup>
+  <Accordion title="system-admin - System administration">
+    System status, process management, disk usage, service control.
+
+    **Triggers**: "check system status", "how much disk space", "what processes"
+  </Accordion>
+
+  <Accordion title="file-manager - File organization">
+    Move, rename, organize, and find files using natural language.
+
+    **Triggers**: "organize my files", "find files matching", "rename all"
+  </Accordion>
+
+  <Accordion title="tmux - Terminal multiplexer control">
+    Create panes, sessions, and send commands via tmux.
+
+    **Requires**: tmux installed.
+  </Accordion>
+
+  <Accordion title="healthcheck - Service health monitoring">
+    Check health endpoints and service status across your stack.
+  </Accordion>
+
+  <Accordion title="mcp-discovery - MCP server discovery">
+    Discover and connect to Model Context Protocol servers.
+  </Accordion>
+
+  <Accordion title="skill-creator - Create new skills">
+    Helps you write a new SKILL.md file with proper frontmatter.
+
+    **Triggers**: "create a skill for", "help me write a skill"
+  </Accordion>
+</AccordionGroup>
+
+## Personal & Smart Home
+
+<AccordionGroup>
+  <Accordion title="weather - Current weather">
+    Get current weather and forecasts for any location.
+
+    **Requires**: Weather API key configured.
+    **Triggers**: "what's the weather", "will it rain"
+  </Accordion>
+
+  <Accordion title="openhue - Philips Hue control">
+    Control Hue lights: on/off, color, brightness, scenes.
+
+    **Requires**: Hue Bridge on local network.
+  </Accordion>
+
+  <Accordion title="spotify-player - Spotify playback control">
+    Play, pause, skip, search tracks and control Spotify.
+
+    **Requires**: Spotify Premium and API credentials.
+  </Accordion>
+
+  <Accordion title="songsee - Song identification">
+    Identify songs from audio snippets or descriptions.
+  </Accordion>
+
+  <Accordion title="1password - Password manager">
+    Look up and manage items in 1Password CLI.
+
+    **Requires**: 1Password CLI installed and authenticated.
+  </Accordion>
+
+  <Accordion title="himalaya - Email client">
+    Read, send, and manage email via the himalaya CLI email client.
+
+    **Requires**: himalaya installed and configured.
+  </Accordion>
+
+  <Accordion title="goplaces - Location and maps">
+    Search places, get directions, and explore locations.
+  </Accordion>
+
+  <Accordion title="phone-control - Mobile device control">
+    Send SMS, trigger actions on paired mobile devices.
+  </Accordion>
+
+  <Accordion title="oracle - AI predictions and decisions">
+    Decision-making helper using structured reasoning frameworks.
+  </Accordion>
+
+  <Accordion title="gog - Game of Games tracking">
+    Track gaming sessions, achievements, and backlog.
+  </Accordion>
+
+  <Accordion title="nano-banana-pro - Custom automation">
+    Connect to Banana Pro / Orange Pi boards for IoT automation.
+  </Accordion>
+</AccordionGroup>
+
+## Related Docs
+
+<CardGroup cols={2}>
+  <Card title="Using Skills" icon="play" href="/skills/using-skills">
+    How to invoke, configure, and manage skills.
+  </Card>
+  <Card title="ClawHub" icon="store" href="/skills/clawhub">
+    Find more community skills.
+  </Card>
+</CardGroup>
