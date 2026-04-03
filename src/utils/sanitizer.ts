@@ -20,14 +20,14 @@ import { resolve, normalize, relative, isAbsolute } from 'node:path';
  * Must be listed longest-match first (OSC before two-char) to avoid partial matches.
  */
 const ANSI_ESCAPE_RE =
-  // eslint-disable-next-line no-control-regex
+   
   /\x1B(?:\][^\x07\x1B]*(?:\x07|\x1B\\)|\[[0-?]*[ -/]*[@-~]|[@-_])/g;
 
 /**
  * Additional terminal control characters that should not appear in display output.
  * Excludes LF (\n) and CR (\r) which are legitimate line endings.
  */
-// eslint-disable-next-line no-control-regex
+ 
 const CONTROL_CHARS_RE = /[\x00-\x08\x0B\x0C\x0E-\x1A\x1C-\x1F\x7F]/g;
 
 /**

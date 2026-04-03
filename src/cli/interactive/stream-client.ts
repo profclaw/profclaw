@@ -291,7 +291,7 @@ async function* streamAgenticChatWithReconnect(
   options: StreamOptions,
 ): AsyncGenerator<SSEEvent> {
   const lastEventIdRef: { value: string | null } = { value: null };
-  let attempt = 0;
+  const attempt = 0;
 
   while (true) {
     // On the first attempt the generator starts fresh.
