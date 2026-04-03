@@ -83,13 +83,15 @@ describe('ConversationBrancher.listBranches', () => {
     expect(branches).toHaveLength(0);
   });
 
-  it('sorts branches newest first', () => {
+  it('sorts branches newest first', async () => {
     const b1 = brancher.fork('conv-A', 0);
-    // Ensure slightly different timestamp
+    // Ensure different timestamp
+    await new Promise(r => setTimeout(r, 5));
     const b2 = brancher.fork('conv-A', 1);
 
     const branches = brancher.listBranches('conv-A');
-    // b2 was created after b1 — should come first
+    expect(branches.length).toBe(2);
+    // b2 was created after b1 — should come first (newest first)
     const idx1 = branches.findIndex(b => b.id === b1.id);
     const idx2 = branches.findIndex(b => b.id === b2.id);
     expect(idx2).toBeLessThanOrEqual(idx1);
