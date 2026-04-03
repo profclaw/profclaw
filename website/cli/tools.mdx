@@ -1,0 +1,125 @@
+---
+title: "profclaw tools"
+description: "List, inspect, and directly execute the built-in execution tools available to agents."
+---
+
+## Synopsis
+
+```bash
+profclaw tools <subcommand> [flags]
+```
+
+## Description
+
+`tools` provides direct access to profClaw's built-in tool registry without going through an agent. Tools are grouped by category (file, system, git, web, memory, etc.) and each has a security level (`safe`, `moderate`, `dangerous`). Use `tools exec` to invoke any tool directly from the CLI for testing and automation.
+
+## Subcommands
+
+| Subcommand | Description |
+|---|---|
+| `list` | List all registered tools grouped by category |
+| `info <name>` | Show detailed information and examples for a tool |
+| `exec <name>` | Execute a tool with JSON parameters |
+| `run <command...>` | Shortcut: run a shell command via the `exec` tool |
+| `git-status` | Shortcut: show git status |
+| `sysinfo` | Shortcut: show system information |
+| `env [name]` | Shortcut: show environment variables |
+| `which <command>` | Shortcut: find a command in PATH |
+| `read <path>` | Shortcut: read a file |
+| `find <pattern>` | Shortcut: search for files by name pattern |
+| `grep <pattern> [path]` | Shortcut: search file contents |
+
+## `tools list`
+
+<ParamField query="-c, --category" type="string">
+  Filter by category (e.g., `file`, `system`, `git`, `web`, `memory`).
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output as JSON array with name, description, category, and security level.
+</ParamField>
+
+## `tools exec <name>`
+
+<ParamField query="name" type="string" required>
+  Tool name as shown in `tools list`.
+</ParamField>
+
+<ParamField query="-p, --params" type="string">
+  Tool parameters as a JSON string. Must match the tool's input schema.
+</ParamField>
+
+<ParamField query="-w, --workdir" type="string" default="cwd">
+  Working directory for the tool execution context.
+</ParamField>
+
+<ParamField query="-y, --yes" type="boolean">
+  Skip the approval prompt for moderate-security tools.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output the raw tool result as JSON.
+</ParamField>
+
+## Tool Security Levels
+
+| Level | Description | Approval Required |
+|---|---|---|
+| `safe` | Read-only operations | Never |
+| `moderate` | Write operations, network requests | Prompted (skip with `-y`) |
+| `dangerous` | System-level operations | Always prompted |
+
+## Examples
+
+<CodeGroup>
+```bash List all tools
+profclaw tools list
+```
+
+```bash List file tools only
+profclaw tools list --category file
+```
+
+```bash Get tool details
+profclaw tools info exec
+profclaw tools info read_file
+```
+
+```bash Execute a tool with parameters
+profclaw tools exec read_file -p '{"path": "README.md", "maxLines": 50}'
+```
+
+```bash Run a shell command
+profclaw tools run ls -la src/
+```
+
+```bash Run a shell command with working directory
+profclaw tools run --workdir /tmp ls -la
+```
+
+```bash Search for files
+profclaw tools find "*.ts" --path src/
+```
+
+```bash Search file contents
+profclaw tools grep "TODO" src/ --context 2
+```
+
+```bash Case-insensitive grep
+profclaw tools grep -i "error" src/ --ignore-case
+```
+
+```bash Show system info
+profclaw tools sysinfo --type memory
+```
+
+```bash Check git status
+profclaw tools git-status --short
+```
+</CodeGroup>
+
+## Related
+
+- [`profclaw mcp`](/cli/mcp) - Manage external MCP tool servers
+- [`profclaw skills`](/cli/skills) - Manage skills that use tools
+- [`profclaw chat -a`](/cli/chat) - Chat with all tools enabled

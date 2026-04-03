@@ -1,0 +1,93 @@
+---
+title: "Cohere"
+description: "Use Command R+ and Command R models via the Cohere API. Strong retrieval-augmented generation and enterprise search capabilities."
+---
+
+Cohere specializes in enterprise search and retrieval-augmented generation (RAG). Command R+ is their flagship model with grounding and citation support.
+
+## Supported Models
+
+| Model | ID | Context | Tools | Notes |
+|-------|----|---------|-------|-------|
+| Command R+ | `command-r-plus` | 128K | Yes | Best capability, RAG-optimized |
+| Command R | `command-r` | 128K | Yes | Balanced cost/performance |
+| Command | `command` | 4K | No | Legacy |
+
+## Setup
+
+<Steps>
+  <Step title="Get an API key">
+    Sign up at [dashboard.cohere.com](https://dashboard.cohere.com). Free tier available.
+  </Step>
+  <Step title="Set the environment variable">
+    ```bash
+    export COHERE_API_KEY=...
+    ```
+  </Step>
+  <Step title="Verify">
+    ```bash
+    profclaw doctor --provider cohere
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="COHERE_API_KEY" type="string" required>
+  Your Cohere API key.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    COHERE_API_KEY=...
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    providers:
+      cohere:
+        api_key: "${COHERE_API_KEY}"
+    ```
+  </Tab>
+</Tabs>
+
+## Model Aliases
+
+| Alias | Model |
+|-------|-------|
+| `command` | command-r-plus |
+| `command-r` | command-r |
+
+## Usage Examples
+
+<CodeGroup>
+  ```bash CLI
+  profclaw chat --model command "Summarize this document with citations"
+  profclaw chat --model command-r "Answer based on this context"
+  ```
+
+  ```typescript SDK
+  import { chat } from 'profclaw';
+
+  const response = await chat("What are the key findings?", {
+    model: "command",
+    temperature: 0.3,
+  });
+  ```
+</CodeGroup>
+
+## Notes
+
+- API endpoint: `https://api.cohere.ai/v1` (OpenAI-compatible mode)
+- Status: Beta - API behavior may differ slightly from other OpenAI-compatible providers.
+- Command R+ excels at document summarization and retrieval tasks with grounding.
+
+## Related
+
+- [AI Providers Overview](/ai-providers/overview) - Compare all 37 supported providers
+- [Perplexity](/ai-providers/perplexity) - Real-time web-search-augmented responses
+- [Memory Tools](/tools/memory) - Combine Cohere's RAG strengths with profClaw memory search
+- [profclaw provider](/cli/provider) - Add and test providers from the CLI

@@ -101,6 +101,9 @@ import { discordActionsTool } from './discord-actions.js';
 import { slackActionsTool } from './slack-actions.js';
 import { telegramActionsTool } from './telegram-actions.js';
 
+// Decompose task tool (checkpoint / resume)
+import { decomposeTaskTool } from './decompose-task.js';
+
 // Export individual tools
 export { execTool } from './exec.js';
 export { webFetchTool } from './web-fetch.js';
@@ -148,6 +151,10 @@ export { webSearchTool } from './web-search.js';
 
 // Task completion tool exports
 export { completeTaskTool } from './complete-task.js';
+
+// Decompose task tool exports
+export { decomposeTaskTool } from './decompose-task.js';
+export type { DecomposeTaskParams } from './decompose-task.js';
 
 // Cron tools exports
 export {
@@ -340,6 +347,7 @@ const TOOL_TIER_MAP: Record<string, ToolTier> = {
   git_status: 'essential',
   web_fetch: 'essential',
   complete_task: 'essential',
+  decompose_task: 'standard',
 
   // Standard tier - needs moderate reasoning (14B+)
   git_diff: 'standard',
@@ -441,8 +449,9 @@ const rawBuiltinTools = [
   memoryStatsTool,
   // Web search (1)
   webSearchTool,
-  // Task completion (1)
+  // Task completion + decomposition (2)
   completeTaskTool,
+  decomposeTaskTool,
   // Cron tools (7)
   ...cronTools,
   // Browser tools (8)

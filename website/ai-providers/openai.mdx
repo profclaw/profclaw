@@ -1,0 +1,116 @@
+---
+title: "OpenAI"
+description: "Use GPT-4o, o1, and o3 models via the OpenAI API. Strong tool calling support and broad model variety."
+---
+
+OpenAI is the second-priority provider in profClaw's auto-selection. GPT-4o and newer models support native function calling, vision, and streaming.
+
+## Supported Models
+
+| Model | ID | Context | Max Output | Tools | Vision | Input $/1M | Output $/1M |
+|-------|----|---------|------------|-------|--------|-----------|------------|
+| GPT-4o | `gpt-4o` | 128K | 16K | Yes | Yes | $2.50 | $10.00 |
+| GPT-4o Mini | `gpt-4o-mini` | 128K | 16K | Yes | Yes | $0.15 | $0.60 |
+| o1 | `o1` | 200K | 100K | Yes | No | $15.00 | $60.00 |
+| o1 Mini | `o1-mini` | 128K | 65K | Yes | No | $1.10 | $4.40 |
+| o3 Mini | `o3-mini` | 200K | 100K | Yes | No | $1.10 | $4.40 |
+
+<Note>
+  o1 and o3 models use internal chain-of-thought reasoning. They do not support streaming.
+</Note>
+
+## Setup
+
+<Steps>
+  <Step title="Get an API key">
+    Sign up at [platform.openai.com](https://platform.openai.com) and create an API key.
+  </Step>
+  <Step title="Set the environment variable">
+    ```bash
+    export OPENAI_API_KEY=sk-...
+    ```
+  </Step>
+  <Step title="Verify">
+    ```bash
+    profclaw doctor --provider openai
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="OPENAI_API_KEY" type="string" required>
+  Your OpenAI API key. Format: `sk-...`
+</ParamField>
+
+<ParamField path="OPENAI_BASE_URL" type="string">
+  Override the base URL. Use this for custom proxies or OpenAI-compatible endpoints.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    OPENAI_API_KEY=sk-proj-...
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    providers:
+      openai:
+        api_key: "${OPENAI_API_KEY}"
+        # Optional: override base URL for proxies
+        # base_url: "https://your-proxy.example.com/v1"
+    ```
+  </Tab>
+  <Tab title="Compatible endpoints">
+    ```bash
+    # Any OpenAI-compatible API
+    OPENAI_API_KEY=your-key
+    OPENAI_BASE_URL=https://your-compatible-endpoint/v1
+    ```
+  </Tab>
+</Tabs>
+
+## Model Aliases
+
+| Alias | Model |
+|-------|-------|
+| `gpt` | gpt-4o |
+| `gpt-mini` | gpt-4o-mini |
+| `o1` | o1 |
+| `o1-mini` | o1-mini |
+| `o3-mini` | o3-mini |
+
+## Usage Examples
+
+<CodeGroup>
+  ```bash CLI
+  profclaw chat --model gpt "Summarize these release notes"
+  profclaw chat --model o3-mini "Solve this algorithm problem"
+  profclaw chat --model gpt-mini "Generate a commit message"
+  ```
+
+  ```typescript SDK
+  import { chat } from 'profclaw';
+
+  const response = await chat("Debug this TypeScript error", {
+    model: "gpt",
+    temperature: 0.2,
+  });
+  ```
+</CodeGroup>
+
+## Notes
+
+- `OPENAI_BASE_URL` can point to any OpenAI-compatible API (LiteLLM, LocalAI, etc.).
+- GPT-4o is the default alias `gpt` - a good balance of capability and cost.
+- o1/o3 models are reasoning models - use them for complex problem solving. They do not stream.
+
+## Related
+
+- [AI Providers Overview](/ai-providers/overview) - Compare all 37 supported providers
+- [Anthropic](/ai-providers/anthropic) - Claude models for best-in-class tool calling
+- [Azure OpenAI](/ai-providers/azure-openai) - OpenAI models via Azure with enterprise SLAs
+- [profclaw provider](/cli/provider) - Add and test providers from the CLI

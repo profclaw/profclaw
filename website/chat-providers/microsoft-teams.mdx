@@ -1,0 +1,130 @@
+---
+title: "Microsoft Teams"
+description: "Deploy profClaw as a Microsoft Teams bot. Supports Adaptive Cards, Bot Framework, and Azure AD auth."
+---
+
+profClaw integrates with Microsoft Teams via the Bot Framework. It responds to messages, mentions, and commands in chats and channels.
+
+## Capabilities
+
+| Feature | Supported |
+|---------|-----------|
+| 1:1 chat | Yes |
+| Channel messages | Yes |
+| Adaptive Cards | Yes |
+| Slash commands | Yes |
+| File uploads | Yes |
+| Teams meetings | No |
+| OAuth install | Yes |
+| Multi-tenant | Yes |
+
+## Setup
+
+<Steps>
+  <Step title="Register an Azure Bot">
+    Go to [portal.azure.com](https://portal.azure.com) and create an **Azure Bot** resource.
+
+    - Set the messaging endpoint to: `https://your-domain.com/webhooks/teams`
+    - Choose **Multi-tenant** for use across multiple organizations
+  </Step>
+  <Step title="Get Bot credentials">
+    Under **Configuration**, copy the **Microsoft App ID** and **Password** (client secret).
+  </Step>
+  <Step title="Create a Teams App">
+    Use [Teams Developer Portal](https://dev.teams.microsoft.com) or App Studio to create a Teams app manifest:
+
+    ```json
+    {
+      "bots": [{
+        "botId": "your-microsoft-app-id",
+        "scopes": ["team", "personal", "groupchat"]
+      }]
+    }
+    ```
+  </Step>
+  <Step title="Configure profClaw">
+    ```bash
+    TEAMS_APP_ID=your-microsoft-app-id
+    TEAMS_APP_PASSWORD=your-client-secret
+    TEAMS_TENANT_ID=your-tenant-id
+    ```
+  </Step>
+  <Step title="Deploy the app">
+    Upload the app package to Teams Admin Center or install via sideloading.
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="TEAMS_APP_ID" type="string" required>
+  Microsoft App ID (Bot Framework Application ID).
+</ParamField>
+
+<ParamField path="TEAMS_APP_PASSWORD" type="string" required>
+  Microsoft App Password (client secret).
+</ParamField>
+
+<ParamField path="TEAMS_TENANT_ID" type="string">
+  Azure AD Tenant ID. Use `common` for multi-tenant apps.
+</ParamField>
+
+<ParamField path="TEAMS_ALLOWED_TEAM_IDS" type="string">
+  Comma-separated Team IDs to restrict access.
+</ParamField>
+
+<ParamField path="TEAMS_ALLOWED_CHANNEL_IDS" type="string">
+  Comma-separated Channel IDs to restrict access.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    TEAMS_APP_ID=00000000-0000-0000-0000-000000000000
+    TEAMS_APP_PASSWORD=your-client-secret
+    TEAMS_TENANT_ID=common
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    chat:
+      msteams:
+        app_id: "${TEAMS_APP_ID}"
+        app_password: "${TEAMS_APP_PASSWORD}"
+        tenant_id: "${TEAMS_TENANT_ID}"
+    ```
+  </Tab>
+</Tabs>
+
+## Adaptive Cards
+
+profClaw sends Adaptive Cards for rich interactive responses:
+
+```json
+{
+  "type": "AdaptiveCard",
+  "version": "1.4",
+  "body": [
+    { "type": "TextBlock", "text": "Task completed", "weight": "Bolder" }
+  ],
+  "actions": [
+    { "type": "Action.Submit", "title": "Acknowledge", "data": { "action": "ack" } }
+  ]
+}
+```
+
+## Notes
+
+- Requires a public HTTPS webhook URL - no socket/polling mode available.
+- Bot Framework handles authentication with Microsoft's OAuth.
+- `TEAMS_TENANT_ID=common` allows the bot to work across any Microsoft 365 organization.
+- Single-tenant mode: set `TEAMS_TENANT_ID` to your organization's tenant ID.
+- The bot must be in the same Teams app as the channel for it to respond.
+
+## Related
+
+- [Chat Providers Overview](/chat-providers/overview) - Compare all 27 supported channels
+- [Slack](/chat-providers/slack) - Slack is the recommended alternative for teams not on Microsoft 365
+- [profclaw tunnel](/cli/tunnel) - Expose your local server for development webhook testing
+- [profclaw channels](/cli/channels) - Enable and test the Teams connection from the CLI

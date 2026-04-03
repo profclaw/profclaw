@@ -1,0 +1,93 @@
+---
+title: "Cerebras"
+description: "Extremely fast inference via Cerebras Wafer-Scale Engine hardware. Run Llama 3.1 70B at speeds over 2000 tokens/second."
+---
+
+Cerebras uses custom wafer-scale processors to achieve inference speeds that far exceed GPU-based providers. Llama 3.1 70B runs at over 2000 tokens/second - roughly 20x faster than typical cloud GPU inference.
+
+## Supported Models
+
+| Model | ID | Context | Max Output | Tools | Notes |
+|-------|----|---------|------------|-------|-------|
+| Llama 3.1 70B | `llama3.1-70b` | 128K | 8K | Yes | Fastest 70B available |
+| Llama 3.1 8B | `llama3.1-8b` | 128K | 8K | Yes | Extreme speed |
+
+## Setup
+
+<Steps>
+  <Step title="Get API access">
+    Sign up at [inference.cerebras.ai](https://inference.cerebras.ai). Currently in limited access.
+  </Step>
+  <Step title="Set the environment variable">
+    ```bash
+    export CEREBRAS_API_KEY=csk-...
+    ```
+  </Step>
+  <Step title="Verify">
+    ```bash
+    profclaw doctor --provider cerebras
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="CEREBRAS_API_KEY" type="string" required>
+  Your Cerebras API key.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    CEREBRAS_API_KEY=csk-...
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    providers:
+      cerebras:
+        api_key: "${CEREBRAS_API_KEY}"
+    ```
+  </Tab>
+</Tabs>
+
+## Model Aliases
+
+| Alias | Model |
+|-------|-------|
+| `cerebras` | llama3.1-70b |
+
+## Usage Examples
+
+<CodeGroup>
+  ```bash CLI
+  # Ultra-fast streaming response
+  profclaw chat --model cerebras "Stream this long document analysis"
+  ```
+
+  ```typescript SDK
+  import { chat } from 'profclaw';
+
+  // Best for latency-sensitive applications
+  const response = await chat("Generate test cases rapidly", {
+    model: "cerebras",
+    temperature: 0.7,
+  });
+  ```
+</CodeGroup>
+
+## Notes
+
+- API endpoint: `https://api.cerebras.ai/v1` (OpenAI-compatible)
+- Status: Experimental - hardware-specific availability, may have capacity constraints.
+- Best use case: real-time streaming, bulk generation tasks, low-latency chat.
+- Cerebras does not support vision or image inputs.
+
+## Related
+
+- [AI Providers Overview](/ai-providers/overview) - Compare all 37 supported providers
+- [Groq](/ai-providers/groq) - LPU-based inference, another ultra-fast hardware provider
+- [SambaNova](/ai-providers/sambanova) - High-throughput RDU-based inference
+- [profclaw provider](/cli/provider) - Add and test providers from the CLI

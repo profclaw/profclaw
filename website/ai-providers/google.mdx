@@ -1,0 +1,107 @@
+---
+title: "Google Gemini"
+description: "Use Gemini 1.5 Pro, Gemini 1.5 Flash, and Gemini 2.0 models via the Google AI API. Best-in-class context windows and multimodal support."
+---
+
+Google Gemini models offer some of the largest context windows available - up to 2M tokens for Gemini 1.5 Pro. All Gemini models support native function calling and vision.
+
+## Supported Models
+
+| Model | ID | Context | Max Output | Tools | Vision | Input $/1M | Output $/1M |
+|-------|----|---------|------------|-------|--------|-----------|------------|
+| Gemini 1.5 Pro | `gemini-1.5-pro` | 2M | 65K | Yes | Yes | $1.25 | $5.00 |
+| Gemini 1.5 Flash | `gemini-1.5-flash` | 1M | 8K | Yes | Yes | $0.075 | $0.30 |
+| Gemini 2.0 Flash Thinking | `gemini-2.0-flash-thinking-exp` | 1M | 8K | Yes | Yes | $0.075 | $0.30 |
+
+## Setup
+
+<Steps>
+  <Step title="Get an API key">
+    Go to [aistudio.google.com](https://aistudio.google.com) and create an API key (free tier available).
+  </Step>
+  <Step title="Set the environment variable">
+    ```bash
+    # Either variable name works:
+    export GOOGLE_API_KEY=AIza...
+    export GOOGLE_GENERATIVE_AI_API_KEY=AIza...
+    ```
+  </Step>
+  <Step title="Verify">
+    ```bash
+    profclaw doctor --provider google
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="GOOGLE_API_KEY" type="string" required>
+  Your Google AI API key. Either `GOOGLE_API_KEY` or `GOOGLE_GENERATIVE_AI_API_KEY` is accepted.
+</ParamField>
+
+<ParamField path="GOOGLE_GENERATIVE_AI_API_KEY" type="string">
+  Alternative variable name for the Google API key. Takes precedence over `GOOGLE_API_KEY` if both are set.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    GOOGLE_API_KEY=AIzaSy...
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    providers:
+      google:
+        api_key: "${GOOGLE_API_KEY}"
+    ```
+  </Tab>
+</Tabs>
+
+## Model Aliases
+
+| Alias | Model |
+|-------|-------|
+| `gemini` | gemini-1.5-pro |
+| `gemini-flash` | gemini-1.5-flash |
+| `gemini-thinking` | gemini-2.0-flash-thinking-exp |
+
+## Usage Examples
+
+<CodeGroup>
+  ```bash CLI
+  # Large context analysis
+  profclaw chat --model gemini "Analyze this entire codebase"
+
+  # Fast and cheap
+  profclaw chat --model gemini-flash "Write a quick summary"
+
+  # Thinking model
+  profclaw chat --model gemini-thinking "Walk me through this proof"
+  ```
+
+  ```typescript SDK
+  import { chat } from 'profclaw';
+
+  const response = await chat("Process this large document", {
+    model: "gemini",
+    temperature: 0.5,
+  });
+  ```
+</CodeGroup>
+
+## Notes
+
+- Gemini 1.5 Pro has a 2M token context window - the largest of any profClaw provider.
+- Gemini 1.5 Flash is very cheap at $0.075/1M input tokens, good for high-volume tasks.
+- Free tier is available via Google AI Studio with rate limits.
+- For Google Workspace / enterprise use, see the Vertex AI option via a custom `base_url`.
+
+## Related
+
+- [AI Providers Overview](/ai-providers/overview) - Compare all 37 supported providers
+- [Anthropic](/ai-providers/anthropic) - Claude models with native tool calling
+- [OpenRouter](/ai-providers/openrouter) - Access Gemini via OpenRouter for routing flexibility
+- [profclaw provider](/cli/provider) - Add and test providers from the CLI

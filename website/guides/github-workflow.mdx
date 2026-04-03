@@ -1,0 +1,145 @@
+---
+title: "GitHub Workflow Automation"
+description: "Automate issues, PRs, and code reviews with profClaw agents"
+---
+
+## Overview
+
+Connect profClaw to GitHub to automatically triage issues, review pull requests, sync tasks, and run agentic workflows triggered by repository events.
+
+## Prerequisites
+
+- profClaw running in mini or pro mode
+- A GitHub account with repo access
+- GitHub App or Personal Access Token
+
+## Step 1: Create a GitHub App
+
+<Steps>
+  <Step title="Create the App">
+    Go to **Settings > Developer Settings > GitHub Apps > New GitHub App**.
+
+    Set the following:
+    - **Name**: profClaw Bot
+    - **Homepage URL**: Your profClaw instance URL
+    - **Webhook URL**: `https://your-profclaw.com/api/integrations/github/webhook`
+  </Step>
+  <Step title="Set Permissions">
+    | Permission | Access | Purpose |
+    |-----------|--------|---------|
+    | Issues | Read & Write | Create/update issues |
+    | Pull Requests | Read & Write | Review PRs, post comments |
+    | Contents | Read | Read repository files |
+    | Metadata | Read | Repository info |
+    | Webhooks | Read & Write | Receive events |
+  </Step>
+  <Step title="Subscribe to Events">
+    - `issues` - Issue opened, edited, closed
+    - `pull_request` - PR opened, updated, merged
+    - `issue_comment` - Comments on issues/PRs
+    - `push` - Code pushed to branches
+  </Step>
+  <Step title="Generate Private Key">
+    After creating the app, generate a private key and save the `.pem` file.
+  </Step>
+</Steps>
+
+## Step 2: Configure profClaw
+
+```bash
+export GITHUB_APP_ID=123456
+export GITHUB_PRIVATE_KEY="$(cat path/to/private-key.pem)"
+export GITHUB_WEBHOOK_SECRET=your-webhook-secret
+```
+
+Or use OAuth for personal use:
+```bash
+profclaw auth github
+```
+
+## Step 3: Enable GitHub Integration
+
+```yaml
+integrations:
+  github:
+    enabled: true
+    features:
+      issueSync: true
+      prReview: true
+      codeSearch: true
+      ticketSync: true
+```
+
+## Automated PR Reviews
+
+profClaw can automatically review pull requests when they're opened:
+
+```yaml
+integrations:
+  github:
+    prReview:
+      enabled: true
+      autoReview: true
+      reviewPrompt: |
+        Review this PR for:
+        - Code quality and best practices
+        - Security vulnerabilities
+        - Test coverage
+        - Documentation
+      labels:
+        approved: "profclaw-approved"
+        needsWork: "needs-changes"
+```
+
+## Issue Triage
+
+Automatically label and assign incoming issues:
+
+```yaml
+integrations:
+  github:
+    issueTriage:
+      enabled: true
+      autoLabel: true
+      autoAssign: true
+      rules:
+        - match: "bug"
+          labels: ["bug", "triage"]
+        - match: "feature request"
+          labels: ["enhancement"]
+        - match: "security"
+          labels: ["security", "priority-high"]
+```
+
+## Cron-Based Workflows
+
+Run periodic GitHub workflows:
+
+```yaml
+cron:
+  jobs:
+    - name: stale-issues
+      schedule: "0 9 * * 1"  # Monday at 9 AM
+      task: |
+        Find issues with no activity for 30 days
+        and add a "stale" label
+
+    - name: weekly-summary
+      schedule: "0 17 * * 5"  # Friday at 5 PM
+      task: |
+        Generate a summary of this week's PRs,
+        issues opened/closed, and contributors
+```
+
+## CLI Usage
+
+```bash
+# Sync GitHub issues to profClaw tasks
+profclaw github sync
+
+# Review a specific PR
+profclaw github review 42
+
+# Search code across repos
+profclaw github search "TODO security"
+```

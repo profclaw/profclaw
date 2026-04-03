@@ -19,3 +19,6 @@ export type AgentEvent =
   | { type: 'session:complete'; result: Record<string, unknown>; totalSteps: number; totalTokens: number }
   | { type: 'session:error'; error: string; stack?: string }
   | { type: 'session:abort'; reason: string }
+  | { type: 'checkpoint:saved'; sessionId: string; step: number }
+  | { type: 'checkpoint:resumed'; sessionId: string; step: number }
+  | { type: 'budget:warning'; usedPercent: number; tokensUsed: number; tokensMax: number }

@@ -1,0 +1,148 @@
+---
+title: "Plugin Packaging"
+description: "Package structure, manifest fields, and plugin build configuration"
+---
+
+A profClaw plugin is a standard npm package with a `profclaw` field in `package.json` and a default export using `definePlugin`.
+
+## Package Structure
+
+```
+my-profclaw-plugin/
+  src/
+    index.ts       # Default export: definePlugin(...)
+    types.ts       # Internal types
+  dist/
+    index.js       # Compiled output
+    index.d.ts     # TypeScript declarations
+  package.json
+  tsconfig.json
+  README.md
+```
+
+## package.json Manifest
+
+```json
+{
+  "name": "@yourname/profclaw-plugin-myplugin",
+  "version": "1.0.0",
+  "description": "Short description of your plugin",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "keywords": ["profclaw-plugin"],
+  "profclaw": {
+    "pluginId": "myplugin",
+    "category": "search",
+    "minVersion": "2.0.0",
+    "maxVersion": "3.x"
+  },
+  "peerDependencies": {
+    "profclaw": ">=2.0.0"
+  }
+}
+```
+
+The `profclaw.pluginId` must be unique on ClawHub. The `keywords` array must include `"profclaw-plugin"` for the plugin to appear in search results.
+
+## Plugin Manifest Fields
+
+```typescript
+// src/plugins/sdk.ts
+export interface PluginManifest {
+  name: string;              // npm package name
+  version: string;
+  description: string;
+  main: string;              // Entry point (dist/index.js)
+  profclaw: {
+    pluginId: string;        // Unique ID
+    category: PluginCategory;
+    minVersion?: string;     // Min profClaw version
+    maxVersion?: string;     // Max profClaw version
+  };
+}
+```
+
+## Build Configuration
+
+```json
+// tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist",
+    "declaration": true,
+    "strict": true,
+    "esModuleInterop": true
+  },
+  "include": ["src/**/*"]
+}
+```
+
+## Build Script
+
+```json
+// package.json scripts
+{
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest",
+    "prepublishOnly": "pnpm build"
+  }
+}
+```
+
+## Dependencies
+
+Keep dependencies minimal. Avoid bundling:
+
+- `profclaw` (declare as `peerDependency`)
+- `zod` (available from profClaw peer)
+- Large AI SDKs (prefer HTTP calls)
+
+Bundled dependencies increase install size and can conflict with the host's versions.
+
+## Entry Point
+
+`src/index.ts` must have a default export:
+
+```typescript
+import { definePlugin } from 'profclaw/plugins/sdk';
+
+const plugin = definePlugin({ ... });
+
+export default plugin;
+```
+
+profClaw imports your plugin with `import(packageName)` and accesses `default`.
+
+## Testing Your Plugin Locally
+
+```bash
+# In profClaw's profclaw-docs repo or your development setup
+pnpm add --workspace ./path/to/my-profclaw-plugin
+
+# Or link globally
+cd my-profclaw-plugin && pnpm link --global
+cd profclaw && pnpm link --global my-profclaw-plugin
+```
+
+Then register in settings: **Settings > Plugins > Install from local path**.
+
+## Scaffolding
+
+Use the built-in scaffolder to bootstrap a new plugin:
+
+```bash
+profclaw plugins scaffold --id my-plugin --category search
+```
+
+This generates the package structure with TypeScript config, a sample `definePlugin` call, and a test file.

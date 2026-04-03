@@ -1,0 +1,97 @@
+---
+title: "Perplexity"
+description: "Use Perplexity's online models for real-time web search-augmented responses. Models with built-in internet access."
+---
+
+Perplexity's online models have built-in internet access and return grounded answers with citations. Unlike standard LLMs, they can answer questions about current events.
+
+## Supported Models
+
+| Model | ID | Context | Web Search | Notes |
+|-------|----|---------|------------|-------|
+| Sonar Huge | `llama-3.1-sonar-huge-128k-online` | 128K | Yes | Best quality |
+| Sonar Large | `llama-3.1-sonar-large-128k-online` | 128K | Yes | Balanced |
+| Sonar Small | `llama-3.1-sonar-small-128k-online` | 128K | Yes | Fastest/cheapest |
+
+## Setup
+
+<Steps>
+  <Step title="Get an API key">
+    Sign up at [perplexity.ai](https://www.perplexity.ai) and go to API settings.
+  </Step>
+  <Step title="Set the environment variable">
+    ```bash
+    export PERPLEXITY_API_KEY=pplx-...
+    ```
+  </Step>
+  <Step title="Verify">
+    ```bash
+    profclaw doctor --provider perplexity
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="PERPLEXITY_API_KEY" type="string" required>
+  Your Perplexity API key. Format: `pplx-...`
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    PERPLEXITY_API_KEY=pplx-...
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    providers:
+      perplexity:
+        api_key: "${PERPLEXITY_API_KEY}"
+    ```
+  </Tab>
+</Tabs>
+
+## Model Aliases
+
+| Alias | Model |
+|-------|-------|
+| `perplexity` | llama-3.1-sonar-huge-128k-online |
+| `pplx-fast` | llama-3.1-sonar-small-128k-online |
+
+## Usage Examples
+
+<CodeGroup>
+  ```bash CLI
+  # Current events / web search
+  profclaw chat --model perplexity "What are the latest changes to the TypeScript spec?"
+
+  # Fast web lookup
+  profclaw chat --model pplx-fast "Current Node.js LTS version?"
+  ```
+
+  ```typescript SDK
+  import { chat } from 'profclaw';
+
+  const response = await chat("What broke in the latest React release?", {
+    model: "perplexity",
+  });
+  ```
+</CodeGroup>
+
+## Notes
+
+- Status: Beta - Perplexity models have unique behavior (web search, citations) that differs from standard chat models.
+- API endpoint: `https://api.perplexity.ai` (OpenAI-compatible)
+- All Sonar Online models have real-time internet access built in.
+- Responses include source citations automatically.
+- Not recommended for tasks requiring deterministic, non-web outputs.
+
+## Related
+
+- [AI Providers Overview](/ai-providers/overview) - Compare all 37 supported providers
+- [Web Search Tool](/tools/web-search) - Explicit web search for any provider via Brave, Serper, or Tavily
+- [xAI / Grok](/ai-providers/xai) - Another provider with real-time data access
+- [profclaw provider](/cli/provider) - Add and test providers from the CLI

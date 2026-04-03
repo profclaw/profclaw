@@ -1,0 +1,120 @@
+---
+title: "Anthropic"
+description: "Use Claude models - Opus, Sonnet, and Haiku - via the Anthropic API. Best-in-class tool calling, coding, and reasoning."
+---
+
+Anthropic's Claude models are the default recommended provider in profClaw. They offer native tool calling, vision support, and large context windows up to 1M tokens.
+
+## Supported Models
+
+| Model | ID | Context | Max Output | Tools | Vision | Input $/1M | Output $/1M |
+|-------|----|---------|------------|-------|--------|-----------|------------|
+| Claude Opus 4.6 | `claude-opus-4-6` | 1M | 128K | Yes | Yes | $5.00 | $25.00 |
+| Claude Sonnet 4.5 | `claude-sonnet-4-5-20250929` | 200K | 16K | Yes | Yes | $3.00 | $15.00 |
+| Claude Haiku 4.5 | `claude-haiku-4-5-20251001` | 200K | 8K | Yes | Yes | $0.25 | $1.25 |
+
+## Setup
+
+<Steps>
+  <Step title="Get an API key">
+    Sign up at [console.anthropic.com](https://console.anthropic.com) and create an API key.
+  </Step>
+  <Step title="Set the environment variable">
+    ```bash
+    export ANTHROPIC_API_KEY=sk-ant-api03-...
+    ```
+    Or add it to your `.env` file.
+  </Step>
+  <Step title="Verify configuration">
+    ```bash
+    profclaw doctor --provider anthropic
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="ANTHROPIC_API_KEY" type="string" required>
+  Your Anthropic API key. Format: `sk-ant-api03-...`
+</ParamField>
+
+<ParamField path="ANTHROPIC_BASE_URL" type="string">
+  Override the API base URL. Useful for proxies or custom endpoints. Defaults to `https://api.anthropic.com`.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    ANTHROPIC_API_KEY=sk-ant-api03-...
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    providers:
+      default: anthropic
+      anthropic:
+        api_key: "${ANTHROPIC_API_KEY}"
+        # Optional: custom endpoint
+        # base_url: "https://your-proxy.example.com"
+    ```
+  </Tab>
+  <Tab title="CLI">
+    ```bash
+    profclaw config provider add anthropic --key sk-ant-api03-...
+    profclaw config provider set-default anthropic
+    ```
+  </Tab>
+</Tabs>
+
+## Model Aliases
+
+| Alias | Model |
+|-------|-------|
+| `opus` | claude-opus-4-6 |
+| `sonnet` | claude-sonnet-4-5-20250929 |
+| `haiku` | claude-haiku-4-5-20251001 |
+
+## Usage Examples
+
+<CodeGroup>
+  ```bash CLI
+  # Use default model (auto-selected)
+  profclaw chat "Explain async/await in JavaScript"
+
+  # Use a specific alias
+  profclaw chat --model opus "Review this architecture"
+
+  # Use full model ID
+  profclaw chat --model claude-haiku-4-5-20251001 "Quick question"
+  ```
+
+  ```typescript SDK
+  import { chat } from 'profclaw';
+
+  const response = await chat("Write a test for this function", {
+    model: "opus",
+    systemPrompt: "You are a senior TypeScript engineer.",
+    temperature: 0.3,
+  });
+  ```
+
+  ```bash Agent
+  profclaw agent run --model sonnet --task "Review PR #42 in profclaw/profclaw"
+  ```
+</CodeGroup>
+
+## Notes
+
+- Anthropic is the top-priority provider in profClaw's auto-selection order.
+- All Claude models support native function calling - tools work reliably without fallback prompting.
+- Opus has a 1M token context window, suitable for large codebases.
+- Claude Haiku 4.5 is the recommended model for high-throughput, cost-sensitive workloads.
+
+## Related
+
+- [AI Providers Overview](/ai-providers/overview) - Compare all 37 supported providers
+- [OpenAI](/ai-providers/openai) - GPT-4o and o-series reasoning models
+- [profclaw provider](/cli/provider) - Add and test providers from the CLI
+- [profclaw models](/cli/models) - List and manage model aliases

@@ -1,0 +1,62 @@
+---
+title: "profclaw provider"
+description: "profclaw provider - add, remove, test, and configure AI provider connections. Set the default provider and list available models from any provider."
+---
+
+## Synopsis
+
+```bash
+profclaw provider <subcommand> [flags]
+```
+
+## Description
+
+Add, remove, and test AI provider configurations. Manage which providers are active and set the default provider for chat sessions.
+
+## Subcommands
+
+| Subcommand | Alias | Description |
+|-----------|-------|-------------|
+| `list` | `ls` | List configured AI providers |
+| `add <type>` | | Add and configure an AI provider |
+| `remove <type>` | | Remove a provider configuration |
+| `test [type]` | | Test provider health (all or specific) |
+| `default [type]` | | Get or set the default provider |
+| `models [type]` | | List available models |
+
+## Flags
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--yes` | boolean | Skip confirmation (remove) |
+| `--json` | boolean | Output as JSON |
+
+## Examples
+
+<CodeGroup>
+```bash List providers
+profclaw provider list
+```
+
+```bash Add Ollama
+profclaw provider add ollama
+```
+
+```bash Test all providers
+profclaw provider test
+```
+
+```bash Set default
+profclaw provider default anthropic
+```
+
+```bash List models for a provider
+profclaw provider models openai
+```
+</CodeGroup>
+
+## Related
+
+- [AI Providers Overview](/ai-providers/overview)
+- [Configuration](/configuration/overview)
+- [profclaw models](/cli/models)

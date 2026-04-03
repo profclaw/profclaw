@@ -1,0 +1,109 @@
+---
+title: "profclaw linear"
+description: "Manage Linear integration - connect workspaces, sync issues, and automate ticket workflows."
+---
+
+## Synopsis
+
+```bash
+profclaw linear <subcommand> [flags]
+```
+
+## Description
+
+`linear` manages the profClaw Linear integration. Linear is a modern project management tool popular with engineering teams. Once connected, profClaw can watch for new issues, respond to status transitions, and assign agent tasks to work on Linear tickets.
+
+## Subcommands
+
+| Subcommand | Description |
+|---|---|
+| `status` | Show Linear connection and team status |
+| `connect` | Configure Linear API key and team |
+| `disconnect` | Remove the Linear integration |
+| `teams` | List connected Linear teams |
+| `sync <team>` | Manually sync issues from a team |
+| `issues` | List synced Linear issues |
+
+## `linear connect`
+
+<ParamField query="--token" type="string">
+  Linear API key. Generate at `linear.app/settings/api`.
+</ParamField>
+
+<ParamField query="--team" type="string">
+  Linear team ID or key to connect.
+</ParamField>
+
+## `linear sync <team>`
+
+<ParamField query="team" type="string" required>
+  Team ID or key to sync issues from.
+</ParamField>
+
+<ParamField query="--state" type="string">
+  Filter by issue state name (e.g., `Todo`, `In Progress`, `Backlog`).
+</ParamField>
+
+<ParamField query="--label" type="string">
+  Filter by issue label.
+</ParamField>
+
+<ParamField query="--limit" type="string" default="50">
+  Maximum issues to sync.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash Check Linear integration status
+profclaw linear status
+```
+
+```bash Connect to Linear
+profclaw linear connect --token lin_api_... --team ENG
+```
+
+```bash List teams
+profclaw linear teams
+```
+
+```bash Sync issues from a team
+profclaw linear sync ENG
+```
+
+```bash Sync only Todo issues
+profclaw linear sync ENG --state Todo
+```
+
+```bash List synced issues
+profclaw linear issues
+```
+
+```bash Disconnect Linear
+profclaw linear disconnect
+```
+</CodeGroup>
+
+## Automation Triggers
+
+When connected, profClaw can respond to Linear webhooks:
+
+| Event | Action |
+|---|---|
+| `Issue.create` | Dispatch agent task for new issues |
+| `Issue.update` | Trigger on state change (e.g., "In Progress") |
+| `Comment.create` | Respond to `@profclaw` mentions |
+
+## Environment Variables
+
+```bash
+LINEAR_API_KEY=lin_api_...
+LINEAR_WEBHOOK_SECRET=...
+```
+
+## Related
+
+- [`profclaw github`](/cli/github) - GitHub integration
+- [`profclaw jira`](/cli/jira) - Jira integration
+- [`profclaw sync`](/cli/sync) - Cross-platform sync
+- [Linear Integration Guide](/integrations/linear) - Full setup instructions

@@ -1,0 +1,164 @@
+---
+title: "Security API"
+description: "profClaw Security API - manage security modes, set tool permission policies, retrieve the audit log, and approve pending tool execution requests."
+---
+
+The security API manages profClaw's permission system - controlling which tools agents can use, setting security modes, and retrieving the audit trail of all agent actions.
+
+## Security Modes
+
+profClaw has five security levels for tool execution:
+
+| Mode | Description |
+|------|-------------|
+| `deny` | No tools allowed |
+| `sandbox` | Only read-only tools |
+| `allowlist` | Only explicitly allowed tools |
+| `ask` | Prompt for approval before sensitive operations |
+| `full` | All tools pre-approved (agentic mode default) |
+
+---
+
+## GET /api/security/policy
+
+Get the current security policy configuration.
+
+```bash
+curl http://localhost:3000/api/security/policy --cookie "profclaw_session=<token>"
+```
+
+**Response `200`**
+
+```json
+{
+  "defaultMode": "ask",
+  "allowedTools": ["read_file", "web_fetch", "web_search"],
+  "blockedTools": ["execute_command"],
+  "requireApprovalFor": ["write_file", "run_tests", "git_commit"],
+  "auditAll": true
+}
+```
+
+---
+
+## PUT /api/security/policy
+
+Update the security policy.
+
+```bash
+curl -X PUT http://localhost:3000/api/security/policy \
+  -H "Content-Type: application/json" \
+  --cookie "profclaw_session=<admin-token>" \
+  -d '{
+    "defaultMode": "ask",
+    "allowedTools": ["read_file", "web_fetch"],
+    "requireApprovalFor": ["write_file", "git_commit"]
+  }'
+```
+
+---
+
+## GET /api/security/audit
+
+Retrieve the audit log of agent tool executions.
+
+```bash
+curl "http://localhost:3000/api/security/audit?limit=50&offset=0" \
+  --cookie "profclaw_session=<token>"
+```
+
+**Response `200`**
+
+```json
+{
+  "entries": [
+    {
+      "id": "audit_01",
+      "timestamp": "2026-03-12T10:30:00Z",
+      "conversationId": "conv_01",
+      "taskId": "task_01",
+      "tool": "write_file",
+      "arguments": { "path": "src/auth.ts", "content": "..." },
+      "result": "success",
+      "userId": "usr_01",
+      "approved": true,
+      "approvalDecision": "allow-once"
+    }
+  ],
+  "total": 420,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+**Query parameters**: `limit`, `offset`, `tool`, `userId`, `conversationId`, `from`, `to`
+
+---
+
+## GET /api/security/audit/:id
+
+Get a single audit entry with full argument and result details.
+
+---
+
+## Tool Approval Queue
+
+When `securityMode` is `ask`, tool calls requiring approval are queued until a user decision is made.
+
+### GET /api/security/approvals
+
+List pending tool approvals.
+
+```json
+{
+  "approvals": [
+    {
+      "id": "approval_01",
+      "conversationId": "conv_01",
+      "toolName": "write_file",
+      "params": { "path": "src/auth.ts" },
+      "requestedAt": "2026-03-12T10:30:00Z",
+      "securityLevel": "moderate"
+    }
+  ]
+}
+```
+
+### POST /api/security/approvals/:id
+
+Submit an approval decision.
+
+```json
+{ "decision": "allow-once" }
+```
+
+Decisions: `allow-once` | `allow-always` | `deny`
+
+`allow-always` adds the tool to the session allowlist so subsequent calls proceed without prompting.
+
+---
+
+## Guard Configuration
+
+Guards are pre-execution checks that block unsafe tool calls regardless of security mode:
+
+```bash
+GET /api/security/guards        # List active guards
+PUT /api/security/guards/:name  # Enable/disable a guard
+```
+
+Built-in guards:
+
+| Guard | Blocks |
+|-------|--------|
+| `path-traversal` | Paths containing `../` or absolute paths outside workdir |
+| `shell-injection` | Shell metacharacters in command arguments |
+| `secret-exfiltration` | Reads of `.env`, credential files |
+| `rate-limit` | Tool calls exceeding configured rate |
+
+## Related
+
+- [Security Overview](/security/overview) - Security modes, guards, and audit architecture
+- [profclaw security](/cli/security) - Manage security policies from the CLI
+- [profclaw audit](/cli/audit) - View the audit log from the CLI
+- [Tools Overview](/tools/overview) - Tool security levels and execution pipeline

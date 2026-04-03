@@ -1,0 +1,149 @@
+---
+title: "profclaw init"
+description: "Initialize a new profClaw project directory with default configuration files, or scan a project to generate AI context."
+---
+
+## Synopsis
+
+```bash
+profclaw init [directory] [flags]
+```
+
+## Description
+
+`init` has two modes depending on context:
+
+**Server init** (run outside a profClaw project) — creates the directory structure and default configuration files needed to run profClaw. It is a lightweight alternative to `profclaw onboard` for cases where you want to manage configuration manually or integrate with an existing setup script.
+
+**Project context init** (run inside an existing code project) — scans the project directory, detects the tech stack, framework, and coding conventions, then generates a `.profclaw/context.md` file. The chat and agentic commands read this file automatically so the AI has immediate context about your codebase.
+
+For a guided first-time setup with environment detection, AI provider configuration, and admin account creation, use [`profclaw onboard`](/cli/onboard) instead.
+
+## Arguments
+
+<ParamField query="directory" type="string" default=".">
+  Directory to initialize. Defaults to the current directory. Created if it does not exist.
+</ParamField>
+
+## Flags
+
+<ParamField query="--mode" type="string" default="mini">
+  Deployment mode to write into the generated config: `pico`, `mini`, or `pro`. (Server init only.)
+</ParamField>
+
+<ParamField query="--force" type="boolean">
+  Overwrite existing configuration files or `.profclaw/context.md` if they already exist. By default, `init` skips files that already exist.
+</ParamField>
+
+<ParamField query="--dir <path>" type="string">
+  Scan a specific subdirectory for stack detection instead of the current working directory. Useful in monorepos where you want context scoped to a single package.
+</ParamField>
+
+<ParamField query="--no-env" type="boolean">
+  Skip creating the `.env` template file. (Server init only.)
+</ParamField>
+
+## Project Context Generation
+
+When run inside a code project, `init` performs the following:
+
+1. **Stack detection** — identifies languages, runtimes, and package managers from lock files and manifests (`package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml`, etc.)
+2. **Framework detection** — identifies frameworks from imports and config files (Next.js, FastAPI, Spring Boot, Rails, etc.)
+3. **Convention scanning** — detects test frameworks, linting config, folder structure patterns, and key entry points
+4. **Context generation** — writes a structured markdown summary to `.profclaw/context.md`
+
+The generated file looks like:
+
+```markdown
+# Project Context
+
+## Stack
+- Runtime: Node.js 22
+- Language: TypeScript 5.4
+- Package manager: pnpm
+
+## Frameworks
+- Next.js 15 (app router)
+- Tailwind CSS 4
+- Prisma ORM
+
+## Conventions
+- Tests: Vitest, files co-located with source (`*.test.ts`)
+- Linting: ESLint + Prettier
+- Commits: Conventional Commits
+
+## Key Paths
+- Entry: src/app/page.tsx
+- API routes: src/app/api/
+- Database: prisma/schema.prisma
+```
+
+## Server Init Files Created
+
+When initializing a new profClaw server installation:
+
+```
+config/
+  settings.yml    # Core server configuration
+  agents.yml      # Agent configuration
+  cron.yml        # Scheduled jobs (empty)
+  pricing.yml     # Model pricing overrides
+skills/           # Skills directory (empty)
+data/             # Database directory (empty, created on first run)
+.env.example      # Environment variable template
+```
+
+## Examples
+
+<CodeGroup>
+```bash Scan current project and generate context
+profclaw init
+```
+
+```bash Scan a specific subdirectory (monorepo)
+profclaw init --dir packages/api
+```
+
+```bash Re-generate context, overwriting existing file
+profclaw init --force
+```
+
+```bash Initialize a new profClaw server in pico mode
+profclaw init --mode pico
+```
+
+```bash Initialize a new project directory
+profclaw init ./my-profclaw
+```
+
+```bash Initialize without .env template
+profclaw init --no-env
+```
+</CodeGroup>
+
+## After Initializing
+
+```bash
+# Copy and edit the env template (server init)
+cp .env.example .env
+# Add your API keys and configuration
+
+# Run the interactive setup wizard
+profclaw onboard
+
+# Or start directly if already configured
+profclaw serve
+```
+
+```bash
+# After project context init — start chat with context loaded
+profclaw chat
+# The AI will reference .profclaw/context.md automatically
+```
+
+## Related
+
+- [`profclaw onboard`](/cli/onboard) - Guided setup wizard (recommended for first-time setup)
+- [`profclaw serve`](/cli/serve) - Start the server
+- [`profclaw doctor`](/cli/doctor) - Verify environment after init
+- [Configuration Reference](/configuration) - All settings documentation

@@ -1,0 +1,116 @@
+---
+title: "Facebook Messenger"
+description: "Connect profClaw to Facebook Messenger via the Meta Messenger Platform. Requires a Facebook Page."
+---
+
+profClaw integrates with Facebook Messenger through the Meta Messenger Platform. The bot is attached to a Facebook Page and responds to messages sent to that page.
+
+## Capabilities
+
+| Feature | Supported |
+|---------|-----------|
+| 1:1 messaging | Yes |
+| Quick replies | Yes |
+| Persistent menu | Yes |
+| Generic templates | Yes |
+| Media messages | Yes |
+| Webhook | Yes |
+| Page subscription | Yes |
+
+## Setup
+
+<Steps>
+  <Step title="Create a Facebook App">
+    Go to [developers.facebook.com](https://developers.facebook.com) and create a new app. Choose **Business** type.
+  </Step>
+  <Step title="Add Messenger Product">
+    Under your app, add the **Messenger** product.
+  </Step>
+  <Step title="Link to a Facebook Page">
+    Under **Messenger > Settings**, generate a **Page Access Token** for your Facebook Page.
+  </Step>
+  <Step title="Configure webhook">
+    Set webhook URL to: `https://your-domain.com/webhooks/messenger`
+
+    Set a verify token (any string you choose) and subscribe to `messages` and `messaging_postbacks`.
+  </Step>
+  <Step title="Configure profClaw">
+    ```bash
+    MESSENGER_PAGE_ACCESS_TOKEN=EAABwzLixnjYBO...
+    MESSENGER_VERIFY_TOKEN=my-verify-token
+    MESSENGER_APP_SECRET=your-app-secret
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="MESSENGER_PAGE_ACCESS_TOKEN" type="string" required>
+  Facebook Page access token (from Meta Developer portal).
+</ParamField>
+
+<ParamField path="MESSENGER_VERIFY_TOKEN" type="string" required>
+  Your custom verify token for webhook setup.
+</ParamField>
+
+<ParamField path="MESSENGER_APP_SECRET" type="string" required>
+  App secret for request signature verification.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    MESSENGER_PAGE_ACCESS_TOKEN=EAABwzLixnjYBO...
+    MESSENGER_VERIFY_TOKEN=my-verify-token
+    MESSENGER_APP_SECRET=abc123def456
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    chat:
+      messenger:
+        page_access_token: "${MESSENGER_PAGE_ACCESS_TOKEN}"
+        verify_token: "${MESSENGER_VERIFY_TOKEN}"
+        app_secret: "${MESSENGER_APP_SECRET}"
+    ```
+  </Tab>
+</Tabs>
+
+## Message Templates
+
+profClaw can send rich templates:
+
+```json
+{
+  "recipient": { "id": "user-psid" },
+  "message": {
+    "attachment": {
+      "type": "template",
+      "payload": {
+        "template_type": "button",
+        "text": "What would you like to do?",
+        "buttons": [
+          { "type": "postback", "title": "Get Status", "payload": "STATUS" }
+        ]
+      }
+    }
+  }
+}
+```
+
+## Notes
+
+- Status: Beta
+- Requires a public HTTPS webhook URL.
+- Messenger Platform requires App Review for production use with more than 5 testers.
+- After App Review, the bot can message any Facebook user who messages the page.
+- GDPR compliance: Users can opt-out via the standard Messenger controls.
+
+## Related
+
+- [Chat Providers Overview](/chat-providers/overview) - Compare all 27 supported channels
+- [WhatsApp](/chat-providers/whatsapp) - Meta's other messaging platform for business
+- [Viber](/chat-providers/viber) - Similar audience in Eastern Europe and Southeast Asia
+- [profclaw channels](/cli/channels) - Enable and test the Messenger connection from the CLI

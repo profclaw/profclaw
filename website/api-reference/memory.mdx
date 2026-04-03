@@ -1,0 +1,186 @@
+---
+title: "Memory API"
+description: "profClaw Memory API - semantic search over memory files and chat history, manage memory chunks and experiences, and view per-session context storage."
+---
+
+The memory system provides semantic search over markdown files, persistent session context, and an experience store for learning from past tool chains and user preferences.
+
+## POST /api/memory/search
+
+Search memory chunks by semantic similarity.
+
+```bash
+curl -X POST http://localhost:3000/api/memory/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "how to configure Redis", "maxResults": 6}'
+```
+
+**Request body**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `query` | string | Required | Search query |
+| `maxResults` | number | 6 | Max results to return |
+| `minScore` | number | - | Minimum relevance score (0-1) |
+
+**Response `200`**
+
+```json
+{
+  "query": "how to configure Redis",
+  "method": "bm25",
+  "totalCandidates": 42,
+  "chunks": [
+    {
+      "id": "chunk_01",
+      "path": "docs/configuration.md",
+      "startLine": 12,
+      "endLine": 28,
+      "text": "Set REDIS_URL to...",
+      "score": 0.87
+    }
+  ],
+  "autoSynced": true
+}
+```
+
+---
+
+## POST /api/memory/sync
+
+Sync memory files from disk into the database.
+
+```bash
+curl -X POST http://localhost:3000/api/memory/sync \
+  -d '{"basePath": "/home/user/notes"}'
+```
+
+**Response**: `{ "synced": 42, "added": 5, "updated": 2, "removed": 0 }`
+
+---
+
+## GET /api/memory/stats
+
+Get memory statistics (file count, chunk count, last sync time).
+
+---
+
+## GET /api/memory/files
+
+List all indexed memory files.
+
+---
+
+## GET /api/memory/files/:path/chunks
+
+List all chunks for a specific file (URL-encode the path).
+
+---
+
+## DELETE /api/memory/chunks/:id
+
+Delete a specific chunk by ID.
+
+---
+
+## DELETE /api/memory/files/:path
+
+Delete all chunks for a file.
+
+---
+
+## DELETE /api/memory/all
+
+Clear all memory chunks and files.
+
+---
+
+## Memory Sessions
+
+```bash
+# List sessions
+GET /api/memory/sessions?status=active&limit=20
+
+# Create a session
+POST /api/memory/sessions
+{"name": "bug hunt", "conversationId": "conv_01", "userId": "usr_01"}
+
+# Archive a session
+POST /api/memory/sessions/:id/archive
+
+# Warm session (sync before starting)
+POST /api/memory/warm
+```
+
+---
+
+## Experience Store
+
+The experience store (`src/memory/experience-store.ts`) learns from past tool chains and user preferences.
+
+**Experience types**: `tool_chain` | `user_preference` | `task_solution` | `error_recovery`
+
+### Record an experience
+
+```bash
+curl -X POST http://localhost:3000/api/memory/experiences \
+  -d '{
+    "type": "tool_chain",
+    "intent": "read and summarize a file",
+    "solution": ["read_file", "web_fetch"],
+    "successScore": 0.9,
+    "tags": ["file-ops"],
+    "sourceConversationId": "conv_01"
+  }'
+```
+
+### Search similar experiences
+
+```bash
+GET /api/memory/experiences/search?q=summarize+file&limit=5
+```
+
+### Other experience endpoints
+
+```
+GET  /api/memory/experiences          # List with filters
+GET  /api/memory/experiences/:id      # Get single
+POST /api/memory/experiences/:id/use  # Mark as used (boosts weight)
+DELETE /api/memory/experiences/:id    # Delete
+
+POST /api/memory/experiences/decay    # Apply time decay (halfLifeDays)
+POST /api/memory/experiences/prune    # Remove low-weight entries (minWeight)
+
+POST /api/memory/preferences          # Track a user preference
+GET  /api/memory/preferences/:userId  # Get user preferences
+```
+
+---
+
+## Watcher Status
+
+The memory watcher monitors files for changes and auto-syncs:
+
+```bash
+GET /api/memory/watcher/status
+```
+
+```json
+{
+  "enabled": true,
+  "state": {
+    "dirty": false,
+    "syncing": false,
+    "lastSyncAt": "2026-03-12T10:00:00Z",
+    "watchedFiles": 42,
+    "watching": true
+  }
+}
+```
+
+## Related
+
+- [Memory Tools](/tools/memory) - How agents search and recall memory during execution
+- [profclaw memory](/cli/memory) - Sync and inspect the memory index from the CLI
+- [Agent Sessions API](/api-reference/agent-sessions) - Warm memory before agentic execution
+- [Configuration Overview](/configuration/overview) - Memory settings and base paths

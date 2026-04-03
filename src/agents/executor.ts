@@ -39,6 +39,8 @@ import { getHookRegistry } from "../hooks/registry.js";
 import type { HookRegistry } from "../hooks/registry.js";
 import { ContextCompactor } from "./context-compactor.js";
 import { getSleepPreventer } from "../utils/prevent-sleep.js";
+import { getCheckpointManager } from "./checkpoint-manager.js";
+import type { ExecutorCheckpoint } from "./checkpoint-manager.js";
 
 // Types
 
@@ -201,6 +203,7 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
   private circuitBreaker: ToolCircuitBreaker = new ToolCircuitBreaker();
   private hooks: HookRegistry;
   private compactor: ContextCompactor;
+  private checkpointManager = getCheckpointManager();
 
   constructor(
     sessionId: string,
@@ -459,6 +462,47 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
 
             this.checkCustomStopConditions(step);
 
+            // Emit a budget warning when 80% of the token budget is consumed
+            const usedPercent = this.state.maxBudget > 0
+              ? (this.state.usedBudget / this.state.maxBudget) * 100
+              : 0;
+            if (usedPercent >= 80 && usedPercent < 100) {
+              push({
+                type: 'budget:warning',
+                usedPercent: Math.round(usedPercent),
+                tokensUsed: this.state.usedBudget,
+                tokensMax: this.state.maxBudget,
+              });
+            }
+
+            // Save a checkpoint every 5 steps so the session can be resumed
+            // (re-use stepIndex which was declared at the top of onStepFinish)
+            const currentStepForCheckpoint = this.state.currentStep;
+            if (currentStepForCheckpoint > 0 && currentStepForCheckpoint % 5 === 0) {
+              const checkpoint: ExecutorCheckpoint = {
+                sessionId: this.state.sessionId,
+                taskDescription: this.state.goal,
+                currentStep: currentStepForCheckpoint,
+                totalSteps: this.config.maxSteps,
+                messages: [...messages],
+                tokensUsed: this.state.usedBudget,
+                estimatedCost: 0,
+                toolCallHistory: this.state.toolCallHistory.map((tc) => ({
+                  name: tc.name,
+                  success: tc.status === 'executed',
+                  step: currentStepForCheckpoint,
+                })),
+                completedFiles: (this.state.context.modifiedFiles ?? []).slice(),
+                createdAt: this.state.createdAt,
+                updatedAt: Date.now(),
+              };
+              void this.checkpointManager.save(checkpoint).then(() => {
+                push({ type: 'checkpoint:saved', sessionId: this.state.sessionId, step: currentStepForCheckpoint });
+              }).catch((err: unknown) => {
+                logger.warn("[AgentExecutor] Failed to save checkpoint", { err });
+              });
+            }
+
             if (this.state.usedBudget >= this.state.maxBudget) {
               logger.info("[AgentExecutor] Budget exceeded, aborting", {
                 used: this.state.usedBudget,
@@ -589,6 +633,32 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
       // Individual events are not needed here; state is updated in-place
     }
     return this.state;
+  }
+
+  /**
+   * Resume execution from a saved checkpoint.
+   *
+   * Restores the message history and step counter from the checkpoint, emits a
+   * checkpoint:resumed event, then continues with generateText from that point.
+   */
+  async *resume(
+    checkpoint: ExecutorCheckpoint,
+    model: LanguageModel,
+    tools: ExecutorTools,
+    onToolExecute?: ToolExecuteHandler,
+    providerHint?: string,
+  ): AsyncGenerator<AgentEvent> {
+    // Restore step counter so subsequent checkpoints use the right step index
+    this.state.currentStep = checkpoint.currentStep;
+    this.state.usedBudget = checkpoint.tokensUsed;
+    this.state.goal = checkpoint.taskDescription ?? this.state.goal;
+    this.state.createdAt = checkpoint.createdAt;
+
+    // Emit resumed event before the stream starts
+    yield { type: 'checkpoint:resumed', sessionId: checkpoint.sessionId, step: checkpoint.currentStep };
+
+    // Delegate to stream() with the restored messages
+    yield* this.stream(model, checkpoint.messages, tools, onToolExecute, providerHint);
   }
 
   /**

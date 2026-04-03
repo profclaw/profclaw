@@ -1,0 +1,101 @@
+---
+title: "profclaw update"
+description: "Update profClaw to the latest version or a specific release."
+---
+
+## Synopsis
+
+```bash
+profclaw update [version] [flags]
+```
+
+## Description
+
+`update` checks for a newer version of profClaw and applies the update. It respects the original installation method (npm or binary) and runs the appropriate update command. After updating, it validates the new version with a health check.
+
+## Arguments
+
+<ParamField query="version" type="string">
+  Specific version to install (e.g., `2.1.0`). Omit to install the latest stable release.
+</ParamField>
+
+## Flags
+
+<ParamField query="--check" type="boolean">
+  Check for updates without installing. Prints the current version and the latest available version.
+</ParamField>
+
+<ParamField query="--pre" type="boolean">
+  Include pre-release versions (alpha, beta, rc) when looking for updates.
+</ParamField>
+
+<ParamField query="--yes" type="boolean">
+  Skip the confirmation prompt before updating.
+</ParamField>
+
+<ParamField query="--restart" type="boolean">
+  Restart the daemon after a successful update (if running as a system service).
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash Check for updates (no install)
+profclaw update --check
+```
+
+```bash Update to latest stable
+profclaw update
+```
+
+```bash Update without confirmation
+profclaw update --yes
+```
+
+```bash Update to a specific version
+profclaw update 2.1.0
+```
+
+```bash Include pre-release versions
+profclaw update --pre
+```
+
+```bash Update and restart daemon
+profclaw update --yes --restart
+```
+</CodeGroup>
+
+## Manual Update Methods
+
+<CodeGroup>
+```bash npm global install
+npm install -g profclaw@latest
+```
+
+```bash pnpm global install
+pnpm add -g profclaw@latest
+```
+
+```bash Docker
+docker pull profclaw/profclaw:latest
+docker compose pull && docker compose up -d
+```
+</CodeGroup>
+
+## Migration Notes
+
+Before updating across major versions, run:
+
+```bash
+profclaw backup create          # Back up data first
+profclaw update                 # Apply update
+profclaw doctor                 # Verify health
+```
+
+Check the [changelog](https://github.com/profclaw/profclaw/releases) for breaking changes between major versions.
+
+## Related
+
+- [`profclaw version`](/cli/version) - Print current version info
+- [`profclaw backup`](/cli/backup) - Back up before major updates
+- [`profclaw doctor`](/cli/doctor) - Verify health after update

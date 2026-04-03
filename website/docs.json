@@ -1,0 +1,438 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "maple",
+  "name": "profClaw",
+  "colors": {
+    "primary": "#f43f5e",
+    "light": "#fb7185",
+    "dark": "#e11d48"
+  },
+  "favicon": "/favicon.svg",
+  "css": "/custom.css",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Get Started",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "index",
+              "getting-started/installation",
+              "getting-started/onboard",
+              "getting-started/first-run",
+              "getting-started/deployment-modes"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Channels",
+        "groups": [
+          {
+            "group": "Chat Providers",
+            "pages": [
+              "chat-providers/overview",
+              "chat-providers/webchat",
+              "chat-providers/slack",
+              "chat-providers/discord",
+              "chat-providers/telegram",
+              "chat-providers/whatsapp",
+              "chat-providers/matrix",
+              "chat-providers/microsoft-teams",
+              "chat-providers/rocket-chat",
+              "chat-providers/irc",
+              "chat-providers/signal",
+              "chat-providers/line",
+              "chat-providers/zalo",
+              "chat-providers/viber",
+              "chat-providers/messenger",
+              "chat-providers/wechat",
+              "chat-providers/tlon",
+              "chat-providers/custom"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Models",
+        "groups": [
+          {
+            "group": "AI Providers",
+            "pages": [
+              "ai-providers/overview",
+              "ai-providers/anthropic",
+              "ai-providers/openai",
+              "ai-providers/google",
+              "ai-providers/ollama",
+              "ai-providers/groq",
+              "ai-providers/mistral",
+              "ai-providers/cohere",
+              "ai-providers/perplexity",
+              "ai-providers/together",
+              "ai-providers/fireworks",
+              "ai-providers/deepseek",
+              "ai-providers/xai",
+              "ai-providers/openrouter",
+              "ai-providers/cerebras",
+              "ai-providers/sambanova",
+              "ai-providers/lmstudio",
+              "ai-providers/azure-openai",
+              "ai-providers/amazon-bedrock"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Tools",
+        "groups": [
+          {
+            "group": "Tools",
+            "pages": [
+              "tools/overview",
+              "tools/file-operations",
+              "tools/git-operations",
+              "tools/web-fetch",
+              "tools/web-search",
+              "tools/browser-tools",
+              "tools/memory",
+              "tools/profclaw-ops",
+              "tools/sessions",
+              "tools/test-runner",
+              "tools/cron-tools",
+              "tools/code-analysis",
+              "tools/notifications",
+              "tools/custom-tools"
+            ]
+          },
+          {
+            "group": "Skills",
+            "pages": [
+              "skills/overview",
+              "skills/using-skills",
+              "skills/creating-skills",
+              "skills/clawhub",
+              "skills/built-in"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Platform",
+        "groups": [
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/overview",
+              "configuration/environment-variables",
+              "configuration/settings-yml",
+              "configuration/security-config"
+            ]
+          },
+          {
+            "group": "Security",
+            "pages": [
+              "security/overview",
+              "security/modes",
+              "security/guards",
+              "security/audit",
+              "security/device-pairing",
+              "security/plugins"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/overview",
+              "integrations/github",
+              "integrations/jira",
+              "integrations/linear",
+              "integrations/cloudflare",
+              "integrations/tailscale"
+            ]
+          },
+          {
+            "group": "Plugins",
+            "pages": [
+              "plugins/overview",
+              "plugins/sdk",
+              "plugins/packaging",
+              "plugins/publishing",
+              "plugins/examples"
+            ]
+          },
+          {
+            "group": "Architecture",
+            "pages": [
+              "architecture/overview",
+              "architecture/execution-engine",
+              "architecture/agentic-loop",
+              "architecture/engine",
+              "architecture/queue-system",
+              "architecture/memory",
+              "architecture/mcp",
+              "architecture/sync",
+              "architecture/security",
+              "architecture/resilience"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Guides",
+        "groups": [
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/slack-bot",
+              "guides/docker-deployment",
+              "guides/local-llm",
+              "guides/github-workflow",
+              "guides/multi-agent",
+              "guides/whatsapp-bot",
+              "guides/self-hosted",
+              "guides/backup-restore",
+              "guides/monitoring",
+              "guides/tui-guide",
+              "guides/headless-mode"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "CLI",
+        "groups": [
+          {
+            "group": "CLI Overview",
+            "pages": [
+              "cli/overview"
+            ]
+          },
+          {
+            "group": "Setup",
+            "pages": [
+              "cli/init",
+              "cli/setup",
+              "cli/onboard",
+              "cli/doctor",
+              "cli/config",
+              "cli/auth",
+              "cli/completion"
+            ]
+          },
+          {
+            "group": "Core",
+            "pages": [
+              "cli/chat",
+              "cli/serve",
+              "cli/daemon",
+              "cli/agent",
+              "cli/tui",
+              "cli/session",
+              "cli/canvas"
+            ]
+          },
+          {
+            "group": "Tasks",
+            "pages": [
+              "cli/task",
+              "cli/ticket",
+              "cli/queue",
+              "cli/cron",
+              "cli/summary"
+            ]
+          },
+          {
+            "group": "Providers",
+            "pages": [
+              "cli/provider",
+              "cli/models",
+              "cli/channels"
+            ]
+          },
+          {
+            "group": "Tools",
+            "pages": [
+              "cli/tools",
+              "cli/skills",
+              "cli/mcp",
+              "cli/plugins",
+              "cli/browser"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "cli/github",
+              "cli/jira",
+              "cli/linear",
+              "cli/sync",
+              "cli/webhooks",
+              "cli/tunnel"
+            ]
+          },
+          {
+            "group": "Security",
+            "pages": [
+              "cli/security",
+              "cli/audit",
+              "cli/device"
+            ]
+          },
+          {
+            "group": "System",
+            "pages": [
+              "cli/status",
+              "cli/cost",
+              "cli/memory",
+              "cli/backup",
+              "cli/update",
+              "cli/logs",
+              "cli/reset",
+              "cli/version",
+              "cli/nodes"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API",
+        "groups": [
+          {
+            "group": "API Overview",
+            "pages": [
+              "api-reference/overview"
+            ]
+          },
+          {
+            "group": "Authentication",
+            "pages": [
+              "api-reference/auth"
+            ]
+          },
+          {
+            "group": "Chat",
+            "pages": [
+              "api-reference/chat",
+              "api-reference/chat-stream"
+            ]
+          },
+          {
+            "group": "Agents",
+            "pages": [
+              "api-reference/agents",
+              "api-reference/agent-sessions"
+            ]
+          },
+          {
+            "group": "Tasks",
+            "pages": [
+              "api-reference/tasks",
+              "api-reference/task-queue"
+            ]
+          },
+          {
+            "group": "Memory",
+            "pages": [
+              "api-reference/memory"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "api-reference/integrations-api",
+              "api-reference/webhooks"
+            ]
+          },
+          {
+            "group": "System",
+            "pages": [
+              "api-reference/health",
+              "api-reference/devices",
+              "api-reference/security-api",
+              "api-reference/gateway"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg",
+    "href": "https://profclaw.ai"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "GitHub",
+        "href": "https://github.com/profclaw"
+      }
+    ],
+    "primary": {
+      "type": "button",
+      "label": "Get Started",
+      "href": "/getting-started/installation"
+    }
+  },
+  "contextual": {
+    "options": [
+      "copy",
+      "view",
+      "claude",
+      "chatgpt",
+      "cursor",
+      "mcp"
+    ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/profclaw",
+      "x": "https://x.com/profclaw"
+    }
+  },
+  "background": {
+    "decoration": "gradient",
+    "color": {
+      "light": "#fafbff",
+      "dark": "#050810"
+    }
+  },
+  "fonts": {
+    "heading": {
+      "family": "Plus Jakarta Sans",
+      "weight": 800
+    },
+    "body": {
+      "family": "Manrope",
+      "weight": 400
+    }
+  },
+  "appearance": {
+    "default": "dark"
+  },
+  "metadata": {
+    "og:title": "profClaw — AI Agent Engine for Developers",
+    "og:description": "Run AI agents locally on anything from a Raspberry Pi to a VPS. 35 providers, 72 tools, 22 channels. Open source, self-hosted.",
+    "og:image": "/images/og-cover.png",
+    "og:site_name": "profClaw",
+    "og:type": "website",
+    "twitter:card": "summary_large_image",
+    "twitter:site": "@profclaw",
+    "twitter:title": "profClaw — AI Agent Engine for Developers",
+    "twitter:description": "Self-hosted AI agent engine. 35 providers, 72 tools, 22 chat channels. Runs on a Raspberry Pi. Open source.",
+    "twitter:image": "/images/og-cover.png"
+  },
+  "seo": {
+    "indexHiddenPages": false,
+    "indexing": "all"
+  },
+  "feedback": {
+    "thumbsRating": true,
+    "suggestEdit": true,
+    "raiseIssue": true
+  },
+  "search": {
+    "prompt": "Search profClaw docs..."
+  }
+}

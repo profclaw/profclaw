@@ -1,0 +1,56 @@
+---
+title: "profclaw canvas"
+description: "profclaw canvas - list, render, and clear canvas documents. Create rich content blocks including code, diagrams, and structured data from the CLI."
+---
+
+## Synopsis
+
+```bash
+profclaw canvas <subcommand> [flags]
+```
+
+## Description
+
+Manage canvas documents - rich content rendered by the AI agent. Canvas types include code blocks, diagrams, tables, and structured documents.
+
+## Subcommands
+
+| Subcommand | Alias | Description |
+|-----------|-------|-------------|
+| `list` | `ls` | List canvas documents |
+| `show <id>` | | Show canvas document content |
+| `render <type> <content>` | | Render content as a canvas type |
+| `clear [id]` | | Clear canvas document(s) |
+
+## Flags
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--title <title>` | string | Canvas title (render) |
+| `--yes` | boolean | Skip confirmation (clear) |
+| `--json` | boolean | Output as JSON |
+
+## Examples
+
+<CodeGroup>
+```bash List canvases
+profclaw canvas list
+```
+
+```bash Render a code canvas
+profclaw canvas render code "console.log('hello')" --title "Example"
+```
+
+```bash Show a canvas
+profclaw canvas show canvas_abc123
+```
+
+```bash Clear all canvases
+profclaw canvas clear --yes
+```
+</CodeGroup>
+
+## Related
+
+- [profclaw chat](/cli/chat)
+- [Tools Overview](/tools/overview)

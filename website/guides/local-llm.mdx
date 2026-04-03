@@ -1,0 +1,157 @@
+---
+title: "Run Local LLMs"
+description: "Use Ollama or LM Studio for fully offline AI capabilities"
+---
+
+## Overview
+
+profClaw supports local LLM inference through Ollama and LM Studio. Run AI agents entirely on your own hardware with no API keys or cloud dependencies.
+
+## Ollama Setup
+
+<Steps>
+  <Step title="Install Ollama">
+    ```bash
+    # macOS
+    brew install ollama
+
+    # Linux
+    curl -fsSL https://ollama.com/install.sh | sh
+    ```
+  </Step>
+  <Step title="Pull a Model">
+    ```bash
+    # General purpose
+    ollama pull llama3.2
+
+    # Coding focused
+    ollama pull codellama:13b
+
+    # Small and fast
+    ollama pull phi3:mini
+    ```
+  </Step>
+  <Step title="Configure profClaw">
+    ```bash
+    export OLLAMA_BASE_URL=http://localhost:11434
+    export OLLAMA_MODEL=llama3.2
+    ```
+
+    Or in `settings.yml`:
+    ```yaml
+    providers:
+      default: ollama
+      ollama:
+        baseUrl: http://localhost:11434
+        model: llama3.2
+    ```
+  </Step>
+  <Step title="Start and Test">
+    ```bash
+    ollama serve &
+    profclaw serve
+    ```
+
+    ```bash
+    profclaw chat
+    > Hello, are you running locally?
+    ```
+  </Step>
+</Steps>
+
+## LM Studio Setup
+
+<Steps>
+  <Step title="Install LM Studio">
+    Download from [lmstudio.ai](https://lmstudio.ai). Available for macOS, Windows, and Linux.
+  </Step>
+  <Step title="Download a Model">
+    Open LM Studio, browse the model catalog, and download a model (e.g., Llama 3.2, Mistral, Phi-3).
+  </Step>
+  <Step title="Start the Server">
+    In LM Studio, go to the **Local Server** tab and click **Start Server**. Default port is 1234.
+  </Step>
+  <Step title="Configure profClaw">
+    ```bash
+    export LMSTUDIO_BASE_URL=http://localhost:1234
+    export LMSTUDIO_MODEL=your-model-name
+    ```
+  </Step>
+</Steps>
+
+## Recommended Models
+
+| Model | Size | Best For | VRAM Needed |
+|-------|------|----------|-------------|
+| Llama 3.2 3B | 2GB | Quick tasks, chat | 4GB |
+| Llama 3.2 8B | 4.7GB | General purpose | 8GB |
+| CodeLlama 13B | 7.4GB | Code generation | 16GB |
+| Mistral 7B | 4.1GB | Balanced performance | 8GB |
+| Phi-3 Mini | 2.2GB | Edge devices | 4GB |
+| DeepSeek Coder V2 | 8.9GB | Code tasks | 16GB |
+
+## Hybrid Setup
+
+Use local models for simple tasks and cloud providers for complex ones:
+
+```yaml
+providers:
+  default: ollama
+  ollama:
+    baseUrl: http://localhost:11434
+    model: llama3.2
+  anthropic:
+    apiKey: ${ANTHROPIC_API_KEY}
+    model: claude-sonnet-4-6
+```
+
+Switch providers per conversation:
+```bash
+profclaw chat --provider anthropic
+profclaw chat --provider ollama
+```
+
+## Docker with Ollama
+
+Run both profClaw and Ollama in Docker:
+
+```yaml
+services:
+  profclaw:
+    image: profclaw/profclaw:latest
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=llama3.2
+    depends_on:
+      - ollama
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama-models:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]  # GPU passthrough
+
+volumes:
+  ollama-models:
+```
+
+## Performance Tips
+
+<AccordionGroup>
+  <Accordion title="GPU Acceleration">
+    Ollama automatically uses GPU if available. Check with `ollama list` - GPU-accelerated models show higher tokens/sec.
+  </Accordion>
+  <Accordion title="Context Length">
+    Local models have smaller context windows than cloud models. Set `POOL_TIMEOUT_MS` higher for larger contexts.
+  </Accordion>
+  <Accordion title="Quantization">
+    Use quantized models (Q4_K_M, Q5_K_M) for better speed with minimal quality loss:
+    ```bash
+    ollama pull llama3.2:q4_k_m
+    ```
+  </Accordion>
+</AccordionGroup>

@@ -1,0 +1,174 @@
+---
+title: "profclaw chat"
+description: "Start an interactive AI chat session or send a single message from the terminal."
+---
+
+## Synopsis
+
+```bash
+profclaw chat [message] [flags]
+profclaw chat <subcommand> [flags]
+```
+
+## Description
+
+`chat` connects to the profClaw API and starts a conversation with the AI. When called without a message it enters an interactive REPL with session persistence. When called with a message it runs in single-shot mode and exits.
+
+Three execution modes are available:
+
+- **TUI mode** (`--tui`, default) - Ink-based interactive terminal UI with streaming markdown, syntax highlighting, and slash commands
+- **Print mode** (`--print` / `-p`) - Headless output for CI pipelines, scripts, and piped stdin
+- **Chat mode** (no flag) - Simple conversational mode, no tools
+
+## Flags
+
+<ParamField query="message" type="string">
+  Message to send. When provided, runs in single-shot mode and exits after the response. Omit to start an interactive session.
+</ParamField>
+
+<ParamField query="--tui" type="boolean">
+  Launch the Ink-based interactive TUI with streaming markdown rendering, syntax highlighting, and full slash command support. This is the default interactive experience.
+</ParamField>
+
+<ParamField query="-p, --print" type="boolean">
+  Headless mode. Streams the response as plain text to stdout with no UI chrome. Supports piped stdin (`echo "question" | profclaw chat -p`). Ideal for CI/CD pipelines and shell scripts.
+</ParamField>
+
+<ParamField query="--resume <id>" type="string">
+  Resume a previous session from its checkpoint by session ID. The conversation history is restored before your next message.
+</ParamField>
+
+<ParamField query="-m, --model" type="string">
+  AI model to use (e.g., `sonnet`, `opus`, `gpt-4o`, `gemini-2-flash`). Defaults to the server's configured default model.
+</ParamField>
+
+<ParamField query="-t, --tools" type="boolean">
+  Enable tool calling for this session. The AI can use configured tools but will ask for approval on sensitive operations.
+</ParamField>
+
+<ParamField query="-a, --agentic" type="boolean">
+  Enable agentic mode with all tools and full execution permissions. Implies `--tools`.
+</ParamField>
+
+<ParamField query="-s, --session" type="string">
+  Resume an existing conversation by session ID. Use `profclaw chat sessions` to list recent sessions.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output the response as JSON (single-shot mode only).
+</ParamField>
+
+## Subcommands
+
+| Subcommand | Alias | Description |
+|---|---|---|
+| `quick <message>` | - | Quick single-shot chat without creating a conversation |
+| `agent <message>` | `run` | Run in agentic mode with all tools |
+| `sessions` | `ls` | List recent chat sessions |
+
+## Slash Commands
+
+When in interactive (TUI) mode, type `/` to access commands:
+
+| Command | Description |
+|---|---|
+| `/model <name>` | Switch the active model mid-session |
+| `/provider <name>` | Switch the active AI provider |
+| `/agentic` | Toggle agentic mode on/off |
+| `/effort <low\|medium\|high>` | Adjust reasoning effort level |
+| `/thinking` | Toggle extended thinking on/off |
+| `/tools` | Toggle tool calling on/off |
+| `/new` | Start a fresh conversation (clears context) |
+| `/sessions` | List recent sessions |
+| `/resume <id>` | Load and resume a previous session |
+| `/status` | Show current session info and model |
+| `/run <task>` | Run a one-off agentic task inline |
+| `/retry` | Resend the last message (regenerate response) |
+| `/diff` | Show a diff of any file changes made this session |
+| `/rewind` | Roll back to the previous turn |
+| `/compact` | Summarize context to reduce token usage |
+| `/copy` | Copy the last response to the clipboard |
+| `/save [file]` | Save the conversation transcript to a file |
+| `/whoami` | Show authenticated user and active config |
+| `/insights` | Display token usage and cost summary |
+| `/branch` | Create a git branch from current work |
+| `/branches` | List branches created in this session |
+| `/help`, `/?` | Show all available slash commands |
+| `/exit`, `/quit`, `/q` | Exit the chat |
+
+## TUI Keyboard Shortcuts
+
+| Key | Action |
+|---|---|
+| `Alt+Enter` | Insert a newline (multiline input) |
+| `Ctrl+C` | Cancel the current streaming response |
+| `Up` / `Down` | Navigate input history |
+| `Tab` | Accept a prompt suggestion |
+| `Enter` | Send the message |
+
+## Prompt Suggestions
+
+After each response, the TUI displays 2–3 contextual follow-up suggestions. Press `Tab` to accept the highlighted suggestion or type to dismiss it.
+
+## Examples
+
+<CodeGroup>
+```bash Interactive TUI session (default)
+profclaw chat
+```
+
+```bash Interactive TUI session (explicit flag)
+profclaw chat --tui
+```
+
+```bash Headless / CI mode
+profclaw chat -p "Summarize the last 10 commits"
+```
+
+```bash Piped stdin in headless mode
+echo "What does this error mean?" | profclaw chat -p
+```
+
+```bash Resume a session from checkpoint
+profclaw chat --resume abc12345
+```
+
+```bash Single-shot message
+profclaw chat "What is the capital of France?"
+```
+
+```bash Use a specific model
+profclaw chat -m opus "Explain quantum entanglement"
+```
+
+```bash Agentic mode (tools enabled)
+profclaw chat -a "List all running Docker containers and show their memory usage"
+```
+
+```bash Run a single agentic task
+profclaw chat agent "Find all TODO comments in the src/ directory"
+# or
+profclaw chat run "Find all TODO comments in the src/ directory"
+```
+
+```bash Quick single-shot (no session created)
+profclaw chat quick "Current time?"
+```
+
+```bash Resume a previous session
+profclaw chat sessions                     # list sessions
+profclaw chat -s abc12345                  # resume by session ID
+```
+
+```bash JSON output for scripting
+profclaw chat --json "List the top 5 planets by size"
+```
+</CodeGroup>
+
+## Related
+
+- [`profclaw agent`](/cli/agent) - Manage AI agents
+- [`profclaw task`](/cli/task) - Create and track agentic tasks
+- [`profclaw tui`](/cli/tui) - Terminal dashboard
+- [`profclaw history`](/cli/history) - Browse conversation transcripts
+- [`profclaw summary`](/cli/summary) - Browse completed work summaries

@@ -1,0 +1,177 @@
+---
+title: "Device Pairing"
+description: "QR code pairing, DM verification codes, device identity, and trusted sender management."
+---
+
+## Overview
+
+Device pairing controls who can interact with profClaw through chat channels. When someone messages profClaw for the first time from an unknown account, device pairing can require them to verify their identity with a code before any tools run.
+
+This prevents unauthorized users from discovering a profClaw instance and using it to execute commands.
+
+## Pairing Methods
+
+<Tabs>
+  <Tab title="QR Code Pairing">
+    Generate a QR code that the user scans with their phone to prove they are a trusted device.
+
+    ### Setup
+
+    ```bash
+    # Generate a pairing QR code
+    profclaw auth pair --output qr
+
+    # Or show as terminal text
+    profclaw auth pair --output text
+    ```
+
+    ### How It Works
+
+    1. profClaw generates a unique pairing token (TOTP-based)
+    2. The user scans the QR code in the profClaw mobile app or web UI
+    3. The app verifies the token against the profClaw server
+    4. The device receives a trust certificate stored locally
+    5. Future messages from this device bypass DM verification
+
+    The QR code expires after 5 minutes. Generate a new one if it expires.
+  </Tab>
+  <Tab title="DM Verification Code">
+    When an unknown user messages profClaw directly (not in a channel), they receive a verification code request before any tools run.
+
+    ### How It Works
+
+    1. Unknown user sends a message to profClaw
+    2. profClaw sends back: "Please verify with code: **A7X-29K**"
+    3. User replies with the code within the expiry window
+    4. On success, profClaw processes the original message
+    5. The user is added to trusted senders automatically
+
+    ### Configuration
+
+    ```yaml
+    security:
+      dmPairing:
+        enabled: true
+        codeLength: 6           # Characters in the code
+        codeExpiryMs: 300000    # 5 minutes
+        maxAttempts: 3          # Attempts before lockout
+        trustedSenders:
+          - "U01234567"         # Pre-approved Slack user ID
+          - "123456789"         # Pre-approved Telegram user ID
+    ```
+
+    ### Pre-approving Users
+
+    Add user IDs to `trustedSenders` to skip verification for known users:
+
+    ```yaml
+    security:
+      dmPairing:
+        trustedSenders:
+          - "U01234ALICE"    # Alice's Slack ID
+          - "U01234BOB"      # Bob's Slack ID
+    ```
+  </Tab>
+</Tabs>
+
+## Device Identity
+
+Each device that pairs with profClaw receives a unique device identity:
+
+```typescript
+interface DeviceIdentity {
+  deviceId: string;       // Unique device ID
+  deviceName: string;     // Human-readable name
+  platform: string;       // "ios", "android", "web", "desktop"
+  publicKey: string;      // Ed25519 public key for request signing
+  createdAt: string;      // ISO timestamp
+  lastSeenAt: string;
+  trusted: boolean;
+  trustLevel: 'full' | 'limited' | 'read-only';
+}
+```
+
+## Trust Levels
+
+| Level | Permissions |
+|-------|------------|
+| `full` | All tools, all channels |
+| `limited` | Standard tier tools only, no dangerous operations |
+| `read-only` | Safe tools only (read_file, grep, git_status, etc.) |
+
+Assign trust levels per device:
+
+```bash
+profclaw device trust <device-id> --level limited
+```
+
+## Managing Paired Devices
+
+```bash
+# List all paired devices
+profclaw device list
+
+# Show device details
+profclaw device info <device-id>
+
+# Revoke a device
+profclaw device revoke <device-id>
+
+# Update trust level
+profclaw device trust <device-id> --level read-only
+```
+
+## Channel Allowlisting
+
+Restrict which channels profClaw responds to:
+
+```yaml
+security:
+  channelAllowlist:
+    - channelId: "C01TEAM"
+      provider: slack
+      name: "#engineering"
+      enabled: true
+
+    - channelId: "-100123456789"
+      provider: telegram
+      name: "Engineering Group"
+      enabled: true
+```
+
+With channel allowlisting enabled, messages from non-listed channels are silently ignored.
+
+## Session-Level Security
+
+When a chat session is active, security context travels with it:
+
+- The authenticated `userId` from the original request
+- The `channelProvider` and `channelId`
+- The applicable security mode and exec policies
+- The device's trust level
+
+Tool calls inherit the session's security context. A read-only device cannot execute write tools even if the global security mode is `full`.
+
+## Audit Trail
+
+All pairing events are recorded in the audit log:
+
+- Device paired: device ID, platform, time
+- Verification code issued: channel, code expiry
+- Verification success/failure: user ID, attempts
+- Device revoked: admin user, reason
+
+```bash
+profclaw audit log --type auth_event --last 20
+```
+
+## Related Docs
+
+<CardGroup cols={2}>
+  <Card title="Security Modes" icon="shield" href="/security/modes">
+    Per-user and per-channel security policies.
+  </Card>
+  <Card title="Audit Logging" icon="scroll" href="/security/audit">
+    Full audit trail of pairing events.
+  </Card>
+</CardGroup>

@@ -86,6 +86,7 @@ interface ChatOptions {
   stream?: boolean;
   tui?: boolean;
   print?: boolean;
+  resumeCheckpoint?: string;
 }
 
 // === Helpers ===
@@ -943,6 +944,7 @@ async function startTUI(options: ChatOptions): Promise<void> {
           '  `/new` — Start a fresh conversation',
           '  `/sessions` — List recent conversations',
           '  `/resume <id>` — Switch to a previous session',
+          '  `/checkpoints` — List agent execution checkpoints (auto-saved every 5 steps)',
           '  `/clear` — Clear display (history preserved on server)',
           '',
           '**File Changes**',
@@ -964,6 +966,37 @@ async function startTUI(options: ChatOptions): Promise<void> {
           '  `/help` — Show this help',
           '  `/exit` — Quit',
         ].join('\n'));
+        return true;
+      }
+
+      case 'checkpoints':
+      case 'cp': {
+        const { getCheckpointManager } = await import('../../agents/checkpoint-manager.js');
+        const cpManager = getCheckpointManager();
+        agentStatus = 'thinking';
+        agentAction = 'Loading checkpoints...';
+        rerender();
+        const list = await cpManager.list();
+        agentStatus = 'idle';
+        agentAction = undefined;
+
+        if (list.length === 0) {
+          pushInfo('No agent checkpoints found.\n\nCheckpoints are saved automatically every 5 steps during agentic execution.\nResume a checkpoint with: `profclaw chat --resume-checkpoint <sessionId>`');
+          return true;
+        }
+
+        const rows = list.map((cp) => {
+          const age = new Date(cp.updatedAt).toLocaleString();
+          const task = cp.taskDescription
+            ? cp.taskDescription.slice(0, 60) + (cp.taskDescription.length > 60 ? '...' : '')
+            : '(no description)';
+          return `\`${cp.sessionId.slice(0, 12)}\` step **${cp.step}** — ${task} — _${age}_`;
+        }).join('\n');
+
+        pushInfo(
+          `**Agent Checkpoints** (${list.length}):\n\n${rows}\n\n` +
+          `Resume with: \`profclaw chat --resume-checkpoint <sessionId>\``,
+        );
         return true;
       }
 
@@ -1628,6 +1661,7 @@ export function chatCommands() {
     .option('--json', 'Output as JSON (single-shot only)')
     .option('--tui', 'Launch the Ink-based interactive TUI (experimental)')
     .option('-p, --print', 'Print mode: output response to stdout and exit (CI/scripts)')
+    .option('--resume-checkpoint <sessionId>', 'Resume a saved agent checkpoint by session ID')
     .action(async (message: string | undefined, options: ChatOptions) => {
       // --print mode: headless, stdout only, no formatting
       if (options.print) {
@@ -1643,6 +1677,24 @@ export function chatCommands() {
           }
         }
         await executePrint(msg, options);
+        return;
+      }
+
+      // --resume-checkpoint: load a saved agent checkpoint and print summary
+      if (options.resumeCheckpoint) {
+        const { getCheckpointManager } = await import('../../agents/checkpoint-manager.js');
+        const cpManager = getCheckpointManager();
+        const cp = await cpManager.load(options.resumeCheckpoint);
+        if (!cp) {
+          error(`No checkpoint found for session ID: ${options.resumeCheckpoint}`);
+          process.exit(1);
+        }
+        info(`Resuming from checkpoint — session ${cp.sessionId.slice(0, 12)} at step ${cp.currentStep}`);
+        if (cp.taskDescription) {
+          info(`Task: ${cp.taskDescription}`);
+        }
+        info(`To continue this session, open the TUI: profclaw chat --tui --session ${cp.sessionId}`);
+        success(`Checkpoint loaded. ${cp.toolCallHistory.length} tool calls, ${cp.tokensUsed} tokens used.`);
         return;
       }
 
@@ -1729,6 +1781,54 @@ export function chatCommands() {
 
       console.log('');
       console.log(chalk.dim(`Resume with: profclaw chat -s <session-id>`));
+    });
+
+  chat
+    .command('checkpoints')
+    .alias('cp')
+    .description('List agent execution checkpoints saved to .profclaw/checkpoints/')
+    .option('--json', 'Output as JSON')
+    .option('--remove <sessionId>', 'Delete a checkpoint by session ID')
+    .action(async (options: { json?: boolean; remove?: string }) => {
+      const { getCheckpointManager } = await import('../../agents/checkpoint-manager.js');
+      const cpManager = getCheckpointManager();
+
+      if (options.remove) {
+        await cpManager.remove(options.remove);
+        success(`Checkpoint removed: ${options.remove}`);
+        return;
+      }
+
+      const spin = spinner('Loading checkpoints...').start();
+      const list = await cpManager.list();
+      spin.stop();
+
+      if (options.json) {
+        console.log(JSON.stringify(list, null, 2));
+        return;
+      }
+
+      if (list.length === 0) {
+        console.log('No agent checkpoints found.');
+        console.log(chalk.dim('Checkpoints are saved automatically every 5 steps during agentic execution.'));
+        return;
+      }
+
+      console.log('');
+      console.log(chalk.bold(`Agent Checkpoints (${list.length}):`));
+      console.log('');
+
+      for (const cp of list) {
+        const updated = new Date(cp.updatedAt).toLocaleString();
+        const task = cp.taskDescription
+          ? `  ${chalk.dim('"')}${chalk.white(cp.taskDescription.slice(0, 55))}${cp.taskDescription.length > 55 ? chalk.dim('...') : ''}${chalk.dim('"')}`
+          : '';
+        console.log(`  ${chalk.cyan(cp.sessionId.slice(0, 12))}  step ${chalk.yellow(String(cp.step))}  ${chalk.dim(updated)}`);
+        if (task) console.log(task);
+      }
+
+      console.log('');
+      console.log(chalk.dim('Resume with: profclaw chat --resume-checkpoint <sessionId>'));
     });
 
   return chat;

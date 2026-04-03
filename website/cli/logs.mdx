@@ -1,0 +1,105 @@
+---
+title: "profclaw logs"
+description: "View and stream server logs with filtering by level, component, and time range."
+---
+
+## Synopsis
+
+```bash
+profclaw logs [flags]
+```
+
+## Description
+
+`logs` fetches structured log entries from the running profClaw server. Logs can be filtered by level, component, and recency. In follow mode (`--follow`), it connects to the server's SSE log stream and prints new entries as they arrive.
+
+## Flags
+
+<ParamField query="--level" type="string">
+  Filter by log level. One of `debug`, `info`, `warn`, `error`. Shows only entries at or above the specified level.
+</ParamField>
+
+<ParamField query="--component" type="string">
+  Filter by component name (e.g., `queue`, `executor`, `chat`, `cron`).
+</ParamField>
+
+<ParamField query="--since" type="string" default="1h">
+  Show logs from this time window. Format: `30m`, `2h`, `1d`. Defaults to the last hour.
+</ParamField>
+
+<ParamField query="-l, --limit" type="string" default="50">
+  Maximum number of log entries to return (non-follow mode).
+</ParamField>
+
+<ParamField query="-f, --follow" type="boolean">
+  Stream new log entries as they arrive via Server-Sent Events. Press `Ctrl+C` to stop.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output as JSON. In follow mode each event is printed as a JSON line.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash Show last hour of logs
+profclaw logs
+```
+
+```bash Show only errors
+profclaw logs --level error
+```
+
+```bash Show logs from a specific component
+profclaw logs --component queue
+profclaw logs --component executor
+```
+
+```bash Show last 30 minutes of warnings and errors
+profclaw logs --level warn --since 30m
+```
+
+```bash Show last 200 entries
+profclaw logs --limit 200
+```
+
+```bash Follow live log stream
+profclaw logs --follow
+```
+
+```bash Follow errors only
+profclaw logs --follow --level error
+```
+
+```bash Stream logs as JSON (for log aggregators)
+profclaw logs --follow --json
+```
+</CodeGroup>
+
+## Log Levels
+
+| Level | Color | Description |
+|---|---|---|
+| `debug` | dim | Verbose internal state, used for development |
+| `info` | blue | Normal operational events |
+| `warn` | yellow | Non-fatal issues that need attention |
+| `error` | red | Errors that affect functionality |
+
+## Daemon Logs
+
+When running profClaw as a daemon, logs go to the system journal (Linux) or flat files (macOS). Use these commands to access them:
+
+```bash
+# macOS daemon logs
+profclaw daemon logs --follow
+profclaw daemon logs --errors
+
+# Linux daemon logs
+journalctl --user -u profclaw -f
+```
+
+## Related
+
+- [`profclaw daemon logs`](/cli/daemon) - Logs when running as a system service
+- [`profclaw status`](/cli/status) - System health overview
+- [`profclaw doctor`](/cli/doctor) - Diagnose issues

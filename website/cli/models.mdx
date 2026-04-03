@@ -1,0 +1,67 @@
+---
+title: "profclaw models"
+description: "profclaw models - list available AI models across providers, view model details, manage aliases, test models, and set the default for chat sessions."
+---
+
+## Synopsis
+
+```bash
+profclaw models <subcommand> [flags]
+```
+
+## Description
+
+List available AI models across all configured providers, view model details, manage aliases, and set the default model for chat sessions.
+
+## Subcommands
+
+| Subcommand | Alias | Description |
+|-----------|-------|-------------|
+| `list` | `ls` | List available models |
+| `info <model>` | | Show detailed model information |
+| `set-default <model>` | | Set the default model |
+| `aliases` | | List model aliases |
+| `test <model>` | | Test a model with a quick prompt |
+
+## Flags
+
+| Flag | Type | Description |
+|------|------|-------------|
+| `--provider <name>` | string | Filter by provider |
+| `--json` | boolean | Output as JSON |
+
+## Examples
+
+<CodeGroup>
+```bash List all models
+profclaw models list
+```
+
+```bash List models from a specific provider
+profclaw models list --provider ollama
+```
+
+```bash View model info
+profclaw models info claude-sonnet-4-6
+```
+
+```bash Set default model
+profclaw models set-default claude-sonnet-4-6
+```
+
+```bash View aliases
+profclaw models aliases
+# sonnet -> claude-sonnet-4-6
+# opus -> claude-opus-4-6
+# gpt4 -> gpt-4o
+```
+
+```bash Test a model
+profclaw models test llama3.2
+```
+</CodeGroup>
+
+## Related
+
+- [AI Providers Overview](/ai-providers/overview)
+- [profclaw provider](/cli/provider)

@@ -1,0 +1,174 @@
+---
+title: "settings.yml"
+description: "File-based configuration reference for profClaw"
+---
+
+## Overview
+
+The `settings.yml` file provides persistent file-based configuration. It lives at `.profclaw/settings.yml` relative to your project root (or `$DATA_DIR/settings.yml`).
+
+Create it during setup:
+```bash
+profclaw init
+```
+
+Or manually create the file:
+```bash
+mkdir -p .profclaw
+touch .profclaw/settings.yml
+```
+
+## Full Schema Reference
+
+```yaml
+# Deployment mode
+mode: mini  # pico | mini | pro
+
+# Server settings
+server:
+  port: 3000
+  host: 0.0.0.0
+  cors:
+    origins:
+      - "http://localhost:3000"
+      - "https://your-domain.com"
+
+# AI Provider configuration
+providers:
+  default: anthropic
+  anthropic:
+    apiKey: ${ANTHROPIC_API_KEY}
+    model: claude-sonnet-4-6
+    maxTokens: 8192
+  openai:
+    apiKey: ${OPENAI_API_KEY}
+    model: gpt-4o
+  ollama:
+    baseUrl: http://localhost:11434
+    model: llama3.2
+  # Add more providers as needed
+
+# Chat channel configuration
+chat:
+  defaultChannel: webchat
+  maxHistoryLength: 100
+  channels:
+    webchat:
+      enabled: true
+    slack:
+      enabled: true
+      botToken: ${SLACK_BOT_TOKEN}
+      appToken: ${SLACK_APP_TOKEN}
+    discord:
+      enabled: true
+      botToken: ${DISCORD_BOT_TOKEN}
+    telegram:
+      enabled: true
+      botToken: ${TELEGRAM_BOT_TOKEN}
+
+# Security settings
+security:
+  mode: standard  # permissive | standard | strict
+  auditLog:
+    enabled: true
+    retentionDays: 90
+  devicePairing:
+    enabled: true
+    maxDevices: 10
+    expirySeconds: 300
+  rateLimiting:
+    windowMs: 60000
+    maxRequests: 100
+
+# Queue settings
+queue:
+  maxConcurrent: 25
+  timeoutMs: 300000
+  retryAttempts: 3
+  retryDelay: 5000
+  # Redis config (pro mode only)
+  redis:
+    url: ${REDIS_URL}
+
+# Memory settings
+memory:
+  backend: sqlite
+  maxEntries: 10000
+  watchInterval: 5000
+
+# Cron jobs
+cron:
+  enabled: true
+  jobs:
+    - name: daily-summary
+      schedule: "0 9 * * *"
+      task: summary
+    - name: cleanup
+      schedule: "0 0 * * 0"
+      task: cleanup
+
+# Integration settings
+integrations:
+  github:
+    enabled: true
+    appId: ${GITHUB_APP_ID}
+    webhookSecret: ${GITHUB_WEBHOOK_SECRET}
+  jira:
+    enabled: false
+  linear:
+    enabled: false
+
+# Plugin settings
+plugins:
+  enabled: true
+  directory: .profclaw/plugins
+  sandbox: true
+
+# MCP settings
+mcp:
+  enabled: true
+  maxServers: 5
+  servers: []
+
+# Backup settings
+backup:
+  enabled: false
+  interval: 86400000
+  retention: 7
+  path: .profclaw/backups
+```
+
+## Environment Variable Interpolation
+
+Use `${VAR_NAME}` syntax to reference environment variables in settings.yml:
+
+```yaml
+providers:
+  anthropic:
+    apiKey: ${ANTHROPIC_API_KEY}
+```
+
+This keeps secrets out of the configuration file.
+
+## Validating Configuration
+
+profClaw validates settings.yml against a Zod schema on startup. Check your config:
+
+```bash
+profclaw config validate
+```
+
+## Precedence
+
+When the same setting is defined in multiple places:
+
+1. **Environment variable** wins over settings.yml
+2. **settings.yml** wins over built-in defaults
+3. **CLI flags** win over everything (for that invocation)
+
+Example:
+```bash
+# settings.yml says port: 3000
+# This overrides it for this run:
+PORT=4000 profclaw serve
+```

@@ -1,0 +1,92 @@
+---
+title: "Configuration Overview"
+description: "How to configure profClaw via environment variables, settings.yml, and CLI"
+---
+
+## Configuration Sources
+
+profClaw reads configuration from three sources, in order of priority (highest first):
+
+1. **Environment variables** - Override everything, ideal for Docker/CI
+2. **settings.yml** - File-based config in `.profclaw/settings.yml`
+3. **Built-in defaults** - Sensible defaults for mini mode
+
+## Quick Configuration
+
+The fastest way to configure profClaw:
+
+```bash
+# Set deployment mode
+export PROFCLAW_MODE=mini
+
+# Add an AI provider
+export ANTHROPIC_API_KEY=sk-ant-your-key
+
+# Start
+profclaw serve
+```
+
+## Configuration File
+
+Create `.profclaw/settings.yml` for persistent configuration:
+
+```yaml
+mode: mini
+port: 3000
+
+providers:
+  default: anthropic
+  anthropic:
+    apiKey: ${ANTHROPIC_API_KEY}
+    model: claude-sonnet-4-6
+  ollama:
+    baseUrl: http://localhost:11434
+    model: llama3.2
+
+chat:
+  defaultChannel: webchat
+  maxHistoryLength: 100
+
+security:
+  mode: standard
+  auditLog: true
+
+queue:
+  maxConcurrent: 25
+  timeoutMs: 300000
+```
+
+## Configuration via CLI
+
+Use the `profclaw config` command for interactive configuration:
+
+```bash
+# View current config
+profclaw config show
+
+# Set a value
+profclaw config set providers.default anthropic
+
+# Add a provider
+profclaw config providers add openai
+
+# Reset to defaults
+profclaw config reset
+```
+
+## Configuration Sections
+
+<Columns cols={2}>
+  <Card title="Environment Variables" icon="list" href="/configuration/environment-variables">
+    Complete reference of all 130+ environment variables with defaults and descriptions.
+  </Card>
+  <Card title="settings.yml" icon="file" href="/configuration/settings-yml">
+    File-based configuration with YAML schema reference.
+  </Card>
+  <Card title="Security Config" icon="shield" href="/configuration/security-config">
+    Security modes, guards, audit settings, and device trust policies.
+  </Card>
+  <Card title="Deployment Modes" icon="server" href="/getting-started/deployment-modes">
+    Mode-specific feature availability and resource limits.
+  </Card>
+</Columns>

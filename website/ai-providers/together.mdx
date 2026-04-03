@@ -1,0 +1,99 @@
+---
+title: "Together AI"
+description: "Run open-source models at scale via Together AI. Access Llama, Qwen, Mixtral, and hundreds more through a single API."
+---
+
+Together AI hosts hundreds of open-source models with fast inference. It's a good choice when you need specific open-source models without running them locally.
+
+## Supported Models
+
+| Model | ID | Context | Tools | Notes |
+|-------|----|---------|-------|-------|
+| Llama 3.3 70B Turbo | `meta-llama/Llama-3.3-70B-Instruct-Turbo` | 128K | Yes | Best general-purpose |
+| Qwen 2.5 72B Turbo | `Qwen/Qwen2.5-72B-Instruct-Turbo` | 32K | Yes | Multilingual |
+| DeepSeek R1 | `deepseek-ai/DeepSeek-R1` | 128K | No | Reasoning model |
+| Mixtral 8x22B | `mistralai/Mixtral-8x22B-Instruct-v0.1` | 65K | Yes | Large MoE model |
+
+Any model on the [Together AI catalog](https://docs.together.ai/docs/inference-models) can be referenced by its full ID.
+
+## Setup
+
+<Steps>
+  <Step title="Get an API key">
+    Sign up at [api.together.xyz](https://api.together.xyz). Free credits on signup.
+  </Step>
+  <Step title="Set the environment variable">
+    ```bash
+    export TOGETHER_API_KEY=...
+    ```
+  </Step>
+  <Step title="Verify">
+    ```bash
+    profclaw doctor --provider together
+    ```
+  </Step>
+</Steps>
+
+## Environment Variables
+
+<ParamField path="TOGETHER_API_KEY" type="string" required>
+  Your Together AI API key.
+</ParamField>
+
+## Configuration Example
+
+<Tabs>
+  <Tab title=".env">
+    ```bash
+    TOGETHER_API_KEY=...
+    ```
+  </Tab>
+  <Tab title="settings.yml">
+    ```yaml
+    providers:
+      together:
+        api_key: "${TOGETHER_API_KEY}"
+    ```
+  </Tab>
+</Tabs>
+
+## Model Aliases
+
+| Alias | Model |
+|-------|-------|
+| `together` | meta-llama/Llama-3.3-70B-Instruct-Turbo |
+| `together-qwen` | Qwen/Qwen2.5-72B-Instruct-Turbo |
+
+## Usage Examples
+
+<CodeGroup>
+  ```bash CLI
+  profclaw chat --model together "Explain this algorithm"
+  profclaw chat --model together-qwen "Translate this to Chinese"
+
+  # Use any Together AI model directly
+  profclaw chat --model together/deepseek-ai/DeepSeek-R1 "Solve this math problem"
+  ```
+
+  ```typescript SDK
+  import { chat } from 'profclaw';
+
+  const response = await chat("Write a REST API in Go", {
+    model: "together",
+  });
+  ```
+</CodeGroup>
+
+## Notes
+
+- API endpoint: `https://api.together.xyz/v1` (OpenAI-compatible)
+- Status: Beta
+- Together AI offers serverless and dedicated inference options.
+- Great for accessing models not available on other providers (e.g., specific fine-tuned variants).
+
+## Related
+
+- [AI Providers Overview](/ai-providers/overview) - Compare all 37 supported providers
+- [Fireworks AI](/ai-providers/fireworks) - Similar open-source model hosting with fast inference
+- [OpenRouter](/ai-providers/openrouter) - Access 200+ models from a single API key
+- [profclaw provider](/cli/provider) - Add and test providers from the CLI

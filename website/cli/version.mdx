@@ -1,0 +1,75 @@
+---
+title: "profclaw version"
+description: "Print version information for the installed profClaw CLI and connected server."
+---
+
+## Synopsis
+
+```bash
+profclaw version [flags]
+profclaw --version
+```
+
+## Description
+
+`version` prints the installed version of the profClaw CLI. With `--server`, it also queries the running server for its version, deployment mode, and build metadata. Use this to confirm versions after an update or when filing a bug report.
+
+## Flags
+
+<ParamField query="--server" type="boolean">
+  Also fetch and display version information from the running profClaw server.
+</ParamField>
+
+<ParamField query="--json" type="boolean">
+  Output version data as JSON.
+</ParamField>
+
+## Examples
+
+<CodeGroup>
+```bash Print CLI version
+profclaw version
+```
+
+```bash Short form
+profclaw --version
+```
+
+```bash Show CLI and server versions
+profclaw version --server
+```
+
+```bash JSON output for scripts
+profclaw version --json
+profclaw version --server --json
+```
+
+```bash Use in scripts
+VERSION=$(profclaw version --json | jq -r '.version')
+echo "Running profClaw $VERSION"
+```
+</CodeGroup>
+
+## Example Output
+
+```
+profClaw v2.0.0
+CLI:    2.0.0
+Node:   v22.11.0
+```
+
+With `--server`:
+
+```
+profClaw v2.0.0
+CLI:    2.0.0
+Server: 2.0.0
+Mode:   mini
+Node:   v22.11.0
+```
+
+## Related
+
+- [`profclaw update`](/cli/update) - Update to a newer version
+- [`profclaw doctor`](/cli/doctor) - Full environment health check
+- [`profclaw status`](/cli/status) - System status including version
