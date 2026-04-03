@@ -135,6 +135,21 @@ async function* streamAgenticChat(
     signal: options.signal,
   });
 
+  // Capture rate limit headers from the initial response for monitoring
+  const rateLimitHeaders: Record<string, string> = {};
+  const rateLimitHeaderNames = [
+    'x-ratelimit-limit-requests',
+    'x-ratelimit-remaining-requests',
+    'x-ratelimit-limit-tokens',
+    'x-ratelimit-remaining-tokens',
+    'x-ratelimit-reset-requests',
+    'x-ratelimit-reset-tokens',
+  ];
+  for (const name of rateLimitHeaderNames) {
+    const value = response.headers.get(name);
+    if (value !== null) rateLimitHeaders[name] = value;
+  }
+
   if (!response.ok) {
     const text = await response.text().catch(() => '');
     let errorMsg = `HTTP ${response.status}`;
@@ -150,7 +165,7 @@ async function* streamAgenticChat(
     }
     yield {
       type: 'error',
-      data: { message: errorMsg },
+      data: { message: errorMsg, statusCode: response.status, rateLimitHeaders },
       timestamp: Date.now(),
     };
     return;
@@ -206,6 +221,7 @@ async function* streamAgenticChat(
                 data: {
                   usage: parsed.usage,
                   finishReason: parsed.finishReason,
+                  rateLimitHeaders: Object.keys(rateLimitHeaders).length > 0 ? rateLimitHeaders : undefined,
                 },
                 timestamp: Date.now(),
               };

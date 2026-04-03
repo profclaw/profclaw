@@ -26,6 +26,8 @@ import {
   type PermissionLevel,
 } from './components/PermissionPrompt.js';
 import type { ChatMessage } from '../interactive/types.js';
+import { SuggestionBar } from './components/SuggestionBar.js';
+import type { Suggestion } from '../../agents/prompt-suggestions.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -59,6 +61,7 @@ export interface ChatAppProps {
   pendingPermission?: PendingPermission;
   availableModels?: PickerOption[];
   availableProviders?: PickerOption[];
+  suggestions?: Suggestion[];
   onSubmit: (message: string) => void;
   onPermissionDecision?: (decision: PermissionDecision) => void;
   onCancel?: () => void;
@@ -85,6 +88,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { name: '/sessions', description: 'List recent conversations', hasSubPicker: false, immediate: true },
   { name: '/resume', description: 'Resume a session by id prefix', hasSubPicker: false, immediate: false },
   { name: '/status', description: 'Server and provider health', hasSubPicker: false, immediate: true },
+  { name: '/insights', description: 'Session and server usage analytics', hasSubPicker: false, immediate: true },
   { name: '/run', description: 'Execute a shell command', hasSubPicker: false, immediate: false },
   { name: '/retry', description: 'Retry last message', hasSubPicker: false, immediate: true },
   { name: '/diff', description: 'Show unified diff of all file changes this session', hasSubPicker: false, immediate: true },
@@ -117,6 +121,7 @@ export const ChatApp: React.FC<ChatAppProps> = ({
   pendingPermission,
   availableModels = [],
   availableProviders = [],
+  suggestions = [],
   onSubmit,
   onPermissionDecision,
   onCancel,
@@ -483,6 +488,17 @@ export const ChatApp: React.FC<ChatAppProps> = ({
           </Box>
         );
       })()}
+
+      {/* Prompt suggestions shown after the last assistant response */}
+      {suggestions.length > 0 && !isStreaming && pickerMode === 'none' && (
+        <SuggestionBar
+          suggestions={suggestions}
+          isActive={pendingPermission === undefined && !isStreaming && pickerMode === 'none'}
+          onSelect={(text) => {
+            onSubmit(text);
+          }}
+        />
+      )}
 
       {/* Accumulated multiline lines displayed above the active input line */}
       {isMultiline && multilineLines.length > 0 && (

@@ -12,6 +12,9 @@ import { api } from '../utils/api.js';
 import { error, success, spinner, info } from '../utils/output.js';
 import { getSessionDiffTracker } from '../../agents/session-diff.js';
 import { getFileSnapshotManager } from '../../agents/file-snapshots.js';
+import { getPromptSuggestionEngine } from '../../agents/prompt-suggestions.js';
+import { getRateLimitMonitor } from '../../agents/rate-limit-monitor.js';
+import { getErrorRecoveryAdvisor } from '../../agents/error-recovery.js';
 
 // === Types ===
 
@@ -340,6 +343,7 @@ async function startTUI(options: ChatOptions): Promise<void> {
   let tokensUsed = 0;
   let estimatedCost = 0;
   const tokensMax = 100_000;
+  const sessionStartTime = Date.now();
   let agentStatus: AgentStatusState = 'idle';
   let agentAction: string | undefined;
   let stepCount = 0;
@@ -348,6 +352,7 @@ async function startTUI(options: ChatOptions): Promise<void> {
   let conversationId: string | undefined;
   let lastUserMessage = '';
   let lastAssistantContent = '';
+  let currentSuggestions: Array<{ text: string; category: 'follow-up' | 'deeper' | 'related' | 'action' }> = [];
   let rerenderFn: (() => void) | null = null;
   let activeAbort: AbortController | null = null;
 
@@ -927,6 +932,7 @@ async function startTUI(options: ChatOptions): Promise<void> {
           '  `/compact` — Compact context (summarize old turns)',
           '  `/compact --llm` — Compact using LLM for richer summary',
           '  `/status` — Server and provider health',
+          '  `/insights` — Session and server usage analytics',
           '  `/run <cmd>` — Execute a shell command',
           '  `/copy` — Copy last assistant message to clipboard',
           '  `/save <path>` — Save last assistant message to a file',
@@ -934,6 +940,54 @@ async function startTUI(options: ChatOptions): Promise<void> {
           '  `/retry [model]` — Retry last message (optionally with different model)',
           '  `/help` — Show this help',
           '  `/exit` — Quit',
+        ].join('\n'));
+        return true;
+      }
+
+      case 'insights':
+      case 'stats': {
+        const sessionDuration = Date.now() - sessionStartTime;
+        const toolCallCount = messages.filter((m) => m.content.includes('⚙')).length;
+        const tokenStr = tokensUsed >= 1_000
+          ? `${(tokensUsed / 1000).toFixed(1)}K`
+          : String(tokensUsed);
+        const costStr = `$${(estimatedCost).toFixed(4)}`;
+        const durationStr = sessionDuration < 60_000
+          ? `${Math.floor(sessionDuration / 1000)}s`
+          : `${Math.floor(sessionDuration / 60_000)}m ${Math.floor((sessionDuration % 60_000) / 1000)}s`;
+
+        agentStatus = 'thinking';
+        agentAction = 'Fetching server stats...';
+        rerender();
+
+        interface ServerStatsPayload {
+          totalTasks?: number;
+          activeSessions?: number;
+          uptime?: string;
+        }
+
+        const serverStatsRes = await api.get<ServerStatsPayload>('/api/stats').catch(() => null);
+        const serverStats: ServerStatsPayload | undefined = serverStatsRes?.data;
+
+        agentStatus = 'idle';
+        agentAction = undefined;
+
+        pushInfo([
+          '**Session Insights**',
+          '',
+          `  Messages:      ${messages.length}`,
+          `  Tokens used:   ${tokenStr}`,
+          `  Est. cost:     ${costStr}`,
+          `  Duration:      ${durationStr}`,
+          `  Tool calls:    ${toolCallCount}`,
+          `  Model:         ${currentModel} via ${currentProvider}`,
+          `  Mode:          ${agenticMode ? 'agentic' : 'chat'}`,
+          '',
+          '**Server Stats**',
+          '',
+          `  Total tasks:    ${serverStats?.totalTasks ?? 'N/A'}`,
+          `  Active sessions:${serverStats?.activeSessions ?? 'N/A'}`,
+          `  Uptime:         ${serverStats?.uptime ?? 'N/A'}`,
         ].join('\n'));
         return true;
       }
@@ -963,6 +1017,7 @@ async function startTUI(options: ChatOptions): Promise<void> {
     }
 
     messages.push({ role: 'user', content: userMessage, timestamp: new Date() });
+    currentSuggestions = [];
     agentStatus = 'thinking';
     agentAction = 'Connecting...';
     streamingContent = '';
@@ -992,6 +1047,7 @@ async function startTUI(options: ChatOptions): Promise<void> {
 
     let assistantStarted = false;
     let accumulatedContent = '';
+    const toolsUsedThisTurn: string[] = [];
 
     try {
       for await (const event of streamChat(serverConfig, {
@@ -1068,6 +1124,7 @@ async function startTUI(options: ChatOptions): Promise<void> {
             agentStatus = 'executing';
             const toolName = (event.data.name as string) || (event.data.toolName as string) || 'tool';
             const toolArgs = (event.data.arguments as Record<string, unknown>) || {};
+            toolsUsedThisTurn.push(toolName);
             agentAction = `Using ${toolName}`;
             stepCount++;
 
@@ -1165,6 +1222,55 @@ async function startTUI(options: ChatOptions): Promise<void> {
             agentStatus = 'complete';
             agentAction = undefined;
             elapsedMs = Date.now() - startTime;
+
+            // Generate prompt suggestions for display in SuggestionBar
+            if (accumulatedContent) {
+              const suggestionEngine = getPromptSuggestionEngine();
+              currentSuggestions = suggestionEngine.generateSuggestions({
+                lastUserMessage: lastUserMessage,
+                lastAssistantResponse: accumulatedContent,
+                toolsUsed: toolsUsedThisTurn,
+                conversationLength: messages.length,
+              });
+            } else {
+              currentSuggestions = [];
+            }
+
+            // Update rate limit state from response headers if provided
+            const rlHeaders = event.data.rateLimitHeaders as Record<string, string> | undefined;
+            if (rlHeaders && currentProvider !== 'auto') {
+              const rateLimitMonitor = getRateLimitMonitor();
+              rateLimitMonitor.updateFromHeaders(currentProvider, rlHeaders);
+
+              // Show rate limit warning below the response if thresholds are crossed
+              const warnResult = rateLimitMonitor.shouldWarn(currentProvider);
+              if (warnResult.warn) {
+                const warnColor = warnResult.level === 'critical'
+                  ? chalk.red
+                  : warnResult.level === 'warning'
+                    ? chalk.yellow
+                    : chalk.dim;
+                messages.push({
+                  role: 'assistant',
+                  content: warnColor(warnResult.message),
+                  timestamp: new Date(),
+                });
+
+                // Suggest an alternative provider if approaching limits
+                const knownProviders = availableProviders
+                  .filter(p => !p.disabled)
+                  .map(p => p.value);
+                const suggestion = rateLimitMonitor.suggestAlternative(currentProvider, knownProviders);
+                if (suggestion) {
+                  messages.push({
+                    role: 'assistant',
+                    content: chalk.dim(`Tip: switch to ${suggestion} with /provider ${suggestion}`),
+                    timestamp: new Date(),
+                  });
+                }
+              }
+            }
+
             rerender();
 
             // Return to idle
@@ -1177,9 +1283,43 @@ async function startTUI(options: ChatOptions): Promise<void> {
 
           case 'error': {
             const errMsg = (event.data.message as string) || 'Unknown error';
+            const errStatusCode = event.data.statusCode as number | undefined;
+            const errRlHeaders = event.data.rateLimitHeaders as Record<string, string> | undefined;
+
+            // Update rate limit state even on error responses (headers may still be present)
+            if (errRlHeaders && currentProvider !== 'auto') {
+              getRateLimitMonitor().updateFromHeaders(currentProvider, errRlHeaders);
+            }
+
+            // Get recovery suggestions from the error recovery advisor
+            const knownProviders = availableProviders
+              .filter(p => !p.disabled)
+              .map(p => p.value);
+            const recoveryActions = getErrorRecoveryAdvisor().advise(
+              {
+                message: errMsg,
+                provider: currentProvider,
+                model: currentModel,
+                statusCode: errStatusCode,
+              },
+              {
+                availableProviders: knownProviders,
+                retryCount: 0,
+                maxRetries: 3,
+              },
+            );
+
+            // Build the error message with recovery suggestions appended
+            const suggestionLines = recoveryActions
+              .slice(0, 3)
+              .map(a => chalk.dim(`  • ${a.description}`));
+            const fullErrContent = suggestionLines.length > 0
+              ? `**Error:** ${errMsg}\n\n${chalk.dim('Suggestions:')}\n${suggestionLines.join('\n')}`
+              : `**Error:** ${errMsg}`;
+
             messages.push({
               role: 'assistant',
-              content: `**Error:** ${errMsg}`,
+              content: fullErrContent,
               timestamp: new Date(),
             });
             streamingContent = undefined;
@@ -1243,6 +1383,7 @@ async function startTUI(options: ChatOptions): Promise<void> {
       elapsedMs,
       messages: [...messages],
       streamingContent,
+      suggestions: [...currentSuggestions],
       availableModels,
       availableProviders,
       onSubmit: (msg: string) => { void handleSubmit(msg); },
