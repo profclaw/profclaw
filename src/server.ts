@@ -21,6 +21,10 @@ import { getRouteDefinitionsForMode, registerRouteModules } from './server/route
 
 const VERSION = '2.0.0';
 
+// Module-level startup state flags
+let degradedMode = false;
+let inMemoryStorageReminderInterval: ReturnType<typeof setInterval> | null = null;
+
 interface SettingsYaml {
   server: {
     port: number;
@@ -115,6 +119,14 @@ app.use(
 // Skips public routes (auth, setup, webhooks, messaging channels)
 app.use('/api/*', authMiddleware());
 
+// WS-1.4: In-memory storage warning header — set on every response when storage is ephemeral
+app.use('*', async (c, next) => {
+  await next();
+  if (degradedMode) {
+    c.res.headers.set('X-ProfClaw-Storage', 'ephemeral');
+  }
+});
+
 // HTTP rate limiting (sliding window, per-IP)
 const apiRateLimiter = rateLimit({
   maxRequests: parseInt(process.env['API_RATE_LIMIT'] ?? '100', 10),
@@ -147,6 +159,28 @@ app.get('/health', async (c) => {
 
 // API info (mode-aware)
 app.get('/', async (c) => {
+  // WS-1.3: First-run setup redirect — send to /setup when no admin users exist
+  try {
+    const [{ getDb }, { users }, { eq }] = await Promise.all([
+      import('./storage/index.js'),
+      import('./storage/schema.js'),
+      import('drizzle-orm'),
+    ]);
+    const db = getDb();
+    if (db) {
+      const adminCount = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.role, 'admin'))
+        .limit(1);
+      if (adminCount.length === 0) {
+        return c.redirect('/setup', 302);
+      }
+    }
+  } catch {
+    // DB may not be ready; fall through to normal response
+  }
+
   // If UI is built and web_ui capability is enabled, serve the dashboard
   if (hasCapability('web_ui')) {
     const { existsSync } = await import('node:fs');
@@ -527,6 +561,8 @@ app.post('/api/plugins/:id/toggle', async (c) => {
 
 // === Server Startup ===
 
+const MAX_PORT_ATTEMPTS = 3;
+
 function checkPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const server = createServer();
@@ -541,6 +577,17 @@ function checkPortAvailable(port: number): Promise<boolean> {
   });
 }
 
+async function resolvePort(startPort: number): Promise<number | null> {
+  for (let offset = 0; offset < MAX_PORT_ATTEMPTS; offset++) {
+    const candidate = startPort + offset;
+    const available = await checkPortAvailable(candidate);
+    if (available) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
 async function main() {
   // Only start IF we are the main module actually being executed
   const isMain = process.argv[1]?.endsWith('server.ts') || process.argv[1]?.endsWith('server.js');
@@ -549,15 +596,21 @@ async function main() {
   }
   const mode = getMode();
   const appSettings = getAppSettings();
-  const PORT = getPort();
+  const configuredPort = getPort();
   const ENABLE_CRON = isCronEnabled();
   appLog.info('profClaw starting', { version: VERSION, mode: getModeLabel() });
 
-  // Early port conflict detection
-  const portAvailable = await checkPortAvailable(PORT);
-  if (!portAvailable) {
-    appLog.error(`Port ${PORT} is already in use`, new Error(`EADDRINUSE: Port ${PORT}`));
+  // Bind-or-retry: find an available port
+  const PORT = await resolvePort(configuredPort);
+  if (PORT === null) {
+    appLog.error(
+      `All ports ${configuredPort}–${configuredPort + MAX_PORT_ATTEMPTS - 1} are in use`,
+      new Error(`EADDRINUSE: ports ${configuredPort}-${configuredPort + MAX_PORT_ATTEMPTS - 1}`)
+    );
     process.exit(1);
+  }
+  if (PORT !== configuredPort) {
+    appLog.warn(`Port ${configuredPort} in use, started on port ${PORT}`);
   }
 
   // Validate environment variables (fail fast if critical vars missing)
@@ -644,6 +697,15 @@ async function main() {
   } catch (error) {
     appLog.error('Failed to initialize task queue', error instanceof Error ? error : new Error(String(error)));
     appLog.warn('Tasks will not be processed');
+  }
+
+  // Register SSE broadcaster for agent summary updates
+  try {
+    const { getAgentSummaryTracker } = await import('./agents/agent-summary.js');
+    getAgentSummaryTracker().registerSSEBroadcaster(broadcastEvent);
+    appLog.info('Agent summary SSE broadcaster registered');
+  } catch (error) {
+    appLog.error('Failed to register agent summary broadcaster', error instanceof Error ? error : new Error(String(error)));
   }
 
   // Initialize sync engine (pro mode or if explicitly configured)
@@ -764,6 +826,37 @@ async function main() {
       }
     } catch {
       // Ollama not running
+    }
+  }
+
+  // WS-1.2: Provider validation — warn (or exit in strict mode) when no AI adapters are configured
+  if (registry.getActiveAdapters().length === 0) {
+    appLog.warn(
+      'No AI providers configured. Run `profclaw setup` or set ANTHROPIC_API_KEY / OPENAI_API_KEY',
+    );
+    if (process.env.PROFCLAW_STRICT_MODE === 'true') {
+      appLog.error('Strict mode enabled: refusing to start without an AI provider');
+      process.exit(1);
+    }
+    degradedMode = true;
+  }
+
+  // WS-1.4: In-memory storage — warn on startup and remind every 60 seconds
+  {
+    const { isStorageInMemory } = await import('./storage/index.js');
+    if (isStorageInMemory()) {
+      degradedMode = true;
+      appLog.warn('╔══════════════════════════════════════════════════════════╗');
+      appLog.warn('║  WARNING: Running with in-memory storage (ephemeral)     ║');
+      appLog.warn('║  All data will be lost when the server restarts.         ║');
+      appLog.warn('║  Set STORAGE_TIER=local or DATABASE_URL to persist data. ║');
+      appLog.warn('╚══════════════════════════════════════════════════════════╝');
+
+      inMemoryStorageReminderInterval = setInterval(() => {
+        appLog.warn('Reminder: server is running with ephemeral in-memory storage — data will not survive a restart');
+      }, 60_000);
+      // Allow Node to exit cleanly without waiting for this interval
+      inMemoryStorageReminderInterval.unref();
     }
   }
 
@@ -906,7 +999,13 @@ async function gracefulShutdown(signal: string): Promise<void> {
   clearInterval(sseCleanupInterval);
   appLog.info('SSE connections closed');
 
-  // 2. Stop cron jobs
+  // 2. Stop in-memory storage reminder interval
+  if (inMemoryStorageReminderInterval !== null) {
+    clearInterval(inMemoryStorageReminderInterval);
+    inMemoryStorageReminderInterval = null;
+  }
+
+  // 3. Stop cron jobs
   try {
     const { stopAllCronJobs } = await import('./cron/index.js');
     stopAllCronJobs();
@@ -915,7 +1014,7 @@ async function gracefulShutdown(signal: string): Promise<void> {
     // Cron may not be initialized
   }
 
-  // 3. Drain task queue
+  // 4. Drain task queue
   try {
     const { closeQueue } = await import('./queue/index.js');
     await closeQueue();
@@ -924,7 +1023,7 @@ async function gracefulShutdown(signal: string): Promise<void> {
     // Queue may not be initialized
   }
 
-  // 4. Destroy HTTP rate limiters
+  // 5. Destroy HTTP rate limiters
   try {
     apiRateLimiter.destroy();
     authRateLimiter.destroy();

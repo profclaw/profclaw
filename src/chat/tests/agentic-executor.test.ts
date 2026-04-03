@@ -15,11 +15,14 @@ import { z } from 'zod';
 
 const mocks = vi.hoisted(() => {
   const mockAgentRun = vi.fn();
+  const mockAgentStream = vi.fn(async function* () { /* default: no-op stream */ });
+  const mockAgentGetState = vi.fn();
   const mockAgentOn = vi.fn();
   const AgentExecutorCtor = vi.fn().mockImplementation(() => ({
     run: mockAgentRun,
+    stream: mockAgentStream,
     on: mockAgentOn,
-    getState: vi.fn(),
+    getState: mockAgentGetState,
   }));
 
   const mockResolveModel = vi.fn();
@@ -47,6 +50,8 @@ const mocks = vi.hoisted(() => {
 
   return {
     mockAgentRun,
+    mockAgentStream,
+    mockAgentGetState,
     mockAgentOn,
     AgentExecutorCtor,
     mockResolveModel,
@@ -134,6 +139,25 @@ vi.mock('../../providers/schema-utils.js', () => ({
 
 vi.mock('../../agents/index.js', () => ({
   AgentExecutor: mocks.AgentExecutorCtor,
+}));
+
+// Mock the SSE bridge so tests don't depend on server state.
+// bridgeStreamToSSE is mocked to consume the stream (so agent.stream() is
+// called and event-handler side effects fire) without touching real SSE connections.
+vi.mock('../../server/stream-bridge.js', () => ({
+  bridgeStreamToSSE: async (
+    stream: AsyncGenerator<unknown>,
+    _broadcaster: unknown,
+    _sessionId: string,
+  ) => {
+    // Exhaust the stream so state mutations inside stream() still run
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const _event of stream) { /* consumed */ }
+  },
+}));
+
+vi.mock('../../server.js', () => ({
+  broadcastEvent: vi.fn(),
 }));
 
 vi.mock('../failover/index.js', () => ({
@@ -229,11 +253,14 @@ function resetMocks() {
   // creates a fresh instance object referencing the shared mock fns on each call.
   mocks.mockAgentOn.mockImplementation(() => {});
   mocks.mockAgentRun.mockResolvedValue(makeAgentState());
+  mocks.mockAgentGetState.mockReturnValue(makeAgentState());
+  mocks.mockAgentStream.mockImplementation(async function* () { /* no-op stream */ });
   mocks.AgentExecutorCtor.mockImplementation(function () {
     return {
       run: mocks.mockAgentRun,
+      stream: mocks.mockAgentStream,
       on: mocks.mockAgentOn,
-      getState: vi.fn(),
+      getState: mocks.mockAgentGetState,
     };
   });
   mocks.mockResolveModel.mockImplementation(() => {
@@ -610,11 +637,11 @@ describe('streamAgenticChat', () => {
       return makeFallbackResult(state);
     });
 
-    mocks.mockAgentRun.mockImplementation(async () => {
+    mocks.mockAgentStream.mockImplementation(async function* () {
       handlers['step:start']?.({ currentStep: 1, usedBudget: 50, maxBudget: 50000 });
       handlers['step:complete']?.({ currentStep: 1, usedBudget: 100, maxBudget: 50000 }, { text: 'Step done.' });
-      return state;
     });
+    mocks.mockAgentGetState.mockReturnValue(state);
 
     const events = await collectEvents(makeBaseRequest() as StreamAgenticChatRequest);
 
@@ -636,7 +663,7 @@ describe('streamAgenticChat', () => {
       return makeFallbackResult(state);
     });
 
-    mocks.mockAgentRun.mockImplementation(async () => {
+    mocks.mockAgentStream.mockImplementation(async function* () {
       handlers['tool:call']?.({ currentStep: 1 }, { id: 'tc-1', name: 'list_files', args: {} });
       handlers['tool:result']?.({ currentStep: 1 }, {
         id: 'tc-1',
@@ -646,8 +673,8 @@ describe('streamAgenticChat', () => {
         startedAt: Date.now(),
         completedAt: Date.now(),
       });
-      return state;
     });
+    mocks.mockAgentGetState.mockReturnValue(state);
 
     const events = await collectEvents(makeBaseRequest() as StreamAgenticChatRequest);
 
@@ -673,7 +700,8 @@ describe('streamAgenticChat', () => {
         attempts: [{ provider: 'anthropic', model: 'claude-sonnet-4-5', error: 'rate limit' }],
       };
     });
-    mocks.mockAgentRun.mockResolvedValue(state);
+    mocks.mockAgentStream.mockImplementation(async function* () { /* no-op */ });
+    mocks.mockAgentGetState.mockReturnValue(state);
 
     const events = await collectEvents(makeBaseRequest() as StreamAgenticChatRequest);
 
@@ -694,11 +722,11 @@ describe('streamAgenticChat', () => {
       return makeFallbackResult(state);
     });
 
-    mocks.mockAgentRun.mockImplementation(async () => {
+    mocks.mockAgentStream.mockImplementation(async function* () {
       handlers['step:start']?.({ currentStep: 1, usedBudget: 0, maxBudget: 50000 });
       handlers['step:complete']?.({ currentStep: 1, usedBudget: 50, maxBudget: 50000 }, { text: 'Done.' });
-      return state;
     });
+    mocks.mockAgentGetState.mockReturnValue(state);
 
     const request: StreamAgenticChatRequest = {
       ...makeBaseRequest(),
@@ -724,11 +752,11 @@ describe('streamAgenticChat', () => {
       return makeFallbackResult(state);
     });
 
-    mocks.mockAgentRun.mockImplementation(async () => {
+    mocks.mockAgentStream.mockImplementation(async function* () {
       handlers['step:start']?.({ currentStep: 1, usedBudget: 0, maxBudget: 50000 });
       handlers['step:complete']?.({ currentStep: 1, usedBudget: 50, maxBudget: 50000 }, { text: 'Done.' });
-      return state;
     });
+    mocks.mockAgentGetState.mockReturnValue(state);
 
     const request: StreamAgenticChatRequest = {
       ...makeBaseRequest(),
@@ -779,7 +807,7 @@ describe('streamAgenticChat', () => {
     const startedAt = Date.now() - 200;
     const completedAt = Date.now();
 
-    mocks.mockAgentRun.mockImplementation(async () => {
+    mocks.mockAgentStream.mockImplementation(async function* () {
       handlers['tool:result']?.({ currentStep: 1 }, {
         id: 'tc-1',
         name: 'search',
@@ -788,8 +816,8 @@ describe('streamAgenticChat', () => {
         startedAt,
         completedAt,
       });
-      return state;
     });
+    mocks.mockAgentGetState.mockReturnValue(state);
 
     const events = await collectEvents(makeBaseRequest() as StreamAgenticChatRequest);
 
@@ -913,15 +941,16 @@ describe('toolHandler.executeTool integration', () => {
       return makeFallbackResult(state);
     });
 
-    mocks.mockAgentRun.mockImplementation(async (
+    // Capture onToolExecute from the stream() call (4th argument)
+    mocks.mockAgentStream.mockImplementation(async function* (
       _model: unknown,
       _messages: unknown,
       _tools: unknown,
       onToolExecute: (name: string, args: Record<string, unknown>) => Promise<unknown>
-    ) => {
+    ) {
       capturedOnToolExecute = onToolExecute;
-      return state;
     });
+    mocks.mockAgentGetState.mockReturnValue(state);
 
     await executeAgenticChat(makeBaseRequest({ toolHandler: toolHandler as unknown as AgenticChatRequest['toolHandler'] }));
 
@@ -947,15 +976,16 @@ describe('toolHandler.executeTool integration', () => {
       return makeFallbackResult(state);
     });
 
-    mocks.mockAgentRun.mockImplementation(async (
+    // Capture onToolExecute from the stream() call (4th argument)
+    mocks.mockAgentStream.mockImplementation(async function* (
       _model: unknown,
       _messages: unknown,
       _tools: unknown,
       onToolExecute: (name: string, args: Record<string, unknown>) => Promise<unknown>
-    ) => {
+    ) {
       capturedOnToolExecute = onToolExecute;
-      return state;
     });
+    mocks.mockAgentGetState.mockReturnValue(state);
 
     await executeAgenticChat(makeBaseRequest({ toolHandler: toolHandler as unknown as AgenticChatRequest['toolHandler'] }));
 

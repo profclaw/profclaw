@@ -30,7 +30,22 @@ import type {
 } from "./types.js";
 import { EFFORT_BUDGET_MAP } from "./types.js";
 import { defaultStopConditions, taskCompleted } from "./stop-conditions.js";
+import { ToolCircuitBreaker } from "./circuit-breaker.js";
 import { logger } from "../utils/logger.js";
+import { ResultStore } from "./result-store.js";
+import type { AgentEvent } from "./events.js";
+import { getAgentSummaryTracker } from "./agent-summary.js";
+import { getHookRegistry } from "../hooks/registry.js";
+import type { HookRegistry } from "../hooks/registry.js";
+import { ContextCompactor } from "./context-compactor.js";
+
+// Types
+
+/** Handler called by the executor to execute a tool by name */
+export type ToolExecuteHandler = (
+  name: string,
+  args: Record<string, unknown>,
+) => Promise<unknown>;
 
 // Default Configuration
 
@@ -181,6 +196,10 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
   private config: Required<AgentConfig>;
   private abortController: AbortController;
   private isRunning: boolean = false;
+  private resultStore: ResultStore;
+  private circuitBreaker: ToolCircuitBreaker = new ToolCircuitBreaker();
+  private hooks: HookRegistry;
+  private compactor: ContextCompactor;
 
   constructor(
     sessionId: string,
@@ -191,6 +210,12 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
     super();
     this.abortController = new AbortController();
     this.config = { ...DEFAULT_CONFIG, ...config };
+    this.resultStore = new ResultStore(sessionId);
+    this.hooks = getHookRegistry();
+    this.compactor = new ContextCompactor({
+      maxContextTokens: this.config.maxBudget,
+      compactionThreshold: Math.floor(this.config.maxBudget * 0.7),
+    });
 
     // Ensure taskCompleted is always included in stop conditions
     if (!this.config.stopConditions.some((c) => c.name === "taskCompleted")) {
@@ -221,25 +246,29 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
       maxSteps: this.config.maxSteps,
       maxBudget: this.config.maxBudget,
     });
+
+    // Register this session with the summary tracker
+    getAgentSummaryTracker().start(sessionId);
   }
 
   // Public API
 
   /**
-   * Run the agent until completion or stop condition.
-   * Uses AI SDK's native multi-step execution — a single generateText call
-   * with stopWhen + onStepFinish replaces the old manual loop.
+   * Async generator that streams agent events as they happen.
+   *
+   * Yields AgentEvent values in real time: session:start, step:start,
+   * tool:call, tool:result/tool:error, content, cost:update, step:complete,
+   * and finally session:complete, session:error, or session:abort.
+   *
+   * This is the canonical implementation; run() delegates here.
    */
-  async run(
+  async *stream(
     model: LanguageModel,
     messages: ModelMessage[],
     tools: ExecutorTools,
-    onToolExecute?: (
-      name: string,
-      args: Record<string, unknown>,
-    ) => Promise<unknown>,
+    onToolExecute?: ToolExecuteHandler,
     providerHint?: string,
-  ): Promise<AgentState> {
+  ): AsyncGenerator<AgentEvent> {
     if (this.isRunning) {
       throw new Error("Agent is already running");
     }
@@ -249,159 +278,314 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
     this.state.updatedAt = Date.now();
     this.emit("start", this.state);
 
-    logger.info("[AgentExecutor] Starting agent run", {
+    logger.info("[AgentExecutor] Starting agent stream", {
       sessionId: this.state.sessionId,
       goal: this.state.goal,
     });
 
-    try {
-      // Inject failure hint if applicable (from prior runs / retries)
-      this.injectFailureHint(messages);
+    // --- Async event channel ---
+    // onStepFinish is a synchronous callback inside generateText. We bridge it
+    // into the async generator by queuing events and signalling the consumer.
+    const queue: AgentEvent[] = [];
+    let resolveNext: (() => void) | undefined;
+    let generateDone = false;
+    let generateError: Error | undefined;
 
-      // Wire execute functions into tools so the SDK can auto-execute them
-      const executableTools = this.wrapToolsWithExecute(tools, onToolExecute);
+    const push = (event: AgentEvent): void => {
+      queue.push(event);
+      if (resolveNext) {
+        const r = resolveNext;
+        resolveNext = undefined;
+        r();
+      }
+    };
 
-      const hasTools = Object.keys(executableTools).length > 0;
+    // Yield session:start immediately
+    push({
+      type: 'session:start',
+      sessionId: this.state.sessionId,
+      config: {
+        maxSteps: this.config.maxSteps,
+        maxBudget: this.config.maxBudget,
+        effort: this.config.effort,
+        securityMode: this.config.securityMode,
+        stepTimeoutMs: this.config.stepTimeoutMs,
+      },
+    });
 
-      // Build provider-specific options (e.g. Anthropic thinking/effort)
-      const providerOptions = this.buildProviderOptions(providerHint);
+    // Run generateText in the background, pushing events via push()
+    const generatePromise = (async () => {
+      try {
+        // Fire onSessionStart hook
+        await this.hooks.run('onSessionStart', {
+          hookPoint: 'onSessionStart',
+          sessionId: this.state.sessionId,
+          metadata: {},
+        });
 
-      // Single generateText call — the SDK handles multi-step chaining
-      const result = await generateText<ExecutorTools>({
-        model,
-        messages,
-        tools: hasTools ? executableTools : undefined,
-        ...(providerOptions ? { providerOptions } : {}),
-        stopWhen: [
-          sdkStepCountIs(this.config.maxSteps),
-          sdkHasToolCall("complete_task"),
-        ] as AiSdkStopCondition<ExecutorTools>[],
-        abortSignal: this.abortController.signal,
-        onStepFinish: (step: ExecutorStep) => {
-          this.state.currentStep++;
-          this.state.updatedAt = Date.now();
+        this.injectFailureHint(messages);
 
-          // Track token budget (AI SDK v6 uses inputTokens/outputTokens)
-          const stepInput = getUsageInputTokens(step.usage);
-          const stepOutput = getUsageOutputTokens(step.usage);
-          const tokensUsed = stepInput + stepOutput;
-          this.state.usedBudget += tokensUsed;
-          this.state.inputTokensUsed += stepInput;
-          this.state.outputTokensUsed += stepOutput;
+        // Use the streaming-aware wrapper so tool events are pushed in real time
+        const executableTools = this.wrapToolsWithExecuteAndEvents(
+          tools,
+          onToolExecute,
+          push,
+        );
 
-          // Store text response for summary extraction
-          if (step.text) {
-            this.state.context.lastTextResponse = step.text;
-          }
+        // Compact context before the API call if messages are large
+        const compactionResult = await this.compactor.compact(messages);
+        if (compactionResult.compacted) {
+          logger.info("[AgentExecutor] Context compacted before API call", {
+            originalTokens: compactionResult.originalTokens,
+            compactedTokens: compactionResult.compactedTokens,
+            turnsCompacted: compactionResult.turnsCompacted,
+          });
+          messages = compactionResult.messages;
+        }
 
-          // Record tool calls in history
-          for (const tc of step.toolCalls ?? []) {
-            const record: ToolCallRecord = {
-              id: tc.toolCallId ?? randomUUID(),
-              name: tc.toolName,
-              args: getToolCallInput(tc),
-              status: "pending",
-              startedAt: Date.now(),
-            };
+        const hasTools = Object.keys(executableTools).length > 0;
+        const providerOptions = this.buildProviderOptions(providerHint);
 
-            // Find the matching tool result
-            const tr = (step.toolResults ?? []).find(
-              (toolResult) => toolResult.toolCallId === tc.toolCallId,
-            );
+        const result = await generateText<ExecutorTools>({
+          model,
+          messages,
+          tools: hasTools ? executableTools : undefined,
+          ...(providerOptions ? { providerOptions } : {}),
+          stopWhen: [
+            sdkStepCountIs(this.config.maxSteps),
+            sdkHasToolCall("complete_task"),
+          ] as AiSdkStopCondition<ExecutorTools>[],
+          abortSignal: this.abortController.signal,
+          onStepFinish: (step: ExecutorStep) => {
+            const stepIndex = this.state.currentStep;
+            push({ type: 'step:start', stepIndex });
 
-            if (tr) {
-              record.result = getToolResultOutput(tr);
-              record.completedAt = Date.now();
+            this.state.currentStep++;
+            this.state.updatedAt = Date.now();
 
-              // Check if the tool result indicates a failure
-              if (typeof record.result === "object" && record.result !== null) {
-                const resultObj = record.result as Record<string, unknown>;
-                const isPending = resultObj.pending === true;
-                const hasError = Boolean(resultObj.error);
-                const isFailure = resultObj.success === false || hasError;
+            const stepInput = getUsageInputTokens(step.usage);
+            const stepOutput = getUsageOutputTokens(step.usage);
+            const tokensUsed = stepInput + stepOutput;
+            this.state.usedBudget += tokensUsed;
+            this.state.inputTokensUsed += stepInput;
+            this.state.outputTokensUsed += stepOutput;
 
-                if (isPending) {
-                  record.status = "pending";
-                } else if (isFailure) {
-                  record.status = "failed";
-                  record.error =
-                    (resultObj.error as string) ||
-                    "Tool returned unsuccessful result";
+            // Update summary tracker with step progress
+            getAgentSummaryTracker().update(this.state.sessionId, {
+              status: 'thinking',
+              stepCount: this.state.currentStep,
+              tokensUsed: this.state.usedBudget,
+            });
+
+            push({
+              type: 'cost:update',
+              inputTokens: this.state.inputTokensUsed,
+              outputTokens: this.state.outputTokensUsed,
+              estimatedCost: 0,
+            });
+
+            if (step.text) {
+              this.state.context.lastTextResponse = step.text;
+              push({ type: 'content', text: step.text, delta: step.text });
+            }
+
+            let stepToolCalls = 0;
+            for (const tc of step.toolCalls ?? []) {
+              stepToolCalls++;
+              const record: ToolCallRecord = {
+                id: tc.toolCallId ?? randomUUID(),
+                name: tc.toolName,
+                args: getToolCallInput(tc),
+                status: "pending",
+                startedAt: Date.now(),
+              };
+
+              const tr = (step.toolResults ?? []).find(
+                (toolResult) => toolResult.toolCallId === tc.toolCallId,
+              );
+
+              if (tr) {
+                record.result = getToolResultOutput(tr);
+                record.completedAt = Date.now();
+
+                if (typeof record.result === "object" && record.result !== null) {
+                  const resultObj = record.result as Record<string, unknown>;
+                  const isPending = resultObj.pending === true;
+                  const hasError = Boolean(resultObj.error);
+                  const isFailure = resultObj.success === false || hasError;
+
+                  if (isPending) {
+                    record.status = "pending";
+                  } else if (isFailure) {
+                    record.status = "failed";
+                    record.error =
+                      (resultObj.error as string) ||
+                      "Tool returned unsuccessful result";
+                  } else {
+                    record.status = "executed";
+                  }
                 } else {
                   record.status = "executed";
                 }
-              } else {
-                record.status = "executed";
+              }
+
+              this.state.toolCallHistory.push(record);
+              this.emit("tool:call", this.state, record);
+              this.extractContext(record);
+
+              if (record.status === "executed") {
+                this.emit("tool:result", this.state, record);
               }
             }
 
-            this.state.toolCallHistory.push(record);
-            this.emit("tool:call", this.state, record);
+            this.emit("step:start", this.state);
+            this.emit("step:complete", this.state, step);
 
-            // Extract context from tool results (projects, tickets, etc.)
-            this.extractContext(record);
-
-            if (record.status === "executed") {
-              this.emit("tool:result", this.state, record);
-            }
-          }
-
-          // Emit step events
-          this.emit("step:start", this.state);
-          this.emit("step:complete", this.state, step);
-
-          logger.debug("[AgentExecutor] Step completed", {
-            step: this.state.currentStep,
-            toolCalls: step.toolCalls?.length ?? 0,
-            tokensUsed,
-            text: step.text?.substring(0, 100),
-          });
-
-          // Check custom stop conditions (consecutive failures, same tool repeated, etc.)
-          this.checkCustomStopConditions(step);
-
-          // Budget abort
-          if (this.state.usedBudget >= this.state.maxBudget) {
-            logger.info("[AgentExecutor] Budget exceeded, aborting", {
-              used: this.state.usedBudget,
-              max: this.state.maxBudget,
+            push({
+              type: 'step:complete',
+              stepIndex: this.state.currentStep,
+              toolCalls: stepToolCalls,
+              hasContent: Boolean(step.text),
             });
-            this.abortController.abort();
-          }
-        },
-      });
 
-      // Update budget from total usage (AI SDK v6 uses inputTokens/outputTokens)
-      const totalUsage = result.totalUsage;
-      if (totalUsage) {
-        const totalInput = getUsageInputTokens(totalUsage);
-        const totalOutput = getUsageOutputTokens(totalUsage);
-        // totalUsage is the authoritative sum; overwrite our step-by-step estimate
-        this.state.usedBudget = totalInput + totalOutput;
-        this.state.inputTokensUsed = totalInput;
-        this.state.outputTokensUsed = totalOutput;
-      }
+            logger.debug("[AgentExecutor] Step completed", {
+              step: this.state.currentStep,
+              toolCalls: step.toolCalls?.length ?? 0,
+              tokensUsed,
+              text: step.text?.substring(0, 100),
+            });
 
-      // Store final text from the result (last step's text)
-      if (result.text) {
-        this.state.context.lastTextResponse = result.text;
-      }
+            this.checkCustomStopConditions(step);
 
-      // Finalize
-      this.finalize();
-      return this.state;
-    } catch (error) {
-      if ((error as Error).name === "AbortError") {
-        // Aborted by budget or cancellation — still finalize
-        logger.info("[AgentExecutor] Agent aborted");
+            if (this.state.usedBudget >= this.state.maxBudget) {
+              logger.info("[AgentExecutor] Budget exceeded, aborting", {
+                used: this.state.usedBudget,
+                max: this.state.maxBudget,
+              });
+              this.abortController.abort();
+            }
+          },
+        });
+
+        const totalUsage = result.totalUsage;
+        if (totalUsage) {
+          const totalInput = getUsageInputTokens(totalUsage);
+          const totalOutput = getUsageOutputTokens(totalUsage);
+          this.state.usedBudget = totalInput + totalOutput;
+          this.state.inputTokensUsed = totalInput;
+          this.state.outputTokensUsed = totalOutput;
+        }
+
+        if (result.text) {
+          this.state.context.lastTextResponse = result.text;
+        }
+
         this.finalize();
-        return this.state;
+
+        // Fire onSessionEnd hook after finalization
+        await this.hooks.run('onSessionEnd', {
+          hookPoint: 'onSessionEnd',
+          sessionId: this.state.sessionId,
+          metadata: {},
+        });
+
+        const finalResult = this.state.finalResult ?? {
+          success: false,
+          summary: 'No result',
+          artifacts: [],
+          stopReason: 'unknown',
+          totalSteps: this.state.currentStep,
+          totalTokens: this.state.usedBudget,
+        };
+        push({
+          type: 'session:complete',
+          result: finalResult as unknown as Record<string, unknown>,
+          totalSteps: this.state.currentStep,
+          totalTokens: this.state.usedBudget,
+        });
+      } catch (error) {
+        const err = error as Error;
+        if (err.name === "AbortError") {
+          logger.info("[AgentExecutor] Agent aborted");
+          this.finalize();
+          // Fire onSessionEnd even on abort
+          await this.hooks.run('onSessionEnd', {
+            hookPoint: 'onSessionEnd',
+            sessionId: this.state.sessionId,
+            metadata: { aborted: true },
+          });
+          push({ type: 'session:abort', reason: 'aborted' });
+        } else {
+          generateError = err;
+          // Fire onError hook before emitting the event
+          await this.hooks.run('onError', {
+            hookPoint: 'onError',
+            sessionId: this.state.sessionId,
+            error: err,
+            metadata: {},
+          });
+          // Push the event BEFORE handleError so it is always emitted even if
+          // the EventEmitter 'error' event throws due to missing listener.
+          push({ type: 'session:error', error: err.message, stack: err.stack });
+          try {
+            this.handleError(err);
+          } catch {
+            // Swallow re-throw from EventEmitter if no 'error' listener is attached
+          }
+        }
+      } finally {
+        generateDone = true;
+        this.isRunning = false;
+        if (resolveNext) {
+          const r = resolveNext;
+          resolveNext = undefined;
+          r();
+        }
       }
-      this.handleError(error as Error);
-      throw error;
-    } finally {
-      this.isRunning = false;
+    })();
+
+    // Drain the queue; wait for more events when it is empty
+    while (true) {
+      while (queue.length > 0) {
+        yield queue.shift() as AgentEvent;
+      }
+      if (generateDone) break;
+      await new Promise<void>((resolve) => {
+        resolveNext = resolve;
+      });
     }
+
+    // Drain any remaining events that arrived while we were awaiting
+    while (queue.length > 0) {
+      yield queue.shift() as AgentEvent;
+    }
+
+    // Propagate errors after the consumer has seen all events
+    await generatePromise;
+    if (generateError) {
+      throw generateError;
+    }
+  }
+
+  /**
+   * Run the agent until completion or stop condition.
+   * Uses AI SDK's native multi-step execution — a single generateText call
+   * with stopWhen + onStepFinish replaces the old manual loop.
+   *
+   * Backward-compatible: delegates to stream() and returns the final AgentState.
+   */
+  async run(
+    model: LanguageModel,
+    messages: ModelMessage[],
+    tools: ExecutorTools,
+    onToolExecute?: ToolExecuteHandler,
+    providerHint?: string,
+  ): Promise<AgentState> {
+    // Consume the stream — stream() handles all state mutation and error handling
+    for await (const _event of this.stream(model, messages, tools, onToolExecute, providerHint)) {
+      // Individual events are not needed here; state is updated in-place
+    }
+    return this.state;
   }
 
   /**
@@ -491,14 +675,74 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
     for (const [name, toolDef] of Object.entries(tools)) {
       wrapped[name] = {
         ...toolDef,
-        execute: async (args: Record<string, unknown>) => {
+        execute: async (args: Record<string, unknown>, opts?: { toolCallId?: string }) => {
+          // Circuit breaker check — prevent repeated calls to a failing tool
+          const cbCheck = this.circuitBreaker.canExecute(name);
+          if (!cbCheck.allowed) {
+            logger.warn("[AgentExecutor] Circuit breaker blocked tool call", {
+              tool: name,
+              reason: cbCheck.reason,
+            });
+            return {
+              error: cbCheck.reason ?? `Circuit breaker open for ${name}`,
+              success: false,
+              canRetry: false,
+              suggestion: "Try an alternative approach",
+            };
+          }
+
+          const toolCallId = opts?.toolCallId ?? randomUUID();
+          const timeoutMs = this.config.stepTimeoutMs;
+
+          // Update summary tracker — tool is now executing
+          const summaryTracker = getAgentSummaryTracker();
+          const currentAction = summaryTracker.summarizeToolCall(this.state.sessionId, name, args);
+          summaryTracker.update(this.state.sessionId, {
+            status: 'executing',
+            currentAction,
+            lastToolName: name,
+            lastToolArgs: JSON.stringify(args).substring(0, 100),
+          });
+
+          let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            timeoutHandle = setTimeout(() => {
+              reject(new Error(`__TOOL_TIMEOUT__:${timeoutMs}`));
+            }, timeoutMs);
+          });
+
           try {
-            const result = await onToolExecute(name, args);
-            return result;
+            const raw = await Promise.race([
+              onToolExecute(name, args),
+              timeoutPromise,
+            ]);
+            clearTimeout(timeoutHandle);
+            this.circuitBreaker.recordSuccess(name);
+            const stored = await this.resultStore.store(toolCallId, raw);
+            // Return the inline representation (summary or full result)
+            return JSON.parse(stored.inline) as unknown;
           } catch (error) {
-            // Return error as a structured result so the AI can see it and adjust
+            clearTimeout(timeoutHandle);
+
             const errorMsg =
               error instanceof Error ? error.message : "Unknown error";
+
+            // Timeout path
+            if (errorMsg.startsWith("__TOOL_TIMEOUT__:")) {
+              const ms = errorMsg.split(":")[1];
+              logger.warn("[AgentExecutor] Tool execution timed out", {
+                tool: name,
+                timeoutMs,
+              });
+              this.circuitBreaker.recordFailure(name);
+              return {
+                error: `Tool execution timed out after ${ms}ms`,
+                success: false,
+                canRetry: true,
+              };
+            }
+
+            // Regular error path
             const isPermError =
               errorMsg.toLowerCase().includes("permission") ||
               errorMsg.toLowerCase().includes("unauthorized") ||
@@ -510,6 +754,8 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
               error: errorMsg,
             });
 
+            this.circuitBreaker.recordFailure(name);
+
             return {
               error: errorMsg,
               success: false,
@@ -517,6 +763,202 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
                 "This tool failed. Consider trying a different approach or asking the user for help.",
               canRetry: !isPermError,
             };
+          }
+        },
+      } as ExecutorTools[string];
+    }
+    return wrapped;
+  }
+
+  /**
+   * Like wrapToolsWithExecute, but additionally pushes tool:call, tool:result,
+   * and tool:error AgentEvents via the provided push callback so that the
+   * stream() generator can yield them in real time.
+   */
+  private wrapToolsWithExecuteAndEvents(
+    tools: ExecutorTools,
+    onToolExecute: ToolExecuteHandler | undefined,
+    push: (event: AgentEvent) => void,
+  ): ExecutorTools {
+    if (!onToolExecute) return tools;
+
+    const wrapped: ExecutorTools = {};
+    for (const [name, toolDef] of Object.entries(tools)) {
+      wrapped[name] = {
+        ...toolDef,
+        execute: async (args: Record<string, unknown>, opts?: { toolCallId?: string }) => {
+          const toolCallId = opts?.toolCallId ?? randomUUID();
+
+          // Circuit breaker check
+          const cbCheck = this.circuitBreaker.canExecute(name);
+          if (!cbCheck.allowed) {
+            const reason = cbCheck.reason ?? `Circuit breaker open for ${name}`;
+            logger.warn("[AgentExecutor] Circuit breaker blocked tool call", {
+              tool: name,
+              reason,
+            });
+            // Emit circuit:open so the consumer knows the breaker tripped
+            push({ type: 'circuit:open', toolName: name, cooldownMs: 0 });
+            push({ type: 'tool:error', toolCallId, error: reason });
+            return {
+              error: reason,
+              success: false,
+              canRetry: false,
+              suggestion: "Try an alternative approach",
+            };
+          }
+
+          const timeoutMs = this.config.stepTimeoutMs;
+
+          // Update summary tracker — tool is now executing
+          const summaryTracker = getAgentSummaryTracker();
+          const currentAction = summaryTracker.summarizeToolCall(this.state.sessionId, name, args);
+          summaryTracker.update(this.state.sessionId, {
+            status: 'executing',
+            currentAction,
+            lastToolName: name,
+            lastToolArgs: JSON.stringify(args).substring(0, 100),
+          });
+
+          // beforeToolCall hook — may abort tool execution
+          const beforeResult = await this.hooks.run('beforeToolCall', {
+            hookPoint: 'beforeToolCall',
+            sessionId: this.state.sessionId,
+            toolName: name,
+            toolArgs: args,
+            metadata: {},
+          });
+
+          if (!beforeResult.proceed) {
+            const blockReason = `Tool "${name}" blocked by hook`;
+            logger.info("[AgentExecutor] Tool blocked by beforeToolCall hook", {
+              tool: name,
+            });
+            push({ type: 'tool:error', toolCallId, error: blockReason });
+            const blockedResult = {
+              error: blockReason,
+              success: false,
+              canRetry: false,
+              suggestion: 'A lifecycle hook prevented this tool from running.',
+            };
+            push({
+              type: 'tool:result',
+              toolCallId,
+              result: blockedResult,
+              duration: 0,
+              success: false,
+            });
+            return blockedResult;
+          }
+
+          // Use potentially modified args from the hook
+          const effectiveArgs =
+            beforeResult.modified !== undefined && typeof beforeResult.modified === 'object' && beforeResult.modified !== null
+              ? (beforeResult.modified as Record<string, unknown>)
+              : args;
+
+          // Push tool:call event before execution
+          push({ type: 'tool:call', toolName: name, args: effectiveArgs, toolCallId });
+
+          let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            timeoutHandle = setTimeout(() => {
+              reject(new Error(`__TOOL_TIMEOUT__:${timeoutMs}`));
+            }, timeoutMs);
+          });
+
+          const startedAt = Date.now();
+
+          try {
+            const raw = await Promise.race([
+              onToolExecute(name, effectiveArgs),
+              timeoutPromise,
+            ]);
+            clearTimeout(timeoutHandle);
+            this.circuitBreaker.recordSuccess(name);
+            const stored = await this.resultStore.store(toolCallId, raw);
+            const inlineResult = JSON.parse(stored.inline) as unknown;
+            const duration = Date.now() - startedAt;
+
+            // afterToolCall hook — receives the result
+            await this.hooks.run('afterToolCall', {
+              hookPoint: 'afterToolCall',
+              sessionId: this.state.sessionId,
+              toolName: name,
+              toolArgs: effectiveArgs,
+              toolResult: inlineResult,
+              metadata: {},
+            });
+
+            push({
+              type: 'tool:result',
+              toolCallId,
+              result: inlineResult,
+              duration,
+              success: true,
+            });
+            return inlineResult;
+          } catch (error) {
+            clearTimeout(timeoutHandle);
+
+            const errorMsg =
+              error instanceof Error ? error.message : "Unknown error";
+            const duration = Date.now() - startedAt;
+
+            // Timeout path
+            if (errorMsg.startsWith("__TOOL_TIMEOUT__:")) {
+              const ms = errorMsg.split(":")[1];
+              logger.warn("[AgentExecutor] Tool execution timed out", {
+                tool: name,
+                timeoutMs,
+              });
+              this.circuitBreaker.recordFailure(name);
+              const timeoutResult = {
+                error: `Tool execution timed out after ${ms}ms`,
+                success: false,
+                canRetry: true,
+              };
+              push({ type: 'tool:error', toolCallId, error: timeoutResult.error });
+              push({
+                type: 'tool:result',
+                toolCallId,
+                result: timeoutResult,
+                duration,
+                success: false,
+              });
+              return timeoutResult;
+            }
+
+            // Regular error path
+            const isPermError =
+              errorMsg.toLowerCase().includes("permission") ||
+              errorMsg.toLowerCase().includes("unauthorized") ||
+              errorMsg.toLowerCase().includes("forbidden") ||
+              errorMsg.toLowerCase().includes("not allowed");
+
+            logger.warn("[AgentExecutor] Tool execution failed", {
+              tool: name,
+              error: errorMsg,
+            });
+
+            this.circuitBreaker.recordFailure(name);
+            push({ type: 'tool:error', toolCallId, error: errorMsg });
+
+            const errorResult = {
+              error: errorMsg,
+              success: false,
+              suggestion:
+                "This tool failed. Consider trying a different approach or asking the user for help.",
+              canRetry: !isPermError,
+            };
+            push({
+              type: 'tool:result',
+              toolCallId,
+              result: errorResult,
+              duration,
+              success: false,
+            });
+            return errorResult;
           }
         },
       } as ExecutorTools[string];
@@ -674,6 +1116,15 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
   // Finalization
 
   private finalize(): void {
+    // Clean up any temp files written by the result store (fire-and-forget)
+    this.resultStore.cleanup().catch((err: unknown) => {
+      logger.warn("[AgentExecutor] ResultStore cleanup failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+
+    // Remove this session from the summary tracker
+    getAgentSummaryTracker().end(this.state.sessionId);
     const completedViaTask = this.state.toolCallHistory.some(
       (t) => t.name === "complete_task" && t.status === "executed",
     );

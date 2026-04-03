@@ -33,6 +33,8 @@ import { logsCommand } from './commands/logs.js';
 import { modelsCommands } from './commands/models.js';
 import { tuiCommand } from './commands/tui.js';
 import { importCommands } from './commands/import.js';
+import { historyCommands } from './commands/history.js';
+import { planCommands } from './commands/plan.js';
 
 const VERSION = '2.0.0';
 
@@ -91,6 +93,8 @@ program.addCommand(logsCommand());
 program.addCommand(modelsCommands());
 program.addCommand(tuiCommand());
 program.addCommand(importCommands());
+program.addCommand(historyCommands());
+program.addCommand(planCommands());
 
 // Default action (no command) - show banner and help
 program.action(() => {

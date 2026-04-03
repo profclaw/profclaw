@@ -17,6 +17,8 @@ import { tool as createTool, jsonSchema, type ToolSet } from 'ai';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { z } from 'zod';
 import { AgentExecutor, type AgentState, type AgentConfig, type ToolCallRecord } from '../agents/index.js';
+import { bridgeStreamToSSE } from '../server/stream-bridge.js';
+import { broadcastEvent } from '../server.js';
 import { MODEL_ALIASES } from '../providers/core/models.js';
 import { routeQuery, recordRoutingDecision, isSmartRouterEnabled } from '../providers/smart-router.js';
 import { generateSuggestions, gatherContext, type Suggestion } from './proactive/index.js';
@@ -501,8 +503,14 @@ export async function executeAgenticChat(
           });
         }
 
-        // Run the agent with normalized tools (pass provider hint for effort/thinking)
-        return agent.run(modelInstance, messages, aiSdkTools, onToolExecute, provider);
+        // Run the agent with normalized tools (pass provider hint for effort/thinking).
+        // Bridge the stream to SSE so connected clients receive real-time events.
+        await bridgeStreamToSSE(
+          agent.stream(modelInstance, messages, aiSdkTools, onToolExecute, provider),
+          broadcastEvent,
+          sessionId,
+        );
+        return agent.getState();
       },
       onError: (attempt) => {
         const described = describeFailoverError(attempt.error);
@@ -1033,8 +1041,14 @@ export async function* streamAgenticChat(
           const aiSdkTools = convertToolsToAiSdk(toolDefinitions, provider, 'AgenticChat/Stream', onToolExecute);
 
           // Run the agent — tools already have execute functions,
-          // pass provider hint for effort/thinking options
-          return agent.run(modelInstance, messages, aiSdkTools, onToolExecute, provider);
+          // pass provider hint for effort/thinking options.
+          // Bridge the stream to SSE so connected clients receive real-time events.
+          await bridgeStreamToSSE(
+            agent.stream(modelInstance, messages, aiSdkTools, onToolExecute, provider),
+            broadcastEvent,
+            sessionId,
+          );
+          return agent.getState();
         },
         onError: (attempt) => {
           const described = describeFailoverError(attempt.error);

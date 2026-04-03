@@ -1,12 +1,34 @@
 import { LibSQLAdapter } from "./libsql.js";
 import type { StorageAdapter } from "./adapter.js";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
-import type { Client, Row } from "@libsql/client";
+import type { Client, InValue, Row } from "@libsql/client";
 import { loadConfig } from "../utils/config-loader.js";
 import * as schema from "./schema.js";
 import { createContextualLogger } from "../utils/logger.js";
+import { runMigrations, type MigrationDb } from "./migrations.js";
 
 const log = createContextualLogger('Storage');
+
+/**
+ * Wraps a libsql Client into the MigrationDb interface expected by runMigrations.
+ */
+export function buildMigrationDb(client: Client): MigrationDb {
+  return {
+    execute: async (
+      sql: string,
+      params?: unknown[],
+    ): Promise<{ rows?: unknown[]; rowsAffected?: number }> => {
+      const result = await client.execute({
+        sql,
+        args: (params ?? []) as InValue[],
+      });
+      return {
+        rows: result.rows as unknown[],
+        rowsAffected: result.rowsAffected,
+      };
+    },
+  };
+}
 
 interface SettingsYaml {
   storage?: {
@@ -16,6 +38,15 @@ interface SettingsYaml {
 }
 
 let storage: StorageAdapter | null = null;
+let storageIsInMemory = false;
+
+/**
+ * Returns true if the active storage backend is ephemeral (in-memory).
+ * Always returns false before initStorage() has been called.
+ */
+export function isStorageInMemory(): boolean {
+  return storageIsInMemory;
+}
 
 /**
  * Initialize storage based on configuration
@@ -47,13 +78,38 @@ export async function initStorage(): Promise<StorageAdapter> {
   if (tier === "local") {
     const dbPath = dbPathOverride || process.env.DB_PATH || settings.storage?.dbPath;
     storage = new LibSQLAdapter({ dbPath });
+    storageIsInMemory = false;
     log.info('Initializing LibSQL storage', { dbPath: dbPath || 'default path' });
   } else {
+    storageIsInMemory = true;
     log.info('Initializing in-memory storage (LibSQL in-memory)');
     storage = new LibSQLAdapter({ dbPath: ":memory:" });
   }
 
   await storage.connect();
+
+  // Auto-run migrations on startup so first-time users don't hit schema errors
+  try {
+    const migrationDb = buildMigrationDb((storage as LibSQLAdapter).getClient());
+    const result = await runMigrations(migrationDb);
+    if (result.applied > 0) {
+      log.info('Auto-migration complete', {
+        applied: result.applied,
+        currentVersion: result.currentVersion,
+        migrations: result.migrations,
+      });
+    } else {
+      log.debug('Schema is up to date', { currentVersion: result.currentVersion });
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    log.error('Auto-migration failed', { error: message });
+    throw new Error(
+      `Database migration failed during startup: ${message}\n` +
+      `To diagnose, run: profclaw db:migrate --verbose`,
+    );
+  }
+
   return storage;
 }
 

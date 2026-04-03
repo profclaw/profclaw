@@ -26,6 +26,11 @@ export { EFFORT_BUDGET_MAP } from './types.js';
 // Executor
 
 export { AgentExecutor, createAgent, createSimpleAgent, createComplexAgent } from './executor.js';
+export type { ToolExecuteHandler } from './executor.js';
+
+// Streaming Events
+
+export type { AgentEvent } from './events.js';
 
 // Stop Conditions
 

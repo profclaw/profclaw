@@ -952,7 +952,7 @@ userRoutes.get('/admin/invites', requireAdmin, async (c) => {
  * Revoke/delete an invite code (admin only)
  */
 userRoutes.delete('/admin/invites/:id', requireAdmin, async (c) => {
-  const inviteId = c.req.param('id');
+  const inviteId = c.req.param('id') as string;
   const db = getDb();
   if (!db) return c.json({ error: 'Database not initialized' }, 500);
 
@@ -1023,7 +1023,7 @@ userRoutes.patch('/admin/registration-mode', requireAdmin, async (c) => {
  * Get user details (admin only)
  */
 userRoutes.get('/admin/:userId', requireAdmin, async (c) => {
-  const userId = c.req.param('userId');
+  const userId = c.req.param('userId') as string;
   const db = getDb();
   if (!db) return c.json({ error: 'Database not initialized' }, 500);
 
@@ -1066,7 +1066,7 @@ userRoutes.get('/admin/:userId', requireAdmin, async (c) => {
  * Update user (admin only)
  */
 userRoutes.patch('/admin/:userId', requireAdmin, async (c) => {
-  const userId = c.req.param('userId');
+  const userId = c.req.param('userId') as string;
   const db = getDb();
   if (!db) return c.json({ error: 'Database not initialized' }, 500);
 
@@ -1106,7 +1106,7 @@ userRoutes.patch('/admin/:userId', requireAdmin, async (c) => {
  * Reset user password (admin only) - generates temporary password
  */
 userRoutes.post('/admin/:userId/reset-password', requireAdmin, async (c) => {
-  const userId = c.req.param('userId');
+  const userId = c.req.param('userId') as string;
   const db = getDb();
   if (!db) return c.json({ error: 'Database not initialized' }, 500);
 
@@ -1149,9 +1149,10 @@ userRoutes.post('/admin/:userId/reset-password', requireAdmin, async (c) => {
  */
 userRoutes.delete('/admin/:userId', requireAdmin, async (c) => {
   const adminUser = c.get('user');
-  const userId = c.req.param('userId');
+  const userId = c.req.param('userId') as string;
   const db = getDb();
   if (!db) return c.json({ error: 'Database not initialized' }, 500);
+  if (!userId) return c.json({ error: 'User ID required' }, 400);
 
   // Prevent self-deletion
   if (userId === adminUser.id) {
