@@ -10,7 +10,7 @@
  * A blinking cursor is shown at the end of the partial line while streaming.
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Box, Text } from 'ink';
 import { renderMarkdown } from '../markdown-renderer.js';
 
@@ -33,6 +33,11 @@ export const StreamingMessage: React.FC<StreamingMessageProps> = ({
   // renderMarkdown sees it as part of the last text run.
   const displayContent = isStreaming ? content + '▌' : content;
 
+  // Memoize rendered output so renderMarkdown is only called when content changes
+  const rendered = useMemo(() => {
+    return renderMarkdown(displayContent, { syntaxHighlight: true, linkStyle: 'inline' });
+  }, [displayContent]);
+
   return (
     <Box
       flexDirection="column"
@@ -54,7 +59,7 @@ export const StreamingMessage: React.FC<StreamingMessageProps> = ({
         )}
       </Box>
       <Box flexDirection="column" paddingLeft={isUser ? 0 : 1}>
-        {renderMarkdown(displayContent, { syntaxHighlight: true, linkStyle: 'inline' })}
+        {rendered}
       </Box>
     </Box>
   );

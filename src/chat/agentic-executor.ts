@@ -25,12 +25,12 @@ import { generateSuggestions, gatherContext, type Suggestion } from './proactive
 import type { ChatMessage, ProviderType } from '../providers/core/types.js';
 
 // Experience store lazy import to avoid circular deps
-let experienceStorePromise: Promise<typeof import('../memory/experience-store.js')> | null = null;
-function getExperienceStore(): Promise<typeof import('../memory/experience-store.js')> {
+let experienceStorePromise: Promise<typeof import('../memory/experience-store.js') | null> | null = null;
+function getExperienceStore(): Promise<typeof import('../memory/experience-store.js') | null> {
   if (!experienceStorePromise) {
     experienceStorePromise = import('../memory/experience-store.js').catch(() => {
       experienceStorePromise = null;
-      return null as never;
+      return null;
     });
   }
   return experienceStorePromise;
@@ -388,6 +388,10 @@ export async function executeAgenticChat(
     });
   }
 
+  // Clone the base system prompt to avoid mutating the request object on retry
+  const baseSystemPrompt = request.systemPrompt ?? '';
+  let augmentedSystemPrompt = baseSystemPrompt;
+
   // Recall relevant past experiences to enhance system prompt
   try {
     const store = await getExperienceStore();
@@ -405,7 +409,7 @@ export async function executeAgenticChat(
         });
 
       if (hints.length > 0) {
-        request.systemPrompt += `\n\nRelevant past experiences:\n${hints.join('\n')}`;
+        augmentedSystemPrompt += `\n\nRelevant past experiences:\n${hints.join('\n')}`;
         logger.debug('[AgenticChat] Injected experience context', { count: hints.length });
         for (const exp of similar.slice(0, 2)) {
           store.markUsed(exp.id).catch(() => {});
@@ -430,7 +434,7 @@ export async function executeAgenticChat(
         const contextBlock = context.sources
           .map(s => `[${s.type}${s.path ? `: ${s.path}` : ''}]\n${s.content.slice(0, 500)}`)
           .join('\n\n');
-        request.systemPrompt += `\n\nProject context (auto-gathered):\n${contextBlock}`;
+        augmentedSystemPrompt += `\n\nProject context (auto-gathered):\n${contextBlock}`;
         logger.debug('[AgenticChat] Injected project context', {
           sources: context.sources.length,
           tokens: context.tokens,
@@ -444,7 +448,7 @@ export async function executeAgenticChat(
   // Create agent configuration
   const agentConfig: Partial<AgentConfig> = {
     maxSteps: 20, // Reasonable default
-    maxBudget: 30000, // 30k token budget to control costs
+    maxBudget: parseInt(process.env.PROFCLAW_AGENT_MAX_BUDGET || '30000', 10), // configurable via PROFCLAW_AGENT_MAX_BUDGET
     securityMode: 'ask', // Prompt for approval when needed
     enableStreaming: true,
     effort: request.effort,
@@ -455,7 +459,7 @@ export async function executeAgenticChat(
 
   // Build messages with system prompt
   const messages = [
-    { role: 'system' as const, content: request.systemPrompt },
+    { role: 'system' as const, content: augmentedSystemPrompt },
     ...request.messages.map((m) => ({
       role: m.role as 'user' | 'assistant' | 'system',
       content: m.content,

@@ -12,7 +12,7 @@
  *   └─────────────────────────────────────────────────┘
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Box, Text, useApp, useInput } from 'ink';
 import TextInput from 'ink-text-input';
 import { App } from './App.js';
@@ -153,12 +153,14 @@ export const ChatApp: React.FC<ChatAppProps> = ({
     : [];
 
   // Auto-show/hide command picker
-  if (inCommandPicker && matchingCmds.length > 0 && pickerMode === 'none') {
-    setPickerMode('commands');
-    setSelectedIdx(0);
-  } else if (!inCommandPicker && pickerMode === 'commands') {
-    setPickerMode('none');
-  }
+  useEffect(() => {
+    if (inCommandPicker && matchingCmds.length > 0 && pickerMode === 'none') {
+      setPickerMode('commands');
+      setSelectedIdx(0);
+    } else if (!inCommandPicker && pickerMode === 'commands') {
+      setPickerMode('none');
+    }
+  }, [inCommandPicker, matchingCmds.length, pickerMode]);
 
   // Current picker items
   const pickerItems: PickerOption[] =
@@ -405,7 +407,7 @@ export const ChatApp: React.FC<ChatAppProps> = ({
       <Box flexDirection="column" flexGrow={1} paddingY={1}>
         {messages.map((msg, idx) => (
           <StreamingMessage
-            key={idx}
+            key={`msg-${msg.timestamp?.getTime?.() ?? idx}-${idx}`}
             role={msg.role === 'system' ? 'assistant' : msg.role}
             content={msg.content}
             model={msg.model}

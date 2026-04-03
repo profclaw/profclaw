@@ -37,7 +37,7 @@ export async function* streamChat(
   const endpoint = `/api/chat/conversations/${options.conversationId}/messages/agentic`;
 
   // Smart routing: simple messages use fast /completions, complex ones use agentic
-  const needsTools = /search|find|build|create|deploy|fix|write|read|run|exec|check|test|git|install|fetch|look up|what is|tell me about/i.test(options.content);
+  const needsTools = /\b(search|find|build|create|deploy|fix|write|read|run|exec|check|test|git|install|fetch)\b|look up|what is|tell me about/i.test(options.content);
   const isSimple = options.content.length < 30 && !needsTools;
 
   // For simple messages, use fast streaming completions (no tools = ~100 tokens vs 75K)

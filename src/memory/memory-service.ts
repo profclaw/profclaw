@@ -495,8 +495,8 @@ async function indexFile(
               VALUES (?, ?, ?, ?, ?, ?, ?)`,
         args: [chunk.text, chunkId, path, source, config.model, chunk.startLine, chunk.endLine],
       });
-    } catch {
-      // FTS5 might not be available
+    } catch (err) {
+      logger.warn('[Memory] FTS5 insert failed (indexFile), text search may be degraded:', { error: err instanceof Error ? err.message : String(err) });
     }
   }
 }
@@ -562,8 +562,8 @@ async function reindexFile(
               VALUES (?, ?, ?, ?, ?, ?, ?)`,
         args: [chunk.text, chunkId, path, source, config.model, chunk.startLine, chunk.endLine],
       });
-    } catch {
-      // FTS5 might not be available
+    } catch (err) {
+      logger.warn('[Memory] FTS5 insert failed (reindexFile), text search may be degraded:', { error: err instanceof Error ? err.message : String(err) });
     }
   }
 }
@@ -587,8 +587,8 @@ async function removeFileChunks(path: string): Promise<void> {
         sql: `DELETE FROM memory_fts WHERE id = ?`,
         args: [chunk.id as string],
       });
-    } catch {
-      // FTS might not be available
+    } catch (err) {
+      logger.warn('[Memory] FTS5 delete failed (removeFileChunks):', { error: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -775,7 +775,8 @@ async function ftsSearch(query: string, limit: number): Promise<MemoryChunk[]> {
     }
 
     return chunks;
-  } catch {
+  } catch (err) {
+    logger.warn('[Memory] FTS5 search unavailable, falling back to LIKE search:', { error: err instanceof Error ? err.message : String(err) });
     // FTS5 not available, fall back to LIKE search
     const result = await client.execute({
       sql: `SELECT id, path, source, start_line, end_line, hash, text, model
@@ -953,8 +954,8 @@ export async function deleteMemoryChunk(chunkId: string): Promise<boolean> {
       sql: `DELETE FROM memory_fts WHERE id = ?`,
       args: [chunkId],
     });
-  } catch {
-    // FTS might not be available
+  } catch (err) {
+    logger.warn('[Memory] FTS5 delete failed (deleteMemoryChunk):', { error: err instanceof Error ? err.message : String(err) });
   }
 
   // Delete from chunks
@@ -990,8 +991,8 @@ export async function clearAllMemories(): Promise<void> {
 
   try {
     await client.execute(`DELETE FROM memory_fts`);
-  } catch {
-    // FTS might not be available
+  } catch (err) {
+    logger.warn('[Memory] FTS5 clear failed (clearAllMemories):', { error: err instanceof Error ? err.message : String(err) });
   }
 
   await client.execute(`DELETE FROM memory_chunks`);
@@ -1309,8 +1310,8 @@ export async function indexConversation(
               VALUES (?, ?, ?, ?, ?, ?, ?)`,
         args: [chunk.text, chunkId, path, source, config.model, chunk.startLine, chunk.endLine],
       });
-    } catch {
-      // FTS5 might not be available
+    } catch (err) {
+      logger.warn('[Memory] FTS5 insert failed (indexConversation), text search may be degraded:', { error: err instanceof Error ? err.message : String(err) });
     }
   }
 

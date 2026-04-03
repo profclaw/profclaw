@@ -1557,10 +1557,10 @@ async function handleMessage(
       render.error(error instanceof Error ? error.message : 'Stream failed');
     }
   } finally {
+    stopSpinner(); // Always stop spinner before clearing interval to avoid leaked frame writes
     clearInterval(spinnerInterval);
     activeSpinnerInterval = null;
     activeAbort = null;
-    stopSpinner();
     state.isStreaming = false;
     state.streamStartTime = undefined;
 
