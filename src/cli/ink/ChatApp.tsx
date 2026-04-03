@@ -61,6 +61,7 @@ export interface ChatAppProps {
   availableProviders?: PickerOption[];
   onSubmit: (message: string) => void;
   onPermissionDecision?: (decision: PermissionDecision) => void;
+  onCancel?: () => void;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -99,6 +100,9 @@ const SLASH_COMMANDS: SlashCommand[] = [
 // Picker state: 'commands' = top-level slash menu, 'sub' = secondary picker (models/providers)
 type PickerMode = 'none' | 'commands' | 'sub';
 
+// Max number of history entries to retain
+const MAX_HISTORY = 50;
+
 export const ChatApp: React.FC<ChatAppProps> = ({
   sessionInfo,
   tokensUsed,
@@ -115,6 +119,7 @@ export const ChatApp: React.FC<ChatAppProps> = ({
   availableProviders = [],
   onSubmit,
   onPermissionDecision,
+  onCancel,
 }) => {
   const { exit } = useApp();
   const [inputValue, setInputValue] = useState('');
@@ -123,10 +128,21 @@ export const ChatApp: React.FC<ChatAppProps> = ({
   const [subPickerTitle, setSubPickerTitle] = useState('');
   const [subPickerItems, setSubPickerItems] = useState<PickerOption[]>([]);
   const [subPickerCommand, setSubPickerCommand] = useState('');
+
+  // ── Multiline state ──────────────────────────────────────────────────────────
+  const [isMultiline, setIsMultiline] = useState(false);
+  const [multilineLines, setMultilineLines] = useState<string[]>([]);
+
+  // ── Input history state ──────────────────────────────────────────────────────
+  const [inputHistory, setInputHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  // Saved draft before navigating history (so Down arrow restores it)
+  const [historyDraft, setHistoryDraft] = useState('');
+
   const isStreaming = agentStatus === 'thinking' || agentStatus === 'executing';
 
   // Compute matching commands when in command picker mode
-  const inCommandPicker = inputValue.startsWith('/') && inputValue.indexOf(' ') === -1 && !isStreaming;
+  const inCommandPicker = inputValue.startsWith('/') && inputValue.indexOf(' ') === -1 && !isStreaming && !isMultiline;
   const matchingCmds = inCommandPicker
     ? SLASH_COMMANDS.filter(c => c.name.startsWith(inputValue.toLowerCase()))
     : [];
@@ -172,7 +188,93 @@ export const ChatApp: React.FC<ChatAppProps> = ({
     setInputValue('');
   }, [availableModels, availableProviders]);
 
-  // Keyboard navigation for picker
+  // ── Ctrl+C handler — always active to intercept before Ink's default exit ────
+  useInput((input, key) => {
+    if (!key.ctrl || input !== 'c') return;
+
+    if (isStreaming) {
+      // Cancel the in-flight stream; do not exit
+      onCancel?.();
+      return;
+    }
+
+    if (inputValue.length > 0 || isMultiline) {
+      // Clear pending input
+      setInputValue('');
+      setIsMultiline(false);
+      setMultilineLines([]);
+      setHistoryIndex(-1);
+      return;
+    }
+
+    // Nothing to cancel — exit normally
+    exit();
+  });
+
+  // ── Alt+Enter / history navigation ──────────────────────────────────────────
+  useInput((input, key) => {
+    // Alt+Enter: toggle multiline mode
+    if (key.meta && key.return) {
+      if (!isMultiline) {
+        setIsMultiline(true);
+      } else {
+        // Cancel multiline; discard accumulated lines
+        setIsMultiline(false);
+        setMultilineLines([]);
+      }
+      return;
+    }
+
+    // Up arrow: navigate backward through history (picker closed, not in multiline)
+    if (key.upArrow && pickerMode === 'none' && !isMultiline) {
+      if (inputHistory.length === 0) return;
+      if (historyIndex === -1) {
+        setHistoryDraft(inputValue);
+      }
+      const newIdx = historyIndex === -1
+        ? inputHistory.length - 1
+        : Math.max(0, historyIndex - 1);
+      setHistoryIndex(newIdx);
+      setInputValue(inputHistory[newIdx] ?? '');
+      return;
+    }
+
+    // Down arrow: navigate forward through history (picker closed, not in multiline)
+    if (key.downArrow && pickerMode === 'none' && !isMultiline) {
+      if (historyIndex === -1) return;
+      const newIdx = historyIndex + 1;
+      if (newIdx >= inputHistory.length) {
+        setHistoryIndex(-1);
+        setInputValue(historyDraft);
+      } else {
+        setHistoryIndex(newIdx);
+        setInputValue(inputHistory[newIdx] ?? '');
+      }
+      return;
+    }
+
+    // Ctrl+Enter in multiline mode: submit all accumulated lines + current line
+    if (isMultiline && key.ctrl && key.return) {
+      const allLines = [...multilineLines, inputValue].filter(l => l.length > 0);
+      if (allLines.length === 0) return;
+      const combined = allLines.join('\n');
+      setIsMultiline(false);
+      setMultilineLines([]);
+      setInputValue('');
+      setHistoryIndex(-1);
+      setHistoryDraft('');
+      setInputHistory(prev => {
+        const next = [...prev, combined];
+        return next.length > MAX_HISTORY ? next.slice(next.length - MAX_HISTORY) : next;
+      });
+      onSubmit(combined);
+      return;
+    }
+
+    void input;
+  }, { isActive: !isStreaming && pendingPermission === undefined });
+
+  // ── Picker keyboard navigation ───────────────────────────────────────────────
   useInput((_input, key) => {
     if (pickerMode === 'none' || pickerItems.length === 0) return;
 
@@ -206,6 +308,13 @@ export const ChatApp: React.FC<ChatAppProps> = ({
 
   const handleSubmit = useCallback(
     (value: string) => {
+      // In multiline mode, Enter appends the current line and moves to the next
+      if (isMultiline) {
+        setMultilineLines(prev => [...prev, value]);
+        setInputValue('');
+        return;
+      }
+
       const trimmed = value.trim();
 
       // Sub-picker: Enter selects the highlighted option (skip disabled)
@@ -243,9 +352,25 @@ export const ChatApp: React.FC<ChatAppProps> = ({
       setInputValue('');
       setSelectedIdx(0);
       setPickerMode('none');
+      setHistoryIndex(-1);
+      setHistoryDraft('');
+      setInputHistory(prev => {
+        const next = [...prev, trimmed];
+        return next.length > MAX_HISTORY ? next.slice(next.length - MAX_HISTORY) : next;
+      });
       onSubmit(trimmed);
     },
-    [onSubmit, exit, pickerMode, safeIdx, matchingCmds, subPickerItems, subPickerCommand, openSubPicker]
+    [
+      onSubmit,
+      exit,
+      pickerMode,
+      safeIdx,
+      matchingCmds,
+      subPickerItems,
+      subPickerCommand,
+      openSubPicker,
+      isMultiline,
+    ]
   );
 
   const handlePermission = useCallback(
@@ -257,6 +382,9 @@ export const ChatApp: React.FC<ChatAppProps> = ({
     },
     [pendingPermission, onPermissionDecision]
   );
+
+  // ── Prompt prefix ────────────────────────────────────────────────────────────
+  const promptPrefix = isMultiline ? '... ' : '> ';
 
   return (
     <App>
@@ -356,16 +484,32 @@ export const ChatApp: React.FC<ChatAppProps> = ({
         );
       })()}
 
+      {/* Accumulated multiline lines displayed above the active input line */}
+      {isMultiline && multilineLines.length > 0 && (
+        <Box flexDirection="column" paddingX={1}>
+          {multilineLines.map((line, idx) => (
+            <Box key={idx} flexDirection="row" gap={0}>
+              <Text color="yellow" bold>{'... '}</Text>
+              <Text>{line}</Text>
+            </Box>
+          ))}
+        </Box>
+      )}
+
       {/* Input with ghost text */}
       <Box flexDirection="row" gap={0} paddingX={1}>
-        <Text color="cyan" bold>{'> '}</Text>
+        <Text color={isMultiline ? 'yellow' : 'cyan'} bold>{promptPrefix}</Text>
         {pendingPermission === undefined && !isStreaming ? (
           <Box flexDirection="row">
             <TextInput
               value={inputValue}
-              onChange={(val) => { setInputValue(val); setSelectedIdx(0); }}
+              onChange={(val) => { setInputValue(val); if (!isMultiline) setSelectedIdx(0); }}
               onSubmit={handleSubmit}
-              placeholder="Message profClaw... (/ for commands)"
+              placeholder={
+                isMultiline
+                  ? 'Add line... (Ctrl+Enter to send · Alt+Enter to cancel)'
+                  : 'Message profClaw... (/ for commands)'
+              }
             />
             {ghostText.length > 0 && <Text dimColor>{ghostText}</Text>}
           </Box>
@@ -373,10 +517,17 @@ export const ChatApp: React.FC<ChatAppProps> = ({
           <Text dimColor>
             {pendingPermission !== undefined
               ? 'Waiting for permission...'
-              : 'Agent is working...'}
+              : 'Agent is working... (Ctrl+C to cancel)'}
           </Text>
         )}
       </Box>
+
+      {/* Multiline mode hint */}
+      {isMultiline && (
+        <Box paddingX={1}>
+          <Text dimColor>  multiline — Enter adds line · Ctrl+Enter sends · Alt+Enter cancels</Text>
+        </Box>
+      )}
 
       {/* Cost bar at very bottom */}
       <CostBar

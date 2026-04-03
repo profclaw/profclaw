@@ -6,7 +6,7 @@
 
 export { App } from './App.js';
 export { ChatApp } from './ChatApp.js';
-export type { ChatAppProps, PendingPermission } from './ChatApp.js';
+export type { ChatAppProps, PendingPermission, PickerOption } from './ChatApp.js';
 
 export { AgentStatus } from './components/AgentStatus.js';
 export type { AgentStatusProps, AgentStatusState } from './components/AgentStatus.js';

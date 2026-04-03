@@ -38,6 +38,7 @@ import { getAgentSummaryTracker } from "./agent-summary.js";
 import { getHookRegistry } from "../hooks/registry.js";
 import type { HookRegistry } from "../hooks/registry.js";
 import { ContextCompactor } from "./context-compactor.js";
+import { getSleepPreventer } from "../utils/prevent-sleep.js";
 
 // Types
 
@@ -277,6 +278,7 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
     this.state.status = "running";
     this.state.updatedAt = Date.now();
     this.emit("start", this.state);
+    getSleepPreventer().start();
 
     logger.info("[AgentExecutor] Starting agent stream", {
       sessionId: this.state.sessionId,
@@ -536,6 +538,7 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
       } finally {
         generateDone = true;
         this.isRunning = false;
+        getSleepPreventer().stop();
         if (resolveNext) {
           const r = resolveNext;
           resolveNext = undefined;

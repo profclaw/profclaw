@@ -580,13 +580,29 @@ async function startTUI(options: ChatOptions): Promise<void> {
           return true;
         }
         const cmdStr = args.join(' ');
+        agentStatus = 'executing';
+        agentAction = `$ ${cmdStr}`;
+        rerender();
         try {
-          const { execSync } = await import('node:child_process');
-          const output = execSync(cmdStr, { encoding: 'utf-8', timeout: 30000, maxBuffer: 500000 });
+          const { exec } = await import('node:child_process');
+          const output = await new Promise<string>((resolve, reject) => {
+            exec(cmdStr, { encoding: 'utf-8', timeout: 30_000, maxBuffer: 500_000 }, (err, stdout, stderr) => {
+              if (err) {
+                const detail = (stderr?.trim() || err.message || 'Command failed');
+                reject(Object.assign(err, { detail }));
+              } else {
+                resolve(stdout + (stderr ? `\nSTDERR:\n${stderr}` : ''));
+              }
+            });
+          });
+          agentStatus = 'idle';
+          agentAction = undefined;
           pushInfo(`**$ ${cmdStr}**\n\`\`\`\n${output.trimEnd()}\n\`\`\``);
         } catch (err) {
-          const e = err as { stderr?: string; message?: string };
-          pushInfo(`**$ ${cmdStr}** — failed\n${e.stderr?.trim() || e.message || 'Command failed'}`);
+          agentStatus = 'idle';
+          agentAction = undefined;
+          const e = err as { detail?: string; message?: string };
+          pushInfo(`**$ ${cmdStr}** — failed\n\`\`\`\n${e.detail ?? e.message ?? 'Command failed'}\n\`\`\``);
         }
         return true;
       }
@@ -814,6 +830,73 @@ async function startTUI(options: ChatOptions): Promise<void> {
         return true;
       }
 
+      case 'copy': {
+        const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
+        if (!lastAssistant) {
+          pushInfo('No assistant message to copy.');
+          return true;
+        }
+        try {
+          const { spawn } = await import('node:child_process');
+          const clipCmd =
+            process.platform === 'darwin' ? 'pbcopy' :
+            process.platform === 'win32'  ? 'clip'   :
+            'xclip';
+          const clipArgs = process.platform === 'linux' ? ['-selection', 'clipboard'] : [];
+          const proc = spawn(clipCmd, clipArgs, { stdio: ['pipe', 'ignore', 'ignore'] });
+          proc.stdin.write(lastAssistant.content, 'utf-8');
+          proc.stdin.end();
+          await new Promise<void>((resolve) => proc.on('close', () => resolve()));
+          pushInfo('Copied last response to clipboard.');
+        } catch (err) {
+          pushInfo(`**Copy failed:** ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+        return true;
+      }
+
+      case 'save': {
+        const savePath = args.join(' ').trim();
+        if (!savePath) {
+          pushInfo('Usage: `/save <filepath>`');
+          return true;
+        }
+        const lastAssistantMsg = [...messages].reverse().find(m => m.role === 'assistant');
+        if (!lastAssistantMsg) {
+          pushInfo('No assistant message to save.');
+          return true;
+        }
+        try {
+          const { writeFile } = await import('node:fs/promises');
+          await writeFile(savePath, lastAssistantMsg.content, 'utf-8');
+          pushInfo(`Saved to \`${savePath}\`.`);
+        } catch (err) {
+          pushInfo(`**Save failed:** ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+        return true;
+      }
+
+      case 'whoami': {
+        const msgCount = messages.length;
+        const tokenStr = tokensUsed >= 1000
+          ? `${(tokensUsed / 1000).toFixed(1)}K`
+          : String(tokensUsed);
+        const costStr = estimatedCost > 0
+          ? `$${estimatedCost.toFixed(4)}`
+          : '$0.000';
+        pushInfo([
+          '**Session Info**',
+          '',
+          `  **Model:**    ${currentModel} via ${currentProvider}`,
+          `  **Mode:**     ${agenticMode ? 'agentic (tools on)' : 'chat (agentic: off)'}`,
+          `  **Effort:**   ${effort}`,
+          `  **Thinking:** ${showThinking ? 'visible' : 'hidden'}`,
+          `  **Tools:**    ${showTools ? 'verbose' : 'minimal'}`,
+          `  **Server:**   ${serverConfig.baseUrl}`,
+          `  **Session:**  ${sessionId} (${msgCount} message${msgCount !== 1 ? 's' : ''}, ${tokenStr} tokens, ${costStr})`,
+        ].join('\n'));
+        return true;
+      }
+
       case 'help':
       case 'h':
       case '?': {
@@ -845,6 +928,9 @@ async function startTUI(options: ChatOptions): Promise<void> {
           '  `/compact --llm` — Compact using LLM for richer summary',
           '  `/status` — Server and provider health',
           '  `/run <cmd>` — Execute a shell command',
+          '  `/copy` — Copy last assistant message to clipboard',
+          '  `/save <path>` — Save last assistant message to a file',
+          '  `/whoami` — Show current model, mode, and session info',
           '  `/retry [model]` — Retry last message (optionally with different model)',
           '  `/help` — Show this help',
           '  `/exit` — Quit',
@@ -1160,6 +1246,16 @@ async function startTUI(options: ChatOptions): Promise<void> {
       availableModels,
       availableProviders,
       onSubmit: (msg: string) => { void handleSubmit(msg); },
+      onCancel: () => {
+        if (activeAbort) {
+          activeAbort.abort();
+          activeAbort = null;
+          streamingContent = undefined;
+          agentStatus = 'idle';
+          agentAction = undefined;
+          rerender();
+        }
+      },
     };
   }
 

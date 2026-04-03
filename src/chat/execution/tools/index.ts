@@ -88,6 +88,10 @@ import { codeTools } from './code-tools.js';
 // Multi-file patch tool
 import { multiPatchTool } from './multi-patch.js';
 
+// REPL and Todo tools
+import { replTool } from './repl-tool.js';
+import { todoWriteTool, todoReadTool } from './todo-tool.js';
+
 // Phase 3 parity tools
 import { openaiImageGenTool } from './openai-image-gen.js';
 import { ttsSpeakTool } from './tts-speak.js';
@@ -253,6 +257,33 @@ export {
   sessionSpawnTools,
 } from './session-spawn.js';
 
+// REPL tool exports
+export {
+  replTool,
+  listReplSessions,
+  closeReplSession,
+  getReplSessionsMap,
+} from './repl-tool.js';
+export type { REPLSession, REPLResult, ReplExecuteParams } from './repl-tool.js';
+
+// Todo tool exports
+export {
+  todoWriteTool,
+  todoReadTool,
+  clearTodos,
+  getTodos,
+  getTodoStore,
+} from './todo-tool.js';
+export type {
+  TodoItem,
+  TodoStatus,
+  TodoPriority,
+  TodoWriteResult,
+  TodoReadResult,
+  TodoWriteParams,
+  TodoReadParams,
+} from './todo-tool.js';
+
 // Export types for external use
 export type { ExecResult } from './exec.js';
 export type { WebFetchResult } from './web-fetch.js';
@@ -349,6 +380,11 @@ const TOOL_TIER_MAP: Record<string, ToolTier> = {
   project_info: 'essential',
   create_pr: 'standard',
 
+  // REPL and Todo tools — standard (need moderate reasoning)
+  repl_execute: 'standard',
+  todo_write: 'standard',
+  todo_read: 'standard',
+
   // Full tier - only for large/frontier models (everything else)
   // git_stash, git_remote, canvas_render, all session tools,
   // all browser tools, all cron tools, all integration tools,
@@ -430,6 +466,11 @@ const rawBuiltinTools = [
   ...feedTools,
   // Code tools (6) - typecheck, lint, build, format, project_info, create_pr
   ...codeTools,
+  // REPL tool (1)
+  replTool,
+  // Todo tools (2)
+  todoWriteTool,
+  todoReadTool,
   // Phase 3 parity tools (7)
   openaiImageGenTool,
   ttsSpeakTool,
