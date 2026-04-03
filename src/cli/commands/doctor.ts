@@ -1,12 +1,13 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import * as os from 'os';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { api } from '../utils/api.js';
 import { success, error, info, spinner } from '../utils/output.js';
+import { isServerRunning } from '../../utils/pid-file.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -20,14 +21,22 @@ interface CheckResult {
 async function checkNode(): Promise<CheckResult> {
   const version = process.version;
   const major = parseInt(version.slice(1).split('.')[0], 10);
-  if (major >= 22) {
-    return { name: 'Node.js', status: 'pass', message: `${version}` };
+  if (major >= 20) {
+    return { name: 'Node.js', status: 'pass', message: `${version} (>= 18 required)` };
+  }
+  if (major >= 18) {
+    return {
+      name: 'Node.js',
+      status: 'warn',
+      message: `${version} (>= 20 recommended for best performance)`,
+      fix: 'nvm install 20',
+    };
   }
   return {
     name: 'Node.js',
     status: 'fail',
-    message: `${version} (requires >= 22)`,
-    fix: 'nvm install 22',
+    message: `${version} (requires >= 18)`,
+    fix: 'nvm install 20',
   };
 }
 
@@ -222,6 +231,176 @@ async function checkDiskSpace(): Promise<CheckResult> {
   }
 }
 
+async function checkDatabaseIntegrity(): Promise<CheckResult> {
+  const result = await api.get<{ integrity: string }>('/api/setup/db-integrity');
+  if (!result.ok) {
+    // Try a direct PRAGMA if server is unavailable
+    try {
+      const { existsSync: fsExists } = await import('node:fs');
+      const dbPath = join(process.cwd(), '.profclaw', 'profclaw.db');
+      if (!fsExists(dbPath)) {
+        return { name: 'DB Integrity', status: 'warn', message: 'Database file not found (server may not have run yet)' };
+      }
+      // Dynamically attempt SQLite integrity check
+      const { default: Database } = await import('better-sqlite3');
+      const db = new Database(dbPath, { readonly: true });
+      const row = db.prepare('PRAGMA integrity_check').get() as { integrity_check?: string } | undefined;
+      db.close();
+      const integrity = row?.integrity_check ?? 'unknown';
+      if (integrity === 'ok') {
+        return { name: 'DB Integrity', status: 'pass', message: 'ok' };
+      }
+      return { name: 'DB Integrity', status: 'fail', message: integrity, fix: 'Backup and recreate the database' };
+    } catch {
+      return { name: 'DB Integrity', status: 'warn', message: 'Cannot check (server not running, SQLite unavailable)' };
+    }
+  }
+  const integrity = result.data?.integrity ?? 'ok';
+  if (integrity === 'ok') {
+    return { name: 'DB Integrity', status: 'pass', message: 'ok' };
+  }
+  return { name: 'DB Integrity', status: 'fail', message: integrity, fix: 'Backup and recreate the database' };
+}
+
+async function checkApiKeyValidation(): Promise<CheckResult[]> {
+  const result = await api.get<{ providers: Array<{ type: string; enabled: boolean; healthy: boolean; message?: string }> }>('/api/chat/providers');
+  if (!result.ok) {
+    return [{ name: 'API Keys', status: 'warn', message: 'Cannot check (server not running)', fix: 'profclaw serve' }];
+  }
+  const configured = result.data?.providers?.filter((p) => p.enabled) ?? [];
+  if (configured.length === 0) {
+    return [{ name: 'API Keys', status: 'fail', message: 'No AI providers configured', fix: 'profclaw provider add anthropic' }];
+  }
+  return configured.map((p) => {
+    const label = p.type.charAt(0).toUpperCase() + p.type.slice(1);
+    if (p.healthy) {
+      return { name: label, status: 'pass' as const, message: 'configured' };
+    }
+    return { name: label, status: 'warn' as const, message: `configured but unreachable${p.message ? ` (${p.message})` : ''}` };
+  });
+}
+
+async function checkPortAvailability(): Promise<CheckResult> {
+  const port = parseInt(process.env.PORT || '3000', 10);
+  const net = await import('net');
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.once('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        resolve({ name: 'Port availability', status: 'pass', message: `Port ${port} in use (server likely running)` });
+      } else {
+        resolve({ name: 'Port availability', status: 'warn', message: `Port ${port}: ${err.message}` });
+      }
+    });
+    server.once('listening', () => {
+      server.close();
+      resolve({ name: 'Port availability', status: 'pass', message: `Port ${port} available` });
+    });
+    server.listen(port, '127.0.0.1');
+  });
+}
+
+async function checkMissingDependencies(): Promise<CheckResult> {
+  const required = ['ink', 'react', 'chalk', 'commander'];
+  const missing: string[] = [];
+  for (const dep of required) {
+    try {
+      await import(dep);
+    } catch {
+      missing.push(dep);
+    }
+  }
+  if (missing.length === 0) {
+    return { name: 'Dependencies', status: 'pass', message: `${required.length} required packages present` };
+  }
+  return {
+    name: 'Dependencies',
+    status: 'fail',
+    message: `Missing: ${missing.join(', ')}`,
+    fix: `npm install ${missing.join(' ')}`,
+  };
+}
+
+async function checkConfigFileValidity(): Promise<CheckResult> {
+  const cwd = process.cwd();
+  const errors: string[] = [];
+
+  const configJsonPath = join(cwd, '.profclaw', 'config.json');
+  if (existsSync(configJsonPath)) {
+    try {
+      JSON.parse(readFileSync(configJsonPath, 'utf-8'));
+    } catch {
+      errors.push('config.json: invalid JSON');
+    }
+  }
+
+  // settings.yml validation — check it parses as basic YAML (key: value lines, no tabs)
+  const settingsYmlPath = join(cwd, 'config', 'settings.yml');
+  if (existsSync(settingsYmlPath)) {
+    try {
+      const content = readFileSync(settingsYmlPath, 'utf-8');
+      if (content.includes('\t')) {
+        errors.push('settings.yml: contains tab characters (YAML requires spaces)');
+      }
+    } catch {
+      errors.push('settings.yml: unreadable');
+    }
+  }
+
+  if (errors.length > 0) {
+    return {
+      name: 'Config files',
+      status: 'fail',
+      message: errors.join('; '),
+      fix: 'Fix the reported config files',
+    };
+  }
+  return { name: 'Config files', status: 'pass', message: 'valid' };
+}
+
+async function checkPidFileStatus(): Promise<CheckResult> {
+  const status = isServerRunning();
+  if (status.running) {
+    return {
+      name: 'PID file',
+      status: 'pass',
+      message: `Server running (PID ${status.pid}, port ${status.port})`,
+    };
+  }
+  // Check if a stale PID file was present (isServerRunning cleans it up automatically)
+  return { name: 'PID file', status: 'pass', message: 'No server process found' };
+}
+
+async function checkDiskSpaceBytes(): Promise<CheckResult> {
+  // macOS / Linux: use `df -k` to get kibibyte blocks for a numeric threshold check
+  try {
+    const { stdout } = await execFileAsync('df', ['-k', process.cwd()], { timeout: 5000 });
+    const lines = stdout.trim().split('\n');
+    if (lines.length >= 2) {
+      const parts = lines[1].split(/\s+/);
+      const availKB = parseInt(parts[3] || '0', 10);
+      const availMB = availKB / 1024;
+      const availGB = (availKB / 1024 / 1024).toFixed(1);
+      const usePct = parseInt(parts[4] || '0', 10);
+      if (availMB < 500) {
+        return {
+          name: 'Disk space',
+          status: 'warn',
+          message: `${availGB} GB free (< 500 MB threshold)`,
+          fix: 'Free up disk space',
+        };
+      }
+      if (usePct > 95) {
+        return { name: 'Disk space', status: 'fail', message: `${availGB} GB free (${usePct}% used)`, fix: 'Free up disk space' };
+      }
+      return { name: 'Disk space', status: 'pass', message: `${availGB} GB free` };
+    }
+    return { name: 'Disk space', status: 'pass', message: 'Readable' };
+  } catch {
+    return { name: 'Disk space', status: 'warn', message: 'Could not check disk space' };
+  }
+}
+
 async function checkTailscale(): Promise<CheckResult> {
   const result = await api.get<{ tailscale: { available: boolean; url?: string } }>('/api/tunnels/status');
   if (!result.ok) {
@@ -256,15 +435,21 @@ export function doctorCommand(): Command {
     .action(async (options: { json?: boolean }) => {
       console.log(chalk.bold('\nprofClaw Doctor\n'));
 
-      const checks: Array<{ name: string; fn: () => Promise<CheckResult> }> = [
+      // Static (single-result) checks
+      const singleChecks: Array<{ name: string; fn: () => Promise<CheckResult> }> = [
         { name: 'Node.js', fn: checkNode },
+        { name: 'Disk space', fn: checkDiskSpaceBytes },
+        { name: 'Port availability', fn: checkPortAvailability },
+        { name: 'DB Integrity', fn: checkDatabaseIntegrity },
+        { name: 'Ollama', fn: checkOllama },
+        { name: 'Redis', fn: checkRedis },
+        { name: 'Config files', fn: checkConfigFileValidity },
+        { name: 'Dependencies', fn: checkMissingDependencies },
+        { name: 'PID file', fn: checkPidFileStatus },
         { name: 'Config', fn: checkConfigFiles },
         { name: 'Port', fn: checkPort },
-        { name: 'Redis', fn: checkRedis },
-        { name: 'Ollama', fn: checkOllama },
         { name: 'Server', fn: checkServer },
         { name: 'Database', fn: checkDatabase },
-        { name: 'AI Provider', fn: checkProvider },
         { name: 'Memory', fn: checkMemory },
         { name: 'Disk', fn: checkDiskSpace },
         { name: 'Cloudflared', fn: checkCloudflared },
@@ -273,13 +458,14 @@ export function doctorCommand(): Command {
 
       const results: CheckResult[] = [];
 
-      for (const check of checks) {
+      // Run single-result checks
+      for (const check of singleChecks) {
         const spin = spinner(`Checking ${check.name}...`).start();
         try {
           const result = await check.fn();
           results.push(result);
           spin.stop();
-          formatCheck(result);
+          if (!options.json) formatCheck(result);
         } catch (err) {
           spin.stop();
           const result: CheckResult = {
@@ -288,7 +474,27 @@ export function doctorCommand(): Command {
             message: err instanceof Error ? err.message : 'Unknown error',
           };
           results.push(result);
-          formatCheck(result);
+          if (!options.json) formatCheck(result);
+        }
+      }
+
+      // Run multi-result check: API key validation per provider
+      {
+        const spin = spinner('Checking API keys...').start();
+        try {
+          const apiKeyResults = await checkApiKeyValidation();
+          results.push(...apiKeyResults);
+          spin.stop();
+          if (!options.json) apiKeyResults.forEach(formatCheck);
+        } catch (err) {
+          spin.stop();
+          const result: CheckResult = {
+            name: 'API Keys',
+            status: 'fail',
+            message: err instanceof Error ? err.message : 'Unknown error',
+          };
+          results.push(result);
+          if (!options.json) formatCheck(result);
         }
       }
 
@@ -302,13 +508,12 @@ export function doctorCommand(): Command {
       const failed = results.filter((r) => r.status === 'fail').length;
 
       console.log('');
-      const total = results.length;
       if (failed === 0 && warnings === 0) {
-        success(`All ${total} checks passed`);
+        success(`${passed} passed`);
       } else if (failed === 0) {
-        info(`${passed}/${total} passed, ${warnings} warnings`);
+        info(`${passed} passed | ${warnings} warning${warnings !== 1 ? 's' : ''} | 0 failed`);
       } else {
-        error(`${passed}/${total} passed, ${warnings} warnings, ${failed} failed`);
+        error(`${passed} passed | ${warnings} warning${warnings !== 1 ? 's' : ''} | ${failed} failed`);
         process.exitCode = 1;
       }
       console.log('');

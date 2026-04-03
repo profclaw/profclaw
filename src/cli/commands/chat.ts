@@ -232,6 +232,7 @@ async function startTUI(options: ChatOptions): Promise<void> {
   const { streamChat, createConversation: createConv } = await import('../interactive/stream-client.js');
   const { getConfig } = await import('../utils/config.js');
   const { detectBaseUrl } = await import('../utils/api.js');
+  const { getOfflineDetector } = await import('../../utils/offline-detect.js');
   type AgentStatusState = 'idle' | 'thinking' | 'executing' | 'complete' | 'error';
 
   const config = getConfig();
@@ -355,6 +356,28 @@ async function startTUI(options: ChatOptions): Promise<void> {
   let currentSuggestions: Array<{ text: string; category: 'follow-up' | 'deeper' | 'related' | 'action' }> = [];
   let rerenderFn: (() => void) | null = null;
   let activeAbort: AbortController | null = null;
+
+  // ── Connection / offline state ───────────────────────────────────────────────
+  let connectionStatus: 'connected' | 'reconnecting' | 'disconnected' = 'connected';
+  let connectionLatencyMs: number | undefined;
+
+  // Start the offline detector
+  const offlineDetector = getOfflineDetector();
+  offlineDetector.start(resolvedUrl);
+  offlineDetector.onStatusChange((online) => {
+    connectionStatus = online ? 'connected' : 'disconnected';
+    if (online) {
+      // Replay any queued messages when server comes back
+      const queued = offlineDetector.drainQueue();
+      for (const cmd of queued) {
+        const payload = cmd.payload as { message: string };
+        if (payload.message) {
+          void handleSubmit(payload.message);
+        }
+      }
+    }
+    rerender();
+  });
 
   const messages: Array<{
     role: 'user' | 'assistant';
@@ -997,6 +1020,53 @@ async function startTUI(options: ChatOptions): Promise<void> {
     }
   }
 
+  /**
+   * Attempt to switch to the next healthy provider when the current one fails.
+   * Returns true if a switch was made (caller should retry).
+   */
+  function trySwitchProvider(errMsg: string, statusCode?: number): boolean {
+    const isProviderError =
+      statusCode === 429 ||
+      statusCode === 503 ||
+      errMsg.includes('ECONNREFUSED') ||
+      errMsg.includes('fetch failed') ||
+      errMsg.includes('Connection refused');
+
+    if (!isProviderError) return false;
+
+    const healthy = availableProviders.filter(p => !p.disabled && p.value !== currentProvider);
+    if (healthy.length === 0) return false;
+
+    const next = healthy[0];
+    if (!next) return false;
+
+    const previous = currentProvider;
+    currentProvider = next.value;
+    availableProviders = availableProviders.map(p => ({ ...p, active: p.value === currentProvider }));
+
+    // Update model to a sensible default for the new provider
+    const modelMap: Record<string, string> = {
+      ollama: 'llama3.2',
+      anthropic: 'claude-sonnet',
+      openai: 'gpt-4o',
+      azure: 'gpt-4o',
+      google: 'gemini-2.0-flash',
+      cerebras: 'llama-3.3-70b',
+    };
+    if (modelMap[currentProvider]) {
+      currentModel = modelMap[currentProvider];
+      availableModels = availableModels.map(m => ({ ...m, active: m.value === currentModel }));
+    }
+
+    messages.push({
+      role: 'assistant',
+      content: `**${previous} unavailable**, switching to **${currentProvider}**...`,
+      timestamp: new Date(),
+    });
+    rerender();
+    return true;
+  }
+
   /** Send a message and stream the response via SSE */
   async function handleSubmit(userMessage: string, isRetry = false): Promise<void> {
     // Slash commands
@@ -1004,6 +1074,18 @@ async function startTUI(options: ChatOptions): Promise<void> {
       const handled = await handleSlashCommand(userMessage);
       if (handled) return;
       // Unknown slash command — fall through to send as message
+    }
+
+    // Queue the message locally if server is unreachable
+    if (!offlineDetector.getStatus()) {
+      offlineDetector.queueCommand({ message: userMessage });
+      messages.push({
+        role: 'assistant',
+        content: `**Offline** — message queued. Will send when server is back online.`,
+        timestamp: new Date(),
+      });
+      rerender();
+      return;
     }
 
     // Cancel any in-flight request
@@ -1291,6 +1373,20 @@ async function startTUI(options: ChatOptions): Promise<void> {
               getRateLimitMonitor().updateFromHeaders(currentProvider, errRlHeaders);
             }
 
+            // Auto-switch provider on transient failures (429, 503, ECONNREFUSED)
+            const switched = trySwitchProvider(errMsg, errStatusCode);
+            if (switched) {
+              // Abort current stream and retry the last message on the new provider
+              abortController.abort();
+              streamingContent = undefined;
+              agentStatus = 'idle';
+              agentAction = undefined;
+              rerender();
+              // Small delay for the switch message to render, then retry
+              setTimeout(() => { void handleSubmit(userMessage, true); }, 500);
+              return;
+            }
+
             // Get recovery suggestions from the error recovery advisor
             const knownProviders = availableProviders
               .filter(p => !p.disabled)
@@ -1331,6 +1427,22 @@ async function startTUI(options: ChatOptions): Promise<void> {
               agentStatus = 'idle';
               rerender();
             }, 2000);
+            break;
+          }
+
+          case 'connection_lost': {
+            const attempt = event.data.attempt as number;
+            const maxRetries = event.data.maxRetries as number;
+            connectionStatus = 'reconnecting';
+            agentAction = `Reconnecting (${attempt}/${maxRetries})...`;
+            rerender();
+            break;
+          }
+
+          case 'reconnected': {
+            connectionStatus = 'connected';
+            agentAction = 'Reconnected — resuming...';
+            rerender();
             break;
           }
 
@@ -1386,6 +1498,8 @@ async function startTUI(options: ChatOptions): Promise<void> {
       suggestions: [...currentSuggestions],
       availableModels,
       availableProviders,
+      connectionStatus,
+      connectionLatencyMs,
       onSubmit: (msg: string) => { void handleSubmit(msg); },
       onCancel: () => {
         if (activeAbort) {
@@ -1409,6 +1523,9 @@ async function startTUI(options: ChatOptions): Promise<void> {
   };
 
   await waitUntilExit();
+
+  // Clean up the offline detector polling loop
+  offlineDetector.stop();
 }
 
 /**

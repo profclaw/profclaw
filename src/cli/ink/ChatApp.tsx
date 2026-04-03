@@ -28,6 +28,7 @@ import {
 import type { ChatMessage } from '../interactive/types.js';
 import { SuggestionBar } from './components/SuggestionBar.js';
 import type { Suggestion } from '../../agents/prompt-suggestions.js';
+import { ConnectionStatus } from './components/ConnectionStatus.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -62,6 +63,10 @@ export interface ChatAppProps {
   availableModels?: PickerOption[];
   availableProviders?: PickerOption[];
   suggestions?: Suggestion[];
+  /** Connection status forwarded from the stream client / offline detector */
+  connectionStatus?: 'connected' | 'reconnecting' | 'disconnected';
+  /** Measured round-trip latency in ms (updated after each successful ping) */
+  connectionLatencyMs?: number;
   onSubmit: (message: string) => void;
   onPermissionDecision?: (decision: PermissionDecision) => void;
   onCancel?: () => void;
@@ -122,6 +127,8 @@ export const ChatApp: React.FC<ChatAppProps> = ({
   availableModels = [],
   availableProviders = [],
   suggestions = [],
+  connectionStatus = 'connected',
+  connectionLatencyMs,
   onSubmit,
   onPermissionDecision,
   onCancel,
@@ -395,13 +402,37 @@ export const ChatApp: React.FC<ChatAppProps> = ({
 
   return (
     <App>
-      {/* Session header */}
-      <SessionHeader
-        model={sessionInfo.model}
-        provider={sessionInfo.provider}
-        sessionId={sessionInfo.sessionId}
-        mode={sessionInfo.mode}
-      />
+      {/* Session header with connection status */}
+      <Box flexDirection="row" justifyContent="space-between" alignItems="center">
+        <SessionHeader
+          model={sessionInfo.model}
+          provider={sessionInfo.provider}
+          sessionId={sessionInfo.sessionId}
+          mode={sessionInfo.mode}
+        />
+        {connectionStatus !== 'connected' && (
+          <Box paddingX={1}>
+            <ConnectionStatus
+              status={connectionStatus}
+              latencyMs={connectionLatencyMs}
+              provider={sessionInfo.provider}
+            />
+          </Box>
+        )}
+      </Box>
+
+      {/* Offline banner — blocks input and queues user messages */}
+      {connectionStatus === 'disconnected' && (
+        <Box borderStyle="round" borderColor="red" paddingX={2} paddingY={0} marginX={1}>
+          <Text color="red" bold>Server unreachable — waiting for connection...</Text>
+          <Text dimColor>  Messages will be sent once the server is back online.</Text>
+        </Box>
+      )}
+      {connectionStatus === 'reconnecting' && (
+        <Box paddingX={1}>
+          <Text color="yellow">Reconnecting to server...</Text>
+        </Box>
+      )}
 
       {/* Message history */}
       <Box flexDirection="column" flexGrow={1} paddingY={1}>
@@ -517,7 +548,9 @@ export const ChatApp: React.FC<ChatAppProps> = ({
       {/* Input with ghost text */}
       <Box flexDirection="row" gap={0} paddingX={1}>
         <Text color={isMultiline ? 'yellow' : 'cyan'} bold>{promptPrefix}</Text>
-        {pendingPermission === undefined && !isStreaming ? (
+        {connectionStatus === 'disconnected' ? (
+          <Text dimColor color="red">Offline — waiting for server...</Text>
+        ) : pendingPermission === undefined && !isStreaming ? (
           <Box flexDirection="row">
             <TextInput
               value={inputValue}

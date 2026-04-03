@@ -5,7 +5,9 @@ import { spawn, type ChildProcess } from 'child_process';
 import { resolve } from 'path';
 import { existsSync } from 'fs';
 import { createServer } from 'net';
+import * as readline from 'readline';
 import { success, error, info, warn } from '../utils/output.js';
+import { isServerRunning, killExistingServer } from '../../utils/pid-file.js';
 
 const MAX_RESTART_ATTEMPTS = 5;
 const MAX_PORT_ATTEMPTS = 3;
@@ -81,6 +83,31 @@ export function serveCommand() {
       console.log(chalk.dim('  AI Agent Task Orchestrator\n'));
 
       const port = parseInt(options.port, 10);
+
+      // Pre-flight: check for an existing server instance via PID file
+      const running = isServerRunning();
+      if (running.running && running.pid !== undefined) {
+        warn(`A profClaw server is already running (PID ${running.pid}, port ${running.port}).`);
+        const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+        const answer = await new Promise<string>((resolve) => {
+          rl.question('  Kill the existing server and start a new one? [y/N] ', (ans) => {
+            rl.close();
+            resolve(ans.trim().toLowerCase());
+          });
+        });
+        if (answer === 'y' || answer === 'yes') {
+          const killed = killExistingServer();
+          if (killed) {
+            success('Existing server stopped.');
+          } else {
+            error('Could not stop the existing server within 5 seconds. Aborting.');
+            process.exit(1);
+          }
+        } else {
+          info('Aborted. The existing server is still running.');
+          process.exit(0);
+        }
+      }
 
       // Pre-flight: find an available port (retry up to MAX_PORT_ATTEMPTS)
       const actualPort = await resolvePort(port);

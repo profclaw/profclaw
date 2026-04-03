@@ -7,6 +7,7 @@ import { createServer } from 'net';
 // Core imports - keep static only for truly essential boot utilities
 import { loadConfig } from './utils/config-loader.js';
 import { createContextualLogger } from './utils/logger.js';
+import { writePidFile, removePidFile } from './utils/pid-file.js';
 
 const appLog = createContextualLogger('Server');
 import { validateEnvironment, getConfiguredIntegrations, getConfiguredAIProviders } from './utils/env-validator.js';
@@ -18,12 +19,17 @@ import type { AgentConfig } from './types/agent.js';
 import { CreateTaskSchema } from './types/task.js';
 import { getMode, getModeLabel, hasCapability, getCapabilities } from './core/deployment.js';
 import { getRouteDefinitionsForMode, registerRouteModules } from './server/route-loader.js';
+import { validateBody, GatewayExecuteSchema } from './middleware/request-validator.js';
 
 const VERSION = '2.0.0';
 
 // Module-level startup state flags
 let degradedMode = false;
 let inMemoryStorageReminderInterval: ReturnType<typeof setInterval> | null = null;
+
+// Runtime tracking state
+let runningPort = 0;
+let lastErrorMessage: string | undefined;
 
 interface SettingsYaml {
   server: {
@@ -142,19 +148,220 @@ app.use('/auth/*', authRateLimiter);
 // === Core Routes ===
 
 // Health check
+const serverStartTime = Date.now();
+
+type ServiceStatus = 'ok' | 'warning' | 'error';
+
+interface ServiceHealth {
+  status: ServiceStatus;
+  latencyMs?: number;
+  message?: string;
+}
+
+interface OllamaServiceHealth extends ServiceHealth {
+  models?: number;
+}
+
+interface DiskServiceHealth extends ServiceHealth {
+  freeGb?: number;
+}
+
+interface MemoryServiceHealth extends ServiceHealth {
+  usedPercent?: number;
+}
+
+interface QueueServiceHealth extends ServiceHealth {
+  type?: string;
+}
+
+interface QueueDepth {
+  pending: number;
+  running: number;
+  total: number;
+}
+
+interface ProcessStats {
+  pid: number;
+  port: number;
+  memoryMb: number;
+  cpuLoadAvg: number[];
+}
+
+interface DeepHealthResponse {
+  status: 'ok' | 'degraded' | 'unhealthy';
+  services: {
+    database: ServiceHealth;
+    queue: QueueServiceHealth;
+    ollama: OllamaServiceHealth;
+    disk: DiskServiceHealth;
+    memory: MemoryServiceHealth;
+  };
+  version: string;
+  uptime: number;
+  sseClients: number;
+  activeSessions: number;
+  queueDepth: QueueDepth;
+  process: ProcessStats;
+  lastError?: string;
+}
+
+async function checkDatabaseHealth(): Promise<ServiceHealth> {
+  const start = Date.now();
+  try {
+    const { getDb } = await import('./storage/index.js');
+    const db = getDb();
+    if (!db) return { status: 'error', message: 'Database not initialised' };
+    // Simple liveness query
+    await db.run('SELECT 1');
+    return { status: 'ok', latencyMs: Date.now() - start };
+  } catch (err) {
+    return {
+      status: 'error',
+      latencyMs: Date.now() - start,
+      message: err instanceof Error ? err.message : 'Database check failed',
+    };
+  }
+}
+
+async function checkQueueHealth(): Promise<QueueServiceHealth> {
+  try {
+    const { getQueueType } = await import('./queue/index.js');
+    const queueType = getQueueType();
+    if (!queueType) return { status: 'warning', message: 'Queue not initialised' };
+
+    if (queueType === 'redis') {
+      // Test Redis reachability with a fresh connection
+      const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+      const start = Date.now();
+      try {
+        const IORedis = (await import('ioredis')).default;
+        const probe = new IORedis(redisUrl, { lazyConnect: true, connectTimeout: 2000, maxRetriesPerRequest: 0 });
+        await probe.connect();
+        await probe.ping();
+        await probe.disconnect();
+        return { status: 'ok', type: 'redis', latencyMs: Date.now() - start };
+      } catch {
+        return { status: 'error', type: 'redis', latencyMs: Date.now() - start, message: 'Redis unreachable' };
+      }
+    }
+
+    return { status: 'ok', type: queueType };
+  } catch {
+    return { status: 'ok', type: 'in-memory' };
+  }
+}
+
+async function checkOllamaHealth(): Promise<OllamaServiceHealth> {
+  const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+  const start = Date.now();
+  try {
+    const res = await fetch(`${ollamaUrl}/api/tags`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!res.ok) return { status: 'error', latencyMs: Date.now() - start, message: `HTTP ${res.status}` };
+    const data = await res.json() as { models?: unknown[] };
+    const modelCount = Array.isArray(data.models) ? data.models.length : 0;
+    return { status: 'ok', latencyMs: Date.now() - start, models: modelCount };
+  } catch {
+    // Ollama is optional — not reachable means degraded, not unhealthy
+    return { status: 'warning', latencyMs: Date.now() - start, message: 'Ollama not reachable' };
+  }
+}
+
+async function checkDiskHealth(): Promise<DiskServiceHealth> {
+  try {
+    const { statfs } = await import('node:fs/promises');
+    const stats = await statfs(process.cwd());
+    const freeBytes = stats.bfree * stats.bsize;
+    const freeGb = freeBytes / (1024 ** 3);
+    const WARN_THRESHOLD_BYTES = 100 * 1024 * 1024; // 100 MB
+    const status: ServiceStatus = freeBytes < WARN_THRESHOLD_BYTES ? 'warning' : 'ok';
+    return {
+      status,
+      freeGb: Math.round(freeGb * 100) / 100,
+      ...(status === 'warning' && { message: 'Low disk space (< 100 MB free)' }),
+    };
+  } catch {
+    return { status: 'warning', message: 'Disk check unavailable' };
+  }
+}
+
+function checkMemoryHealth(): MemoryServiceHealth {
+  const WARN_THRESHOLD = 90;
+  const mem = process.memoryUsage();
+  // rss is total process resident memory; heapTotal is V8 heap.
+  // Use rss vs a cap of available system memory — but without os.totalmem we
+  // report heap utilisation which is the most actionable metric.
+  const usedPercent = Math.round((mem.heapUsed / mem.heapTotal) * 100);
+  const status: ServiceStatus = usedPercent > WARN_THRESHOLD ? 'warning' : 'ok';
+  return {
+    status,
+    usedPercent,
+    ...(status === 'warning' && { message: `Heap usage above ${WARN_THRESHOLD}%` }),
+  };
+}
+
 app.get('/health', async (c) => {
-  const { getHealthStatus } = await import('./cron/index.js');
-  const { getQueueType } = await import('./queue/index.js');
-  const agentHealth = getHealthStatus();
-  return c.json({
-    status: 'ok',
-    service: 'profclaw',
+  const [database, queue, ollama, disk] = await Promise.all([
+    checkDatabaseHealth(),
+    checkQueueHealth(),
+    checkOllamaHealth(),
+    checkDiskHealth(),
+  ]);
+  const memory = checkMemoryHealth();
+
+  const services = { database, queue, ollama, disk, memory };
+
+  const statuses = Object.values(services).map((s) => s.status);
+  const overallStatus: 'ok' | 'degraded' | 'unhealthy' =
+    statuses.some((s) => s === 'error')
+      ? 'unhealthy'
+      : statuses.some((s) => s === 'warning')
+        ? 'degraded'
+        : 'ok';
+
+  // Gather queue depth
+  let queueDepth: QueueDepth = { pending: 0, running: 0, total: 0 };
+  try {
+    const { getTasks } = await import('./queue/index.js');
+    const pending = getTasks({ status: 'pending' }).length + getTasks({ status: 'queued' }).length;
+    const running = getTasks({ status: 'in_progress' }).length;
+    queueDepth = { pending, running, total: pending + running };
+  } catch {
+    // Queue not yet initialised — use zeroes
+  }
+
+  // Gather active agent sessions
+  let activeSessions = 0;
+  try {
+    const { getAgentRegistry } = await import('./adapters/registry.js');
+    activeSessions = getAgentRegistry().getActiveAdapters().length;
+  } catch {
+    // Registry not yet initialised
+  }
+
+  const memUsage = process.memoryUsage();
+  const { loadavg: osLoadavg } = await import('node:os');
+
+  const body: DeepHealthResponse = {
+    status: overallStatus,
+    services,
     version: VERSION,
-    mode: getMode(),
-    queue: getQueueType() || 'not_initialized',
-    timestamp: new Date().toISOString(),
-    agents: agentHealth,
-  });
+    uptime: Math.floor((Date.now() - serverStartTime) / 1000),
+    sseClients: sseConnections.size,
+    activeSessions,
+    queueDepth,
+    process: {
+      pid: process.pid,
+      port: runningPort,
+      memoryMb: Math.round(memUsage.rss / 1024 / 1024),
+      cpuLoadAvg: process.platform !== 'win32' ? osLoadavg() : [0, 0, 0],
+    },
+    ...(lastErrorMessage !== undefined && { lastError: lastErrorMessage }),
+  };
+
+  const httpStatus = overallStatus === 'unhealthy' ? 503 : 200;
+  return c.json(body, httpStatus);
 });
 
 // API info (mode-aware)
@@ -514,38 +721,44 @@ app.get('/api/events', (c) => {
 
 // === Protected Gateway Endpoint ===
 
-app.post('/api/gateway/execute-secure', tokenAuthMiddleware(['gateway:execute']), async (c) => {
-  try {
-    const body = await c.req.json();
-    const { getGateway } = await import('./gateway/index.js');
-    const gateway = getGateway();
+app.post(
+  '/api/gateway/execute-secure',
+  tokenAuthMiddleware(['gateway:execute']),
+  validateBody(GatewayExecuteSchema),
+  async (c) => {
+    try {
+      // validateBody middleware stores the parsed result; cast via raw context map
+      const body = (c as unknown as { get(k: string): unknown }).get('validatedBody') as import('./middleware/request-validator.js').GatewayExecuteInput;
+      const { getGateway } = await import('./gateway/index.js');
+      const gateway = getGateway();
 
-    const request: GatewayRequest = {
-      task: body.task,
-      preferredAgent: body.preferredAgent,
-      workflow: body.workflow as WorkflowType,
-      timeoutMs: body.timeoutMs,
-      priority: body.priority,
-      autonomous: body.autonomous ?? false,
-      context: body.context,
-    };
+      const request: GatewayRequest = {
+        task: body.task as GatewayRequest['task'],
+        preferredAgent: body.preferredAgent,
+        workflow: body.workflow as WorkflowType,
+        timeoutMs: body.timeoutMs,
+        priority: body.priority,
+        autonomous: body.autonomous ?? false,
+        context: body.context,
+      };
 
-    if (!request.task.id) {
-      const parsed = CreateTaskSchema.safeParse(request.task);
-      if (!parsed.success) {
-        return c.json({ error: 'Invalid task', details: parsed.error.flatten() }, 400);
+      if (!request.task.id) {
+        const parsed = CreateTaskSchema.safeParse(request.task);
+        if (!parsed.success) {
+          return c.json({ error: 'Invalid task', details: parsed.error.flatten() }, 400);
+        }
+        const { addTask } = await import('./queue/index.js');
+        const createdTask = await addTask(parsed.data);
+        request.task = createdTask;
       }
-      const { addTask } = await import('./queue/index.js');
-      const createdTask = await addTask(parsed.data);
-      request.task = createdTask;
-    }
 
-    const response = await gateway.execute(request);
-    return c.json(response);
-  } catch {
-    return c.json({ error: 'Gateway execution failed' }, 500);
-  }
-});
+      const response = await gateway.execute(request);
+      return c.json(response);
+    } catch {
+      return c.json({ error: 'Gateway execution failed' }, 500);
+    }
+  },
+);
 
 // === Mount Route Modules (mode-aware, lazy-loaded) ===
 await registerRouteModules(app, getMode());
@@ -923,6 +1136,12 @@ async function main() {
     port: PORT,
   });
 
+  // Record runtime port for health endpoint
+  runningPort = PORT;
+
+  // Record PID so the CLI can detect/kill existing instances
+  writePidFile(PORT);
+
   appLog.info(`profClaw ready on http://localhost:${PORT}`, { port: PORT, mode: getModeLabel() });
 
   if (ENABLE_CRON) {
@@ -1032,6 +1251,9 @@ async function gracefulShutdown(signal: string): Promise<void> {
     // Rate limiters may not be initialized
   }
 
+  // Remove PID file so new instances know the slot is free
+  removePidFile();
+
   appLog.info('Clean exit');
   clearTimeout(forceExitTimer);
   process.exit(0);
@@ -1042,13 +1264,16 @@ process.on('SIGTERM', () => { gracefulShutdown('SIGTERM'); });
 
 // Catch unhandled errors to log before crashing
 process.on('uncaughtException', (err) => {
+  lastErrorMessage = err.message;
   appLog.error('Uncaught exception', err);
   // Let the process crash (daemon/serve will restart it)
   process.exit(1);
 });
 
 process.on('unhandledRejection', (reason) => {
-  appLog.error('Unhandled rejection', reason instanceof Error ? reason : new Error(String(reason)));
+  const errMsg = reason instanceof Error ? reason.message : String(reason);
+  lastErrorMessage = errMsg;
+  appLog.error('Unhandled rejection', reason instanceof Error ? reason : new Error(errMsg));
   // Don't exit for unhandled rejections - log and continue
   // This prevents a single failed promise from taking down the server
 });
