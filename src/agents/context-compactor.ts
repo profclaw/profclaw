@@ -2,8 +2,12 @@
  * Context Compactor
  *
  * Compresses old conversation turns into a structured markdown summary when
- * the estimated token count crosses a configurable threshold. Summarisation
- * is purely local — no LLM calls are made.
+ * the estimated token count crosses a configurable threshold.
+ *
+ * Two modes:
+ *  - Local heuristic (default): pure extraction, no LLM calls.
+ *  - LLM-powered (opt-in): uses an injected apiCall function to produce a
+ *    richer natural-language summary.
  */
 
 import type { ModelMessage } from "ai";
@@ -19,6 +23,15 @@ export interface CompactionConfig {
   preserveRecentTurns: number;
   /** Maximum tokens for the generated summary message. Default: 2_000 */
   summaryMaxTokens: number;
+  /**
+   * When true, `compact()` will delegate to `compactWithLLM()` if an
+   * `apiCall` function is provided at call time. Default: false.
+   */
+  useLLM?: boolean;
+  /** Cheap model to use for LLM summarisation (e.g. 'llama3.2'). */
+  summaryModel?: string;
+  /** Provider for the summarisation model (e.g. 'ollama'). */
+  summaryProvider?: string;
 }
 
 export interface CompactionResult {
@@ -285,8 +298,120 @@ export class ContextCompactor {
    *  1. Identify the most-recent N turns to preserve verbatim.
    *  2. Summarise all older messages into a single system-role summary message.
    *  3. Return the summary + preserved recent messages.
+   *
+   * When `config.useLLM` is true and `apiCall` is provided, delegates to
+   * `compactWithLLM()` for a richer natural-language summary.
+   * Falls back to local heuristic summarisation if the LLM call fails.
    */
-  async compact(messages: ModelMessage[]): Promise<CompactionResult> {
+  async compact(
+    messages: ModelMessage[],
+    apiCall?: (prompt: string) => Promise<string>,
+  ): Promise<CompactionResult> {
+    if (this.config.useLLM && apiCall !== undefined) {
+      try {
+        return await this.compactWithLLM(messages, apiCall);
+      } catch (err) {
+        console.error("[ContextCompactor] LLM compaction failed, falling back to local:", err);
+        // Fall through to local compaction below
+      }
+    }
+
+    return this._compactLocal(messages);
+  }
+
+  /**
+   * Compact using an injected LLM call for richer summarisation.
+   *
+   * The `apiCall` function is supplied by the caller so this class remains
+   * free of any specific API client dependency.
+   */
+  async compactWithLLM(
+    messages: ModelMessage[],
+    apiCall: (prompt: string) => Promise<string>,
+  ): Promise<CompactionResult> {
+    const originalTokens = this.estimateTokens(messages);
+
+    if (originalTokens < this.config.compactionThreshold) {
+      return {
+        messages,
+        compacted: false,
+        originalTokens,
+        compactedTokens: originalTokens,
+        turnsCompacted: 0,
+      };
+    }
+
+    const systemMessages = messages.filter((m) => m.role === "system");
+    const conversational = messages.filter((m) => m.role !== "system");
+
+    const turnsToPreserve = this.config.preserveRecentTurns * 2;
+    const splitAt = Math.max(0, conversational.length - turnsToPreserve);
+
+    const toCompact = conversational.slice(0, splitAt);
+    const toPreserve = conversational.slice(splitAt);
+
+    const turnsCompacted = toCompact.length;
+
+    if (turnsCompacted === 0) {
+      return {
+        messages,
+        compacted: false,
+        originalTokens,
+        compactedTokens: originalTokens,
+        turnsCompacted: 0,
+      };
+    }
+
+    // Build a transcript of the messages to be compacted
+    const transcript = toCompact
+      .map((m) => {
+        const role = m.role.toUpperCase();
+        const text = messageToText(m);
+        return `[${role}]: ${text}`;
+      })
+      .join("\n\n");
+
+    const prompt = [
+      "Summarize this conversation concisely. Include:",
+      "- Key decisions made",
+      "- Files modified and why",
+      "- Tool results and outcomes",
+      "- Current task status",
+      "Keep it under 500 words.",
+      "",
+      "--- CONVERSATION START ---",
+      transcript,
+      "--- CONVERSATION END ---",
+    ].join("\n");
+
+    const llmSummary = await apiCall(prompt);
+
+    const summaryText = `# Conversation Summary (LLM-compacted context)\n\n${llmSummary}`;
+
+    const summaryMessage: ModelMessage = {
+      role: "system",
+      content: summaryText,
+    };
+
+    const compactedMessages: ModelMessage[] = [
+      ...systemMessages,
+      summaryMessage,
+      ...toPreserve,
+    ];
+
+    const compactedTokens = this.estimateTokens(compactedMessages);
+
+    return {
+      messages: compactedMessages,
+      compacted: true,
+      originalTokens,
+      compactedTokens,
+      turnsCompacted,
+    };
+  }
+
+  /** Local heuristic compaction (no LLM). */
+  private _compactLocal(messages: ModelMessage[]): CompactionResult {
     const originalTokens = this.estimateTokens(messages);
 
     if (originalTokens < this.config.compactionThreshold) {

@@ -794,7 +794,7 @@ class AIProviderManager {
   }
 
   resolveModel(modelOrAlias: string): { provider: ProviderType; model: string } {
-    // Check if it's a full provider/model path
+    // Check if it's a full provider/model path (e.g. "azure/gpt4o", "ollama/llama3.2")
     if (modelOrAlias.includes('/')) {
       const [provider, model] = modelOrAlias.split('/');
       return { provider: provider as ProviderType, model };
@@ -813,12 +813,29 @@ class AIProviderManager {
           return { provider: 'azure', model: azureModel };
         }
       }
-      return alias;
+      // If the alias points to a configured provider, use it directly
+      if (this.isConfigured(alias.provider)) {
+        return alias;
+      }
+      // If the alias provider isn't configured, try Azure as a fallback
+      // (Azure can serve OpenAI models like gpt-4o via deployment names)
+      if (this.isConfigured('azure') && (alias.provider === 'openai')) {
+        return this.resolveToAzureDeployment(modelOrAlias);
+      }
     }
 
     // Try to find in catalog
     const catalogModel = MODEL_CATALOG.find((m) => m.id === modelOrAlias);
     if (catalogModel) {
+      // If the catalog provider is configured, use it
+      if (this.isConfigured(catalogModel.provider)) {
+        return { provider: catalogModel.provider, model: catalogModel.id };
+      }
+      // OpenAI models can be served by Azure via deployment names
+      if (catalogModel.provider === 'openai' && this.isConfigured('azure')) {
+        return this.resolveToAzureDeployment(modelOrAlias);
+      }
+      // Fallback: use catalog as-is (will fail at API call time with clear error)
       return { provider: catalogModel.provider, model: catalogModel.id };
     }
 
@@ -827,6 +844,42 @@ class AIProviderManager {
     const defaultConfig = this.configs.get(this.defaultProvider);
     const defaultModel = defaultConfig?.defaultModel || modelOrAlias;
     return { provider: this.defaultProvider, model: defaultModel };
+  }
+
+  /**
+   * Get the default model for a provider, respecting runtime config.
+   * For Azure, uses the deployment name instead of the static "gpt-4o".
+   */
+  getDefaultModelForProvider(provider: ProviderType): string {
+    if (provider === 'azure') {
+      const config = this.configs.get('azure');
+      return config?.deploymentName
+        || config?.defaultModel
+        || process.env.AZURE_OPENAI_DEPLOYMENT_NAME
+        || PROVIDER_DEFAULT_MODEL.azure
+        || 'gpt-4o';
+    }
+    return PROVIDER_DEFAULT_MODEL[provider] || 'llama3.2';
+  }
+
+  /**
+   * Resolve a model name to an Azure deployment.
+   * Azure uses deployment names (e.g. "gpt4o") instead of model IDs (e.g. "gpt-4o").
+   * Checks: configured deployment name → env var → strip dashes from model name.
+   */
+  private resolveToAzureDeployment(modelOrAlias: string): { provider: ProviderType; model: string } {
+    const azureConfig = this.configs.get('azure');
+    // Use configured deployment name if it looks like it matches the requested model
+    const deployment = azureConfig?.deploymentName
+      || process.env.AZURE_OPENAI_DEPLOYMENT_NAME;
+
+    if (deployment) {
+      return { provider: 'azure', model: deployment };
+    }
+
+    // Try stripping dashes (gpt-4o → gpt4o) as Azure often uses this convention
+    const stripped = modelOrAlias.replace(/-/g, '');
+    return { provider: 'azure', model: stripped };
   }
 
   async getModel(provider: ProviderType, modelId: string): Promise<LanguageModel> {
@@ -917,7 +970,7 @@ class AIProviderManager {
     // Resolve model
     const modelRef = request.model
       ? this.resolveModel(request.model)
-      : { provider: this.defaultProvider, model: PROVIDER_DEFAULT_MODEL[this.defaultProvider] || 'llama3.2' };
+      : { provider: this.defaultProvider, model: this.getDefaultModelForProvider(this.defaultProvider) };
 
     const model: LanguageModel = await this.getModel(modelRef.provider, modelRef.model);
 
@@ -987,7 +1040,7 @@ class AIProviderManager {
     // Resolve model
     const modelRef = request.model
       ? this.resolveModel(request.model)
-      : { provider: this.defaultProvider, model: PROVIDER_DEFAULT_MODEL[this.defaultProvider] || 'llama3.2' };
+      : { provider: this.defaultProvider, model: this.getDefaultModelForProvider(this.defaultProvider) };
 
     const model: LanguageModel = await this.getModel(modelRef.provider, modelRef.model);
 
@@ -1082,7 +1135,7 @@ class AIProviderManager {
     // Resolve model
     const modelRef = request.model
       ? this.resolveModel(request.model)
-      : { provider: this.defaultProvider, model: PROVIDER_DEFAULT_MODEL[this.defaultProvider] || 'llama3.2' };
+      : { provider: this.defaultProvider, model: this.getDefaultModelForProvider(this.defaultProvider) };
 
     const model: LanguageModel = await this.getModel(modelRef.provider, modelRef.model);
 
@@ -1247,7 +1300,7 @@ class AIProviderManager {
   modelSupportsTools(modelOrAlias?: string): { supported: boolean; model: string; provider: ProviderType; recommendation?: string } {
     const modelRef = modelOrAlias
       ? this.resolveModel(modelOrAlias)
-      : { provider: this.defaultProvider, model: PROVIDER_DEFAULT_MODEL[this.defaultProvider] || 'llama3.2' };
+      : { provider: this.defaultProvider, model: this.getDefaultModelForProvider(this.defaultProvider) };
 
     // Azure OpenAI: All GPT-4, GPT-4o, and GPT-3.5-turbo models support function calling
     // We check provider first since Azure deployment names won't be in MODEL_CATALOG
@@ -1298,7 +1351,7 @@ class AIProviderManager {
     // Resolve model
     const modelRef = request.model
       ? this.resolveModel(request.model)
-      : { provider: this.defaultProvider, model: PROVIDER_DEFAULT_MODEL[this.defaultProvider] || 'llama3.2' };
+      : { provider: this.defaultProvider, model: this.getDefaultModelForProvider(this.defaultProvider) };
 
     const model = await this.getModel(modelRef.provider, modelRef.model);
 
@@ -1498,7 +1551,7 @@ class AIProviderManager {
     // Resolve model
     const modelRef = request.model
       ? this.resolveModel(request.model)
-      : { provider: this.defaultProvider, model: PROVIDER_DEFAULT_MODEL[this.defaultProvider] || 'llama3.2' };
+      : { provider: this.defaultProvider, model: this.getDefaultModelForProvider(this.defaultProvider) };
 
     const model = await this.getModel(modelRef.provider, modelRef.model);
 

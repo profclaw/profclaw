@@ -405,3 +405,279 @@ export function cancelOrchestration(id: string): boolean {
 export function listActiveOrchestrations(): string[] {
   return [...activeOrchestrations.keys()];
 }
+
+// ---------------------------------------------------------------------------
+// Class-based AgentOrchestrator
+// ---------------------------------------------------------------------------
+
+/**
+ * A single unit of work dispatched to a sub-agent.
+ */
+export interface SubAgentTask {
+  id: string;
+  description: string;
+  prompt: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  result?: string;
+  error?: string;
+  startedAt?: number;
+  completedAt?: number;
+  tokensUsed: number;
+}
+
+/**
+ * Configuration for AgentOrchestrator.
+ */
+export interface OrchestratorConfig {
+  /** Maximum number of sub-tasks running concurrently (default: 3). */
+  maxConcurrent: number;
+  /** Timeout per sub-task in ms (default: 300_000). */
+  timeoutMs: number;
+  model?: string;
+  provider?: string;
+}
+
+const DEFAULT_ORCHESTRATOR_CONFIG: OrchestratorConfig = {
+  maxConcurrent: 3,
+  timeoutMs: 300_000,
+};
+
+// Singleton instance
+let _instance: AgentOrchestrator | undefined;
+
+/**
+ * Class-based orchestrator for fan-out parallel sub-agent tasks.
+ *
+ * The caller provides an `apiCall` function that wraps the actual LLM API —
+ * following the same injected-client pattern used by ContextCompactor.
+ *
+ * Usage:
+ * ```ts
+ * const orch = getAgentOrchestrator({ maxConcurrent: 2 });
+ * const results = await orch.dispatch([
+ *   { description: 'Summarise file A', prompt: '...' },
+ *   { description: 'Summarise file B', prompt: '...' },
+ * ], myApiCall);
+ * console.log(orch.synthesize(results));
+ * ```
+ */
+export class AgentOrchestrator {
+  private readonly tasks: Map<string, SubAgentTask> = new Map();
+  private readonly config: OrchestratorConfig;
+  /** Number of tasks currently in the 'running' state. */
+  private running = 0;
+  /** Cancelled task IDs — checked before executing. */
+  private readonly cancelled = new Set<string>();
+
+  constructor(config?: Partial<OrchestratorConfig>) {
+    this.config = { ...DEFAULT_ORCHESTRATOR_CONFIG, ...config };
+  }
+
+  // -------------------------------------------------------------------------
+  // Public API
+  // -------------------------------------------------------------------------
+
+  /**
+   * Dispatch multiple sub-tasks in parallel, respecting `maxConcurrent`.
+   * Resolves when every task has either completed, failed, or timed out.
+   */
+  async dispatch(
+    taskDefs: Array<{ description: string; prompt: string }>,
+    apiCall: (prompt: string) => Promise<string>,
+  ): Promise<SubAgentTask[]> {
+    // Build task objects
+    const newTasks: SubAgentTask[] = taskDefs.map((def) => ({
+      id: randomUUID(),
+      description: def.description,
+      prompt: def.prompt,
+      status: 'pending',
+      tokensUsed: 0,
+    }));
+
+    for (const task of newTasks) {
+      this.tasks.set(task.id, task);
+    }
+
+    // Semaphore: release a "slot" whenever a task finishes so the next one starts.
+    const queue = [...newTasks];
+    const workers: Promise<void>[] = [];
+
+    const next = (): Promise<void> => {
+      const task = queue.shift();
+      if (!task) return Promise.resolve();
+
+      if (this.cancelled.has(task.id)) {
+        task.status = 'failed';
+        task.error = 'Task was cancelled before it started';
+        return next();
+      }
+
+      this.running++;
+      return this.runTask(task, apiCall).then(() => {
+        this.running--;
+        return next();
+      });
+    };
+
+    // Seed up to maxConcurrent workers.
+    const concurrency = Math.min(this.config.maxConcurrent, newTasks.length);
+    for (let i = 0; i < concurrency; i++) {
+      workers.push(next());
+    }
+
+    await Promise.all(workers);
+    return newTasks;
+  }
+
+  /**
+   * Run a single sub-agent task with timeout and cancellation support.
+   * Mutates `task` in place and returns it.
+   */
+  async runTask(
+    task: SubAgentTask,
+    apiCall: (prompt: string) => Promise<string>,
+  ): Promise<SubAgentTask> {
+    if (this.cancelled.has(task.id)) {
+      task.status = 'failed';
+      task.error = 'Task was cancelled';
+      task.completedAt = Date.now();
+      return task;
+    }
+
+    task.status = 'running';
+    task.startedAt = Date.now();
+
+    const timeoutMs = this.config.timeoutMs;
+
+    try {
+      const result = await Promise.race([
+        apiCall(task.prompt),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`Task "${task.description}" timed out after ${timeoutMs}ms`)),
+            timeoutMs,
+          ),
+        ),
+      ]);
+
+      // Re-check cancellation — task may have been cancelled while the API call was in flight.
+      if (this.cancelled.has(task.id)) {
+        task.status = 'failed';
+        task.error = 'Task was cancelled';
+      } else {
+        task.status = 'completed';
+        task.result = result;
+      }
+    } catch (error) {
+      task.status = 'failed';
+      task.error = error instanceof Error ? error.message : String(error);
+      log.warn(`Sub-agent task failed: ${task.description} — ${task.error}`);
+    } finally {
+      task.completedAt = Date.now();
+    }
+
+    return task;
+  }
+
+  /**
+   * Return a snapshot of all tasks tracked by this orchestrator.
+   */
+  getStatus(): SubAgentTask[] {
+    return [...this.tasks.values()];
+  }
+
+  /**
+   * Mark a task as cancelled.  If it is still pending it will be skipped
+   * entirely; if it is already running the next post-API-call check will
+   * mark it failed.
+   */
+  cancel(taskId: string): void {
+    this.cancelled.add(taskId);
+    const task = this.tasks.get(taskId);
+    if (task && task.status === 'pending') {
+      task.status = 'failed';
+      task.error = 'Task was cancelled';
+      task.completedAt = Date.now();
+      log.info(`Cancelled pending task: ${taskId}`);
+    }
+  }
+
+  /**
+   * Build a markdown summary of completed task results.
+   *
+   * ```markdown
+   * ## Task Results
+   * ### 1. Summarise file A ✓
+   * <result text>
+   * ### 2. Summarise file B ✗
+   * Error: timed out after 300000ms
+   * ```
+   */
+  synthesize(tasks: SubAgentTask[]): string {
+    const lines: string[] = ['## Task Results', ''];
+
+    tasks.forEach((task, index) => {
+      const marker = task.status === 'completed' ? '✓' : '✗';
+      lines.push(`### ${index + 1}. ${task.description} ${marker}`);
+
+      if (task.status === 'completed' && task.result) {
+        lines.push(task.result);
+      } else if (task.status === 'failed') {
+        lines.push(`Error: ${task.error ?? 'Unknown error'}`);
+      } else {
+        lines.push(`Status: ${task.status}`);
+      }
+
+      lines.push('');
+    });
+
+    return lines.join('\n').trimEnd();
+  }
+
+  /**
+   * Wait until all currently-tracked tasks have left the 'pending' or
+   * 'running' state, or until the optional `timeoutMs` elapses.
+   *
+   * Resolves with the current task snapshot once settled.
+   */
+  async waitAll(timeoutMs?: number): Promise<SubAgentTask[]> {
+    const poll = (): boolean =>
+      [...this.tasks.values()].every(
+        (t) => t.status === 'completed' || t.status === 'failed',
+      );
+
+    if (poll()) return this.getStatus();
+
+    const deadline = timeoutMs ? Date.now() + timeoutMs : Infinity;
+    const INTERVAL = 50;
+
+    return new Promise<SubAgentTask[]>((resolve) => {
+      const check = (): void => {
+        if (poll()) {
+          resolve(this.getStatus());
+          return;
+        }
+        if (Date.now() >= deadline) {
+          resolve(this.getStatus());
+          return;
+        }
+        setTimeout(check, INTERVAL);
+      };
+      setTimeout(check, INTERVAL);
+    });
+  }
+}
+
+/**
+ * Return a lazily-created singleton `AgentOrchestrator`.
+ * Pass `config` on first call to customise defaults; subsequent calls with
+ * a different config will replace the singleton.
+ */
+export function getAgentOrchestrator(
+  config?: Partial<OrchestratorConfig>,
+): AgentOrchestrator {
+  if (!_instance || config) {
+    _instance = new AgentOrchestrator(config);
+  }
+  return _instance;
+}

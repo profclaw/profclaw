@@ -2,6 +2,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import figlet from 'figlet';
+import { checkForUpdate, formatUpdateMessage } from '../utils/auto-update.js';
 import { taskCommands } from './commands/task.js';
 import { ticketCommands } from './commands/ticket.js';
 import { summaryCommands } from './commands/summary.js';
@@ -134,3 +135,14 @@ program.action(() => {
 
 // Parse and execute (parseAsync required for async command actions)
 await program.parseAsync();
+
+// Non-blocking update check — runs after the main command completes.
+// Only checks if 24h have elapsed (enforced inside checkForUpdate via cache).
+checkForUpdate().then((info) => {
+  const msg = formatUpdateMessage(info);
+  if (msg) {
+    console.log('\n' + chalk.yellow('  ' + msg));
+  }
+}).catch(() => {
+  // Update check is best-effort; never surface errors to the user
+});

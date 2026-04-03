@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { ContextCompactor } from "../context-compactor.js";
 import type { ModelMessage } from "ai";
 
@@ -228,5 +228,182 @@ describe("ContextCompactor", () => {
 
     // Tool outcome should appear
     expect(summaryText).toContain("Tool Calls & Outcomes");
+  });
+
+  // ── 5. LLM compaction — apiCall receives correct prompt ───────────────────
+
+  it("compactWithLLM calls apiCall with a prompt containing the conversation transcript", async () => {
+    const compactor = new ContextCompactor({
+      maxContextTokens: 2_000,
+      compactionThreshold: 500,
+      preserveRecentTurns: 2,
+      summaryMaxTokens: 500,
+    });
+
+    const messages = buildLargeConversation(6, 50);
+
+    const apiCall = vi.fn().mockResolvedValue("LLM-generated summary text.");
+
+    await compactor.compactWithLLM(messages, apiCall);
+
+    expect(apiCall).toHaveBeenCalledTimes(1);
+    const prompt: string = apiCall.mock.calls[0][0] as string;
+
+    // Prompt must contain the summarization instructions
+    expect(prompt).toContain("Summarize this conversation concisely");
+    expect(prompt).toContain("Key decisions made");
+    expect(prompt).toContain("Files modified and why");
+    expect(prompt).toContain("Tool results and outcomes");
+    expect(prompt).toContain("Current task status");
+
+    // Prompt must contain the conversation transcript delimiters
+    expect(prompt).toContain("CONVERSATION START");
+    expect(prompt).toContain("CONVERSATION END");
+  });
+
+  // ── 6. LLM compaction — recent turns are preserved verbatim ──────────────
+
+  it("compactWithLLM preserves the configured number of recent turns verbatim", async () => {
+    const preserveRecentTurns = 3;
+    const compactor = new ContextCompactor({
+      maxContextTokens: 2_000,
+      compactionThreshold: 500,
+      preserveRecentTurns,
+      summaryMaxTokens: 500,
+    });
+
+    const messages = buildLargeConversation(6, 50);
+    const lastTurns = messages.slice(-(preserveRecentTurns * 2));
+
+    const apiCall = vi.fn().mockResolvedValue("Summary from LLM.");
+
+    const result = await compactor.compactWithLLM(messages, apiCall);
+
+    expect(result.compacted).toBe(true);
+
+    const outConversational = result.messages.filter((m) => m.role !== "system");
+    const preservedSlice = outConversational.slice(-(preserveRecentTurns * 2));
+
+    expect(preservedSlice.length).toBe(lastTurns.length);
+    for (let i = 0; i < lastTurns.length; i++) {
+      expect(preservedSlice[i].content).toBe(lastTurns[i].content);
+    }
+  });
+
+  // ── 7. LLM compaction — summary message contains the LLM output ──────────
+
+  it("compactWithLLM embeds the LLM response as a system message", async () => {
+    const compactor = new ContextCompactor({
+      maxContextTokens: 2_000,
+      compactionThreshold: 500,
+      preserveRecentTurns: 2,
+      summaryMaxTokens: 500,
+    });
+
+    const messages = buildLargeConversation(6, 50);
+    const llmResponse = "This is a unique LLM summary that can be verified.";
+
+    const apiCall = vi.fn().mockResolvedValue(llmResponse);
+
+    const result = await compactor.compactWithLLM(messages, apiCall);
+
+    const summaryMsg = result.messages.find(
+      (m) =>
+        m.role === "system" &&
+        typeof m.content === "string" &&
+        (m.content as string).includes("LLM-compacted context"),
+    );
+
+    expect(summaryMsg).toBeDefined();
+    expect(summaryMsg?.content).toContain(llmResponse);
+  });
+
+  // ── 8. LLM fallback — falls back to local when apiCall throws ─────────────
+
+  it("compact() falls back to local heuristic when apiCall throws", async () => {
+    const compactor = new ContextCompactor({
+      maxContextTokens: 2_000,
+      compactionThreshold: 500,
+      preserveRecentTurns: 2,
+      summaryMaxTokens: 500,
+      useLLM: true,
+    });
+
+    const messages = buildLargeConversation(6, 50);
+
+    const failingApiCall = vi.fn().mockRejectedValue(new Error("Network error"));
+
+    // Should not throw — falls back to local
+    const result = await compactor.compact(messages, failingApiCall);
+
+    expect(result.compacted).toBe(true);
+
+    // Local summary uses "Conversation Summary" header, not "LLM-compacted"
+    const summaryMsg = result.messages.find(
+      (m) =>
+        m.role === "system" &&
+        typeof m.content === "string" &&
+        (m.content as string).includes("Conversation Summary (compacted context)"),
+    );
+
+    expect(summaryMsg).toBeDefined();
+    // apiCall was attempted
+    expect(failingApiCall).toHaveBeenCalledTimes(1);
+  });
+
+  // ── 9. compact() delegates to LLM path when useLLM=true and apiCall provided
+
+  it("compact() delegates to LLM path when useLLM is true and apiCall is provided", async () => {
+    const compactor = new ContextCompactor({
+      maxContextTokens: 2_000,
+      compactionThreshold: 500,
+      preserveRecentTurns: 2,
+      summaryMaxTokens: 500,
+      useLLM: true,
+    });
+
+    const messages = buildLargeConversation(6, 50);
+    const llmText = "LLM summary via compact delegation.";
+    const apiCall = vi.fn().mockResolvedValue(llmText);
+
+    const result = await compactor.compact(messages, apiCall);
+
+    expect(result.compacted).toBe(true);
+    expect(apiCall).toHaveBeenCalledTimes(1);
+
+    const summaryMsg = result.messages.find(
+      (m) =>
+        m.role === "system" &&
+        typeof m.content === "string" &&
+        (m.content as string).includes("LLM-compacted context"),
+    );
+    expect(summaryMsg).toBeDefined();
+  });
+
+  // ── 10. compact() uses local path when useLLM=true but no apiCall given ───
+
+  it("compact() uses local heuristic when useLLM is true but no apiCall is provided", async () => {
+    const compactor = new ContextCompactor({
+      maxContextTokens: 2_000,
+      compactionThreshold: 500,
+      preserveRecentTurns: 2,
+      summaryMaxTokens: 500,
+      useLLM: true,
+    });
+
+    const messages = buildLargeConversation(6, 50);
+
+    // No apiCall passed — should use local path without throwing
+    const result = await compactor.compact(messages);
+
+    expect(result.compacted).toBe(true);
+
+    const summaryMsg = result.messages.find(
+      (m) =>
+        m.role === "system" &&
+        typeof m.content === "string" &&
+        (m.content as string).includes("Conversation Summary (compacted context)"),
+    );
+    expect(summaryMsg).toBeDefined();
   });
 });

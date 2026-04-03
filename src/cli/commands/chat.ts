@@ -7,6 +7,7 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
+import type { ModelMessage } from 'ai';
 import { api } from '../utils/api.js';
 import { error, success, spinner, info } from '../utils/output.js';
 import { getSessionDiffTracker } from '../../agents/session-diff.js';
@@ -711,6 +712,108 @@ async function startTUI(options: ChatOptions): Promise<void> {
         return true;
       }
 
+      case 'compact': {
+        const useLLM = args.includes('--llm');
+        const { ContextCompactor } = await import('../../agents/context-compactor.js');
+
+        const compactor = new ContextCompactor({
+          maxContextTokens: tokensMax,
+          compactionThreshold: Math.floor(tokensMax * 0.7),
+          preserveRecentTurns: 5,
+          summaryMaxTokens: 2_000,
+        });
+
+        // Build a ModelMessage[] from the display messages for token estimation
+        const modelMessages: ModelMessage[] = messages.map((m) => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+        }));
+
+        const currentTokens = compactor.estimateTokens(modelMessages);
+        const threshold = Math.floor(tokensMax * 0.7);
+
+        if (currentTokens < threshold && !useLLM) {
+          pushInfo(
+            `No compaction needed (${currentTokens.toLocaleString()}/${tokensMax.toLocaleString()} tokens — threshold: ${threshold.toLocaleString()})`,
+          );
+          return true;
+        }
+
+        agentStatus = 'thinking';
+        agentAction = useLLM ? 'Compacting with LLM...' : 'Compacting context...';
+        rerender();
+
+        try {
+          let result;
+
+          if (useLLM) {
+            // Build an apiCall using the current server/model config
+            const apiCall = async (prompt: string): Promise<string> => {
+              const headers: Record<string, string> = {
+                'Content-Type': 'application/json',
+              };
+              if (serverConfig.apiToken) {
+                headers['Authorization'] = `Bearer ${serverConfig.apiToken}`;
+              }
+              const res = await fetch(`${serverConfig.baseUrl}/api/chat/completions`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                  messages: [{ role: 'user', content: prompt }],
+                  model: currentModel,
+                  provider: currentProvider,
+                  stream: false,
+                }),
+              });
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              const data = await res.json() as { content?: string; message?: { content?: string } };
+              return data.content ?? data.message?.content ?? '';
+            };
+
+            result = await compactor.compactWithLLM(modelMessages, apiCall);
+          } else {
+            result = await compactor.compact(modelMessages);
+          }
+
+          agentStatus = 'idle';
+          agentAction = undefined;
+
+          if (!result.compacted) {
+            pushInfo(
+              `No compaction needed (${currentTokens.toLocaleString()}/${tokensMax.toLocaleString()} tokens)`,
+            );
+            return true;
+          }
+
+          // Replace display messages with compacted set (convert back to display format)
+          messages.length = 0;
+          for (const m of result.messages) {
+            if (m.role === 'system') {
+              const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+              messages.push({ role: 'assistant', content, timestamp: new Date() });
+            } else if (m.role === 'user' || m.role === 'assistant') {
+              const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+              messages.push({ role: m.role, content, timestamp: new Date() });
+            }
+          }
+
+          // Update token counter
+          tokensUsed = result.compactedTokens;
+
+          pushInfo(
+            `**Context compacted** (${useLLM ? 'LLM' : 'local'} mode)\n` +
+            `${result.originalTokens.toLocaleString()} → ${result.compactedTokens.toLocaleString()} tokens · ${result.turnsCompacted} turn(s) summarized`,
+          );
+        } catch (err) {
+          agentStatus = 'idle';
+          agentAction = undefined;
+          pushInfo(
+            `**Compaction failed:** ${err instanceof Error ? err.message : 'Unknown error'}`,
+          );
+        }
+        return true;
+      }
+
       case 'help':
       case 'h':
       case '?': {
@@ -738,6 +841,8 @@ async function startTUI(options: ChatOptions): Promise<void> {
           '  `/rewind --turn <n>` — Rewind all changes from turn N',
           '',
           '**Utilities**',
+          '  `/compact` — Compact context (summarize old turns)',
+          '  `/compact --llm` — Compact using LLM for richer summary',
           '  `/status` — Server and provider health',
           '  `/run <cmd>` — Execute a shell command',
           '  `/retry [model]` — Retry last message (optionally with different model)',
