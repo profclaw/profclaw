@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.0](https://github.com/profclaw/profclaw/compare/v2.0.0...v2.1.0) (2026-04-11)
+
+
+### Features
+
+* engine hardening, Ink TUI, launch-ready enhancements ([#21](https://github.com/profclaw/profclaw/issues/21)) ([7bb38cf](https://github.com/profclaw/profclaw/commit/7bb38cf4006a2c68ec3c7cda70e8808964654c48))
+
 ## [2.0.0](https://github.com/profclaw/profclaw/releases/tag/v2.0.0) (2026-03-14)
 
 Initial public beta release.
