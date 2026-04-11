@@ -15,11 +15,13 @@ import figlet from 'figlet';
 import { select, search, input, password as passwordPrompt, confirm, Separator } from '@inquirer/prompts';
 import { randomUUID } from 'crypto';
 import { eq } from 'drizzle-orm';
-import { spawn } from 'child_process';
+import { spawn, execFile } from 'child_process';
 import { existsSync, mkdirSync, openSync } from 'node:fs';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
+import * as os from 'os';
 import { createServer } from 'net';
-import { initStorage, getDb, saveProviderConfig, loadAllProviderConfigs } from '../../storage/index.js';
+import { initStorage, getDb, closeStorage, saveProviderConfig, loadAllProviderConfigs } from '../../storage/index.js';
 import { users, inviteCodes } from '../../storage/schema.js';
 import { PROVIDER_CATALOG } from '../providers.js';
 import {
@@ -642,6 +644,97 @@ async function stepGitHubOAuth(): Promise<boolean> {
 
 // Step 6: Summary
 
+const execFileAsync = promisify(execFile);
+
+interface HealthCheckResult {
+  label: string;
+  status: 'pass' | 'warn' | 'fail';
+  detail: string;
+}
+
+async function runQuickHealthCheck(): Promise<void> {
+  const results: HealthCheckResult[] = [];
+
+  // 1. Node.js version
+  const nodeVersion = process.version;
+  const nodeMajor = parseInt(nodeVersion.slice(1).split('.')[0], 10);
+  results.push({
+    label: 'Node.js',
+    status: nodeMajor >= 20 ? 'pass' : 'warn',
+    detail: nodeMajor >= 20 ? nodeVersion : `${nodeVersion} (v20+ recommended)`,
+  });
+
+  // 2. Config files
+  const cwd = process.cwd();
+  const settingsExists = existsSync(join(cwd, 'config', 'settings.yml'));
+  const envExists = existsSync(join(cwd, '.env'));
+  const configStatus = settingsExists && envExists ? 'pass' : settingsExists || envExists ? 'warn' : 'fail';
+  const configDetail =
+    settingsExists && envExists
+      ? 'settings.yml + .env found'
+      : settingsExists
+        ? 'settings.yml found, .env missing'
+        : envExists
+          ? '.env found, settings.yml missing'
+          : 'settings.yml and .env not found';
+  results.push({ label: 'Config', status: configStatus, detail: configDetail });
+
+  // 3. Database — initStorage() already ran, so if we get here the DB is initialized
+  results.push({ label: 'Database', status: 'pass', detail: 'Initialized' });
+
+  // 4. Memory
+  const freeBytes = os.freemem();
+  const freeMb = freeBytes / 1024 / 1024;
+  const freeGb = freeBytes / 1024 / 1024 / 1024;
+  const memDetail = freeGb >= 1 ? `${freeGb.toFixed(1)} GB free` : `${Math.round(freeMb)} MB free`;
+  results.push({
+    label: 'Memory',
+    status: freeMb >= 256 ? 'pass' : 'warn',
+    detail: freeMb >= 256 ? memDetail : `${memDetail} (low)`,
+  });
+
+  // 5. Disk — df on cwd
+  let diskDetail = 'unavailable';
+  let diskStatus: 'pass' | 'warn' | 'fail' = 'warn';
+  try {
+    const { stdout } = await execFileAsync('df', ['-k', cwd]);
+    const lines = stdout.trim().split('\n');
+    if (lines.length >= 2) {
+      const parts = lines[1].trim().split(/\s+/);
+      // df -k columns: Filesystem 1K-blocks Used Available Use% Mounted (macOS/Linux may vary)
+      const availIdx = parts.length >= 4 ? (parts.length === 6 ? 3 : parts.length - 3) : -1;
+      const useIdx = parts.length >= 5 ? parts.length - 2 : -1;
+      if (availIdx !== -1 && useIdx !== -1) {
+        const availKb = parseInt(parts[availIdx], 10);
+        const usePercent = parts[useIdx];
+        const availGb = availKb / 1024 / 1024;
+        diskDetail = `${availGb.toFixed(0)} GB free (${usePercent} used)`;
+        diskStatus = availGb >= 1 ? 'pass' : 'warn';
+      }
+    }
+  } catch { /* df not available */ }
+  results.push({ label: 'Disk', status: diskStatus, detail: diskDetail });
+
+  // Render
+  const icon = (s: HealthCheckResult['status']) =>
+    s === 'pass' ? chalk.green('\u2713') : s === 'warn' ? chalk.yellow('\u26a0') : chalk.red('\u2717');
+  const labelWidth = 12;
+
+  console.log('');
+  console.log(chalk.bold.white('  Quick Health Check'));
+  console.log('  ' + '\u2500'.repeat(44));
+  for (const r of results) {
+    const label = r.label.padEnd(labelWidth);
+    console.log(`  ${icon(r.status)} ${chalk.dim(label)} ${r.detail}`);
+  }
+  console.log('  ' + '\u2500'.repeat(44));
+
+  const passed = results.filter(r => r.status === 'pass').length;
+  const total = results.length;
+  const summary = passed === total ? chalk.green(`${passed}/${total} checks passed`) : chalk.yellow(`${passed}/${total} checks passed`);
+  console.log(`  ${summary}`);
+}
+
 function checkPortAvailable(port: number): Promise<boolean> {
   return new Promise((resolve) => {
     const server = createServer();
@@ -674,6 +767,8 @@ async function showSummaryAndOffer(results: {
   console.log(`  ${mark(results.githubOAuth)} GitHub OAuth: ${results.githubOAuth ? 'configured' : 'skipped'}`);
 
   console.log('  ' + '\u2500'.repeat(44));
+
+  await runQuickHealthCheck();
 
   // Check if server is already running
   const portFree = await checkPortAvailable(port);
@@ -925,7 +1020,8 @@ export function setupCommand(): Command {
             aiProvider: options.aiProvider,
             registrationMode: options.registrationMode,
           });
-          return;
+          await closeStorage();
+          process.exit(0);
         }
 
         const fromOnboard = !!options.fromOnboard;
@@ -1011,8 +1107,12 @@ export function setupCommand(): Command {
           githubOAuth,
           fromOnboard,
         });
+
+        await closeStorage();
+        process.exit(0);
       } catch (err) {
         error(err instanceof Error ? err.message : 'Setup failed');
+        await closeStorage();
         process.exit(1);
       }
     });

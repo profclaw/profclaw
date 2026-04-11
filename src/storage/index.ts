@@ -143,6 +143,16 @@ export function getClient(): Client {
   return (storage as LibSQLAdapter).getClient();
 }
 
+/**
+ * Close the global storage connection. Call before process exit in CLI commands.
+ */
+export async function closeStorage(): Promise<void> {
+  if (storage) {
+    await storage.disconnect();
+    storage = null;
+  }
+}
+
 export * from "./adapter.js";
 export * from "./schema.js";
 
