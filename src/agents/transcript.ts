@@ -39,6 +39,8 @@ let _instance: TranscriptStore | null = null;
 export class TranscriptStore {
   private transcriptsDir: string;
   private sessionsIndex: Map<string, SessionMeta>;
+  private indexDirty = false;
+  private indexTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(projectRoot?: string) {
     const root = projectRoot ?? process.cwd();
@@ -76,7 +78,7 @@ export class TranscriptStore {
     }
 
     this.sessionsIndex.set(entry.sessionId, meta);
-    this.saveIndex();
+    this.markIndexDirty();
   }
 
   /**
@@ -225,9 +227,33 @@ export class TranscriptStore {
     this.saveIndex();
   }
 
+  flush(): void {
+    if (this.indexTimer) {
+      clearTimeout(this.indexTimer);
+      this.indexTimer = null;
+    }
+    if (this.indexDirty) {
+      this.saveIndex();
+      this.indexDirty = false;
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
+
+  private markIndexDirty(): void {
+    this.indexDirty = true;
+    if (!this.indexTimer) {
+      this.indexTimer = setTimeout(() => {
+        this.indexTimer = null;
+        if (this.indexDirty) {
+          this.saveIndex();
+          this.indexDirty = false;
+        }
+      }, 1000);
+    }
+  }
 
   private sessionFilePath(sessionId: string): string {
     return path.join(this.transcriptsDir, `${sessionId}.jsonl`);

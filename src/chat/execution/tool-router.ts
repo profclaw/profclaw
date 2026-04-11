@@ -127,6 +127,12 @@ let config: ToolRouterConfig = {
 // Track promoted tools per conversation (conversationId -> set of tool names)
 const promotedTools = new Map<string, Set<string>>();
 
+const TIER_MAX_TOOLS: Record<ToolTier, number> = {
+  essential: 10,
+  standard: 25,
+  full: 50,
+};
+
 // Core Functions
 
 /**
@@ -139,7 +145,7 @@ export function classifyModel(modelId: string): ModelProfile {
       return {
         capability: entry.capability,
         tier: entry.tier,
-        maxTools: entry.tier === 'essential' ? 10 : entry.tier === 'standard' ? 15 : 15,
+        maxTools: TIER_MAX_TOOLS[entry.tier],
         contextWindow,
         toolTokenBudget: Math.floor(contextWindow * (config.maxToolTokenPercent / 100)),
       };
@@ -155,7 +161,7 @@ export function classifyModel(modelId: string): ModelProfile {
       return {
         capability: 'basic',
         tier: 'essential',
-        maxTools: 10,
+        maxTools: TIER_MAX_TOOLS['essential'],
         contextWindow,
         toolTokenBudget: Math.floor(contextWindow * (config.maxToolTokenPercent / 100)),
       };
@@ -164,7 +170,7 @@ export function classifyModel(modelId: string): ModelProfile {
       return {
         capability: 'instruction',
         tier: 'standard',
-        maxTools: 30,
+        maxTools: TIER_MAX_TOOLS['standard'],
         contextWindow,
         toolTokenBudget: Math.floor(contextWindow * (config.maxToolTokenPercent / 100)),
       };
@@ -176,7 +182,7 @@ export function classifyModel(modelId: string): ModelProfile {
   return {
     capability: 'reasoning',
     tier: 'standard',
-    maxTools: 35,
+    maxTools: TIER_MAX_TOOLS['standard'],
     contextWindow,
     toolTokenBudget: Math.floor(contextWindow * (config.maxToolTokenPercent / 100)),
   };

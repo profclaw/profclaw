@@ -158,18 +158,28 @@ export class WorktreeManager {
       );
     }
 
-    const args = ["merge"];
-    if (options?.squash) {
-      args.push("--squash");
-    }
-    args.push(info.branch);
-
-    if (options?.message) {
-      args.push("-m", options.message);
-    }
-
     try {
-      await execFile("git", args, { cwd: this.projectRoot });
+      // Ensure we're on the correct base branch before merging
+      await execFile("git", ["checkout", info.baseBranch], {
+        cwd: this.projectRoot,
+      });
+
+      if (options?.squash) {
+        // Squash merge requires separate commit step
+        await execFile("git", ["merge", "--squash", info.branch], {
+          cwd: this.projectRoot,
+        });
+        const commitMsg = options.message || `Squash merge branch '${info.branch}'`;
+        await execFile("git", ["commit", "-m", commitMsg], {
+          cwd: this.projectRoot,
+        });
+      } else {
+        const mergeArgs = ["merge", info.branch];
+        if (options?.message) {
+          mergeArgs.push("-m", options.message);
+        }
+        await execFile("git", mergeArgs, { cwd: this.projectRoot });
+      }
       logger.info(
         `[WorktreeManager] Merged branch ${info.branch} into ${info.baseBranch}`,
       );

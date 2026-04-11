@@ -38,6 +38,7 @@ const sessions = new Map<string, REPLSession>();
 
 const REPL_TIMEOUT_MS = 30_000;
 const MAX_OUTPUT_CHARS = 50_000;
+const MAX_OUTPUT_HISTORY = 50;
 
 // Prompt patterns that indicate the REPL is ready for next input
 const NODE_PROMPT_RE = /^> $/m;
@@ -195,8 +196,11 @@ The sessionId returned can be passed back to reuse the same session.`,
     try {
       const output = await executeInSession(session, code);
 
-      // Store output in session history
+      // Store output in session history (capped to prevent unbounded growth)
       session.output.push(output);
+      if (session.output.length > MAX_OUTPUT_HISTORY) {
+        session.output.splice(0, session.output.length - MAX_OUTPUT_HISTORY);
+      }
 
       const result: REPLResult = {
         output,
