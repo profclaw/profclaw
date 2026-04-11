@@ -12,13 +12,41 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import figlet from 'figlet';
-import { select, search, input, Separator } from '@inquirer/prompts';
+import { select, search, input, confirm, Separator } from '@inquirer/prompts';
 import { existsSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
 import { success, error, info, warn, spinner } from '../utils/output.js';
 import { PROVIDER_CATALOG, PROVIDER_ENV_KEYS } from '../providers.js';
 import type { DeploymentMode } from '../../core/deployment.js';
+
+/** Returns true if an env var name should have its value masked. */
+function isSensitiveKey(key: string): boolean {
+  return key.includes('KEY') || key.includes('TOKEN') || key.includes('SECRET');
+}
+
+/** Mask an API key for display — shows first 8 chars and last 4, dots in between. */
+function maskApiKey(key: string): string {
+  if (key.length <= 12) return key.slice(0, 4) + '•'.repeat(key.length - 4);
+  return key.slice(0, 8) + '•'.repeat(8) + key.slice(-4);
+}
+
+/** Format a generated env file for display with sensitive values masked. */
+function formatEnvPreview(content: string): string {
+  return content.split('\n')
+    .map(line => {
+      if (line.startsWith('#') || line.trim() === '') return chalk.dim(`  ${line}`);
+      const eqIndex = line.indexOf('=');
+      if (eqIndex === -1) return chalk.dim(`  ${line}`);
+      const key = line.slice(0, eqIndex);
+      const value = line.slice(eqIndex + 1);
+      if (isSensitiveKey(key)) {
+        return `  ${chalk.cyan(key)}=${chalk.yellow(maskApiKey(value))}`;
+      }
+      return `  ${chalk.cyan(key)}=${chalk.white(value)}`;
+    })
+    .join('\n');
+}
 
 /** Render a step header with progress bar. */
 function stepHeader(step: number, total: number, title: string): void {
@@ -184,6 +212,101 @@ function generateEnvFile(opts: {
   }
 
   return lines.join('\n');
+}
+
+// API Key Validation
+
+interface ValidationResult {
+  valid: boolean;
+  error?: string;
+}
+
+const KEY_FORMAT_PREFIXES: Readonly<Record<string, string>> = {
+  anthropic: 'sk-ant-',
+  openai: 'sk-',
+  groq: 'gsk_',
+};
+
+async function validateProviderKey(providerKey: string, apiKey: string): Promise<ValidationResult> {
+  // Fast-fail: format check for known prefix patterns
+  const expectedPrefix = KEY_FORMAT_PREFIXES[providerKey];
+  if (expectedPrefix && !apiKey.startsWith(expectedPrefix)) {
+    return {
+      valid: false,
+      error: `Key should start with "${expectedPrefix}"`,
+    };
+  }
+
+  // Ollama uses a local URL, no key validation needed
+  if (providerKey === 'ollama') {
+    return { valid: true };
+  }
+
+  // Lightweight API call to verify the key works
+  try {
+    let response: Response;
+
+    if (providerKey === 'anthropic') {
+      response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        signal: AbortSignal.timeout(5000),
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'claude-3-haiku-20240307',
+          max_tokens: 1,
+          messages: [{ role: 'user', content: 'hi' }],
+        }),
+      });
+    } else if (providerKey === 'openai') {
+      response = await fetch('https://api.openai.com/v1/models', {
+        signal: AbortSignal.timeout(5000),
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+    } else if (providerKey === 'google') {
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`,
+        { signal: AbortSignal.timeout(5000) },
+      );
+    } else if (providerKey === 'groq') {
+      response = await fetch('https://api.groq.com/openai/v1/models', {
+        signal: AbortSignal.timeout(5000),
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+    } else {
+      // Provider not supported for live validation — skip
+      return { valid: true };
+    }
+
+    if (response.ok) {
+      return { valid: true };
+    }
+
+    // Parse error message from response body when possible
+    let detail: string | undefined;
+    try {
+      const body = (await response.json()) as { error?: { message?: string }; message?: string };
+      detail = body?.error?.message ?? (typeof body?.message === 'string' ? body.message : undefined);
+    } catch {
+      // ignore parse failure
+    }
+
+    return {
+      valid: false,
+      error: detail ?? `HTTP ${response.status}`,
+    };
+  } catch (err) {
+    if (err instanceof Error && err.name === 'TimeoutError') {
+      return { valid: false, error: 'Request timed out (5s)' };
+    }
+    return {
+      valid: false,
+      error: err instanceof Error ? err.message : 'Network error',
+    };
+  }
 }
 
 // Interactive Onboarding
@@ -414,23 +537,52 @@ async function runInteractive(): Promise<void> {
       } else if (detected.has(chosen.key)) {
         success(`${chosen.name} already configured from ${chosen.envVar}`);
       } else {
-        try {
-          const keyInput = await input({
-            message: chosen.envVar,
-            theme: { prefix: '  ' },
-          });
-          if (keyInput) {
+        let configured = false;
+        while (!configured) {
+          let keyInput: string;
+          try {
+            keyInput = await input({
+              message: chosen.envVar,
+              theme: { prefix: '  ' },
+            });
+          } catch {
+            warn('Input cancelled, skipping provider.');
+            break;
+          }
+
+          if (!keyInput) {
+            warn('No key provided, skipping.');
+            break;
+          }
+
+          const verifySpin = spinner('Verifying API key...');
+          verifySpin.start();
+          const validation = await validateProviderKey(chosen.key, keyInput);
+          verifySpin.stop();
+
+          if (validation.valid) {
             if (chosen.key === 'anthropic') anthropicKey = keyInput;
             else if (chosen.key === 'openai') openaiKey = keyInput;
-            else {
-              process.env[chosen.envVar] = keyInput;
-            }
+            else process.env[chosen.envVar] = keyInput;
             success(`${chosen.name} configured.`);
+            configured = true;
           } else {
-            warn('No key provided, skipping.');
+            error(`Invalid key: ${validation.error ?? 'verification failed'}`);
+            let retry = false;
+            try {
+              retry = await confirm({
+                message: 'Re-enter the key?',
+                default: true,
+                theme: { prefix: '  ' },
+              });
+            } catch {
+              // cancelled
+            }
+            if (!retry) {
+              warn(`Skipping ${chosen.name}.`);
+              break;
+            }
           }
-        } catch {
-          warn('Input cancelled, skipping provider.');
         }
       }
     } else {
@@ -459,12 +611,30 @@ async function runInteractive(): Promise<void> {
       ollamaUrl,
       extraEnvVars,
     });
+
+    console.log(chalk.bold.white('\n  Configuration Preview:\n'));
+    console.log(formatEnvPreview(envContent));
+    console.log('');
+
+    let writeConfirmed = true;
     try {
-      writeFileSync(envPath, envContent, { mode: 0o600 });
-      success('.env file created.');
-    } catch (err) {
-      error(`Failed to write .env: ${err instanceof Error ? err.message : 'unknown'}`);
-      info('Create .env manually with the values above.');
+      writeConfirmed = await confirm({
+        message: 'Write this configuration to .env?',
+        default: true,
+        theme: { prefix: '  ' },
+      });
+    } catch { /* Ctrl+C — keep default true */ }
+
+    if (!writeConfirmed) {
+      warn('Skipped .env write. You can create it manually.');
+    } else {
+      try {
+        writeFileSync(envPath, envContent, { mode: 0o600 });
+        success('.env file created.');
+      } catch (err) {
+        error(`Failed to write .env: ${err instanceof Error ? err.message : 'unknown'}`);
+        info('Create .env manually with the values above.');
+      }
     }
   } else {
     let content = readFileSync(envPath, 'utf-8');
@@ -482,20 +652,43 @@ async function runInteractive(): Promise<void> {
     if (openaiKey) keysToWrite['OPENAI_API_KEY'] = openaiKey;
     if (ollamaUrl) keysToWrite['OLLAMA_BASE_URL'] = ollamaUrl;
 
-    for (const [key, value] of Object.entries(keysToWrite)) {
-      if (content.includes(`${key}=`)) {
-        content = content.replace(new RegExp(`${key}=.*`), `${key}=${value}`);
-      } else {
-        content += `${key}=${value}\n`;
-      }
+    // Show preview of what will change
+    const allUpdates: Record<string, string> = { PROFCLAW_MODE: mode, ...keysToWrite };
+    console.log(chalk.bold.white('\n  Changes to existing .env:\n'));
+    for (const [key, value] of Object.entries(allUpdates)) {
+      const masked = isSensitiveKey(key) ? maskApiKey(value) : value;
+      const action = content.includes(`${key}=`) ? chalk.yellow('update') : chalk.green('add');
+      console.log(`  [${action}] ${chalk.cyan(key)}=${chalk.white(masked)}`);
     }
+    console.log('');
 
-    writeFileSync(envPath, content);
-    const keyCount = Object.keys(keysToWrite).length;
-    if (keyCount > 0) {
-      success(`PROFCLAW_MODE=${mode} + ${keyCount} provider key(s) saved to .env`);
+    let writeConfirmed = true;
+    try {
+      writeConfirmed = await confirm({
+        message: 'Apply these changes to .env?',
+        default: true,
+        theme: { prefix: '  ' },
+      });
+    } catch { /* Ctrl+C — keep default true */ }
+
+    if (!writeConfirmed) {
+      warn('Skipped .env update. You can edit it manually.');
     } else {
-      success(`PROFCLAW_MODE=${mode} set in .env`);
+      for (const [key, value] of Object.entries(keysToWrite)) {
+        if (content.includes(`${key}=`)) {
+          content = content.replace(new RegExp(`${key}=.*`), `${key}=${value}`);
+        } else {
+          content += `${key}=${value}\n`;
+        }
+      }
+
+      writeFileSync(envPath, content);
+      const keyCount = Object.keys(keysToWrite).length;
+      if (keyCount > 0) {
+        success(`PROFCLAW_MODE=${mode} + ${keyCount} provider key(s) saved to .env`);
+      } else {
+        success(`PROFCLAW_MODE=${mode} set in .env`);
+      }
     }
   }
 
@@ -576,6 +769,7 @@ export function onboardCommand(): Command {
         } else {
           await runInteractive();
         }
+        process.exit(0);
       } catch (err) {
         error(err instanceof Error ? err.message : 'Onboarding failed');
         process.exit(1);
