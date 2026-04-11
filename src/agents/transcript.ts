@@ -255,6 +255,7 @@ export class TranscriptStore {
     }
   }
 
+
   private sessionFilePath(sessionId: string): string {
     return path.join(this.transcriptsDir, `${sessionId}.jsonl`);
   }
