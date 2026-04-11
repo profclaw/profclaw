@@ -243,6 +243,9 @@ importers:
       '@tanstack/react-table':
         specifier: ^8.21.3
         version: 8.21.3(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@tiptap/core':
+        specifier: ^3.18.0
+        version: 3.19.0(@tiptap/pm@3.19.0)
       '@tiptap/extension-code-block-lowlight':
         specifier: ^3.18.0
         version: 3.19.0(@tiptap/core@3.19.0(@tiptap/pm@3.19.0))(@tiptap/extension-code-block@3.19.0(@tiptap/core@3.19.0(@tiptap/pm@3.19.0))(@tiptap/pm@3.19.0))(@tiptap/pm@3.19.0)(highlight.js@11.11.1)(lowlight@3.3.0)
@@ -273,6 +276,9 @@ importers:
       '@tiptap/starter-kit':
         specifier: ^3.18.0
         version: 3.19.0
+      '@tiptap/suggestion':
+        specifier: ^3.18.0
+        version: 3.19.0(@tiptap/core@3.19.0(@tiptap/pm@3.19.0))(@tiptap/pm@3.19.0)
       '@types/marked':
         specifier: ^6.0.0
         version: 6.0.0
