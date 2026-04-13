@@ -26,6 +26,7 @@ import {
 } from "../providers/smart-router.js";
 import { logger } from "../utils/logger.js";
 import { rateLimit } from "../middleware/rate-limit.js";
+import { contentFilter } from "../middleware/content-filter.js";
 import type {
   ChatContext,
   ConversationMessage,
@@ -227,6 +228,7 @@ chatRoutes.get("/model-capability", async (c) => {
 chatRoutes.post(
   "/send",
   chatRateLimiter,
+  contentFilter(),
   zValidator(
     "json",
     z.object({
@@ -1188,6 +1190,7 @@ chatRoutes.get("/conversations/:id/export", async (c) => {
 chatRoutes.post(
   "/conversations/:id/messages",
   chatRateLimiter,
+  contentFilter(),
   zValidator(
     "json",
     z.object({
@@ -1455,6 +1458,7 @@ chatRoutes.post(
 chatRoutes.post(
   "/conversations/:id/messages/with-tools",
   chatRateLimiter,
+  contentFilter(),
   zValidator(
     "json",
     z.object({
@@ -1980,6 +1984,7 @@ chatRoutes.post(
 chatRoutes.post(
   "/conversations/:id/messages/agentic",
   chatRateLimiter,
+  contentFilter(),
   zValidator(
     "json",
     z.object({

@@ -61,6 +61,7 @@
     "remark-math": "^6.0.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
+    "thesvg": "^2.1.3",
     "tippy.js": "^6.3.7"
   },
   "devDependencies": {
