@@ -88,6 +88,8 @@ TASK_CONCURRENCY=2
 
 **How do I expose profClaw publicly?** Use Cloudflare Tunnel: `cloudflared tunnel create profclaw` — no port forwarding needed.
 
+**How do I enable content filtering?** Set `CONTENT_FILTER=true` in `.env`. Uses `glin-profanity` (ML-powered, 21M ops/sec) to block profane messages on all chat endpoints. Active in mini and pro modes only (skipped in pico to save memory).
+
 ## Tools Available
 
 - `list_projects`, `list_tickets` — read data

@@ -120,6 +120,7 @@
     "dockerode": "^4.0.9",
     "drizzle-orm": "^0.39.1",
     "figlet": "^1.8.0",
+    "glin-profanity": "^3.3.0",
     "glob": "^13.0.1",
     "hono": "^4.12.7",
     "ink": "^5.2.1",

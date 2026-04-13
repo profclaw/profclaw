@@ -5,6 +5,7 @@
  */
 
 import { Link, useNavigate } from 'react-router-dom';
+import { BrandIcon } from '@/components/shared/BrandIcon';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,7 +19,6 @@ import {
   User,
   Settings,
   LogOut,
-  Github,
   CreditCard,
   Bell,
   Shield,
@@ -189,7 +189,7 @@ export function UserMenu() {
             </DropdownMenuLabel>
             {user.connectedAccounts.map((account) => (
               <DropdownMenuItem key={account.provider} disabled className="opacity-70">
-                <Github className="h-4 w-4 mr-2" />
+                <BrandIcon name="github" className="h-4 w-4 mr-2" />
                 @{account.username}
               </DropdownMenuItem>
             ))}
