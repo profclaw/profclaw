@@ -112,6 +112,26 @@ skills/          - Built-in skill definitions
 2. Register in `src/chat/execution/tools/index.ts`
 3. Add tests
 
+## Release checklist
+
+For maintainers publishing a new version:
+
+1. Merge PRs to `main`
+2. Release-please auto-creates a release PR (bumps version, updates CHANGELOG)
+3. Merge the release PR. This creates a git tag and triggers npm publish via CI.
+4. Build and push Docker images locally:
+   ```bash
+   ./scripts/release-docker.sh
+   ```
+   The script builds both main and pico images, shows sizes, and asks before pushing to ghcr.io.
+5. Verify the release:
+   ```bash
+   npm info profclaw version        # npm
+   docker pull ghcr.io/profclaw/profclaw:latest  # Docker
+   ```
+
+Docker images are built locally (not in CI) to save GitHub Actions minutes. The script handles ghcr.io login via `gh auth`.
+
 ## License
 
 By contributing, you agree that your contributions will be licensed under the AGPL-3.0 license.
