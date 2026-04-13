@@ -9,6 +9,9 @@ import ReactMarkdown, { type Components } from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { cn } from '@/lib/utils';
 import { Copy, Check } from 'lucide-react';
 import { useState } from 'react';
@@ -91,7 +94,8 @@ export function MarkdownRenderer({ content, className }: MarkdownRendererProps) 
   return (
     <ReactMarkdown
       className={cn('prose prose-invert prose-sm max-w-none wrap-anywhere', className)}
-      remarkPlugins={[remarkGfm]}
+      remarkPlugins={[remarkGfm, remarkMath]}
+      rehypePlugins={[rehypeKatex]}
       components={{
         code: CodeBlock as Components['code'],
         // Style other elements - add word wrapping

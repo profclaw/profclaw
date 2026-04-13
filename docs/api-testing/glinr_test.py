@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 """
-GLINR API Testing Framework
+profClaw API Testing Framework
 
-A reusable Python framework for testing GLINR chat API endpoints.
+A reusable Python framework for testing profClaw chat API endpoints.
 Supports conversation management, tool testing, and prompt validation.
 
 Usage:
     # As a library
-    from glinr_test import GlinrClient
+    from profclaw_test import ProfClawClient
 
-    client = GlinrClient()
+    client = ProfClawClient()
     conv_id = client.create_conversation("Test Session")
     response = client.send_message_with_tools(conv_id, "Create a ticket")
     print(response.tool_calls)
 
     # From command line
-    python glinr_test.py --test all
-    python glinr_test.py --test tools --message "List files in src/"
+    python profclaw_test.py --test all
+    python profclaw_test.py --test tools --message "List files in src/"
 """
 
 import json
@@ -56,13 +56,13 @@ class ChatResponse:
     raw_response: Dict[str, Any] = field(default_factory=dict)
 
 
-class GlinrClient:
-    """Client for GLINR API testing"""
+class ProfClawClient:
+    """Client for profClaw API testing"""
 
     def __init__(self, base_url: Optional[str] = None, model: Optional[str] = None):
-        self.base_url = base_url or os.environ.get("GLINR_BASE_URL", DEFAULT_BASE_URL)
+        self.base_url = base_url or os.environ.get("PROFCLAW_BASE_URL", DEFAULT_BASE_URL)
         self.api_url = f"{self.base_url}/api"
-        self.model = model or os.environ.get("GLINR_MODEL", DEFAULT_MODEL)
+        self.model = model or os.environ.get("PROFCLAW_MODEL", DEFAULT_MODEL)
         self.state = self._load_state()
 
     def _load_state(self) -> Dict[str, Any]:
@@ -115,7 +115,7 @@ class GlinrClient:
         """Create a new conversation and return its ID"""
         result = self._request("POST", "/chat/conversations", {
             "title": title,
-            "presetId": "glinr-assistant"
+            "presetId": "profclaw-assistant"
         })
         conv_id = result["conversation"]["id"]
         self.state["conversationId"] = conv_id
@@ -362,7 +362,7 @@ class TestRunner:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="GLINR API Testing")
+    parser = argparse.ArgumentParser(description="profClaw API Testing")
     parser.add_argument("--base-url", help="API base URL", default=DEFAULT_BASE_URL)
     parser.add_argument("--model", help="Model to use (e.g., sonnet, gpt)", default=DEFAULT_MODEL)
     parser.add_argument("--test", choices=["all", "health", "chat", "tools", "ticket"],
@@ -371,7 +371,7 @@ def main():
 
     args = parser.parse_args()
 
-    client = GlinrClient(args.base_url, args.model)
+    client = ProfClawClient(args.base_url, args.model)
     runner = TestRunner(client)
 
     if not client.check_health():

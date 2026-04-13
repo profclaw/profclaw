@@ -63,37 +63,37 @@ assert_contains() {
 echo ""
 log_info "Step 0: Logging in as admin..."
 
-ADMIN_EMAIL="${ADMIN_EMAIL:-admin@glinr.dev}"
+ADMIN_EMAIL="${ADMIN_EMAIL:-admin@profclaw.dev}"
 ADMIN_PASS="${ADMIN_PASS:-TestPassword123!}"
 
-login_response=$(curl -s --max-time "$CURL_TIMEOUT" -X POST "${GLINR_API_URL}/auth/login" \
+login_response=$(curl -s --max-time "$CURL_TIMEOUT" -X POST "${PROFCLAW_API_URL}/auth/login" \
   -H "Content-Type: application/json" \
   -c - \
   -d "{\"email\": \"$ADMIN_EMAIL\", \"password\": \"$ADMIN_PASS\"}")
 
 # Extract session cookie from response headers
-SESSION_COOKIE=$(curl -s --max-time "$CURL_TIMEOUT" -X POST "${GLINR_API_URL}/auth/login" \
+SESSION_COOKIE=$(curl -s --max-time "$CURL_TIMEOUT" -X POST "${PROFCLAW_API_URL}/auth/login" \
   -H "Content-Type: application/json" \
   -c - \
-  -d "{\"email\": \"$ADMIN_EMAIL\", \"password\": \"$ADMIN_PASS\"}" 2>/dev/null | grep glinr_session | awk '{print $NF}')
+  -d "{\"email\": \"$ADMIN_EMAIL\", \"password\": \"$ADMIN_PASS\"}" 2>/dev/null | grep profclaw_session | awk '{print $NF}')
 
 if [ -z "$SESSION_COOKIE" ]; then
   # Try to extract from JSON if login returns a token
   log_warn "Could not extract session cookie via curl -c. Trying setup admin..."
 
   # Create admin if it doesn't exist
-  setup_response=$(curl -s --max-time "$CURL_TIMEOUT" -X POST "${GLINR_API_URL}/setup/admin" \
+  setup_response=$(curl -s --max-time "$CURL_TIMEOUT" -X POST "${PROFCLAW_API_URL}/setup/admin" \
     -H "Content-Type: application/json" \
     -d "{\"email\": \"$ADMIN_EMAIL\", \"password\": \"$ADMIN_PASS\", \"name\": \"Test Admin\"}")
 
   # Try login again with -D to capture headers
   COOKIE_JAR=$(mktemp)
-  curl -s --max-time "$CURL_TIMEOUT" -X POST "${GLINR_API_URL}/auth/login" \
+  curl -s --max-time "$CURL_TIMEOUT" -X POST "${PROFCLAW_API_URL}/auth/login" \
     -H "Content-Type: application/json" \
     -b "$COOKIE_JAR" -c "$COOKIE_JAR" \
     -d "{\"email\": \"$ADMIN_EMAIL\", \"password\": \"$ADMIN_PASS\"}" > /dev/null
 
-  SESSION_COOKIE=$(grep glinr_session "$COOKIE_JAR" 2>/dev/null | awk '{print $NF}')
+  SESSION_COOKIE=$(grep profclaw_session "$COOKIE_JAR" 2>/dev/null | awk '{print $NF}')
   rm -f "$COOKIE_JAR"
 fi
 
@@ -110,17 +110,17 @@ admin_request() {
   local method="$1"
   local endpoint="$2"
   local data="$3"
-  local url="${GLINR_API_URL}${endpoint}"
+  local url="${PROFCLAW_API_URL}${endpoint}"
 
   if [ -n "$data" ]; then
     curl -s --max-time "$CURL_TIMEOUT" -X "$method" "$url" \
       -H "Content-Type: application/json" \
-      -H "Cookie: glinr_session=$SESSION_COOKIE" \
+      -H "Cookie: profclaw_session=$SESSION_COOKIE" \
       -d "$data"
   else
     curl -s --max-time "$CURL_TIMEOUT" -X "$method" "$url" \
       -H "Content-Type: application/json" \
-      -H "Cookie: glinr_session=$SESSION_COOKIE"
+      -H "Cookie: profclaw_session=$SESSION_COOKIE"
   fi
 }
 
@@ -145,7 +145,7 @@ echo ""
 log_info "Step 2: Signup without invite code (should fail)..."
 
 UNIQUE_EMAIL="test-noinvite-$(date +%s)@test.com"
-signup_response=$(curl -s --max-time "$CURL_TIMEOUT" -X POST "${GLINR_API_URL}/auth/signup" \
+signup_response=$(curl -s --max-time "$CURL_TIMEOUT" -X POST "${PROFCLAW_API_URL}/auth/signup" \
   -H "Content-Type: application/json" \
   -d "{\"email\": \"$UNIQUE_EMAIL\", \"password\": \"Password123\", \"name\": \"No Invite\"}")
 
@@ -188,7 +188,7 @@ log_info "Step 4: Signup with valid invite code..."
 
 if [ -n "$INVITE_CODE" ] && [ "$INVITE_CODE" != "null" ]; then
   INVITE_EMAIL="test-invited-$(date +%s)@test.com"
-  signup_ok_response=$(curl -s --max-time "$CURL_TIMEOUT" -X POST "${GLINR_API_URL}/auth/signup" \
+  signup_ok_response=$(curl -s --max-time "$CURL_TIMEOUT" -X POST "${PROFCLAW_API_URL}/auth/signup" \
     -H "Content-Type: application/json" \
     -d "{\"email\": \"$INVITE_EMAIL\", \"password\": \"Password123\", \"name\": \"Invited User\", \"inviteCode\": \"$INVITE_CODE\"}")
 
@@ -206,7 +206,7 @@ log_info "Step 5: Reuse same invite code (should fail)..."
 
 if [ -n "$INVITE_CODE" ] && [ "$INVITE_CODE" != "null" ]; then
   REUSE_EMAIL="test-reuse-$(date +%s)@test.com"
-  reuse_response=$(curl -s --max-time "$CURL_TIMEOUT" -X POST "${GLINR_API_URL}/auth/signup" \
+  reuse_response=$(curl -s --max-time "$CURL_TIMEOUT" -X POST "${PROFCLAW_API_URL}/auth/signup" \
     -H "Content-Type: application/json" \
     -d "{\"email\": \"$REUSE_EMAIL\", \"password\": \"Password123\", \"name\": \"Reuse User\", \"inviteCode\": \"$INVITE_CODE\"}")
 
@@ -275,7 +275,7 @@ if [ "$HAS_ADMIN" = true ]; then
   admin_request "PATCH" "/users/admin/registration-mode" '{"mode": "open"}' > /dev/null
 
   OPEN_EMAIL="test-open-$(date +%s)@test.com"
-  open_response=$(curl -s --max-time "$CURL_TIMEOUT" -X POST "${GLINR_API_URL}/auth/signup" \
+  open_response=$(curl -s --max-time "$CURL_TIMEOUT" -X POST "${PROFCLAW_API_URL}/auth/signup" \
     -H "Content-Type: application/json" \
     -d "{\"email\": \"$OPEN_EMAIL\", \"password\": \"Password123\", \"name\": \"Open User\"}")
 
@@ -298,9 +298,9 @@ log_info "Step 10: Signup with invalid invite code..."
 if [ "$HAS_ADMIN" = true ]; then
   # Re-confirm we're in invite mode
   INVALID_EMAIL="test-invalid-$(date +%s)@test.com"
-  invalid_response=$(curl -s --max-time "$CURL_TIMEOUT" -X POST "${GLINR_API_URL}/auth/signup" \
+  invalid_response=$(curl -s --max-time "$CURL_TIMEOUT" -X POST "${PROFCLAW_API_URL}/auth/signup" \
     -H "Content-Type: application/json" \
-    -d "{\"email\": \"$INVALID_EMAIL\", \"password\": \"Password123\", \"name\": \"Invalid\", \"inviteCode\": \"GLINR-FAKE-CODE-1234\"}")
+    -d "{\"email\": \"$INVALID_EMAIL\", \"password\": \"Password123\", \"name\": \"Invalid\", \"inviteCode\": \"PROFCLAW-FAKE-CODE-1234\"}")
 
   invalid_error=$(echo "$invalid_response" | jq -r '.error // empty')
   assert_contains "Invalid code rejected" "Invalid invite code" "$invalid_error"

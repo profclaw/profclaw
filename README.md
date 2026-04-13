@@ -27,6 +27,14 @@
 
 ---
 
+<p align="center">
+  <img src="docs-local/demos/hero-chat.gif" alt="profClaw chat with Gemma 4, local and free" width="700">
+</p>
+
+<p align="center"><i>Chat with Gemma 4 locally. Zero cost. Runs on your Mac.</i></p>
+
+---
+
 ## Table of Contents
 
 - [Why profClaw](#why-profclaw)
@@ -49,33 +57,31 @@
 
 ## Why profClaw
 
-Most AI coding tools are either cloud-only (Cursor, Devin) or single-purpose CLIs (Aider, SWE-Agent). profClaw is different:
+Most AI coding tools are cloud-only (Cursor, Devin) or single-purpose CLIs (Aider, SWE-Agent). profClaw runs on your machine, talks to 35 providers (or none, Ollama works offline), and does more than chat.
 
-- **Local-first** — runs on your machine, your data stays local
-- **Multi-provider** — 35 AI providers including Ollama for fully offline usage
-- **Interactive TUI** — streaming markdown, syntax highlighting, slash commands, and model selector in the terminal
-- **Multi-agent orchestration** — routes tasks to the right agent (Claude, GPT, Ollama) based on capability scoring
-- **Real task queue** — BullMQ with dead letter queue, retry with backoff, priority scheduling
-- **22 chat channels** — talk to your AI through Slack, Discord, Telegram, WhatsApp, Teams, or 17 others
-- **Cost tracking** — per-token budget management with alerts at 50/80/100%
-- **72 built-in tools** — file ops, git, browser automation, cron, web search, canvas, voice
-- **Scales to edge** — pico mode runs on a Raspberry Pi Zero 2W in ~140MB RAM
-
-No other open-source tool combines task orchestration, project management, cost tracking, and a first-class TUI in one self-hosted package.
+- Local-first. Your data stays on your hardware.
+- 35 AI providers, including Ollama for fully offline usage.
+- Interactive TUI with streaming markdown, syntax highlighting, and a model switcher.
+- Routes tasks to the right agent based on capability scoring.
+- Real task queue with retry, backoff, and dead letter handling (BullMQ + Redis).
+- 22 chat channels: Slack, Discord, Telegram, WhatsApp, Teams, and more.
+- Per-token cost tracking with budget alerts.
+- 72 built-in tools: file ops, git, browser automation, cron, web search, voice.
+- Pico mode runs on a Raspberry Pi Zero 2W in ~140MB RAM.
 
 ## Features
 
 | | |
 |---|---|
-| **35 AI providers** | Anthropic, OpenAI, Google, Groq, Ollama, DeepSeek, Bedrock, and 28 more |
-| **22 chat channels** | Slack, Discord, Telegram, WhatsApp, iMessage, Matrix, Teams, and 15 more |
-| **72 built-in tools** | File ops, git, browser automation, cron, web search, canvas, voice |
-| **50 skills** | Coding agent, GitHub issues, Notion, Obsidian, image gen, and more |
-| **Interactive TUI** | Streaming markdown, syntax highlighting, slash picker, model selector |
-| **MCP server** | Native Model Context Protocol — connect Claude Desktop, Cursor, any MCP client |
-| **Voice I/O** | STT (Whisper) + TTS (ElevenLabs/OpenAI/system) + Talk Mode |
-| **Plugin SDK** | Build and share third-party plugins via npm or ClawHub |
-| **3 deployment modes** | Pico (~140MB), Mini (~145MB), Pro (full features) |
+| 35 AI providers | Anthropic, OpenAI, Google, Groq, Ollama, DeepSeek, Bedrock, and 28 more |
+| 22 chat channels | Slack, Discord, Telegram, WhatsApp, iMessage, Matrix, Teams, and 15 more |
+| 72 built-in tools | File ops, git, browser automation, cron, web search, canvas, voice |
+| 50 skills | Coding agent, GitHub issues, Notion, Obsidian, image gen, and more |
+| Interactive TUI | Streaming markdown, syntax highlighting, slash picker, model selector |
+| MCP server | Model Context Protocol. Works with Claude Desktop, Cursor, any MCP client |
+| Voice I/O | Whisper STT + TTS (ElevenLabs/OpenAI/system) + talk mode |
+| Plugin SDK | Build and share plugins via npm or ClawHub |
+| 3 deployment modes | Pico (~140MB), Mini (~145MB), Pro (full features) |
 
 ## Quick Start
 
@@ -85,9 +91,9 @@ profclaw init
 profclaw chat --tui
 ```
 
-`profclaw init` scans your project, detects your stack, and writes a `PROFCLAW.md` context file. It also auto-detects any AI provider keys in your environment.
+`profclaw init` scans your project, detects your stack, and writes a `PROFCLAW.md` context file. It picks up any AI provider keys already in your environment.
 
-`profclaw chat --tui` opens the interactive TUI with streaming responses, syntax-highlighted code, slash commands, and a live model selector.
+`profclaw chat --tui` opens the terminal UI with streaming responses, code highlighting, slash commands, and a model selector.
 
 ### Full setup wizard
 
@@ -95,7 +101,7 @@ profclaw chat --tui
 npx profclaw onboard
 ```
 
-Picks your AI provider, sets up config, and starts the server — zero to running in under 5 minutes.
+Walks you through provider setup, config, and server start. Takes about 5 minutes.
 
 ### Docker
 
@@ -130,7 +136,11 @@ curl -fsSL https://raw.githubusercontent.com/profclaw/profclaw/main/install.sh |
 
 ## Interactive TUI
 
-profClaw ships with a first-class terminal UI — no browser required.
+<p align="center">
+  <img src="docs-local/demos/tasks-demo.gif" alt="profClaw task management" width="700">
+</p>
+
+profClaw has a full terminal UI. No browser needed.
 
 ```bash
 profclaw chat --tui
@@ -138,15 +148,14 @@ profclaw chat --tui
 profclaw tui
 ```
 
-The TUI provides:
+What you get:
 
-- **Streaming markdown** rendered live as the model responds
-- **Syntax-highlighted code blocks** for 100+ languages
-- **Slash command picker** — type `/` to browse all 50 skills with descriptions
-- **Live model selector** — switch providers mid-conversation with `Ctrl+M`
-- **Tool execution panel** — see every tool call, argument, and result in real time
-- **Session history** — scroll back through previous conversations
-- **Keyboard-driven** — full navigation without a mouse
+- Streaming markdown rendered as the model responds
+- Syntax-highlighted code blocks (100+ languages)
+- Slash command picker: type `/` to browse skills
+- Model selector: switch providers mid-conversation with `Ctrl+M`
+- Tool execution panel showing every call, argument, and result
+- Session history and full keyboard navigation
 
 ```
 ┌─ profClaw v2.x.x ─────────────────────────────────────────────┐
@@ -167,7 +176,7 @@ The TUI provides:
 
 ## Slash Commands
 
-Skills are pre-built expertise modules invoked with `/` in any chat interface or the TUI:
+Type `/` in any chat to run a skill. Skills are plain Markdown files, easy to create your own.
 
 | Command | What it does |
 |---|---|
@@ -185,6 +194,10 @@ Skills are pre-built expertise modules invoked with `/` in any chat interface or
 See [Skills docs](https://profclaw.ai/docs/skills/overview) for all 50 built-in skills and how to create your own with a plain Markdown file.
 
 ## Headless Mode
+
+<p align="center">
+  <img src="docs-local/demos/tools-demo.gif" alt="profClaw agentic tool calling" width="700">
+</p>
 
 Run agents from scripts, CI pipelines, or other services:
 
@@ -215,7 +228,7 @@ curl -X POST http://localhost:3000/api/chat/message \
 
 ## Deployment Modes
 
-profClaw scales from a Raspberry Pi to a full production server:
+Same binary, different scale. Set `PROFCLAW_MODE` and go:
 
 | Mode | What you get | RAM | Best for |
 |------|-------------|-----|----------|
@@ -341,11 +354,11 @@ ui/src/           React 19 + Vite dashboard (mini/pro only)
 skills/           Built-in skill definitions (Markdown)
 ```
 
-**Key design decisions:**
-- **Mode-aware feature flags** — the same binary scales from pico to pro; features are gated at runtime
-- **Adapter pattern for providers** — adding a new AI provider is a single file implementing the `ModelAdapter` interface
-- **Skill-as-Markdown** — skills are plain `.md` files with a structured header; no code required to create new ones
-- **BullMQ for production queues** — optional Redis dependency; falls back to in-memory queue in pico/mini mode
+Design decisions:
+- Same binary scales from pico to pro. Features are gated at runtime.
+- Adding an AI provider is one file implementing `ModelAdapter`.
+- Skills are plain `.md` files. No code needed.
+- BullMQ for production queues, in-memory fallback for pico/mini.
 
 See [Architecture docs](https://profclaw.ai/docs/architecture/overview) for a deep dive.
 

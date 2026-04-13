@@ -70,6 +70,7 @@ const CORE_ROUTE_DEFINITIONS: RouteDefinition[] = [
   { id: 'auth', mountPaths: ['/auth', '/api/auth'], load: namedRoute(() => import('../routes/auth.js'), 'authRoutes') },
   { id: 'settings', mountPaths: ['/api/settings'], load: namedRoute(() => import('../routes/settings.js'), 'settingsRoutes') },
   { id: 'security', mountPaths: ['/api/security'], load: defaultRoute(() => import('../routes/security.js')) },
+  { id: 'costs', mountPaths: ['/api/costs'], load: namedRoute(() => import('../routes/costs.js'), 'costsRoutes') },
 ];
 
 // Dashboard/UI routes (gated on web_ui capability)
@@ -80,7 +81,6 @@ const DASHBOARD_ROUTE_DEFINITIONS: RouteDefinition[] = [
   { id: 'skills', mountPaths: ['/api/skills'], load: namedRoute(() => import('../routes/skills.js'), 'skillsRoutes') },
   { id: 'openapi', mountPaths: ['/api/docs'], load: namedRoute(() => import('../routes/openapi.js'), 'openApiRoutes') },
   { id: 'mcp', mountPaths: ['/api/mcp'], load: namedRoute(() => import('../routes/mcp.js'), 'mcpRoutes') },
-  { id: 'costs', mountPaths: ['/api/costs'], load: namedRoute(() => import('../routes/costs.js'), 'costsRoutes') },
   { id: 'tunnels', mountPaths: ['/api/tunnels'], load: namedRoute(() => import('../routes/tunnels.js'), 'tunnelsRoutes') },
   { id: 'voice', mountPaths: ['/api/voice'], load: namedRoute(() => import('../routes/voice.js'), 'voiceRoutes') },
 ];

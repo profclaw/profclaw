@@ -1,6 +1,6 @@
 # Installation Guide
 
-This guide covers multiple ways to install and run GLINR Task Manager.
+This guide covers multiple ways to install and run profClaw.
 
 ## Table of Contents
 
@@ -20,14 +20,14 @@ This guide covers multiple ways to install and run GLINR Task Manager.
 Runtime: **Node 22+**.
 
 ```bash
-npm install -g glinr-task-manager@latest
-# or: pnpm add -g glinr-task-manager@latest
+npm install -g profclaw@latest
+# or: pnpm add -g profclaw@latest
 
-glinr setup
-glinr serve
+profclaw setup
+profclaw serve
 ```
 
-The setup wizard walks you through AI provider configuration, admin account creation, and registration mode. Then `glinr serve` starts the server at `http://localhost:3000`.
+The setup wizard walks you through AI provider configuration, admin account creation, and registration mode. Then `profclaw serve` starts the server at `http://localhost:3000`.
 
 ---
 
@@ -36,7 +36,7 @@ The setup wizard walks you through AI provider configuration, admin account crea
 Auto-detects npm/pnpm or Docker and installs accordingly:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/GLINCKER/glinr-task-manager/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/profclaw/profclaw/main/install.sh | bash
 ```
 
 ---
@@ -52,8 +52,8 @@ curl -fsSL https://raw.githubusercontent.com/GLINCKER/glinr-task-manager/main/in
 ### Steps
 
 ```bash
-git clone https://github.com/GLINCKER/glinr-task-manager.git
-cd glinr-task-manager
+git clone https://github.com/profclaw/profclaw.git
+cd profclaw
 
 corepack enable
 pnpm install
@@ -74,8 +74,8 @@ The server starts at `http://localhost:3000` with hot reload enabled.
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/GLINCKER/glinr-task-manager.git
-cd glinr-task-manager
+git clone https://github.com/profclaw/profclaw.git
+cd profclaw
 
 # 2. Create environment file
 cp .env.example .env
@@ -85,7 +85,7 @@ cp .env.example .env
 docker compose up -d
 
 # 4. View logs
-docker compose logs -f glinr
+docker compose logs -f profclaw
 
 # 5. Stop services
 docker compose down
@@ -94,7 +94,7 @@ docker compose down
 ### Available Profiles
 
 ```bash
-# Default: GLINR + Redis
+# Default: profClaw + Redis
 docker compose up -d
 
 # With local AI (Ollama)
@@ -114,16 +114,16 @@ docker compose --profile ai --profile monitoring --profile tools up -d
 
 ```bash
 # Pull from GitHub Container Registry
-docker pull ghcr.io/glincker/glinr-task-manager:latest
+docker pull ghcr.io/glincker/profclaw:latest
 
 # Run (requires Redis)
 docker run -d \
-  --name glinr \
+  --name profclaw \
   -p 3000:3000 \
   -e REDIS_URL=redis://your-redis-host:6379 \
   -e ANTHROPIC_API_KEY=sk-ant-xxx \
   --env-file .env \
-  ghcr.io/glincker/glinr-task-manager:latest
+  ghcr.io/glincker/profclaw:latest
 ```
 
 ---
@@ -186,21 +186,21 @@ brew install cloudflare/cloudflare/cloudflared  # macOS
 cloudflared tunnel login
 
 # 3. Create a tunnel
-cloudflared tunnel create glinr
+cloudflared tunnel create profclaw
 
 # 4. Configure tunnel (config.yml)
 tunnel: <TUNNEL_ID>
 credentials-file: /root/.cloudflared/<TUNNEL_ID>.json
 ingress:
-  - hostname: glinr.yourdomain.com
+  - hostname: profclaw.yourdomain.com
     service: http://localhost:3000
   - service: http_status:404
 
 # 5. Run tunnel
-cloudflared tunnel run glinr
+cloudflared tunnel run profclaw
 
 # 6. Create DNS record in Cloudflare dashboard
-# Point glinr.yourdomain.com to <TUNNEL_ID>.cfargotunnel.com
+# Point profclaw.yourdomain.com to <TUNNEL_ID>.cfargotunnel.com
 ```
 
 ---
@@ -288,12 +288,12 @@ After starting the server, create your admin account using the setup wizard:
 
 ```bash
 # Interactive setup wizard
-docker exec -it glinr-task-manager glinr setup
+docker exec -it profclaw profclaw setup
 
 # Or non-interactive (CI/Docker automation)
-docker exec glinr-task-manager glinr setup \
+docker exec profclaw profclaw setup \
   --non-interactive \
-  --admin-email admin@glinr.dev \
+  --admin-email admin@profclaw.dev \
   --admin-password YourSecurePass123 \
   --admin-name "Admin" \
   --ai-provider skip \
@@ -310,11 +310,11 @@ The wizard configures:
 
 ```bash
 # If running via Node.js
-pnpm glinr setup
+pnpm profclaw setup
 
 # Or individual commands:
-pnpm glinr auth create-admin --email admin@example.com --name "Admin"
-pnpm glinr auth set-mode invite
+pnpm profclaw auth create-admin --email admin@example.com --name "Admin"
+pnpm profclaw auth set-mode invite
 ```
 
 ### Option 3: Web UI
@@ -332,7 +332,7 @@ Visit `http://localhost:3000/setup` and follow the on-screen wizard.
 redis-cli ping
 
 # In Docker, ensure network connectivity
-docker network inspect glinr-network
+docker network inspect profclaw-network
 ```
 
 ### Database Errors
@@ -376,7 +376,7 @@ kill -9 <PID>
 docker compose build --no-cache
 
 # Check logs
-docker compose logs glinr
+docker compose logs profclaw
 ```
 
 ---
@@ -406,6 +406,6 @@ pnpm start
 
 ## Getting Help
 
-- [GitHub Issues](https://github.com/GLINCKER/glinr-task-manager/issues)
+- [GitHub Issues](https://github.com/profclaw/profclaw/issues)
 - [API Documentation](http://localhost:3000/api/docs) (Swagger UI)
 - [Discord Community](#) (coming soon)

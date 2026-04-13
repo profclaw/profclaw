@@ -19,7 +19,7 @@ check_server || exit 1
 
 CONV_ID=$(get_conversation_id) || exit 1
 log_info "Using conversation: $CONV_ID"
-log_info "Model: $GLINR_MODEL"
+log_info "Model: $PROFCLAW_MODEL"
 
 # More direct prompt that explicitly names tools
 MESSAGE="You have cron tools available. Please do these steps using the exact tool names:

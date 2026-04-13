@@ -18,7 +18,7 @@ check_server || exit 1
 
 CONV_ID=$(get_conversation_id) || exit 1
 log_info "Using conversation: $CONV_ID"
-log_info "Model: $GLINR_MODEL"
+log_info "Model: $PROFCLAW_MODEL"
 
 MESSAGE="Search for all TypeScript files in src/routes/, then read the main index.ts routes file, and grep for 'chatRoutes' across the codebase. Give me a summary of the routing structure."
 

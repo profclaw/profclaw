@@ -5,7 +5,6 @@
  */
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { AlertCircle, Zap } from 'lucide-react';
@@ -31,11 +30,12 @@ import {
   ToolApprovalDialog,
   type PendingApproval,
 } from '@/components/shared/ToolApprovalDialog';
-import type { Message, Conversation, MemoryStats } from '../types';
+import type { Message, MemoryStats } from '../types';
+import { useChatMessages } from '../hooks/useChatMessages';
+import { useChatConversations } from '../hooks/useChatConversations';
 
 export function ChatView() {
   const queryClient = useQueryClient();
-  const [searchParams, setSearchParams] = useSearchParams();
 
   // Constants for localStorage keys
   const STORAGE_KEYS = {
@@ -46,7 +46,6 @@ export function ChatView() {
   } as const;
 
   // State
-  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [selectedModel, setSelectedModel] = useState<string>(() => {
     // Load saved model from localStorage on initial render
@@ -63,10 +62,8 @@ export function ChatView() {
   });
   const [showProviderSetup, setShowProviderSetup] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [pendingImages, setPendingImages] = useState<string[]>([]);
-  const [conversationId, setConversationIdState] = useState<string | null>(null);
   // Tool-related state (tools auto-enable with agent mode)
   const [pendingApprovals, setPendingApprovals] = useState<PendingApproval[]>([]);
 
@@ -92,6 +89,9 @@ export function ChatView() {
   const [agenticEvents, setAgenticEvents] = useState<AgenticEvent[]>([]);
   const [isAgenticRunning, setIsAgenticRunning] = useState(false);
 
+  // Streaming state for regular chat
+  const [isStreaming, setIsStreaming] = useState(false);
+
   // Derive tool call events from agentic events for ToolTimeline
   const toolCallEvents = useMemo<ToolCallEvent[]>(() => {
     const calls = new Map<string, ToolCallEvent>();
@@ -116,23 +116,65 @@ export function ChatView() {
     return Array.from(calls.values());
   }, [agenticEvents]);
 
-  const urlConversationIdRef = useRef<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
   // Track the last assistant message ID to avoid re-triggering TTS
   const lastSpokenMessageIdRef = useRef<string | null>(null);
 
-  // URL sync for conversation persistence
-  const setConversationId = useCallback((id: string | null) => {
-    setConversationIdState(id);
-    urlConversationIdRef.current = id;
-    if (id) {
-      setSearchParams({ c: id }, { replace: true });
-    } else {
-      setSearchParams({}, { replace: true });
-    }
-  }, [setSearchParams]);
+  // ============================================================================
+  // Custom Hooks
+  // ============================================================================
+
+  // Message state management
+  const {
+    messages,
+    setMessages,
+    copiedId,
+    handleCopy,
+  } = useChatMessages();
+
+  // Conversation management
+  const {
+    conversationId,
+    conversations,
+    loadConversation,
+    handleNewChat: handleNewChatFromHook,
+    handleSelectConversation,
+    handleDeleteConversation,
+    handleExportConversation,
+    ensureConversation,
+    invalidateAfterSend,
+    urlConversationIdRef,
+    searchParams,
+  } = useChatConversations({
+    onMessagesLoaded: setMessages,
+    onNewChat: useCallback(() => {
+      setMessages([]);
+      setPendingApprovals([]);
+    }, [setMessages]),
+    selectedPreset,
+    onPresetChange: setSelectedPreset,
+  });
+
+  const handleNewChat = useCallback(() => {
+    handleNewChatFromHook();
+  }, [handleNewChatFromHook]);
+
+  // handleDeleteMessage bridges messages state + conversationId from the two hooks
+  const handleDeleteMessage = useCallback(
+    async (messageId: string) => {
+      if (!conversationId) return;
+      try {
+        await api.chat.conversations.deleteMessage(conversationId, messageId);
+        setMessages((prev) => prev.filter((m) => m.id !== messageId));
+        invalidateAfterSend();
+      } catch {
+        toast.error('Failed to delete message');
+      }
+    },
+    [conversationId, setMessages, invalidateAfterSend],
+  );
 
   // ============================================================================
   // Queries
@@ -161,12 +203,6 @@ export function ChatView() {
     queryKey: ['chat', 'quickActions'],
     queryFn: () => api.chat.quickActions(),
     staleTime: 60000,
-  });
-
-  const { data: recentConversations, refetch: refetchConversations } = useQuery({
-    queryKey: ['chat', 'conversations', 'recent'],
-    queryFn: () => api.chat.conversations.recent(10),
-    staleTime: 10000,
   });
 
   const { data: memoryStats } = useQuery({
@@ -226,15 +262,6 @@ export function ChatView() {
     },
   });
 
-  const createConversation = useMutation({
-    mutationFn: (data: { title?: string; presetId?: string }) =>
-      api.chat.conversations.create(data),
-    onSuccess: (data) => {
-      setConversationId(data.conversation.id);
-      refetchConversations();
-    },
-  });
-
   const sendConversationMessage = useMutation({
     mutationFn: ({ conversationId, content, model }: { conversationId: string; content: string; model?: string }) =>
       api.chat.conversations.sendMessage(conversationId, { content, model }),
@@ -250,8 +277,7 @@ export function ChatView() {
         const filtered = prev.filter((m) => !m.isLoading);
         return [...filtered, assistantMessage];
       });
-      refetchConversations();
-      queryClient.invalidateQueries({ queryKey: ['chat', 'memory'] });
+      invalidateAfterSend();
       if (response.compaction) {
         toast.info(
           `Memory compacted: ${response.compaction.originalCount} → ${response.compaction.compactedCount} messages`,
@@ -292,8 +318,7 @@ export function ChatView() {
         const filtered = prev.filter((m) => !m.isLoading);
         return [...filtered, assistantMessage];
       });
-      refetchConversations();
-      queryClient.invalidateQueries({ queryKey: ['chat', 'memory'] });
+      invalidateAfterSend();
 
       // Handle pending approvals
       if (response.pendingApprovals && response.pendingApprovals.length > 0) {
@@ -387,20 +412,20 @@ export function ChatView() {
     const urlConversationId = searchParams.get('c');
     if (urlConversationId && urlConversationId !== urlConversationIdRef.current) {
       urlConversationIdRef.current = urlConversationId;
-      loadConversation(urlConversationId);
+      void loadConversation(urlConversationId).then(() => setShowHistory(false));
     }
   }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-load last conversation if no URL param and conversations are available
   useEffect(() => {
     const urlConversationId = searchParams.get('c');
-    if (!urlConversationId && !conversationId && recentConversations?.conversations?.length) {
-      const lastConversation = recentConversations.conversations[0];
+    if (!urlConversationId && !conversationId && conversations?.length) {
+      const lastConversation = conversations[0];
       if (lastConversation?.id) {
-        loadConversation(lastConversation.id);
+        void loadConversation(lastConversation.id).then(() => setShowHistory(false));
       }
     }
-  }, [recentConversations]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [conversations]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Smart model selection with localStorage persistence
   useEffect(() => {
@@ -458,45 +483,8 @@ export function ChatView() {
   // Handlers
   // ============================================================================
 
-  const loadConversation = async (id: string) => {
-    try {
-      const data = await api.chat.conversations.get(id);
-      setConversationIdState(id);
-      urlConversationIdRef.current = id;
-      setSelectedPreset(data.conversation.presetId);
-      setMessages(
-        data.messages.map((m) => ({
-          id: m.id,
-          role: m.role,
-          content: m.content,
-          timestamp: m.createdAt,
-          usage: m.tokenUsage
-            ? {
-                promptTokens: m.tokenUsage.prompt,
-                completionTokens: m.tokenUsage.completion,
-                totalTokens: m.tokenUsage.total,
-                cost: m.cost,
-              }
-            : undefined,
-          // Map toolCalls if present (persisted in DB)
-          toolCalls: m.toolCalls?.map((tc: { id: string; name: string; arguments?: Record<string, unknown>; result?: unknown; status?: string; duration?: number }) => ({
-            id: tc.id,
-            name: tc.name,
-            arguments: tc.arguments || {},
-            result: tc.result,
-            status: (tc.status || 'success') as 'pending' | 'running' | 'success' | 'error',
-            duration: tc.duration,
-          })),
-        }))
-      );
-      setShowHistory(false);
-    } catch {
-      toast.error('Failed to load conversation');
-    }
-  };
-
   const handleSend = async () => {
-    const isPendingAny = sendConversationMessage.isPending || sendMessageWithTools.isPending || isAgenticRunning;
+    const isPendingAny = sendConversationMessage.isPending || sendMessageWithTools.isPending || isAgenticRunning || isStreaming;
     if (!input.trim() || isPendingAny) return;
 
     const userMessage: Message = {
@@ -528,13 +516,7 @@ export function ChatView() {
 
       try {
         // Ensure we have a conversation
-        let targetConversationId = conversationId;
-        if (!targetConversationId) {
-          const result = await createConversation.mutateAsync({
-            presetId: selectedPreset,
-          });
-          targetConversationId = result.conversation.id;
-        }
+        const targetConversationId = await ensureConversation();
 
         // Start streaming agentic execution
         for await (const event of api.chat.agentic.sendMessage(targetConversationId, {
@@ -605,8 +587,7 @@ export function ChatView() {
           }
         }
 
-        refetchConversations();
-        queryClient.invalidateQueries({ queryKey: ['chat', 'memory'] });
+        invalidateAfterSend();
       } catch (error) {
         setMessages((prev) => {
           const filtered = prev.filter((m) => !m.isLoading);
@@ -626,24 +607,68 @@ export function ChatView() {
       return;
     }
 
-    // Non-agent mode: use regular mutation
-    const sendMutation = sendConversationMessage;
+    // Non-agent mode: use streaming
+    const targetConversationId = await ensureConversation();
 
-    if (conversationId) {
-      sendMutation.mutate({
-        conversationId,
+    setIsStreaming(true);
+    try {
+      for await (const event of api.chat.conversations.sendMessageStream(targetConversationId, {
         content: messageContent,
         model: selectedModel || undefined,
+      })) {
+        if (event.type === 'content') {
+          setMessages((prev) => {
+            const updated = [...prev];
+            const loadingIdx = updated.findIndex((m) => m.id === 'loading');
+            if (loadingIdx >= 0) {
+              updated[loadingIdx] = {
+                ...updated[loadingIdx],
+                content: (updated[loadingIdx].content || '') + event.data,
+                isLoading: false,
+              };
+            }
+            return updated;
+          });
+        } else if (event.type === 'done') {
+          setMessages((prev) => {
+            const updated = [...prev];
+            const loadingIdx = updated.findIndex((m) => m.id === 'loading' || m.isLoading);
+            if (loadingIdx >= 0) {
+              updated[loadingIdx] = {
+                ...updated[loadingIdx],
+                id: event.data.messageId,
+                isLoading: false,
+                usage: event.data.usage,
+              };
+            }
+            return updated;
+          });
+          invalidateAfterSend();
+          if (event.data.compaction) {
+            toast.info(
+              `Memory compacted: ${event.data.compaction.originalCount} → ${event.data.compaction.compactedCount} messages`,
+              { duration: 4000 }
+            );
+          }
+        } else if (event.type === 'error') {
+          throw new Error(event.data);
+        }
+      }
+    } catch (error) {
+      setMessages((prev) => {
+        const filtered = prev.filter((m) => !m.isLoading);
+        const lastMessage = filtered[filtered.length - 1];
+        if (lastMessage && lastMessage.role === 'user') {
+          return [
+            ...filtered.slice(0, -1),
+            { ...lastMessage, error: error instanceof Error ? error.message : 'Failed to send message' },
+          ];
+        }
+        return filtered;
       });
-    } else {
-      const result = await createConversation.mutateAsync({
-        presetId: selectedPreset,
-      });
-      sendMutation.mutate({
-        conversationId: result.conversation.id,
-        content: messageContent,
-        model: selectedModel || undefined,
-      });
+      toast.error('Failed to send message');
+    } finally {
+      setIsStreaming(false);
     }
   };
 
@@ -652,7 +677,7 @@ export function ChatView() {
   // ============================================================================
 
   const handleTalkModeSend = useCallback(async (text: string): Promise<void> => {
-    const isPendingAny = sendConversationMessage.isPending || sendMessageWithTools.isPending || isAgenticRunning;
+    const isPendingAny = sendConversationMessage.isPending || sendMessageWithTools.isPending || isAgenticRunning || isStreaming;
     if (!text.trim() || isPendingAny) return;
 
     const userMessage: Message = {
@@ -674,26 +699,16 @@ export function ChatView() {
 
     const sendMutation = agentMode ? sendMessageWithTools : sendConversationMessage;
 
-    if (conversationId) {
-      sendMutation.mutate({
-        conversationId,
-        content: text.trim(),
-        model: selectedModel || undefined,
-      });
-    } else {
-      const result = await createConversation.mutateAsync({
-        presetId: selectedPreset,
-      });
-      sendMutation.mutate({
-        conversationId: result.conversation.id,
-        content: text.trim(),
-        model: selectedModel || undefined,
-      });
-    }
+    const targetConversationId = await ensureConversation();
+    sendMutation.mutate({
+      conversationId: targetConversationId,
+      content: text.trim(),
+      model: selectedModel || undefined,
+    });
   }, [
     sendConversationMessage.isPending, sendMessageWithTools.isPending,
-    isAgenticRunning, agentMode, conversationId, selectedModel, selectedPreset,
-    sendConversationMessage, sendMessageWithTools, createConversation,
+    isAgenticRunning, isStreaming, agentMode, selectedModel,
+    sendConversationMessage, sendMessageWithTools, ensureConversation,
   ]);
 
   const talkMode = useTalkMode({
@@ -727,19 +742,6 @@ export function ChatView() {
     }
     talkMode.toggle();
   }, [sttAvailable, talkMode.state, talkMode.toggle]);
-
-  const handleNewChat = () => {
-    setConversationId(null);
-    setMessages([]);
-    setPendingApprovals([]);
-    toast.success('Started new chat');
-  };
-
-  const handleCopy = async (content: string, id: string) => {
-    await navigator.clipboard.writeText(content);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
 
   const handleRetry = (messageId: string) => {
     const messageIndex = messages.findIndex((m) => m.id === messageId);
@@ -931,19 +933,6 @@ export function ChatView() {
     };
   }, []);
 
-  const handleDeleteConversation = useCallback(async (id: string) => {
-    try {
-      await api.chat.conversations.delete(id);
-      refetchConversations();
-      if (conversationId === id) {
-        handleNewChat();
-      }
-      toast.success('Conversation deleted');
-    } catch {
-      toast.error('Failed to delete conversation');
-    }
-  }, [conversationId, refetchConversations]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // ============================================================================
   // Derived State
   // ============================================================================
@@ -953,9 +942,8 @@ export function ChatView() {
   const healthyProviders = providers.filter((p) => p.healthy);
   const presets = presetsData?.presets || [];
   const quickActions = quickActionsData?.actions || [];
-  const conversations = (recentConversations?.conversations || []) as Conversation[];
   const currentPreset = presets.find((p) => p.id === selectedPreset);
-  const isPending = sendConversationMessage.isPending || sendMessageWithTools.isPending || isAgenticRunning;
+  const isPending = sendConversationMessage.isPending || sendMessageWithTools.isPending || isAgenticRunning || isStreaming;
   const currentApproval = pendingApprovals[0];
 
   // ============================================================================
@@ -977,7 +965,7 @@ export function ChatView() {
             onToggle={handleToggleSidebar}
             conversations={conversations}
             currentConversationId={conversationId}
-            onSelectConversation={loadConversation}
+            onSelectConversation={handleSelectConversation}
             onNewChat={handleNewChat}
             onDeleteConversation={handleDeleteConversation}
             width={260}
@@ -1005,6 +993,7 @@ export function ChatView() {
             onOpenHistory={() => setShowHistory(true)}
             onOpenProviderSetup={() => setShowProviderSetup(true)}
             onClearChat={handleNewChat}
+            onExport={handleExportConversation}
             focusedView={focusedView}
             onToggleFocusedView={handleToggleFocusedView}
             modelCapability={modelCapability ? {
@@ -1074,6 +1063,7 @@ export function ChatView() {
         copiedId={copiedId}
         onCopy={handleCopy}
         onRetry={handleRetry}
+        onDelete={handleDeleteMessage}
         onQuickAction={handleQuickAction}
         onOpenProviderSetup={() => setShowProviderSetup(true)}
       />
@@ -1136,7 +1126,7 @@ export function ChatView() {
         onOpenChange={setShowHistory}
         conversations={conversations}
         currentConversationId={conversationId}
-        onSelectConversation={loadConversation}
+        onSelectConversation={handleSelectConversation}
         onNewChat={handleNewChat}
       />
 

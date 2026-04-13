@@ -284,6 +284,95 @@ export const chatApi = {
         body: JSON.stringify(data),
       }),
 
+    /**
+     * Send a message with SSE streaming. Yields content chunks then a done event.
+     */
+    sendMessageStream: async function* (
+      conversationId: string,
+      data: { content: string; model?: string; temperature?: number }
+    ): AsyncGenerator<
+      | { type: 'content'; data: string }
+      | { type: 'done'; data: { usage?: { promptTokens: number; completionTokens: number; totalTokens: number; cost?: number }; messageId: string; compaction?: { originalCount: number; compactedCount: number; tokensReduced: number } } }
+      | { type: 'error'; data: string }
+    > {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
+      const url = `${baseUrl}/chat/conversations/${conversationId}/messages`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream',
+        },
+        body: JSON.stringify({ ...data, stream: true }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Request failed' }));
+        throw new Error((error as { error?: string }).error || 'Stream chat request failed');
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const jsonStr = line.slice(6).trim();
+              if (!jsonStr) continue;
+              try {
+                const event = JSON.parse(jsonStr) as Record<string, unknown>;
+                if (event.content !== undefined) {
+                  yield { type: 'content', data: event.content as string };
+                } else if (event.done === true) {
+                  yield {
+                    type: 'done',
+                    data: {
+                      usage: event.usage as { promptTokens: number; completionTokens: number; totalTokens: number; cost?: number } | undefined,
+                      messageId: event.messageId as string,
+                      compaction: event.compaction as { originalCount: number; compactedCount: number; tokensReduced: number } | undefined,
+                    },
+                  };
+                } else if (event.error !== undefined) {
+                  yield { type: 'error', data: event.error as string };
+                }
+              } catch {
+                // skip malformed SSE event
+              }
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    },
+
+    deleteMessage: (conversationId: string, messageId: string) =>
+      request<{ success: boolean }>(`/chat/conversations/${conversationId}/messages/${messageId}`, {
+        method: 'DELETE',
+      }),
+
+    exportConversation: (conversationId: string) =>
+      request<{
+        conversation: { id: string; title: string; createdAt: string };
+        messages: ConversationMessage[];
+        exportedAt: string;
+      }>(`/chat/conversations/${conversationId}/export`),
+
     // Memory management
     getMemoryStats: (conversationId: string, model?: string) =>
       request<{

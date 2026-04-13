@@ -1,4 +1,4 @@
-# GLINR API Testing Status
+# profClaw API Testing Status
 
 Last Updated: 2026-02-05 19:30 CST
 
@@ -89,7 +89,7 @@ Executor refactored from manual `while` loop (`maxSteps: 1` + manual message acc
 
 - Server: `pnpm dev` running on localhost:3000
 - Model: Azure GPT-4o (fallback from Anthropic - no ANTHROPIC_API_KEY set)
-- `GLINR_MODEL=gpt4o-mini` (default in config.sh)
+- `PROFCLAW_MODEL=gpt4o-mini` (default in config.sh)
 - Conversation persistence: Working via `.test-state.json`
 
 ## Usage
@@ -132,6 +132,6 @@ docs/api-testing/
 ├── test-error-recovery.sh       # Deliberate failure + recovery
 ├── test-web-search.sh           # Web search + ticket creation
 ├── debug-tool-loop.sh           # Debug tool repetition issues
-├── glinr_test.py                # Python test framework
+├── glinr_test.py                   # Python test framework
 └── README.md                    # Documentation
 ```

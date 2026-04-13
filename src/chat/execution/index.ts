@@ -191,7 +191,7 @@ export async function initializeToolExecution(options?: ToolExecutionOptions): P
 
   // Register built-in tools
   if (options?.registerBuiltins !== false) {
-    registerBuiltinTools();
+    await registerBuiltinTools();
     logger.debug('[Execution] Built-in tools registered', { component: 'ToolExecution' });
   }
 

@@ -97,6 +97,7 @@ vi.mock('../../chat/index.js', () => ({
   getAllChatTools: vi.fn(() => []),
   getChatToolsForModel: vi.fn(() => []),
   getSessionModel: vi.fn(() => null),
+  deleteMessage: vi.fn(() => Promise.resolve()),
   streamAgenticChat: vi.fn(async function* () { /* yields nothing */ }),
   getGroupChatManager: vi.fn(),
 }));

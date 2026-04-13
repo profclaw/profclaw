@@ -67,6 +67,10 @@ const MODEL_PATTERNS: ModelPattern[] = [
   { pattern: /glm-4\.7-flash/i, capability: 'instruction', tier: 'standard' },
   { pattern: /moonshot|kimi/i, capability: 'instruction', tier: 'standard' },
 
+  // Models with strong native tool calling despite small size
+  { pattern: /gemma-?4/i, capability: 'instruction', tier: 'standard' },
+  { pattern: /qwen-?3/i, capability: 'instruction', tier: 'standard' },
+
   // Small/local basic models (essential tier)
   { pattern: /llama-?3\.(2-[13]b|1-8b)|llama3\.2/i, capability: 'basic', tier: 'essential' },
   { pattern: /qwen-?2\.5-[37]b|qwen2\.5:[37]b/i, capability: 'basic', tier: 'essential' },
@@ -84,24 +88,18 @@ export const ESSENTIAL_TOOL_NAMES = new Set<string>([
   'exec',
   'read_file',
   'write_file',
-  'edit_file',
-  'search_files',
   'web_search',
   'web_fetch',
   'complete_task',
-  'memory_search',
-  'agents_list',
 ]);
 
 /**
  * Tools restricted to full tier only (large capable models).
  */
 export const FULL_ONLY_TOOL_NAMES = new Set<string>([
+  // Browser automation
   'canvas_render',
   'image_analyze',
-  'subagent_orchestrate',
-  'openai_image_gen',
-  'tts_speak',
   'browser_navigate',
   'browser_snapshot',
   'browser_click',
@@ -110,9 +108,33 @@ export const FULL_ONLY_TOOL_NAMES = new Set<string>([
   'browser_screenshot',
   'browser_pages',
   'browser_close',
+  // Advanced orchestration
+  'subagent_orchestrate',
+  'openai_image_gen',
+  'tts_speak',
   'discord_actions',
   'slack_actions',
   'telegram_actions',
+  // Heavy tools that small models misuse
+  'sessions_spawn',
+  'sessions_send',
+  'decompose_task',
+  'multi_patch',
+  'github_pr',
+  'create_pr',
+  'cron_create',
+  'cron_trigger',
+  'cron_delete',
+  'cron_archive',
+  'cron_pause',
+  'cron_history',
+  'feed_add',
+  'feed_bundle_install',
+  'feed_poll',
+  'feed_digest',
+  'feed_discover',
+  'repl_execute',
+  'db_maintenance',
 ]);
 
 // State
@@ -128,8 +150,8 @@ let config: ToolRouterConfig = {
 const promotedTools = new Map<string, Set<string>>();
 
 const TIER_MAX_TOOLS: Record<ToolTier, number> = {
-  essential: 10,
-  standard: 25,
+  essential: 8,
+  standard: 12,
   full: 50,
 };
 

@@ -143,9 +143,17 @@ authRoutes.post('/signup', signupLimiter, async (c) => {
     const settings = await getSettingsRaw();
     const mode = settings.system.registrationMode;
 
+    // Allow first user signup without invite code (bootstrap admin)
+    const db = getDb();
+    let isFirstUser = false;
+    if (db) {
+      const existingUsers = await db.select({ id: users.id }).from(users).limit(1);
+      isFirstUser = existingUsers.length === 0;
+    }
+
     let inviteRecord: { id: string } | undefined;
 
-    if (mode === 'invite') {
+    if (mode === 'invite' && !isFirstUser) {
       if (!inviteCode) {
         return c.json({ error: 'Registration requires an invite code' }, 403);
       }

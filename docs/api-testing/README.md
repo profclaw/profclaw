@@ -1,6 +1,6 @@
-# GLINR API Testing Framework
+# profClaw API Testing Framework
 
-Scripts and tools for testing the GLINR chat API endpoints with real agent interactions.
+Scripts and tools for testing the profClaw chat API endpoints with real agent interactions.
 
 ## Quick Start
 
@@ -81,8 +81,8 @@ Suite time: 42.3s
 ### Environment Variables
 
 ```bash
-export GLINR_BASE_URL="http://localhost:3000"    # Server URL
-export GLINR_MODEL="gpt4o-mini"                   # Model alias
+export PROFCLAW_BASE_URL="http://localhost:3000"    # Server URL
+export PROFCLAW_MODEL="gpt4o-mini"                   # Model alias
 
 # Timeouts (seconds)
 export CURL_TIMEOUT=30        # Simple API requests
@@ -92,10 +92,10 @@ export TEST_TIMEOUT=120       # Per-test timeout in run-all.sh
 
 ### Model Options
 ```bash
-export GLINR_MODEL="gpt4o-mini"  # Azure GPT-4o Mini (default, fast)
-export GLINR_MODEL="gpt4o"       # Azure GPT-4o (more capable)
-export GLINR_MODEL="sonnet"      # Anthropic Claude (requires ANTHROPIC_API_KEY)
-export GLINR_MODEL="groq"        # Groq (requires GROQ_API_KEY)
+export PROFCLAW_MODEL="gpt4o-mini"  # Azure GPT-4o Mini (default, fast)
+export PROFCLAW_MODEL="gpt4o"       # Azure GPT-4o (more capable)
+export PROFCLAW_MODEL="sonnet"      # Anthropic Claude (requires ANTHROPIC_API_KEY)
+export PROFCLAW_MODEL="groq"        # Groq (requires GROQ_API_KEY)
 ```
 
 ### State File
@@ -127,13 +127,13 @@ CONV_ID=$(get_conversation_id) || exit 1
 
 # For simple API tests:
 response=$(api_request "POST" "/chat/conversations/$CONV_ID/messages" '{
-  "content": "Your test message", "model": "'$GLINR_MODEL'"
+  "content": "Your test message", "model": "'$PROFCLAW_MODEL'"
 }')
 echo "$response" | pretty_json
 
 # For agentic tests with SSE:
 agentic_request "$CONV_ID" "Your agentic prompt here" 10 | parse_sse_stream
-check_expected_tools "$GLINR_TOOLS_FILE" expected_tool_1 expected_tool_2
+check_expected_tools "$PROFCLAW_TOOLS_FILE" expected_tool_1 expected_tool_2
 ```
 
 ## API Endpoints Tested

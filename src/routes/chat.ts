@@ -25,12 +25,22 @@ import {
   type RoutingDecision,
 } from "../providers/smart-router.js";
 import { logger } from "../utils/logger.js";
+import { rateLimit } from "../middleware/rate-limit.js";
 import type {
   ChatContext,
   ConversationMessage,
 } from "../chat/index.js";
 
 const chatRoutes = new Hono();
+
+// Per-IP sliding-window rate limiter for chat send endpoints
+const chatMaxRequests = parseInt(process.env['CHAT_RATE_LIMIT'] ?? '20', 10);
+const chatRateLimiter = rateLimit({
+  maxRequests: chatMaxRequests,
+  windowMs: 60_000,
+  message: `Chat rate limit exceeded. Maximum ${chatMaxRequests} messages per minute.`,
+});
+
 let chatRuntimePromise: Promise<void> | null = null;
 
 let ProviderTypeSchema: typeof import("../providers/index.js")["ProviderType"];
@@ -47,6 +57,7 @@ let listConversations: typeof import("../chat/index.js")["listConversations"];
 let deleteConversation: typeof import("../chat/index.js")["deleteConversation"];
 let addMessage: typeof import("../chat/index.js")["addMessage"];
 let getConversationMessages: typeof import("../chat/index.js")["getConversationMessages"];
+let deleteMessage: typeof import("../chat/index.js")["deleteMessage"];
 let getRecentConversationsWithPreview: typeof import("../chat/index.js")["getRecentConversationsWithPreview"];
 let compactMessages: typeof import("../chat/index.js")["compactMessages"];
 let getMemoryStats: typeof import("../chat/index.js")["getMemoryStats"];
@@ -87,6 +98,7 @@ async function ensureChatRuntime(): Promise<void> {
         deleteConversation = chatModule.deleteConversation;
         addMessage = chatModule.addMessage;
         getConversationMessages = chatModule.getConversationMessages;
+        deleteMessage = chatModule.deleteMessage;
         getRecentConversationsWithPreview =
           chatModule.getRecentConversationsWithPreview;
         compactMessages = chatModule.compactMessages;
@@ -214,6 +226,7 @@ chatRoutes.get("/model-capability", async (c) => {
  */
 chatRoutes.post(
   "/send",
+  chatRateLimiter,
   zValidator(
     "json",
     z.object({
@@ -255,6 +268,12 @@ chatRoutes.post(
         temperature: body.temperature,
         maxTokens: body.maxTokens,
       });
+
+      // Track token usage for cost dashboard
+      if (response.usage?.totalTokens && response.model) {
+        await ensureChatRuntime();
+        trackChatUsage(response.model, response.usage.totalTokens, response.usage.promptTokens, response.usage.completionTokens);
+      }
 
       return c.json({
         id: response.id,
@@ -1106,17 +1125,76 @@ chatRoutes.post("/conversations/:id/compact", async (c) => {
 });
 
 /**
+ * DELETE /api/chat/conversations/:id/messages/:messageId
+ * Delete a single message from a conversation
+ */
+chatRoutes.delete("/conversations/:id/messages/:messageId", async (c) => {
+  const conversationId = c.req.param("id");
+  const messageId = c.req.param("messageId");
+
+  try {
+    const conversation = await getConversation(conversationId);
+    if (!conversation) {
+      return c.json({ error: "Conversation not found" }, 404);
+    }
+
+    await deleteMessage(conversationId, messageId);
+    return c.json({ success: true });
+  } catch (error) {
+    logger.error(
+      "[Chat] Delete message error:",
+      error instanceof Error ? error : undefined,
+    );
+    return c.json({ error: "Failed to delete message" }, 500);
+  }
+});
+
+/**
+ * GET /api/chat/conversations/:id/export
+ * Export a conversation as JSON
+ */
+chatRoutes.get("/conversations/:id/export", async (c) => {
+  const conversationId = c.req.param("id");
+
+  try {
+    const conversation = await getConversation(conversationId);
+    if (!conversation) {
+      return c.json({ error: "Conversation not found" }, 404);
+    }
+
+    const messages = await getConversationMessages(conversationId);
+    return c.json({
+      conversation: {
+        id: conversation.id,
+        title: conversation.title,
+        createdAt: conversation.createdAt,
+      },
+      messages,
+      exportedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    logger.error(
+      "[Chat] Export conversation error:",
+      error instanceof Error ? error : undefined,
+    );
+    return c.json({ error: "Failed to export conversation" }, 500);
+  }
+});
+
+/**
  * POST /api/chat/conversations/:id/messages
  * Send a message in a conversation (with context and history)
  */
 chatRoutes.post(
   "/conversations/:id/messages",
+  chatRateLimiter,
   zValidator(
     "json",
     z.object({
       content: z.string(),
       model: z.string().optional(),
       temperature: z.number().min(0).max(2).optional(),
+      stream: z.boolean().optional(),
     }),
   ),
   async (c) => {
@@ -1254,7 +1332,72 @@ chatRoutes.post(
         timestamp: m.createdAt,
       }));
 
-      // Send to AI
+      // Streaming branch
+      if (body.stream) {
+        return streamText(c, async (stream) => {
+          try {
+            let fullContent = "";
+
+            const response = await aiProvider.chatStream(
+              {
+                messages: chatMessages,
+                model: body.model,
+                systemPrompt,
+                temperature: body.temperature,
+              },
+              (chunk) => {
+                fullContent += chunk;
+                stream
+                  .write(`data: ${JSON.stringify({ content: chunk })}\n\n`)
+                  .catch((err) => {
+                    logger.error(
+                      "[Chat] Stream write error:",
+                      err instanceof Error ? err : undefined,
+                    );
+                  });
+              },
+            );
+
+            // Save assistant response after streaming completes
+            const assistantMessage = await addMessage({
+              conversationId,
+              role: "assistant",
+              content: fullContent || response.content,
+              model: response.model,
+              provider: response.provider,
+              tokenUsage: response.usage
+                ? {
+                    prompt: response.usage.promptTokens,
+                    completion: response.usage.completionTokens,
+                    total: response.usage.totalTokens,
+                  }
+                : undefined,
+              cost: response.usage?.cost,
+            });
+
+            await stream.write(
+              `data: ${JSON.stringify({
+                done: true,
+                usage: response.usage,
+                messageId: assistantMessage.id,
+                compaction: compactionInfo,
+              })}\n\n`,
+            );
+          } catch (error) {
+            logger.error(
+              "[Chat] Conversation stream error:",
+              error instanceof Error ? error : undefined,
+            );
+            await stream.write(
+              `data: ${JSON.stringify({
+                error: error instanceof Error ? error.message : "Failed to send message",
+              })}\n\n`,
+            );
+          }
+        });
+      }
+
+      // Send to AI (non-streaming)
       const response = await aiProvider.chat({
         messages: chatMessages,
         model: body.model,
@@ -1311,6 +1454,7 @@ chatRoutes.post(
  */
 chatRoutes.post(
   "/conversations/:id/messages/with-tools",
+  chatRateLimiter,
   zValidator(
     "json",
     z.object({
@@ -1402,6 +1546,11 @@ chatRoutes.post(
       const tools = enableTools
         ? getChatToolsForModel(modelId, { conversationId })
         : [];
+
+      logger.info(`[Chat] Tools for ${modelId}: ${tools.length} (enableTools=${enableTools})`, {
+        component: 'Chat',
+        toolNames: tools.map(t => t.name).join(', '),
+      });
 
       // Build system prompt with context and tool mode
       const systemPrompt = await buildSystemPrompt(
@@ -1830,6 +1979,7 @@ chatRoutes.post(
  */
 chatRoutes.post(
   "/conversations/:id/messages/agentic",
+  chatRateLimiter,
   zValidator(
     "json",
     z.object({

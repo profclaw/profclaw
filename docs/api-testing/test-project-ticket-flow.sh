@@ -3,7 +3,7 @@
 # Test: Project + Ticket Multi-Step Flow (Agentic)
 # =============================================================================
 # Tests: create_project -> list_projects -> create_ticket -> update_ticket -> get_ticket
-# Validates the full GLINR ops pipeline works end-to-end.
+# Validates the full profClaw ops pipeline works end-to-end.
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -20,7 +20,7 @@ check_server || exit 1
 
 CONV_ID=$(get_conversation_id) || exit 1
 log_info "Using conversation: $CONV_ID"
-log_info "Model: $GLINR_MODEL"
+log_info "Model: $PROFCLAW_MODEL"
 
 MESSAGE="Do these steps in order:
 1. Create a project named '$PROJ_NAME' with key 'APITEST' and icon '🧪'

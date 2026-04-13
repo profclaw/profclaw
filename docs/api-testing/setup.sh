@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# GLINR API Testing - Setup
+# profClaw API Testing - Setup
 # =============================================================================
 # Creates a test conversation and stores the ID for use in other test scripts.
 #
@@ -21,7 +21,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 echo "========================================"
-echo "GLINR API Testing Setup"
+echo "profClaw API Testing Setup"
 echo "========================================"
 echo ""
 
@@ -53,7 +53,7 @@ log_info "Creating test conversation..."
 
 response=$(api_request "POST" "/chat/conversations" '{
   "title": "API Test Session",
-  "presetId": "glinr-assistant"
+  "presetId": "profclaw-assistant"
 }')
 
 # Extract conversation ID
@@ -78,7 +78,7 @@ echo "Setup Complete"
 echo "========================================"
 echo ""
 echo "Conversation ID: $conv_id"
-echo "State file: $GLINR_STATE_FILE"
+echo "State file: $PROFCLAW_STATE_FILE"
 echo ""
 echo "You can now run test scripts:"
 echo "  ./test-simple-chat.sh    - Test basic chat"

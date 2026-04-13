@@ -18,7 +18,7 @@ check_server || exit 1
 
 CONV_ID=$(get_conversation_id) || exit 1
 log_info "Using conversation: $CONV_ID"
-log_info "Model: $GLINR_MODEL"
+log_info "Model: $PROFCLAW_MODEL"
 
 MESSAGE="Check the git status of the current project, then show me the last 3 commits from git log, and summarize what changed recently."
 

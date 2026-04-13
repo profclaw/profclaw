@@ -19,9 +19,11 @@ RUN pnpm install --frozen-lockfile
 # Stage 3: Dependencies (UI)
 # ====================
 FROM base AS ui-deps
-WORKDIR /app/ui
-COPY ui/package.json ui/pnpm-lock.yaml* ./
-RUN pnpm install --frozen-lockfile
+WORKDIR /app
+# Workspace lockfile lives at root — copy both for pnpm resolution
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY ui/package.json ./ui/
+RUN pnpm install --frozen-lockfile --filter ui
 
 # ====================
 # Stage 4: Build Backend (tsc only)
@@ -29,13 +31,14 @@ RUN pnpm install --frozen-lockfile
 FROM base AS build-backend
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN ./node_modules/.bin/tsc --project tsconfig.json
+RUN ./node_modules/.bin/tsc --project tsconfig.json --skipLibCheck
 
 # ====================
 # Stage 5: Build UI (vite build)
 # ====================
 FROM base AS build-ui
 WORKDIR /app/ui
+COPY --from=ui-deps /app/node_modules ../node_modules
 COPY --from=ui-deps /app/ui/node_modules ./node_modules
 COPY ui/ ./
 RUN pnpm build

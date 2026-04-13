@@ -18,7 +18,7 @@ check_server || exit 1
 
 CONV_ID=$(get_conversation_id) || exit 1
 log_info "Using conversation: $CONV_ID"
-log_info "Model: $GLINR_MODEL"
+log_info "Model: $PROFCLAW_MODEL"
 
 MESSAGE="Try to read the file /tmp/nonexistent-file-12345.txt. If that fails, instead read the file src/server.ts and tell me the first 5 lines."
 

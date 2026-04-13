@@ -776,7 +776,12 @@ export class GatewayRouter implements Gateway {
   }
 
   async getAgentHealth(agentId: string): Promise<AgentHealth> {
-    const adapter = getAgentRegistry().getAdapter(agentId);
+    const registry = getAgentRegistry();
+    // Look up by ID first, then fall back to matching by type
+    let adapter = registry.getAdapter(agentId);
+    if (!adapter) {
+      adapter = registry.getActiveAdapters().find(a => a.type === agentId);
+    }
     if (!adapter) {
       return {
         healthy: false,

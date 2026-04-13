@@ -31,7 +31,7 @@ log_info "Sending create ticket request..."
 response=$(api_request "POST" "/chat/conversations/$CONV_ID/messages/with-tools" "{
   \"content\": \"$MESSAGE\",
   \"enableTools\": true,
-  \"model\": \"$GLINR_MODEL\"
+  \"model\": \"$PROFCLAW_MODEL\"
 }")
 
 # Check for error

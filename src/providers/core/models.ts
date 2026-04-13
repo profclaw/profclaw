@@ -40,8 +40,11 @@ export const MODEL_ALIASES: Record<string, { provider: ProviderType; model: stri
   local: { provider: 'ollama', model: 'llama3.2' },
   llama: { provider: 'ollama', model: 'llama3.2' },
   'deepseek-local': { provider: 'ollama', model: 'deepseek-r1:7b' },
-  qwen: { provider: 'ollama', model: 'qwen2.5:14b' },
+  qwen: { provider: 'ollama', model: 'qwen3:4b' },
+  'qwen-14b': { provider: 'ollama', model: 'qwen2.5:14b' },
   'mistral-local': { provider: 'ollama', model: 'mistral:7b' },
+  gemma4: { provider: 'ollama', model: 'gemma4:e4b' },
+  'gemma4-26b': { provider: 'ollama', model: 'gemma4:26b' },
 
   // xAI (Grok)
   grok: { provider: 'xai', model: 'grok-2' },
@@ -412,6 +415,46 @@ export const MODEL_CATALOG: ModelInfo[] = [
     supportsTools: true,
     costPer1MInput: 30.0,
     costPer1MOutput: 60.0,
+  },
+
+  // Qwen 3 (local) — best small model for tool calling
+  {
+    id: 'qwen3:4b',
+    name: 'Qwen 3 4B (Local)',
+    provider: 'ollama',
+    contextWindow: 32768,
+    maxOutput: 8192,
+    supportsVision: false,
+    supportsStreaming: true,
+    supportsTools: true,
+    costPer1MInput: 0,
+    costPer1MOutput: 0,
+  },
+
+  // Gemma 4 (local) — supports native tool calling + multimodal
+  {
+    id: 'gemma4:e4b',
+    name: 'Gemma 4 E4B (Local)',
+    provider: 'ollama',
+    contextWindow: 128000,
+    maxOutput: 8192,
+    supportsVision: true,
+    supportsStreaming: true,
+    supportsTools: true,
+    costPer1MInput: 0,
+    costPer1MOutput: 0,
+  },
+  {
+    id: 'gemma4:26b',
+    name: 'Gemma 4 26B (Local)',
+    provider: 'ollama',
+    contextWindow: 128000,
+    maxOutput: 8192,
+    supportsVision: true,
+    supportsStreaming: true,
+    supportsTools: true,
+    costPer1MInput: 0,
+    costPer1MOutput: 0,
   },
 
   // Ollama (local) - Most models don't reliably support native tool calling
