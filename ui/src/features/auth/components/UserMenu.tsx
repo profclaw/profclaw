@@ -30,7 +30,7 @@ import { useAuth } from '../hooks/useAuth';
 
 export function UserMenu() {
   const navigate = useNavigate();
-  const { user, isAuthenticated, isLoading, authMode, logout, loginWithGitHub } = useAuth();
+  const { user, isAuthenticated, isLoading, authMode, logout } = useAuth();
 
   const handleLogout = async () => {
     try {
