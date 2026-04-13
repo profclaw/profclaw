@@ -67,6 +67,9 @@ const MODEL_PATTERNS: ModelPattern[] = [
   { pattern: /glm-4\.7-flash/i, capability: 'instruction', tier: 'standard' },
   { pattern: /moonshot|kimi/i, capability: 'instruction', tier: 'standard' },
 
+  // Gemma 4 — native tool calling, 128K context, treat as capable
+  { pattern: /gemma-?4/i, capability: 'instruction', tier: 'standard' },
+
   // Small/local basic models (essential tier)
   { pattern: /llama-?3\.(2-[13]b|1-8b)|llama3\.2/i, capability: 'basic', tier: 'essential' },
   { pattern: /qwen-?2\.5-[37]b|qwen2\.5:[37]b/i, capability: 'basic', tier: 'essential' },

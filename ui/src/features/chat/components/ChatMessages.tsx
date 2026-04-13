@@ -13,6 +13,7 @@ import {
   Check,
   RefreshCw,
   Terminal,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MarkdownRenderer } from '@/components/ui/markdown-renderer';
@@ -38,6 +39,7 @@ interface ChatMessagesProps {
   copiedId: string | null;
   onCopy: (content: string, id: string) => void;
   onRetry: (messageId: string) => void;
+  onDelete: (messageId: string) => void;
   onQuickAction: (prompt: string) => void;
   onOpenProviderSetup: () => void;
 }
@@ -62,6 +64,7 @@ export function ChatMessages({
   copiedId,
   onCopy,
   onRetry,
+  onDelete,
   onQuickAction,
   onOpenProviderSetup,
 }: ChatMessagesProps) {
@@ -135,6 +138,7 @@ export function ChatMessages({
           copiedId={copiedId}
           onCopy={onCopy}
           onRetry={onRetry}
+          onDelete={onDelete}
           onQuickAction={onQuickAction}
         />
       ))}
@@ -151,12 +155,14 @@ function MessageItem({
   copiedId,
   onCopy,
   onRetry,
+  onDelete,
   onQuickAction,
 }: {
   message: Message;
   copiedId: string | null;
   onCopy: (content: string, id: string) => void;
   onRetry: (messageId: string) => void;
+  onDelete: (messageId: string) => void;
   onQuickAction: (prompt: string) => void;
 }) {
   // Parse thinking and filter raw JSON for assistant messages
@@ -188,9 +194,9 @@ function MessageItem({
       {/* Content */}
       <div
         className={cn(
-          'max-w-[85%] sm:max-w-[75%] rounded-2xl px-5 py-3 group relative transition-all duration-300',
-          message.role === 'user' 
-            ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/10 ml-auto rounded-tr-sm' 
+          'max-w-[92%] sm:max-w-[75%] rounded-2xl px-3 py-2 sm:px-5 sm:py-3 group relative transition-all duration-300',
+          message.role === 'user'
+            ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/10 ml-auto rounded-tr-sm'
             : 'premium-card text-foreground shadow-sm rounded-tl-sm',
           message.error && 'border border-destructive/50 bg-destructive/5'
         )}
@@ -200,13 +206,17 @@ function MessageItem({
         )}
 
         {message.isLoading ? (
-          <div className="flex items-center gap-2 text-muted-foreground py-1 px-1">
-            <div className="flex gap-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-zinc-400 dark:bg-zinc-600 animate-bounce" style={{ animationDelay: '0ms' }} />
-              <span className="h-1.5 w-1.5 rounded-full bg-zinc-400 dark:bg-zinc-600 animate-bounce" style={{ animationDelay: '200ms' }} />
-              <span className="h-1.5 w-1.5 rounded-full bg-zinc-400 dark:bg-zinc-600 animate-bounce" style={{ animationDelay: '400ms' }} />
+          <div className="flex flex-col gap-3 py-2 px-1 min-w-[200px]">
+            {/* Shimmer lines like Claude/ChatGPT */}
+            <div className="flex items-center gap-3">
+              <div className="h-2 w-2 rounded-full bg-primary/60 animate-pulse" />
+              <div className="h-3 rounded-full bg-muted-foreground/10 animate-pulse w-3/4" style={{ animationDuration: '1.5s' }} />
             </div>
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-600">Thinking</span>
+            <div className="h-3 rounded-full bg-muted-foreground/8 animate-pulse w-full ml-5" style={{ animationDuration: '1.5s', animationDelay: '200ms' }} />
+            <div className="h-3 rounded-full bg-muted-foreground/6 animate-pulse w-2/3 ml-5" style={{ animationDuration: '1.5s', animationDelay: '400ms' }} />
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/40 ml-5 mt-1">
+              Generating response...
+            </span>
           </div>
         ) : (
           <>
@@ -278,7 +288,7 @@ function MessageItem({
 
             {/* Message Content with Markdown - Use cleaned content for assistant */}
             <div className={cn(
-              "text-[15px] leading-relaxed",
+              "text-[15px] leading-relaxed overflow-x-auto",
               message.role === 'user' ? "font-medium selection:bg-white/30" : "selection:bg-primary/20",
               message.role === 'user' && "text-shadow-sm"
             )}>
@@ -355,19 +365,30 @@ function MessageItem({
               </div>
             )}
 
-            {/* Copy button */}
-            {message.role === 'assistant' && !message.isLoading && (
-              <button
-                onClick={() => onCopy(processed.content, message.id)}
-                className="opacity-0 group-hover:opacity-100 absolute top-2 right-2 p-2 rounded-xl glass-heavy hover:bg-primary/10 border-primary/10 transition-all duration-300 hover:scale-110 active:scale-95"
-                aria-label="Copy message content"
-              >
-                {copiedId === message.id ? (
-                  <Check className="h-3.5 w-3.5 text-success shadow-[0_0_8px_var(--success)]" aria-hidden="true" />
-                ) : (
-                  <Copy className="h-3.5 w-3.5 text-muted-foreground/60" aria-hidden="true" />
+            {/* Message action buttons - visible on hover */}
+            {!message.isLoading && (
+              <div className="opacity-0 group-hover:opacity-100 absolute top-2 right-2 flex items-center gap-1 transition-all duration-300">
+                {message.role === 'assistant' && (
+                  <button
+                    onClick={() => onCopy(processed.content, message.id)}
+                    className="p-2 rounded-xl glass-heavy hover:bg-primary/10 border-primary/10 transition-all duration-300 hover:scale-110 active:scale-95"
+                    aria-label="Copy message content"
+                  >
+                    {copiedId === message.id ? (
+                      <Check className="h-3.5 w-3.5 text-success shadow-[0_0_8px_var(--success)]" aria-hidden="true" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5 text-muted-foreground/60" aria-hidden="true" />
+                    )}
+                  </button>
                 )}
-              </button>
+                <button
+                  onClick={() => onDelete(message.id)}
+                  className="p-2 rounded-xl glass-heavy hover:bg-destructive/10 border-destructive/10 transition-all duration-300 hover:scale-110 active:scale-95"
+                  aria-label="Delete message"
+                >
+                  <Trash2 className="h-3.5 w-3.5 text-muted-foreground/60 hover:text-destructive transition-colors" aria-hidden="true" />
+                </button>
+              </div>
             )}
           </>
         )}

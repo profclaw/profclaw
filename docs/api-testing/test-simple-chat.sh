@@ -25,7 +25,7 @@ echo ""
 # Send message
 response=$(api_request "POST" "/chat/conversations/$CONV_ID/messages" "{
   \"content\": \"$MESSAGE\",
-  \"model\": \"$GLINR_MODEL\"
+  \"model\": \"$PROFCLAW_MODEL\"
 }")
 
 # Check for error

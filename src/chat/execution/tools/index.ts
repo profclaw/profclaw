@@ -67,10 +67,18 @@ import { cronTools } from './cron-tool.js';
 // profClaw ops tools (ticket, project management)
 import { profclawTools } from './profclaw-ops.js';
 
-// Browser tools
-import { browserTools } from './browser.js';
+// Browser tools — lazy loaded (playwright-core is ~72MB RSS)
+let _browserTools: ToolDefinition[] | null = null;
 
-// Canvas tools
+async function loadBrowserTools() {
+  if (!_browserTools) {
+    const mod = await import('./browser.js');
+    _browserTools = mod.browserTools as unknown as ToolDefinition[];
+  }
+  return _browserTools;
+}
+
+// Canvas tools — no heavy deps, safe to import statically
 import { canvasRenderTool } from './canvas.js';
 
 // Session spawn tools (hierarchical agent sessions)
@@ -217,18 +225,7 @@ export {
   feedTools,
 } from './feed-tools.js';
 
-// Browser tools exports
-export {
-  browserNavigateTool,
-  browserSnapshotTool,
-  browserClickTool,
-  browserTypeTool,
-  browserSearchTool,
-  browserScreenshotTool,
-  browserPagesTool,
-  browserCloseTool,
-  browserTools,
-} from './browser.js';
+// Browser tools — import directly from './browser.js' when needed (lazy loaded to save ~72MB)
 
 // Canvas tools exports
 export { canvasRenderTool } from './canvas.js';
@@ -454,8 +451,7 @@ const rawBuiltinTools = [
   decomposeTaskTool,
   // Cron tools (7)
   ...cronTools,
-  // Browser tools (8)
-  ...browserTools,
+  // Browser tools (8) — loaded dynamically in registerBuiltinTools
   // profClaw ops tools (6)
   ...profclawTools,
   // Session spawn tools (4) - hierarchical agent sessions
@@ -520,12 +516,25 @@ const INTEGRATION_TOOL_NAMES = new Set([
 
 /**
  * Register all built-in tools (with tier assignments and mode gating)
+ *
+ * Browser and canvas tools are loaded dynamically to avoid pulling in
+ * playwright-core (~72MB) in modes that don't need it.
  */
-export function registerBuiltinTools(): void {
+export async function registerBuiltinTools(): Promise<void> {
   const registry = getToolRegistry();
 
-  const modeFilteredTools = builtinTools.filter((tool) => {
-    // Browser tools: pro only (browser_tools capability)
+  // Dynamically load heavy tools only when their capability is enabled
+  // Browser tools pull in playwright-core (~72MB) so we skip in pico/mini
+  const dynamicTools: ToolDefinition[] = [];
+  if (hasCapability('browser_tools')) {
+    const browser = await loadBrowserTools();
+    dynamicTools.push(...browser);
+  }
+
+  const allTools = [...builtinTools, ...applyTiers(dynamicTools)];
+
+  const modeFilteredTools = allTools.filter((tool) => {
+    // Browser tools: pro only (browser_tools capability) — already gated above
     if (BROWSER_TOOL_NAMES.has(tool.name)) return hasCapability('browser_tools');
     // Cron tools: mini+ (cron capability)
     if (CRON_TOOL_NAMES.has(tool.name)) return hasCapability('cron');

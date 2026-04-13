@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# GLINR API Testing Configuration
+# profClaw API Testing Configuration
 # =============================================================================
 # Source this file in your test scripts: source ./config.sh
 #
@@ -8,9 +8,9 @@
 # Run setup.sh first to create a test conversation and store the ID.
 
 # Base configuration
-export GLINR_BASE_URL="${GLINR_BASE_URL:-http://localhost:3000}"
-export GLINR_API_URL="${GLINR_BASE_URL}/api"
-export GLINR_MODEL="${GLINR_MODEL:-gpt4o-mini}"  # Default to Azure GPT-4o Mini
+export PROFCLAW_BASE_URL="${PROFCLAW_BASE_URL:-http://localhost:3000}"
+export PROFCLAW_API_URL="${PROFCLAW_BASE_URL}/api"
+export PROFCLAW_MODEL="${PROFCLAW_MODEL:-gpt4o-mini}"  # Default to Azure GPT-4o Mini
 
 # Timeouts (seconds)
 export CURL_TIMEOUT="${CURL_TIMEOUT:-30}"         # Simple API requests
@@ -19,7 +19,7 @@ export TEST_TIMEOUT="${TEST_TIMEOUT:-120}"         # Per-test timeout in run-all
 
 # State file (stores conversation IDs, etc.)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-export GLINR_STATE_FILE="${SCRIPT_DIR}/.test-state.json"
+export PROFCLAW_STATE_FILE="${SCRIPT_DIR}/.test-state.json"
 
 # Colors for output
 RED='\033[0;31m'
@@ -43,9 +43,9 @@ log_time() { echo -e "${DIM}[TIME]${NC} $1"; }
 
 # Initialize state file if it doesn't exist
 init_state() {
-  if [ ! -f "$GLINR_STATE_FILE" ]; then
-    echo '{}' > "$GLINR_STATE_FILE"
-    log_info "Created state file: $GLINR_STATE_FILE"
+  if [ ! -f "$PROFCLAW_STATE_FILE" ]; then
+    echo '{}' > "$PROFCLAW_STATE_FILE"
+    log_info "Created state file: $PROFCLAW_STATE_FILE"
   fi
 }
 
@@ -53,7 +53,7 @@ init_state() {
 get_state() {
   local key="$1"
   init_state
-  jq -r ".$key // empty" "$GLINR_STATE_FILE"
+  jq -r ".$key // empty" "$PROFCLAW_STATE_FILE"
 }
 
 # Set value in state file
@@ -62,7 +62,7 @@ set_state() {
   local value="$2"
   init_state
   local tmp=$(mktemp)
-  jq ".$key = \"$value\"" "$GLINR_STATE_FILE" > "$tmp" && mv "$tmp" "$GLINR_STATE_FILE"
+  jq ".$key = \"$value\"" "$PROFCLAW_STATE_FILE" > "$tmp" && mv "$tmp" "$PROFCLAW_STATE_FILE"
 }
 
 # Get or create default conversation
@@ -79,9 +79,9 @@ get_conversation_id() {
 create_test_conversation() {
   local title="${1:-API Test}"
   local response
-  response=$(curl -s --max-time "$CURL_TIMEOUT" -X POST "${GLINR_API_URL}/chat/conversations" \
+  response=$(curl -s --max-time "$CURL_TIMEOUT" -X POST "${PROFCLAW_API_URL}/chat/conversations" \
     -H "Content-Type: application/json" \
-    -d "{\"title\": \"$title\", \"presetId\": \"glinr-assistant\"}")
+    -d "{\"title\": \"$title\", \"presetId\": \"profclaw-assistant\"}")
   local conv_id
   conv_id=$(echo "$response" | jq -r '.conversation.id // empty')
   if [ -z "$conv_id" ]; then
@@ -106,7 +106,7 @@ api_request() {
   local endpoint="$2"
   local data="$3"
 
-  local url="${GLINR_API_URL}${endpoint}"
+  local url="${PROFCLAW_API_URL}${endpoint}"
 
   if [ -n "$data" ]; then
     curl -s --max-time "$CURL_TIMEOUT" -X "$method" "$url" \
@@ -125,25 +125,25 @@ agentic_request() {
   local max_steps="${3:-10}"
 
   curl -s -N --max-time "$AGENTIC_TIMEOUT" \
-    -X POST "${GLINR_API_URL}/chat/conversations/$conv_id/messages/agentic" \
+    -X POST "${PROFCLAW_API_URL}/chat/conversations/$conv_id/messages/agentic" \
     -H "Content-Type: application/json" \
     -H "Accept: text/event-stream" \
     -d "{
       \"content\": $(echo "$message" | jq -Rs .),
       \"showThinking\": false,
       \"maxSteps\": $max_steps,
-      \"model\": \"$GLINR_MODEL\"
+      \"model\": \"$PROFCLAW_MODEL\"
     }"
 }
 
 # Check if server is running
 check_server() {
-  if ! curl -s --max-time 5 "${GLINR_BASE_URL}/health" > /dev/null 2>&1; then
-    log_error "Server not running at ${GLINR_BASE_URL}"
+  if ! curl -s --max-time 5 "${PROFCLAW_BASE_URL}/health" > /dev/null 2>&1; then
+    log_error "Server not running at ${PROFCLAW_BASE_URL}"
     log_info "Start the server with: pnpm dev"
     return 1
   fi
-  log_success "Server is running at ${GLINR_BASE_URL}"
+  log_success "Server is running at ${PROFCLAW_BASE_URL}"
   return 0
 }
 
@@ -178,12 +178,12 @@ format_duration() {
 # SSE Stream Parser (reusable across agentic tests)
 # =============================================================================
 # Usage: agentic_request "$CONV_ID" "$MESSAGE" 10 | parse_sse_stream
-# Captures tool names in $GLINR_TOOLS_FILE (temp file)
+# Captures tool names in $PROFCLAW_TOOLS_FILE (temp file)
 
-export GLINR_TOOLS_FILE=""
+export PROFCLAW_TOOLS_FILE=""
 
 parse_sse_stream() {
-  GLINR_TOOLS_FILE=$(mktemp)
+  PROFCLAW_TOOLS_FILE=$(mktemp)
   while read -r line; do
     if [[ "$line" == data:* ]]; then
       json="${line#data: }"
@@ -211,7 +211,7 @@ parse_sse_stream() {
         "complete")
           echo ""
           tool_names=$(echo "$json" | jq -r '.data.toolCalls // [] | .[].name' 2>/dev/null)
-          echo "$tool_names" > "$GLINR_TOOLS_FILE"
+          echo "$tool_names" > "$PROFCLAW_TOOLS_FILE"
           log_success "Tools: $(echo "$tool_names" | tr '\n' ', ')"
           ;;
         "error")
@@ -222,7 +222,7 @@ parse_sse_stream() {
   done
 }
 
-# Check if expected tools were called (reads from GLINR_TOOLS_FILE)
+# Check if expected tools were called (reads from PROFCLAW_TOOLS_FILE)
 check_expected_tools() {
   local tools_file="$1"
   shift

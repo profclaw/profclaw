@@ -45,9 +45,9 @@ RESULTS_DIR=$(mktemp -d)
 trap 'rm -rf "$RESULTS_DIR"' EXIT
 
 echo "========================================"
-echo "GLINR API Test Suite"
+echo "profClaw API Test Suite"
 echo "========================================"
-echo "Model:    $GLINR_MODEL"
+echo "Model:    $PROFCLAW_MODEL"
 echo "Mode:     $([ "$PARALLEL" = true ] && echo "PARALLEL" || echo "SEQUENTIAL")"
 echo "Timeout:  ${PER_TEST_TIMEOUT}s per test"
 echo "Isolated: $([ "$ISOLATED" = true ] && echo "YES (fresh conversations)" || echo "NO (shared conversation)")"
@@ -85,7 +85,7 @@ run_test() {
     local iso_conv
     iso_conv=$(create_test_conversation "Test: $name" 2>/dev/null)
     if [ -n "$iso_conv" ]; then
-      extra_env="GLINR_CONV_OVERRIDE=$iso_conv"
+      extra_env="PROFCLAW_CONV_OVERRIDE=$iso_conv"
     fi
   fi
 

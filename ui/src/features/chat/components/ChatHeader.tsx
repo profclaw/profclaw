@@ -21,6 +21,7 @@ import {
   Plug,
   Maximize2,
   Minimize2,
+  Download,
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -89,6 +90,7 @@ interface ChatHeaderProps {
   onOpenHistory: () => void;
   onOpenProviderSetup: () => void;
   onClearChat: () => void;
+  onExport?: () => void;
   onToggleFocusedView?: () => void;
 }
 
@@ -111,6 +113,7 @@ export function ChatHeader({
   onOpenHistory,
   onOpenProviderSetup,
   onClearChat,
+  onExport,
   onToggleFocusedView,
 }: ChatHeaderProps) {
   const usagePercentage = memoryStats?.stats.usagePercentage ?? 0;
@@ -223,45 +226,79 @@ export function ChatHeader({
                   // Get configured provider types
                   const configuredProviderTypes = new Set(providers.map(p => p.type));
 
-                  // Filter aliases to only show configured providers, get best alias per provider
-                  const providerGroups = aliases
-                    .filter(alias => configuredProviderTypes.has(alias.provider))
+                  // Filter aliases to only show configured providers
+                  const configuredAliases = aliases
+                    .filter(alias => configuredProviderTypes.has(alias.provider));
+
+                  // For cloud providers: one best alias per provider
+                  // For local (ollama): show all models since they have different capabilities
+                  const cloudGroups = configuredAliases
+                    .filter(alias => alias.provider !== 'ollama')
                     .reduce((acc, alias) => {
                       const key = alias.provider;
-                      // Prefer shorter alias names (e.g., "llama" over "local", "gpt" over "gpt-mini")
                       if (!acc[key] || alias.alias.length < acc[key].alias.length) {
                         acc[key] = alias;
                       }
                       return acc;
                     }, {} as Record<string, ModelAlias>);
 
-                  // Sort by health status, then by name
-                  const sortedProviders = Object.entries(providerGroups)
+                  const localAliases = configuredAliases
+                    .filter(alias => alias.provider === 'ollama' && alias.alias !== 'local');
+
+                  // Sort cloud by health, then name
+                  const sortedCloud = Object.entries(cloudGroups)
                     .sort(([, a], [, b]) => {
                       const aHealthy = providers.find((p) => p.type === a.provider)?.healthy ? 1 : 0;
                       const bHealthy = providers.find((p) => p.type === b.provider)?.healthy ? 1 : 0;
                       return bHealthy - aHealthy || a.provider.localeCompare(b.provider);
                     });
 
-                  return sortedProviders.map(([providerType, alias]) => {
-                    const provider = providers.find((p) => p.type === providerType);
-                    const isHealthy = provider?.healthy;
-                    const isLocal = providerType === 'ollama';
-                    return (
-                      <SelectItem key={alias.alias} value={alias.alias} className="py-2">
-                        <div className="flex items-center gap-2">
-                          <span className={cn(
-                            "h-1.5 w-1.5 rounded-full shrink-0",
-                            isHealthy ? 'bg-green-500' : 'bg-amber-400'
-                          )} />
-                          <span className="capitalize font-medium">{alias.alias}</span>
-                          <span className="text-xs text-muted-foreground ml-1">
-                            {isLocal ? 'Local' : alias.provider}
-                          </span>
-                        </div>
-                      </SelectItem>
-                    );
-                  });
+                  const ollamaProvider = providers.find((p) => p.type === 'ollama');
+                  const ollamaHealthy = ollamaProvider?.healthy;
+
+                  return (
+                    <>
+                      {sortedCloud.map(([providerType, alias]) => {
+                        const provider = providers.find((p) => p.type === providerType);
+                        const isHealthy = provider?.healthy;
+                        return (
+                          <SelectItem key={alias.alias} value={alias.alias} className="py-2">
+                            <div className="flex items-center gap-2">
+                              <span className={cn(
+                                "h-1.5 w-1.5 rounded-full shrink-0",
+                                isHealthy ? 'bg-green-500' : 'bg-amber-400'
+                              )} />
+                              <span className="capitalize font-medium">{alias.alias}</span>
+                              <span className="text-xs text-muted-foreground ml-1">
+                                {alias.provider}
+                              </span>
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
+                      {localAliases.length > 0 && (
+                        <>
+                          <div className="px-2 py-1 text-[10px] font-medium text-muted-foreground uppercase tracking-wider border-t border-border/50 mt-1 pt-1.5">
+                            Local Models
+                          </div>
+                          {localAliases.map((alias) => (
+                            <SelectItem key={alias.alias} value={alias.alias} className="py-2">
+                              <div className="flex items-center gap-2">
+                                <span className={cn(
+                                  "h-1.5 w-1.5 rounded-full shrink-0",
+                                  ollamaHealthy ? 'bg-green-500' : 'bg-amber-400'
+                                )} />
+                                <span className="capitalize font-medium">{alias.alias}</span>
+                                <span className="text-xs text-muted-foreground ml-1">
+                                  Free
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </>
+                      )}
+                    </>
+                  );
                 })()}
 
                 {/* Manage Providers Link */}
@@ -385,6 +422,15 @@ export function ChatHeader({
                 <MessageSquarePlus className="h-4 w-4 mr-2" />
                 New Chat
               </DropdownMenuItem>
+              {onExport && conversationId && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={onExport}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Export Chat
+                  </DropdownMenuItem>
+                </>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={onClearChat} className="text-destructive focus:text-destructive">
                 <Trash2 className="h-4 w-4 mr-2" />

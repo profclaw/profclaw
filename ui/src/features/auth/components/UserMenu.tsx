@@ -30,7 +30,7 @@ import { useAuth } from '../hooks/useAuth';
 
 export function UserMenu() {
   const navigate = useNavigate();
-  const { user, isAuthenticated, logout, loginWithGitHub } = useAuth();
+  const { user, isAuthenticated, isLoading, authMode, logout, loginWithGitHub } = useAuth();
 
   const handleLogout = async () => {
     try {
@@ -42,15 +42,35 @@ export function UserMenu() {
     }
   };
 
+  // Don't flash sign-in buttons while auth is loading
+  if (isLoading) {
+    return (
+      <div className="w-24 h-8 rounded-md bg-muted/30 animate-pulse" />
+    );
+  }
+
+  // Local mode without auth — show local user indicator, not sign-in buttons
+  if (authMode === 'local' && !isAuthenticated) {
+    return (
+      <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground" asChild>
+        <Link to="/settings">
+          <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-medium">
+            L
+          </div>
+          <span className="text-xs">Local Mode</span>
+        </Link>
+      </Button>
+    );
+  }
+
   if (!isAuthenticated || !user) {
     return (
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="sm" asChild>
           <Link to="/login">Sign in</Link>
         </Button>
-        <Button size="sm" onClick={loginWithGitHub} className="gap-2">
-          <Github className="h-4 w-4" />
-          Sign up
+        <Button variant="outline" size="sm" asChild>
+          <Link to="/signup">Sign up</Link>
         </Button>
       </div>
     );

@@ -85,7 +85,7 @@ export function ChatInput({
   };
 
   return (
-    <div className="mt-2 space-y-2">
+    <div className="mt-2 w-full space-y-2">
 
       {/* Pending Images Preview */}
       {pendingImages.length > 0 && (
@@ -166,9 +166,9 @@ export function ChatInput({
             <ImagePlus className="h-5 w-5" aria-hidden="true" />
           </Button>
 
-          {/* Voice recording button - hidden when Talk Mode is active */}
+          {/* Voice recording button - hidden when Talk Mode is active, hidden on very small screens */}
           {talkModeState === 'idle' && (
-            <div className="relative">
+            <div className="relative hidden min-[480px]:block">
               <Button
                 variant="ghost"
                 size="icon"
@@ -203,9 +203,9 @@ export function ChatInput({
             </div>
           )}
 
-          {/* Talk Mode toggle button */}
+          {/* Talk Mode toggle button - hidden on very small screens */}
           {onToggleTalkMode && (
-            <div className="relative">
+            <div className="relative hidden min-[480px]:block">
               <Button
                 variant="ghost"
                 size="icon"

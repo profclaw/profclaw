@@ -31,6 +31,7 @@ export {
   addMessage,
   getConversationMessages,
   getRecentConversationsWithPreview,
+  deleteMessage,
   type Conversation,
   type ConversationMessage,
 } from './conversations.js';

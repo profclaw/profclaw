@@ -381,6 +381,14 @@ export async function getRecentConversationsWithPreview(
   }));
 }
 
+export async function deleteMessage(conversationId: string, messageId: string): Promise<void> {
+  const client = getClient();
+  await client.execute({
+    sql: `DELETE FROM conversation_messages WHERE id = ? AND conversation_id = ?`,
+    args: [messageId, conversationId],
+  });
+}
+
 export default {
   initConversationTables,
   createConversation,
@@ -391,4 +399,5 @@ export default {
   addMessage,
   getConversationMessages,
   getRecentConversationsWithPreview,
+  deleteMessage,
 };

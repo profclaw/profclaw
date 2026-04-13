@@ -97,6 +97,7 @@ function getContextWindow(modelId: string): number {
   if (/qwen/i.test(modelId)) return 32768;
   if (/mistral/i.test(modelId)) return 32768;
   if (/phi/i.test(modelId)) return 16384;
+  if (/gemma-?4/i.test(modelId)) return 128000;
   if (/gemma/i.test(modelId)) return 8192;
   return 32768;
 }

@@ -288,16 +288,21 @@ async function checkDiskHealth(): Promise<DiskServiceHealth> {
 
 function checkMemoryHealth(): MemoryServiceHealth {
   const WARN_THRESHOLD = 90;
+  const mode = getMode();
   const mem = process.memoryUsage();
-  // rss is total process resident memory; heapTotal is V8 heap.
-  // Use rss vs a cap of available system memory — but without os.totalmem we
-  // report heap utilisation which is the most actionable metric.
-  const usedPercent = Math.round((mem.heapUsed / mem.heapTotal) * 100);
+  const rssMb = Math.round(mem.rss / 1024 / 1024);
+
+  // Mode-specific RSS caps (absolute memory usage is more actionable than heap ratio)
+  const RSS_CAP_MB: Record<string, number> = { pico: 128, mini: 256, pro: 512 };
+  const capMb = RSS_CAP_MB[mode] ?? 512;
+
+  // Use RSS vs mode cap — heap ratio is misleading at small heap sizes
+  const usedPercent = Math.round((rssMb / capMb) * 100);
   const status: ServiceStatus = usedPercent > WARN_THRESHOLD ? 'warning' : 'ok';
   return {
     status,
     usedPercent,
-    ...(status === 'warning' && { message: `Heap usage above ${WARN_THRESHOLD}%` }),
+    ...(status === 'warning' && { message: `RSS ${rssMb}MB exceeds ${WARN_THRESHOLD}% of ${capMb}MB cap (${mode} mode)` }),
   };
 }
 
@@ -989,14 +994,16 @@ async function main() {
     }
   }
 
-  // Auto-discover agents if enabled (skip in pico mode to save startup time/memory)
-  const autoDiscover = mode !== 'pico' && (
+  // Auto-discover agents if enabled
+  // Pico mode: only auto-discover Ollama (cheap fetch, essential for pico users)
+  // Mini/Pro: full auto-discovery (Claude Code CLI check, etc.)
+  const autoDiscover = mode === 'pico' ? true : (
     process.env.AUTO_DISCOVER_AGENTS !== undefined
       ? process.env.AUTO_DISCOVER_AGENTS === 'true'
       : (appSettings.agents?.autoDiscover ?? false)
   );
 
-  if (autoDiscover && !registry.getActiveAdapters().some(a => a.type === 'claude-code')) {
+  if (autoDiscover && mode !== 'pico' && !registry.getActiveAdapters().some(a => a.type === 'claude-code')) {
     try {
       const { execSync } = await import('child_process');
       execSync('which claude', { stdio: 'ignore' });

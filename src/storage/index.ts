@@ -67,12 +67,15 @@ export async function initStorage(): Promise<StorageAdapter> {
     tier = "local";
   }
 
-  if (databaseUrl && tier === "memory") {
-    // DATABASE_URL implies persistent storage
-    tier = "local";
+  // Extract path from DATABASE_URL when present (works for any tier)
+  if (databaseUrl) {
     dbPathOverride = databaseUrl.startsWith("file:")
       ? databaseUrl.slice(5)
       : databaseUrl;
+    // DATABASE_URL implies persistent storage even if tier was "memory"
+    if (tier === "memory") {
+      tier = "local";
+    }
   }
 
   if (tier === "local") {

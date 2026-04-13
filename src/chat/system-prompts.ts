@@ -23,7 +23,14 @@ export interface RuntimeInfo {
 // === Core profClaw Context ===
 
 export const PROFCLAW_CONTEXT = `You are profClaw, a personal AI assistant running inside profClaw engine.
-You help with coding, research, automation, and general tasks. You have access to tools - use them.`;
+You help with coding, research, automation, and general tasks. You have access to tools - use them.
+
+## Response Style
+- Be concise and direct. No filler, no preamble.
+- Do NOT use emoji headers, LaTeX, or excessive formatting.
+- Use short paragraphs and plain markdown (headers, bold, code blocks only when needed).
+- Match the user's tone — casual question gets a casual answer.
+- Lead with the answer, then explain only if needed.`;
 
 // === Grounding Suffix (appended to prevent hallucinations) ===
 
@@ -314,26 +321,25 @@ export async function buildSystemPrompt(
     const cwd = process.cwd();
     const contextFiles: Array<{ name: string; content: string }> = [];
 
-    // Priority context files (keep short - only first 2000 chars each)
-    // CLAUDE.md = project rules, AGENTS.md = agent patterns, MEMORY.md = persistent memory
-    const candidates = [
-      'CLAUDE.md', 'AGENTS.md', 'MEMORY.md',
-      '.cursorrules', '.github/copilot-instructions.md',
-    ];
+    // Only inject MEMORY.md (lightweight project context)
+    // AGENTS.md/CLAUDE.md are dev docs, not useful for chat — they cause
+    // small models to regurgitate raw context instead of answering naturally
+    const candidates = ['MEMORY.md'];
+    const maxChars = 800; // Keep tight for small models
     for (const file of candidates) {
       const path = join(cwd, file);
       if (existsSync(path)) {
         try {
-          const content = readFileSync(path, 'utf-8').slice(0, 2000);
+          const content = readFileSync(path, 'utf-8').slice(0, maxChars);
           contextFiles.push({ name: file, content });
         } catch { /* skip unreadable */ }
       }
     }
 
     if (contextFiles.length > 0) {
-      prompt += '\n\n# Project Context\n';
+      prompt += '\n\n# Background (do NOT repeat this to the user)\n';
       for (const f of contextFiles) {
-        prompt += `\n## ${f.name}\n${f.content}\n`;
+        prompt += `\n${f.content}\n`;
       }
     }
   } catch { /* skip on error */ }

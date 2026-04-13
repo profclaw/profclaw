@@ -409,8 +409,8 @@ export function RootLayout({ children }: RootLayoutProps) {
       
       {/* Mobile Overlay */}
       {sidebarOpen && (
-        <button 
-          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden w-full h-full border-none cursor-default"
+        <button
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm md:hidden w-full h-full border-none cursor-default"
           onClick={() => setSidebarOpen(false)}
           aria-label="Close sidebar"
         />
@@ -420,7 +420,7 @@ export function RootLayout({ children }: RootLayoutProps) {
       <aside className={cn(
         "global-sidebar fixed inset-y-0 left-0 z-50 p-2 transition-all duration-300 ease-out",
         collapsed ? "w-[72px]" : "w-64",
-        sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
       )}>
         <div className="glass h-full rounded-2xl flex flex-col overflow-hidden">
           {/* Logo Section */}
@@ -449,15 +449,15 @@ export function RootLayout({ children }: RootLayoutProps) {
                 size="icon"
                 className="h-7 w-7 rounded-lg text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                 onClick={() => {
-                  if (window.innerWidth < 1024) {
+                  if (window.innerWidth < 768) {
                     setSidebarOpen(false);
                   } else {
                     setCollapsed(true);
                   }
                 }}
-                aria-label={window.innerWidth < 1024 ? "Close sidebar" : "Collapse sidebar"}
+                aria-label={window.innerWidth < 768 ? "Close sidebar" : "Collapse sidebar"}
               >
-                {window.innerWidth < 1024 ? (
+                {window.innerWidth < 768 ? (
                   <X className="h-4 w-4" />
                 ) : (
                   <PanelLeftClose className="h-4 w-4" />
@@ -615,8 +615,8 @@ export function RootLayout({ children }: RootLayoutProps) {
                       </div>
                     )}
                     <div className="flex-1 min-w-0 text-left">
-                      <p className="text-[13px] font-medium truncate">{user?.name || 'User'}</p>
-                      <p className="text-[10px] text-[var(--muted-foreground)] truncate">{user?.email || 'user@example.com'}</p>
+                      <p className="text-[13px] font-medium truncate">{user?.name || 'Local User'}</p>
+                      <p className="text-[10px] text-[var(--muted-foreground)] truncate">{user?.email || 'Local mode'}</p>
                     </div>
                     <ChevronDown className="h-4 w-4 text-[var(--muted-foreground)] shrink-0" aria-hidden="true" />
                   </button>
@@ -650,7 +650,7 @@ export function RootLayout({ children }: RootLayoutProps) {
       {/* Main content */}
       <div className={cn(
         "global-content flex flex-1 flex-col transition-all duration-300",
-        collapsed ? "lg:pl-[88px]" : "lg:pl-[272px]"
+        collapsed ? "md:pl-[88px]" : "md:pl-[272px]"
       )}>
         {/* Header - macOS Liquid Toolbar Style with scroll effects */}
         <header className={cn(
@@ -668,7 +668,7 @@ export function RootLayout({ children }: RootLayoutProps) {
               <Button
                 variant="ghost"
                 size="icon"
-                className="lg:hidden rounded-full"
+                className="md:hidden rounded-full"
                 onClick={() => setSidebarOpen(true)}
                 aria-label="Open sidebar"
               >
