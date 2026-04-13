@@ -242,7 +242,6 @@ async function checkDatabaseIntegrity(): Promise<CheckResult> {
         return { name: 'DB Integrity', status: 'warn', message: 'Database file not found (server may not have run yet)' };
       }
       // Dynamically attempt SQLite integrity check
-      // @ts-expect-error -- optional peer dep, only used in doctor CLI
       const { default: Database } = await import('better-sqlite3');
       const db = new Database(dbPath, { readonly: true });
       const row = db.prepare('PRAGMA integrity_check').get() as { integrity_check?: string } | undefined;
