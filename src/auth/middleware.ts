@@ -16,6 +16,7 @@ import { getSettingsRaw } from '../settings/index.js';
 import { getDb } from '../storage/index.js';
 import { users } from '../storage/schema.js';
 import { eq } from 'drizzle-orm';
+import { getMode } from '../core/deployment.js';
 
 // Cached admin user for local-mode bypass (avoids DB query per request)
 let cachedLocalAdmin: User | null = null;
@@ -88,6 +89,20 @@ export function authMiddleware() {
 
     // Skip non-API routes (static assets, root info, etc.)
     if (!path.startsWith('/api/') && !path.startsWith('/api')) {
+      return next();
+    }
+
+    // Pico mode: no UI dashboard, single-user local device — bypass auth entirely
+    if (getMode() === 'pico') {
+      c.set('user', {
+        id: 'local',
+        name: 'Local User',
+        email: 'local@profclaw',
+        role: 'admin',
+        status: 'active',
+        createdAt: new Date(0),
+        onboardingCompleted: true,
+      } satisfies User);
       return next();
     }
 

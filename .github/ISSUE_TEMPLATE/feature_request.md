@@ -1,19 +1,19 @@
 ---
-name: Feature Request
-about: Suggest a new feature or enhancement
-title: "[Feature] "
+name: Feature request
+about: Suggest something new
+title: ''
 labels: enhancement
 assignees: ''
 ---
 
-**Is your feature request related to a problem?**
-A clear description of the problem. E.g., "I'm frustrated when..."
+## What problem does this solve?
 
-**Describe the solution you'd like**
-What you want to happen.
+Describe the problem or use case.
 
-**Describe alternatives you've considered**
-Other solutions or features you've considered.
+## What would you like?
 
-**Additional context**
-Any other context, mockups, or examples.
+Describe the solution you have in mind.
+
+## Alternatives you considered
+
+Any other approaches you thought about.

@@ -91,6 +91,11 @@ profclaw init
 profclaw chat --tui
 ```
 
+```bash
+# Verify
+curl http://localhost:3000/health
+```
+
 `profclaw init` scans your project, detects your stack, and writes a `PROFCLAW.md` context file. It picks up any AI provider keys already in your environment.
 
 `profclaw chat --tui` opens the terminal UI with streaming responses, code highlighting, slash commands, and a model selector.
@@ -327,11 +332,11 @@ See [`.env.example`](.env.example) for all 130+ options.
 
 | Platform | Features |
 |----------|----------|
-| **GitHub** | Webhooks, OAuth, issue sync, PR automation |
-| **Jira** | Webhooks, OAuth, issue sync, transitions |
-| **Linear** | Webhooks, OAuth, issue sync |
-| **Cloudflare** | Workers deployment, KV, D1 |
-| **Tailscale** | Private network access |
+| GitHub | Webhooks, OAuth, issue sync, PR automation |
+| Jira | Webhooks, OAuth, issue sync, transitions |
+| Linear | Webhooks, OAuth, issue sync |
+| Cloudflare | Workers deployment, KV, D1 |
+| Tailscale | Private network access |
 
 ## Architecture
 
@@ -377,6 +382,13 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for full guidelines.
 ## Security
 
 See [SECURITY.md](SECURITY.md) for our security policy and how to report vulnerabilities.
+
+## Need help?
+
+- [Quickstart guide](https://docs.profclaw.ai/guides/quickstart)
+- [Full docs](https://docs.profclaw.ai)
+- [Report a bug](https://github.com/profclaw/profclaw/issues/new?template=bug_report.md)
+- [Discord](https://discord.gg/profclaw)
 
 ## License
 
