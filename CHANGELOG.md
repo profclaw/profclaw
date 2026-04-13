@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.0](https://github.com/profclaw/profclaw/compare/v2.1.0...v2.2.0) (2026-04-13)
+
+
+### Features
+
+* pico auth bypass, docs overhaul, issue templates, quickstart guide ([#32](https://github.com/profclaw/profclaw/issues/32)) ([d80b7ac](https://github.com/profclaw/profclaw/commit/d80b7ac6b63a72cf163791138c99c13baca8ab39))
+* token optimization, Qwen 3 support, tool routing ([#30](https://github.com/profclaw/profclaw/issues/30)) ([6a3d2bd](https://github.com/profclaw/profclaw/commit/6a3d2bd91fd5b72514e5170a29d5a30e0548f315))
+
+
+### Bug Fixes
+
+* add missing @tiptap/core and @tiptap/suggestion to ui deps ([557abe1](https://github.com/profclaw/profclaw/commit/557abe109fe1f6ff71c1444fa1e53f93a6d24820))
+
 ## [2.1.0](https://github.com/profclaw/profclaw/compare/v2.0.0...v2.1.0) (2026-04-11)
 
 

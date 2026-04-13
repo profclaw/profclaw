@@ -1,6 +1,6 @@
 {
   "name": "profclaw",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Smart, lightweight AI agent engine -- run locally on anything from a $10 board to a VPS",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
