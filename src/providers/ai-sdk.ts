@@ -29,9 +29,13 @@ async function withRetry<T>(fn: () => Promise<T>, maxRetries = AI_MAX_RETRIES): 
     try {
       return await fn();
     } catch (error) {
+      const msg = error instanceof Error ? error.message : '';
+      // Don't retry quota exhaustion — it won't resolve with backoff
+      const isQuotaError = /quota|exceeded your current|billing/i.test(msg);
       const isRetryable =
+        !isQuotaError &&
         error instanceof Error &&
-        (/429|503|rate.limit|too.many|service.unavailable|ECONNRESET|ETIMEDOUT|fetch.failed/i.test(error.message));
+        (/429|503|rate.limit|too.many|service.unavailable|ECONNRESET|ETIMEDOUT|fetch.failed/i.test(msg));
       if (!isRetryable || attempt === maxRetries) throw error;
       const delay = Math.min(1000 * 2 ** attempt, 10000);
       logger.warn(`[AIProvider] Transient error (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delay}ms`, {

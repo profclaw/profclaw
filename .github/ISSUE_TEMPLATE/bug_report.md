@@ -1,27 +1,33 @@
 ---
-name: Bug Report
-about: Report a bug or unexpected behavior
-title: "[Bug] "
+name: Bug report
+about: Something isn't working
+title: ''
 labels: bug
 assignees: ''
 ---
 
-**Describe the bug**
-A clear description of what the bug is.
+## What happened
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. ...
-2. ...
+A clear description of the bug.
 
-**Expected behavior**
-What you expected to happen.
+## Steps to reproduce
 
-**Environment**
-- OS: [e.g., macOS 15, Ubuntu 24.04]
-- Node.js version: [e.g., 22.x]
-- Redis version: [e.g., 7.x]
-- profClaw version/commit: [e.g., v1.0.0 or commit hash]
+1. 
+2. 
+3. 
 
-**Additional context**
-Any other context, logs, or screenshots.
+## Expected behavior
+
+What should have happened instead.
+
+## Environment
+
+- profClaw version: (run `profclaw --version`)
+- Mode: pico / mini / pro
+- OS: 
+- Node.js version: 
+- Docker: yes / no
+
+## Logs
+
+Paste relevant output from `docker logs profclaw` or the terminal.

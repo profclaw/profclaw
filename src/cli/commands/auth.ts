@@ -13,7 +13,7 @@ import chalk from 'chalk';
 import { randomUUID } from 'crypto';
 import { eq } from 'drizzle-orm';
 import { initStorage, getDb } from '../../storage/index.js';
-import { users, sessions, inviteCodes } from '../../storage/schema.js';
+import { users, sessions, inviteCodes, userPreferences } from '../../storage/schema.js';
 import {
   generateInviteCode,
   hashInviteCode,
@@ -310,6 +310,77 @@ export function authCommands(): Command {
         console.log(`\n  Total: ${filtered.length} invite(s)`);
       } catch (err) {
         error(err instanceof Error ? err.message : 'Failed to list invites');
+        process.exit(1);
+      }
+    });
+
+  // profclaw auth create-admin
+  auth
+    .command('create-admin')
+    .description('Create an admin user (for headless/pico setups)')
+    .option('--email <email>', 'Email address')
+    .option('--password <password>', 'Password (min 8 characters)')
+    .option('--name <name>', 'Display name')
+    .action(async (options) => {
+      if (!options.email || !options.password || !options.name) {
+        console.log('');
+        console.log('Usage: profclaw auth create-admin --email <email> --password <pass> --name <name>');
+        console.log('');
+        console.log('  --email     Email address for the admin account');
+        console.log('  --password  Password (min 8 characters)');
+        console.log('  --name      Display name');
+        process.exit(1);
+      }
+
+      try {
+        const db = await ensureDb();
+
+        const existing = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.email, options.email.toLowerCase()))
+          .limit(1);
+
+        if (existing.length > 0) {
+          error(`User already exists: ${options.email}`);
+          process.exit(1);
+        }
+
+        if (options.password.length < 8) {
+          error('Password must be at least 8 characters');
+          process.exit(1);
+        }
+
+        const userId = randomUUID();
+        const now = new Date();
+
+        await db.insert(users).values({
+          id: userId,
+          email: options.email.toLowerCase(),
+          passwordHash: hashPassword(options.password),
+          name: options.name,
+          role: 'admin',
+          status: 'active',
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        await db.insert(userPreferences).values({
+          id: randomUUID(),
+          userId,
+          updatedAt: now,
+        });
+
+        console.log('');
+        success(`Admin user created`);
+        console.log('');
+        console.log(`  Name:  ${chalk.bold(options.name)}`);
+        console.log(`  Email: ${chalk.bold(options.email.toLowerCase())}`);
+        console.log(`  Role:  ${chalk.yellow('admin')}`);
+        console.log(`  ID:    ${chalk.dim(userId)}`);
+        console.log('');
+      } catch (err) {
+        error(err instanceof Error ? err.message : 'Failed to create admin user');
         process.exit(1);
       }
     });

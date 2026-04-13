@@ -180,6 +180,7 @@
           {
             "group": "Guides",
             "pages": [
+              "guides/quickstart",
               "guides/slack-bot",
               "guides/docker-deployment",
               "guides/local-llm",
