@@ -90,40 +90,72 @@ jobs:
           unset NODE_AUTH_TOKEN
           npm publish --access public --provenance
 
-  docker:
+  # Build each arch in parallel, then merge into multi-arch manifest
+  docker-build:
     needs: resolve-version
     if: always() && needs.resolve-version.result == 'success'
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            suffix: amd64
+          - platform: linux/arm64
+            suffix: arm64
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+      - uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
 
-      - name: Log in to Container Registry
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+      - uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@369eb591f429131d6889c46b94e711f089e6ca96 # v5.6.1
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=latest
-            type=raw,value=${{ needs.resolve-version.outputs.version }}
-            type=raw,value=${{ needs.resolve-version.outputs.tag_name }}
-
-      - name: Build and push
+      - name: Build and push (main)
         uses: docker/build-push-action@ca877d9245402d1537745e0e356eab47c3520991 # v6.13.0
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.platform }}
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:build-${{ matrix.suffix }}
+          cache-from: type=gha,scope=main-${{ matrix.suffix }}
+          cache-to: type=gha,scope=main-${{ matrix.suffix }},mode=max
+
+      - name: Build and push (pico)
+        uses: docker/build-push-action@ca877d9245402d1537745e0e356eab47c3520991 # v6.13.0
+        with:
+          context: .
+          file: Dockerfile.pico
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:pico-build-${{ matrix.suffix }}
+          cache-from: type=gha,scope=pico-${{ matrix.suffix }}
+          cache-to: type=gha,scope=pico-${{ matrix.suffix }},mode=max
+
+  docker-manifest:
+    needs: [resolve-version, docker-build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create multi-arch manifests (main)
+        run: |
+          IMG=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          VER=${{ needs.resolve-version.outputs.version }}
+          TAG=${{ needs.resolve-version.outputs.tag_name }}
+          for T in latest "$VER" "$TAG"; do
+            docker buildx imagetools create -t "$IMG:$T" "$IMG:build-amd64" "$IMG:build-arm64"
+          done
+
+      - name: Create multi-arch manifests (pico)
+        run: |
+          IMG=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          VER=${{ needs.resolve-version.outputs.version }}
+          docker buildx imagetools create -t "$IMG:pico" "$IMG:pico-build-amd64" "$IMG:pico-build-arm64"
+          docker buildx imagetools create -t "$IMG:$VER-pico" "$IMG:pico-build-amd64" "$IMG:pico-build-arm64"
