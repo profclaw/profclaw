@@ -71,6 +71,11 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: pnpm
 
+      - name: Upgrade npm for OIDC trusted publishing
+        run: |
+          npm install -g npm@11
+          npm --version
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -80,10 +85,10 @@ jobs:
       - name: Test
         run: pnpm test -- --run
 
-      - name: Publish to npm
-        run: npm publish --access public
-        env:
-          NPM_CONFIG_PROVENANCE: "true"
+      - name: Publish to npm (OIDC trusted publishing)
+        run: |
+          unset NODE_AUTH_TOKEN
+          npm publish --access public --provenance
 
   docker:
     needs: resolve-version
