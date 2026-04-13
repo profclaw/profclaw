@@ -210,7 +210,8 @@ async function searchSearxng(
   options: { count?: number; apiKey?: string } = {}
 ): Promise<WebSearchResponse> {
   const headers: Record<string, string> = {
-    Accept: 'application/json',
+    'Accept': 'application/json',
+    'User-Agent': 'profClaw/2.0 (search integration)',
   };
 
   if (options.apiKey) {

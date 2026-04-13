@@ -268,6 +268,12 @@ chatRoutes.post(
         maxTokens: body.maxTokens,
       });
 
+      // Track token usage for cost dashboard
+      if (response.usage?.totalTokens && response.model) {
+        await ensureChatRuntime();
+        trackChatUsage(response.model, response.usage.totalTokens, response.usage.promptTokens, response.usage.completionTokens);
+      }
+
       return c.json({
         id: response.id,
         provider: response.provider,
@@ -1539,6 +1545,11 @@ chatRoutes.post(
       const tools = enableTools
         ? getChatToolsForModel(modelId, { conversationId })
         : [];
+
+      logger.info(`[Chat] Tools for ${modelId}: ${tools.length} (enableTools=${enableTools})`, {
+        component: 'Chat',
+        toolNames: tools.map(t => t.name).join(', '),
+      });
 
       // Build system prompt with context and tool mode
       const systemPrompt = await buildSystemPrompt(

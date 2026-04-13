@@ -52,11 +52,18 @@ If asked to "run" or "execute" something, explain that you can help write or dra
 
 export const TOOL_ENABLED_SUFFIX = `
 
-## Tools
-You have tools. Use them when the task requires external data or actions.
-Use web_search for any research/lookup. Use web_fetch to read URLs. Use file tools for code.
-Never say "I can't" when a tool exists for the action.
-If a tool requires approval, explain briefly and wait.`;
+## Tools — YOU MUST USE THEM
+You have real tools that execute actions. You are NOT limited to text responses.
+
+ALWAYS call a tool when the user asks you to:
+- Search the web → call web_search
+- Read a URL or website → call web_fetch
+- Read a file → call read_file
+- Run a command → call exec
+- Write a file → call write_file
+
+Do NOT say "I can't browse the web" or "I can't access files." You CAN. Call the tool.
+If you're unsure, call the tool anyway — it's better to try and fail than refuse.`;
 
 // === Agent Mode Suffix (for autonomous operation) ===
 
@@ -388,12 +395,11 @@ ${context.ticket.description ? `- **Description**: ${context.ticket.description}
 The user is currently viewing or discussing this ticket.`);
     }
 
-    if (context.recentActivity) {
+    // Only include activity when there's meaningful data (saves tokens on quiet instances)
+    if (context.recentActivity && (context.recentActivity.tasksCompleted > 0 || context.recentActivity.tasksPending > 0)) {
       contextParts.push(`
-## Recent Activity
-- Tasks completed recently: ${context.recentActivity.tasksCompleted}
-- Tasks pending: ${context.recentActivity.tasksPending}
-- Active agents: ${context.recentActivity.activeAgents.join(', ') || 'None'}`);
+## Activity
+${context.recentActivity.tasksCompleted} completed, ${context.recentActivity.tasksPending} pending`);
     }
 
     if (context.user) {
@@ -408,25 +414,32 @@ ${context.user.role ? `- Role: ${context.user.role}` : ''}`);
     }
   }
 
-  // Add model aliases section (like OpenClaw)
-  if (options?.includeModelAliases !== false) {
+  // Add model aliases section — skip for local models (saves ~150 tokens)
+  const isLocalModel = context?.runtime?.provider === 'ollama';
+  if (options?.includeModelAliases !== false && !isLocalModel) {
     prompt += buildModelAliasesSection();
   }
 
-  // Inject skills summary (names + descriptions only, NOT full content)
-  // OpenClaw pattern: list skills briefly, agent reads SKILL.md when needed
-  try {
-    const registry = getSkillsRegistry();
-    const entries = registry.getAllEntries();
-    if (entries.length > 0) {
-      const skillLines = entries
-        .filter((e) => e.enabled !== false)
-        .map((e) => `- ${e.name}: ${e.description || 'No description'}`)
-        .join('\n');
-      prompt += `\n\n## Available Skills (${entries.length})\nScan this list. If a skill matches the task, read its SKILL.md with read_file before proceeding.\n${skillLines}`;
+  // Inject skills summary — only for tool-enabled/agent modes
+  // Regular chat doesn't need the full skill list (saves ~800 tokens per message)
+  if (options?.enableTools || options?.agentMode) {
+    try {
+      const registry = getSkillsRegistry();
+      const entries = registry.getAllEntries();
+      if (entries.length > 0) {
+        // Only include top 15 most relevant skills, not all 55
+        const prioritySkills = entries
+          .filter((e) => e.enabled !== false)
+          .sort((a, b) => ((b.metadata as Record<string, unknown>)?.priority as number ?? 0) - ((a.metadata as Record<string, unknown>)?.priority as number ?? 0))
+          .slice(0, 15);
+        const skillLines = prioritySkills
+          .map((e) => `- ${e.name}: ${e.description || 'No description'}`)
+          .join('\n');
+        prompt += `\n\n## Skills (${entries.length} available, top ${prioritySkills.length} shown)\nUse read_file on skills/<name>/SKILL.md for details.\n${skillLines}`;
+      }
+    } catch {
+      // Skills not initialized yet - skip
     }
-  } catch {
-    // Skills not initialized yet - skip
   }
 
   // Add appropriate suffix based on mode
