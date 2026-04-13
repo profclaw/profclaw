@@ -74,7 +74,7 @@ Suite time: 42.3s
 | `setup.sh` | Creates test conversation and stores ID |
 | `run-all.sh` | Master test runner with parallel/timing/timeout |
 | `debug-tool-loop.sh` | Debug tool repetition issues |
-| `profclaw_test.py` | Python test framework |
+| `glinr_test.py` | Python test framework |
 
 ## Configuration
 

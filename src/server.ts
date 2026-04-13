@@ -941,12 +941,10 @@ async function main() {
     }
   }
 
-  // Initialize cost tracking (skip in pico - loaded on first use)
-  if (getMode() !== 'pico') {
-    const { initTokenTracker } = await import('./costs/token-tracker.js');
-    initTokenTracker();
-    appLog.info('Token tracker initialized');
-  }
+  // Initialize cost tracking (all modes — lightweight, needed for /api/costs)
+  const { initTokenTracker } = await import('./costs/token-tracker.js');
+  initTokenTracker();
+  appLog.info('Token tracker initialized');
 
   // Initialize agents from config
   const { getAgentRegistry } = await import('./adapters/registry.js');

@@ -168,11 +168,12 @@ export function ChatView() {
       try {
         await api.chat.conversations.deleteMessage(conversationId, messageId);
         setMessages((prev) => prev.filter((m) => m.id !== messageId));
+        invalidateAfterSend();
       } catch {
         toast.error('Failed to delete message');
       }
     },
-    [conversationId, setMessages],
+    [conversationId, setMessages, invalidateAfterSend],
   );
 
   // ============================================================================

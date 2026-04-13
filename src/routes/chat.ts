@@ -34,10 +34,11 @@ import type {
 const chatRoutes = new Hono();
 
 // Per-IP sliding-window rate limiter for chat send endpoints
+const chatMaxRequests = parseInt(process.env['CHAT_RATE_LIMIT'] ?? '20', 10);
 const chatRateLimiter = rateLimit({
-  maxRequests: parseInt(process.env['CHAT_RATE_LIMIT'] ?? '20', 10),
+  maxRequests: chatMaxRequests,
   windowMs: 60_000,
-  message: 'Chat rate limit exceeded. Maximum 20 messages per minute.',
+  message: `Chat rate limit exceeded. Maximum ${chatMaxRequests} messages per minute.`,
 });
 
 let chatRuntimePromise: Promise<void> | null = null;

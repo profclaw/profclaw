@@ -132,6 +132,6 @@ docs/api-testing/
 ├── test-error-recovery.sh       # Deliberate failure + recovery
 ├── test-web-search.sh           # Web search + ticket creation
 ├── debug-tool-loop.sh           # Debug tool repetition issues
-├── profclaw_test.py                # Python test framework
+├── glinr_test.py                   # Python test framework
 └── README.md                    # Documentation
 ```
