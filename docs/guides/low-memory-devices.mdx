@@ -1,0 +1,181 @@
+---
+title: "Running profClaw on Low-Memory Devices"
+description: "Install and run profClaw on Raspberry Pi Zero, $5 VPS, and other 512MB RAM devices"
+---
+
+## The Problem
+
+`npm install -g profclaw` on a 512MB device will get OOM-killed. Node's package installer is memory-hungry — it can spike past 400MB during dependency resolution alone.
+
+You have three options depending on what you have available.
+
+## Hardware Requirements
+
+| Mode | Minimum RAM | Swap Needed | Typical Device |
+|------|-------------|-------------|----------------|
+| **pico** | 256MB | 256MB+ | Raspberry Pi Zero, $5 VPS |
+| **mini** | 512MB | optional | Raspberry Pi 3, $10 VPS |
+| **pro** | 2GB | none | Raspberry Pi 4+, $20+ VPS |
+
+---
+
+## Option 1: Docker Pico Image (Recommended)
+
+No npm install. Pull a pre-built image that runs in under 200MB of RAM.
+
+```bash
+docker run -d \
+  --name profclaw \
+  --restart unless-stopped \
+  -p 3000:3000 \
+  -v profclaw-data:/data \
+  -e PROFCLAW_MODE=pico \
+  ghcr.io/profclaw/profclaw:pico
+```
+
+Point to a remote Ollama instance on a beefier machine:
+
+```bash
+docker run -d \
+  --name profclaw \
+  --restart unless-stopped \
+  -p 3000:3000 \
+  -v profclaw-data:/data \
+  -e PROFCLAW_MODE=pico \
+  -e OLLAMA_BASE_URL=http://192.168.1.50:11434 \
+  ghcr.io/profclaw/profclaw:pico
+```
+
+Check it's running:
+
+```bash
+docker logs profclaw
+curl http://localhost:3000/api/health
+```
+
+---
+
+## Option 2: Add Swap Before npm Install
+
+Works on Raspberry Pi OS and most Debian-based systems. Gives the installer the memory headroom it needs.
+
+```bash
+# Create a 1GB swap file
+sudo fallocate -l 1G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+
+# Verify swap is active
+free -h
+
+# Now install
+npm install -g profclaw
+
+# Initialize and start
+profclaw init
+profclaw serve --mode pico
+```
+
+Make swap permanent across reboots:
+
+```bash
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+<Note>
+On SD card devices (Pi Zero, Pi 3), heavy swap use will wear out your card faster. Use a USB SSD or a ramdisk-backed swap if running long-term.
+</Note>
+
+---
+
+## Option 3: Cross-Install from Another Machine
+
+Install profClaw on a machine with enough RAM, then copy the installed binary to your low-memory device.
+
+On the build machine:
+
+```bash
+# Install into a local directory (not global)
+mkdir profclaw-bundle && cd profclaw-bundle
+npm pack profclaw
+npm install --prefix ./install profclaw
+
+# Copy to target device
+scp -r ./install pi@raspberrypi.local:/opt/profclaw
+```
+
+On the target device:
+
+```bash
+# Run directly from the copied install
+/opt/profclaw/node_modules/.bin/profclaw init
+/opt/profclaw/node_modules/.bin/profclaw serve --mode pico
+```
+
+Optionally symlink it:
+
+```bash
+sudo ln -s /opt/profclaw/node_modules/.bin/profclaw /usr/local/bin/profclaw
+```
+
+---
+
+## Pico Mode: What Works, What Doesn't
+
+### Works in pico
+
+- Agent engine (full reasoning loop)
+- 72 core tools (file, git, shell, HTTP, memory, cron)
+- CLI chat (`profclaw chat`)
+- REST API on port 3000
+- Cron jobs and scheduled tasks
+- One chat channel (your choice: Slack, Telegram, Discord, etc.)
+
+### Not available in pico
+
+| Feature | Why |
+|---------|-----|
+| Web UI dashboard | Removed to save ~80MB at idle |
+| Redis queue | Replaced with SQLite-backed queue |
+| Browser/Playwright tools | Chromium won't fit in memory |
+| Multiple simultaneous channels | Single channel limit |
+| Real-time multi-user sessions | No WebSocket broadcast layer |
+
+Switch to mini mode when you have 512MB+:
+
+```bash
+profclaw serve --mode mini
+```
+
+Mini adds the web UI and multi-channel support. Pro adds Redis, browser tools, and full concurrency.
+
+---
+
+## Using a Separate Ollama Instance
+
+Running inference on a Pi Zero is impractical. Point profClaw at an Ollama instance running on another machine on your network.
+
+```bash
+# In .env or environment
+OLLAMA_BASE_URL=http://192.168.1.50:11434
+```
+
+Or in `settings.yml`:
+
+```yaml
+ai:
+  provider: ollama
+  baseUrl: http://192.168.1.50:11434
+  model: llama3.2:3b
+```
+
+The Pi Zero acts as the agent runtime — tool execution, memory, scheduling, API surface — while a beefier machine handles inference. Works well with a Pi 5 or an old laptop as the Ollama host.
+
+Verify the connection:
+
+```bash
+profclaw doctor
+```
+
+The doctor check will confirm the Ollama endpoint is reachable and the model is loaded.

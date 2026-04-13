@@ -187,6 +187,7 @@
               "guides/multi-agent",
               "guides/whatsapp-bot",
               "guides/self-hosted",
+              "guides/low-memory-devices",
               "guides/backup-restore",
               "guides/monitoring"
             ]

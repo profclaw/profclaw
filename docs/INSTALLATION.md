@@ -11,6 +11,7 @@ This guide covers multiple ways to install and run profClaw.
 - [Production Deployment](#production-deployment)
 - [Environment Configuration](#environment-configuration)
 - [First-Time Setup](#first-time-setup)
+- [Low-Memory Devices](#low-memory-devices-raspberry-pi-zero-512mb-vps)
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -320,6 +321,72 @@ pnpm profclaw auth set-mode invite
 ### Option 3: Web UI
 
 Visit `http://localhost:3000/setup` and follow the on-screen wizard.
+
+---
+
+## Low-Memory Devices (Raspberry Pi Zero, 512MB VPS)
+
+On devices with 512MB RAM or less, `npm install -g profclaw` will get killed by the OOM killer before it finishes. Here are three ways to get profclaw running:
+
+### Option 1: Docker pico image (recommended)
+
+The pico image is pre-built and doesn't need npm install. It runs the agent engine, tools, and one chat channel in ~140MB RAM with no UI and no Redis.
+
+```bash
+docker run -d \
+  --name profclaw \
+  -p 3000:3000 \
+  -e PROFCLAW_MODE=pico \
+  -e OLLAMA_BASE_URL=http://host.docker.internal:11434 \
+  -v profclaw-data:/app/data \
+  ghcr.io/profclaw/profclaw:pico
+```
+
+Or build locally from `Dockerfile.pico`:
+
+```bash
+docker build -f Dockerfile.pico -t profclaw:pico .
+docker run -d --name profclaw -p 3000:3000 -e PROFCLAW_MODE=pico profclaw:pico
+```
+
+### Option 2: Add swap before npm install
+
+Extend swap to 1GB so npm has enough memory to install dependencies:
+
+```bash
+sudo dphys-swapfile swapoff
+sudo sed -i 's/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=1024/' /etc/dphys-swapfile
+sudo dphys-swapfile setup
+sudo dphys-swapfile swapon
+
+# Now install (will be slow but won't OOM)
+npm install -g profclaw@latest
+
+# Start in pico mode
+PROFCLAW_MODE=pico profclaw serve
+```
+
+### Option 3: Cross-install from another machine
+
+Install on a machine with more RAM, then copy:
+
+```bash
+# On your laptop/desktop
+npm install -g profclaw@latest
+INSTALL_PATH=$(npm root -g)/profclaw
+
+# Copy to Pi
+scp -r $INSTALL_PATH pi@raspberry.local:~/profclaw
+ssh pi@raspberry.local "cd ~/profclaw && PROFCLAW_MODE=pico node dist/server.js"
+```
+
+### Hardware requirements by mode
+
+| Mode | Min RAM | Swap needed? | What you get |
+|------|---------|-------------|-------------|
+| pico | 256MB | Yes (512MB+) | Agent + tools + 1 channel, no UI |
+| mini | 512MB | Recommended | + Dashboard, integrations, 3 channels |
+| pro | 1GB+ | No | Everything including Redis, browser tools |
 
 ---
 

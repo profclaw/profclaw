@@ -252,6 +252,12 @@ Set via `PROFCLAW_MODE=pico|mini|pro` environment variable.
 
 profClaw requires Node.js 22+. For bare-metal embedded devices (ESP32, Arduino), see [MimiClaw](https://github.com/mimiclaw) (C) or [PicoClaw](https://github.com/picoclaw) (Go).
 
+> **Pi Zero / 512MB devices:** `npm install -g` will get OOM-killed. Use the pico Docker image instead:
+> ```bash
+> docker run -d -p 3000:3000 -e PROFCLAW_MODE=pico ghcr.io/profclaw/profclaw:latest
+> ```
+> Or install on another machine and copy the `node_modules` folder over. You can also add swap: `sudo dphys-swapfile swapoff && sudo sed -i 's/CONF_SWAPSIZE=.*/CONF_SWAPSIZE=1024/' /etc/dphys-swapfile && sudo dphys-swapfile setup && sudo dphys-swapfile swapon` then retry the install.
+
 ## Configuration
 
 The setup wizard (`profclaw onboard`) handles everything interactively. Or set environment variables:

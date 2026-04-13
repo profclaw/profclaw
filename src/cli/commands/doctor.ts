@@ -241,8 +241,9 @@ async function checkDatabaseIntegrity(): Promise<CheckResult> {
       if (!fsExists(dbPath)) {
         return { name: 'DB Integrity', status: 'warn', message: 'Database file not found (server may not have run yet)' };
       }
-      // Dynamically attempt SQLite integrity check
-      const { default: Database } = await import('better-sqlite3');
+      // Dynamically attempt SQLite integrity check (optional dep)
+      const betterSqlite3 = 'better-sqlite3';
+      const { default: Database } = await import(/* @vite-ignore */ betterSqlite3);
       const db = new Database(dbPath, { readonly: true });
       const row = db.prepare('PRAGMA integrity_check').get() as { integrity_check?: string } | undefined;
       db.close();
