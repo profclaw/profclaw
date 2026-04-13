@@ -1,0 +1,46 @@
+---
+title: "Quickstart"
+description: "Get profClaw running in 5 minutes"
+---
+
+## Pick your install method
+
+### npm (easiest)
+1. Run `npx profclaw onboard`
+2. Follow the wizard. It detects your environment, asks for an AI key, starts the server.
+3. Verify: `curl http://localhost:3000/health`
+
+### Docker
+1. `docker run -d -p 3000:3000 -e ANTHROPIC_API_KEY=sk-ant-xxx ghcr.io/profclaw/profclaw:latest`
+2. Verify: `curl http://localhost:3000/health`
+
+### Raspberry Pi / edge device
+1. `docker run -d -p 3000:3000 -e PROFCLAW_MODE=pico ghcr.io/profclaw/profclaw:pico`
+2. No auth needed in pico mode
+3. See [low-memory guide](/guides/low-memory-devices) for details
+
+## Send your first message
+
+```bash
+curl -X POST http://localhost:3000/api/chat/send \
+  -H "Content-Type: application/json" \
+  -d '{"message":"hello"}'
+```
+
+## Try the CLI
+
+```bash
+profclaw chat "What can you do?"
+profclaw chat --tui
+```
+
+## Open the dashboard
+
+http://localhost:3000 (mini and pro modes only, not pico)
+
+## Next steps
+
+- [Full installation guide](/installation) for advanced config
+- [AI providers](/providers) to add more models
+- [Low-memory devices](/guides/low-memory-devices) for Pi and edge
+- [Report a bug](https://github.com/profclaw/profclaw/issues/new?template=bug_report.md)

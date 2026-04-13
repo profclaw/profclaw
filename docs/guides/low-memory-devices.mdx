@@ -3,6 +3,10 @@ title: "Running profClaw on Low-Memory Devices"
 description: "Install and run profClaw on Raspberry Pi Zero, $5 VPS, and other 512MB RAM devices"
 ---
 
+<Note>
+  See [INSTALLATION.md](/docs/INSTALLATION.md) for the standard setup guide and [README](/docs/README.md) for a full feature overview.
+</Note>
+
 ## The Problem
 
 `npm install -g profclaw` on a 512MB device will get OOM-killed. Node's package installer is memory-hungry — it can spike past 400MB during dependency resolution alone.
@@ -46,12 +50,37 @@ docker run -d \
   ghcr.io/profclaw/profclaw:pico
 ```
 
-Check it's running:
+### Verify it works
 
 ```bash
-docker logs profclaw
-curl http://localhost:3000/api/health
+curl http://localhost:3000/health
 ```
+
+A `200 OK` with `{"status":"ok"}` means the container is up and accepting requests.
+
+### Connect an AI provider
+
+Pass API keys as environment variables. Add whichever provider you use:
+
+```bash
+docker run -d \
+  --name profclaw \
+  --restart unless-stopped \
+  -p 3000:3000 \
+  -v profclaw-data:/data \
+  -e PROFCLAW_MODE=pico \
+  -e ANTHROPIC_API_KEY=sk-ant-... \
+  -e GOOGLE_GENERATIVE_AI_API_KEY=AIza... \
+  -e CEREBRAS_API_KEY=csk-... \
+  -e OLLAMA_BASE_URL=http://192.168.1.50:11434 \
+  ghcr.io/profclaw/profclaw:pico
+```
+
+You only need one provider. Set the one you have and skip the rest.
+
+<Note>
+Pico mode skips authentication. There is no login screen and no user session required. Whoever can reach port 3000 can use the API. Do not expose the port publicly without a reverse proxy or firewall rule.
+</Note>
 
 ---
 
@@ -179,3 +208,81 @@ profclaw doctor
 ```
 
 The doctor check will confirm the Ollama endpoint is reachable and the model is loaded.
+
+---
+
+## Troubleshooting
+
+### Container won't start
+
+Check the logs before anything else:
+
+```bash
+docker logs profclaw
+```
+
+Common causes: port 3000 already in use, missing `PROFCLAW_MODE`, or a bad volume mount path. The logs will point to the specific error.
+
+### OOM during npm install (Options 2 and 3)
+
+If the install gets killed mid-way, you do not have enough memory headroom. Use the swap method from Option 2 first, then retry:
+
+```bash
+sudo swapon /swapfile
+npm install -g profclaw
+```
+
+If you already added swap and it still fails, the swap file may be too small. Extend it:
+
+```bash
+sudo swapoff /swapfile
+sudo fallocate -l 2G /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+```
+
+### "No AI provider configured"
+
+profClaw requires at least one AI provider key at startup. Set the env var for the provider you want to use:
+
+```bash
+# Anthropic
+export ANTHROPIC_API_KEY=sk-ant-...
+
+# Google Gemini
+export GOOGLE_GENERATIVE_AI_API_KEY=AIza...
+
+# Cerebras
+export CEREBRAS_API_KEY=csk-...
+
+# Local Ollama
+export OLLAMA_BASE_URL=http://192.168.1.50:11434
+```
+
+For Docker, pass it with `-e` as shown in the install command above. For the npm install path, add it to your `.env` file in the profClaw data directory.
+
+### Can't reach the API
+
+1. Check the container or process is actually running:
+
+```bash
+docker ps | grep profclaw
+```
+
+2. Confirm the port binding:
+
+```bash
+docker port profclaw
+```
+
+3. Try curl from inside the container to rule out a network issue:
+
+```bash
+docker exec profclaw curl -s http://localhost:3000/health
+```
+
+If that works but `curl http://localhost:3000/health` from your host does not, the problem is the port binding or a local firewall rule, not profClaw itself.
+
+---
+
+For the standard installation path on a full-spec machine, see the [main installation guide](/docs/INSTALLATION.md).
