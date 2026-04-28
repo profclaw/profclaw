@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/profclaw-profclaw-badge.png)](https://mseep.ai/app/profclaw-profclaw)
+
 <p align="center">
   <img src="ui/public/brand/profclaw-appicon.svg" alt="profClaw" width="120" height="120">
 </p>
