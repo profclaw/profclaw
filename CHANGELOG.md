@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.0](https://github.com/profclaw/profclaw/compare/v2.2.0...v2.3.0) (2026-04-13)
+
+
+### Features
+
+* integrate glin-profanity content filter + thesvg brand icons ([#44](https://github.com/profclaw/profclaw/issues/44)) ([67b84d6](https://github.com/profclaw/profclaw/commit/67b84d6f20247f9933007fcbbd6b44ec911406c8))
+
+
+### Bug Fixes
+
+* npm OIDC publish - upgrade to npm 11, unset NODE_AUTH_TOKEN ([a49ffdd](https://github.com/profclaw/profclaw/commit/a49ffddfc982a43245c23178d3d3d61eef5148db))
+
+
+### Performance Improvements
+
+* parallel multi-arch Docker builds + pico image in CI ([5fd0d5c](https://github.com/profclaw/profclaw/commit/5fd0d5c3b5b0da877a879ac4636e202bdedc36d7))
+
 ## [2.2.0](https://github.com/profclaw/profclaw/compare/v2.1.0...v2.2.0) (2026-04-13)
 
 
