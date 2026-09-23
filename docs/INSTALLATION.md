@@ -625,4 +625,4 @@ If you are running profClaw inside Docker, use `http://host.docker.internal:1143
 
 - [GitHub Issues](https://github.com/profclaw/profclaw/issues)
 - [API Documentation](http://localhost:3000/api/docs) (Swagger UI)
-- [Discord Community](#) (coming soon)
+- [Discord Community](https://discord.gg/Ar5pcaZB99) (#profclaw forum)

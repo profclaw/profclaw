@@ -17,12 +17,13 @@
   <img src="https://img.shields.io/badge/providers-35-f43f5e?style=for-the-badge" alt="35 providers">
   <img src="https://img.shields.io/badge/tools-72-fb7185?style=for-the-badge" alt="72 tools">
   <img src="https://img.shields.io/badge/channels-22-e11d48?style=for-the-badge" alt="22 channels">
+  <a href="https://discord.gg/Ar5pcaZB99"><img src="https://img.shields.io/discord/829168897080557579?style=for-the-badge&logo=discord&logoColor=white&label=discord&color=5865F2" alt="Discord"></a>
 </p>
 
 <p align="center">
   <a href="https://profclaw.ai/docs"><b>Docs</b></a> &middot;
   <a href="https://github.com/profclaw/profclaw/issues"><b>Report Bug</b></a> &middot;
-  <a href="https://discord.gg/profclaw"><b>Discord</b></a>
+  <a href="https://discord.gg/Ar5pcaZB99"><b>Discord</b></a>
 </p>
 
 ---
@@ -388,7 +389,9 @@ See [SECURITY.md](SECURITY.md) for our security policy and how to report vulnera
 - [Quickstart guide](https://docs.profclaw.ai/guides/quickstart)
 - [Full docs](https://docs.profclaw.ai)
 - [Report a bug](https://github.com/profclaw/profclaw/issues/new?template=bug_report.md)
-- [Discord](https://discord.gg/profclaw)
+- [Discord](https://discord.gg/Ar5pcaZB99): the #profclaw forum on the GLINR community server
+
+<a href="https://discord.gg/Ar5pcaZB99"><img src="https://discord.com/api/guilds/829168897080557579/widget.png?style=banner2" alt="Join the GLINR Discord" /></a>
 
 ## License
 
