@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { initTokenTracker, getUsageSummary, resetUsage } from '../token-tracker.js';
+import { initTokenTracker, getUsageSummary, resetUsage, trackChatUsage } from '../token-tracker.js';
 import * as queueFacade from '../../queue/index.js';
 
 // Mock the queue facade
@@ -85,5 +85,29 @@ describe('Token Tracker', () => {
     expect(summary.byModel['claude-3-5-sonnet']).toBeDefined();
     expect(summary.byModel['gpt-4o']).toBeDefined();
     expect(summary.taskCount).toBe(2);
+  });
+});
+
+describe('Token Tracker cache metrics', () => {
+  beforeEach(() => {
+    resetUsage();
+  });
+
+  it('accumulates cache tokens, hit rate, and discounts cost', () => {
+    trackChatUsage('claude-3-5-sonnet', 1050, 1000, 50, { cacheReadTokens: 800, cacheWriteTokens: 100 });
+    const summary = getUsageSummary();
+    expect(summary.cacheReadTokens).toBe(800);
+    expect(summary.cacheWriteTokens).toBe(100);
+    expect(summary.cacheHitRate).toBeCloseTo(0.8, 10);
+
+    resetUsage();
+    trackChatUsage('claude-3-5-sonnet', 1050, 1000, 50);
+    const uncachedCost = getUsageSummary().totalCost;
+    expect(summary.totalCost).toBeLessThan(uncachedCost);
+  });
+
+  it('reports zero hit rate without cache data', () => {
+    trackChatUsage('claude-3-5-sonnet', 100, 70, 30);
+    expect(getUsageSummary().cacheHitRate).toBe(0);
   });
 });

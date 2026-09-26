@@ -1,5 +1,6 @@
 import { onTaskEvent } from '../queue/index.js';
-import { calculateCost } from './pricing.js';
+import { calculateCost, getModelPricing } from './pricing.js';
+import { cacheHitRate, calculateCachedInputCost } from '../providers/prompt-cache.js';
 import { logger } from '../utils/logger.js';
 import { recordCost } from './persistence.js';
 import type { Task, TaskResult } from '../types/task.js';
@@ -8,6 +9,12 @@ export interface UsageSummary {
   totalTokens: number;
   inputTokens: number;
   outputTokens: number;
+  /** Prompt tokens served from provider cache (subset of inputTokens) */
+  cacheReadTokens: number;
+  /** Prompt tokens written to provider cache (subset of inputTokens) */
+  cacheWriteTokens: number;
+  /** cacheReadTokens / inputTokens, 0 when there is no input */
+  cacheHitRate: number;
   totalCost: number;
   taskCount: number;
   byModel: Record<string, {
@@ -33,6 +40,9 @@ let globalUsage: UsageSummary = {
   totalTokens: 0,
   inputTokens: 0,
   outputTokens: 0,
+  cacheReadTokens: 0,
+  cacheWriteTokens: 0,
+  cacheHitRate: 0,
   totalCost: 0,
   taskCount: 0,
   byModel: {},
@@ -122,6 +132,24 @@ function trackTaskUsage(
 }
 
 /**
+ * Cost of a chat call. Uncached input bills at the model input rate; cache reads
+ * and writes bill at the configurable multipliers of that same rate. Output cost
+ * comes from the existing pricing table (calculateCost with zero input).
+ */
+function calculateChatCost(
+  model: string,
+  input: number,
+  output: number,
+  cacheRead: number,
+  cacheWrite: number,
+): number {
+  if (cacheRead === 0 && cacheWrite === 0) return calculateCost(model, input, output);
+  const inputCost = calculateCachedInputCost(input, cacheRead, cacheWrite, getModelPricing(model).inputRate);
+  const outputCost = calculateCost(model, 0, output);
+  return Math.round((inputCost + outputCost) * 1_000_000) / 1_000_000;
+}
+
+/**
  * Track usage from a chat/agentic session (not queue tasks)
  */
 export function trackChatUsage(
@@ -129,14 +157,19 @@ export function trackChatUsage(
   totalTokens: number,
   inputTokens?: number,
   outputTokens?: number,
+  cache?: { cacheReadTokens?: number; cacheWriteTokens?: number },
 ): void {
   const input = inputTokens ?? Math.floor(totalTokens * 0.7);
   const output = outputTokens ?? totalTokens - input;
-  const cost = calculateCost(model, input, output);
+  const cacheRead = cache?.cacheReadTokens ?? 0;
+  const cacheWrite = cache?.cacheWriteTokens ?? 0;
+  const cost = calculateChatCost(model, input, output, cacheRead, cacheWrite);
 
   globalUsage.totalTokens += totalTokens;
   globalUsage.inputTokens += input;
   globalUsage.outputTokens += output;
+  globalUsage.cacheReadTokens += cacheRead;
+  globalUsage.cacheWriteTokens += cacheWrite;
   globalUsage.totalCost += cost;
   globalUsage.taskCount += 1;
 
@@ -166,14 +199,23 @@ export function trackChatUsage(
     agentId: 'chat',
   });
 
-  logger.debug('Chat usage tracked', { model, tokens: totalTokens, cost });
+  logger.debug('Chat usage tracked', {
+    model,
+    tokens: totalTokens,
+    cost,
+    cacheReadTokens: cacheRead,
+    cacheWriteTokens: cacheWrite,
+  });
 }
 
 /**
  * Get current usage summary
  */
 export function getUsageSummary(): UsageSummary {
-  return { ...globalUsage };
+  return {
+    ...globalUsage,
+    cacheHitRate: cacheHitRate(globalUsage.cacheReadTokens, globalUsage.inputTokens),
+  };
 }
 
 /**
@@ -184,6 +226,9 @@ export function resetUsage(): void {
     totalTokens: 0,
     inputTokens: 0,
     outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    cacheHitRate: 0,
     totalCost: 0,
     taskCount: 0,
     byModel: {},

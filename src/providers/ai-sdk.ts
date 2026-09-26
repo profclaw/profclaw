@@ -15,6 +15,12 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { logger } from '../utils/logger.js';
 import { normalizeToolSchema } from './schema-utils.js';
+import {
+  applyAnthropicMessageCache,
+  applyAnthropicToolCache,
+  calculateCachedInputCost,
+  extractCacheUsage,
+} from './prompt-cache.js';
 
 // AI provider resilience settings (configurable via env)
 const AI_TIMEOUT_MS = parseInt(process.env['AI_PROVIDER_TIMEOUT_MS'] ?? '120000', 10);
@@ -992,7 +998,7 @@ class AIProviderManager {
     try {
       const result = await withRetry(() => generateText({
         model,
-        messages,
+        messages: applyAnthropicMessageCache(messages, modelRef.provider),
         temperature: request.temperature ?? 0.7,
         maxOutputTokens: request.maxTokens ?? 4096,
         abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS),
@@ -1002,12 +1008,9 @@ class AIProviderManager {
       const modelInfo = this.getModelInfo(modelRef.model);
 
       // Calculate cost - AI SDK v6 uses usage.totalTokens and similar
-      const promptTokens = (result.usage as { promptTokens?: number })?.promptTokens ??
-                           (result.usage as { inputTokens?: number })?.inputTokens ?? 0;
-      const completionTokens = (result.usage as { completionTokens?: number })?.completionTokens ??
-                               (result.usage as { outputTokens?: number })?.outputTokens ?? 0;
+      const { promptTokens, completionTokens, cacheReadTokens, cacheWriteTokens } = extractCacheUsage(result.usage);
       const cost = modelInfo
-        ? (promptTokens / 1_000_000) * modelInfo.costPer1MInput +
+        ? calculateCachedInputCost(promptTokens, cacheReadTokens, cacheWriteTokens, modelInfo.costPer1MInput) +
           (completionTokens / 1_000_000) * modelInfo.costPer1MOutput
         : 0;
 
@@ -1022,6 +1025,8 @@ class AIProviderManager {
           completionTokens,
           totalTokens: promptTokens + completionTokens,
           cost,
+          cacheReadTokens,
+          cacheWriteTokens,
         },
         duration,
       };
@@ -1061,7 +1066,7 @@ class AIProviderManager {
     try {
       const result = streamText({
         model,
-        messages,
+        messages: applyAnthropicMessageCache(messages, modelRef.provider),
         temperature: request.temperature ?? 0.7,
         maxOutputTokens: request.maxTokens ?? 4096,
         abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS),
@@ -1100,12 +1105,9 @@ class AIProviderManager {
       const duration = Date.now() - startTime;
       const modelInfo = this.getModelInfo(modelRef.model);
 
-      const promptTokens = (usage as { promptTokens?: number })?.promptTokens ??
-                           (usage as { inputTokens?: number })?.inputTokens ?? 0;
-      const completionTokens = (usage as { completionTokens?: number })?.completionTokens ??
-                               (usage as { outputTokens?: number })?.outputTokens ?? 0;
+      const { promptTokens, completionTokens, cacheReadTokens, cacheWriteTokens } = extractCacheUsage(usage);
       const cost = modelInfo
-        ? (promptTokens / 1_000_000) * modelInfo.costPer1MInput +
+        ? calculateCachedInputCost(promptTokens, cacheReadTokens, cacheWriteTokens, modelInfo.costPer1MInput) +
           (completionTokens / 1_000_000) * modelInfo.costPer1MOutput
         : 0;
 
@@ -1120,6 +1122,8 @@ class AIProviderManager {
           completionTokens,
           totalTokens: promptTokens + completionTokens,
           cost,
+          cacheReadTokens,
+          cacheWriteTokens,
         },
         duration,
       };
@@ -1197,10 +1201,10 @@ class AIProviderManager {
     try {
       const result = await withRetry(() => generateText({
         model,
-        messages,
+        messages: applyAnthropicMessageCache(messages, modelRef.provider),
         temperature: request.temperature ?? 0.7,
         maxOutputTokens: request.maxTokens ?? 4096,
-        tools: useNativeTools ? aiSdkTools : undefined,
+        tools: useNativeTools ? applyAnthropicToolCache(aiSdkTools, modelRef.provider) : undefined,
         abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS),
       }));
 
@@ -1267,12 +1271,9 @@ class AIProviderManager {
       const duration = Date.now() - startTime;
       const modelInfo = this.getModelInfo(modelRef.model);
 
-      const promptTokens = (result.usage as { promptTokens?: number })?.promptTokens ??
-                           (result.usage as { inputTokens?: number })?.inputTokens ?? 0;
-      const completionTokens = (result.usage as { completionTokens?: number })?.completionTokens ??
-                               (result.usage as { outputTokens?: number })?.outputTokens ?? 0;
+      const { promptTokens, completionTokens, cacheReadTokens, cacheWriteTokens } = extractCacheUsage(result.usage);
       const cost = modelInfo
-        ? (promptTokens / 1_000_000) * modelInfo.costPer1MInput +
+        ? calculateCachedInputCost(promptTokens, cacheReadTokens, cacheWriteTokens, modelInfo.costPer1MInput) +
           (completionTokens / 1_000_000) * modelInfo.costPer1MOutput
         : 0;
 
@@ -1287,6 +1288,8 @@ class AIProviderManager {
           completionTokens,
           totalTokens: promptTokens + completionTokens,
           cost,
+          cacheReadTokens,
+          cacheWriteTokens,
         },
         duration,
         toolCalls: detectedToolCalls.length > 0 ? detectedToolCalls : undefined,
@@ -1482,8 +1485,8 @@ class AIProviderManager {
     try {
       const result = await withRetry(() => generateText({
         model,
-        messages,
-        tools: Object.keys(tools).length > 0 ? tools : undefined,
+        messages: applyAnthropicMessageCache(messages, modelRef.provider),
+        tools: Object.keys(tools).length > 0 ? applyAnthropicToolCache(tools, modelRef.provider) : undefined,
         temperature: request.temperature ?? 0.7,
         maxOutputTokens: request.maxTokens ?? 4096,
         maxSteps: request.maxToolRoundtrips ?? 5,
@@ -1494,12 +1497,9 @@ class AIProviderManager {
       const modelInfo = this.getModelInfo(modelRef.model);
 
       // Calculate usage
-      const promptTokens = (result.usage as { promptTokens?: number })?.promptTokens ??
-                           (result.usage as { inputTokens?: number })?.inputTokens ?? 0;
-      const completionTokens = (result.usage as { completionTokens?: number })?.completionTokens ??
-                               (result.usage as { outputTokens?: number })?.outputTokens ?? 0;
+      const { promptTokens, completionTokens, cacheReadTokens, cacheWriteTokens } = extractCacheUsage(result.usage);
       const cost = modelInfo
-        ? (promptTokens / 1_000_000) * modelInfo.costPer1MInput +
+        ? calculateCachedInputCost(promptTokens, cacheReadTokens, cacheWriteTokens, modelInfo.costPer1MInput) +
           (completionTokens / 1_000_000) * modelInfo.costPer1MOutput
         : 0;
 
@@ -1521,6 +1521,8 @@ class AIProviderManager {
           completionTokens,
           totalTokens: promptTokens + completionTokens,
           cost,
+          cacheReadTokens,
+          cacheWriteTokens,
         },
         duration,
         toolCalls: toolCallHistory.length > 0 ? toolCallHistory : undefined,
@@ -1652,8 +1654,8 @@ class AIProviderManager {
     try {
       const result = streamText({
         model,
-        messages,
-        tools: Object.keys(tools).length > 0 ? tools : undefined,
+        messages: applyAnthropicMessageCache(messages, modelRef.provider),
+        tools: Object.keys(tools).length > 0 ? applyAnthropicToolCache(tools, modelRef.provider) : undefined,
         temperature: request.temperature ?? 0.7,
         maxOutputTokens: request.maxTokens ?? 4096,
         maxSteps: request.maxToolRoundtrips ?? 5,
@@ -1671,12 +1673,9 @@ class AIProviderManager {
       const duration = Date.now() - startTime;
       const modelInfo = this.getModelInfo(modelRef.model);
 
-      const promptTokens = (usage as { promptTokens?: number })?.promptTokens ??
-                           (usage as { inputTokens?: number })?.inputTokens ?? 0;
-      const completionTokens = (usage as { completionTokens?: number })?.completionTokens ??
-                               (usage as { outputTokens?: number })?.outputTokens ?? 0;
+      const { promptTokens, completionTokens, cacheReadTokens, cacheWriteTokens } = extractCacheUsage(usage);
       const cost = modelInfo
-        ? (promptTokens / 1_000_000) * modelInfo.costPer1MInput +
+        ? calculateCachedInputCost(promptTokens, cacheReadTokens, cacheWriteTokens, modelInfo.costPer1MInput) +
           (completionTokens / 1_000_000) * modelInfo.costPer1MOutput
         : 0;
 
@@ -1697,6 +1696,8 @@ class AIProviderManager {
           completionTokens,
           totalTokens: promptTokens + completionTokens,
           cost,
+          cacheReadTokens,
+          cacheWriteTokens,
         },
         duration,
         toolCalls: toolCallHistory.length > 0 ? toolCallHistory : undefined,

@@ -146,6 +146,10 @@ export interface ChatResponse {
     completionTokens: number;
     totalTokens: number;
     cost: number;
+    /** Prompt tokens served from the provider cache (subset of promptTokens) */
+    cacheReadTokens?: number;
+    /** Prompt tokens written to the provider cache (subset of promptTokens) */
+    cacheWriteTokens?: number;
   };
   duration: number;
 }

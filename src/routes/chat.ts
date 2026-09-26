@@ -274,7 +274,10 @@ chatRoutes.post(
       // Track token usage for cost dashboard
       if (response.usage?.totalTokens && response.model) {
         await ensureChatRuntime();
-        trackChatUsage(response.model, response.usage.totalTokens, response.usage.promptTokens, response.usage.completionTokens);
+        trackChatUsage(response.model, response.usage.totalTokens, response.usage.promptTokens, response.usage.completionTokens, {
+          cacheReadTokens: response.usage.cacheReadTokens,
+          cacheWriteTokens: response.usage.cacheWriteTokens,
+        });
       }
 
       return c.json({
