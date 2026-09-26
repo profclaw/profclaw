@@ -2,33 +2,41 @@
  * Verified Run CLI Command
  *
  * Usage:
+ *   profclaw run "<goal>" --verify "pnpm test"                 (built-in agent)
  *   profclaw run "<goal>" --verify "pnpm test" --agent-cmd "my-agent-cli"
  *
  * Done means verified: the run only succeeds when the verify command exits 0.
  * Work happens in an isolated git worktree on a local branch. Nothing is
  * pushed and no PR is opened.
  *
- * Spike status: the built-in model-backed agent is not wired in yet. Until it
- * is, supply an external agent with --agent-cmd. The goal and feedback are
- * written to the agent's stdin, never interpolated into a shell string.
+ * By default the built-in model-backed agent runs inside the worktree, starting
+ * on the smart router's cheap model and escalating a tier after repeated
+ * verifier failures. --agent-cmd overrides it with an external agent; the goal
+ * and feedback are written to that agent's stdin, never interpolated into a
+ * shell string.
  */
 
 import { spawn } from 'node:child_process';
 import { Command } from 'commander';
 import { CommandVerifier } from '../../agents/verifier.js';
-import { runVerifiedGoal } from '../../agents/verified-run.js';
+import { runVerifiedGoal, resolveLimits } from '../../agents/verified-run.js';
+import { createDefaultExecutorRunner } from '../../agents/executor-runner.js';
+import type { RunnerEvent } from '../../agents/executor-runner.js';
 import type {
   AgentAttemptInput,
   AgentAttemptResult,
   AgentRunner,
+  AttemptRecord,
   RunEvent,
   VerifiedRunLimits,
 } from '../../agents/verified-run.js';
-import { error, info, success, warn, formatCost } from '../utils/output.js';
+import { error, info, success, warn, formatCost, formatTokens } from '../utils/output.js';
 
 interface RunCliOptions {
   verify: string;
   agentCmd?: string;
+  model?: string;
+  escalateAfter?: string;
   maxAttempts?: string;
   maxTokens?: string;
   maxCost?: string;
@@ -87,12 +95,26 @@ function parseNumber(raw: string | undefined, name: string): number | undefined 
   return n;
 }
 
+function formatAttemptUsage(record: AttemptRecord): string {
+  const parts = [`${formatTokens(record.tokensUsed)} tokens`];
+  if (record.cacheHitRate !== undefined) parts.push(`cache hit ${(record.cacheHitRate * 100).toFixed(0)}%`);
+  parts.push(formatCost(record.costUsd));
+  if (record.model) parts.push(record.model);
+  return parts.join(', ');
+}
+
+function printRunnerEvent(event: RunnerEvent): void {
+  const { attempt, choice, escalated } = event;
+  const prefix = escalated ? 'Escalating to' : 'Using';
+  info(`Attempt ${attempt}: ${prefix} ${choice.provider}/${choice.model} (${choice.tier})`);
+}
+
 function printEvent(event: RunEvent): void {
   if (event.type === 'start') info(`Run ${event.runId} on branch ${event.branch}`);
   else if (event.type === 'attempt_start') info(`Attempt ${event.attempt}...`);
   else if (event.type === 'attempt_end') {
     const { record } = event;
-    const line = `Attempt ${record.attempt}: ${record.outcome}${record.rolledBack ? ' (rolled back)' : ''}`;
+    const line = `Attempt ${record.attempt}: ${record.outcome}${record.rolledBack ? ' (rolled back)' : ''} [${formatAttemptUsage(record)}]`;
     if (record.outcome === 'verified') success(line);
     else warn(line);
   }
@@ -103,7 +125,9 @@ export function runCommand(): Command {
     .description('Run an agent toward a goal and only finish when a verify command passes')
     .argument('<goal>', 'What the agent should accomplish')
     .requiredOption('--verify <command>', 'Command that must exit 0 (tests, typecheck, lint, build)')
-    .option('--agent-cmd <command>', 'External agent command; receives the prompt on stdin')
+    .option('--agent-cmd <command>', 'External agent command (overrides the built-in agent); receives the prompt on stdin')
+    .option('--model <ids>', 'Model, or comma separated ladder cheapest first (env PROFCLAW_RUN_MODEL); default: smart router')
+    .option('--escalate-after <n>', 'Verifier failures in a row before moving up a model tier, 0 disables (env PROFCLAW_RUN_ESCALATE_AFTER)')
     .option('--max-attempts <n>', 'Maximum attempts (env PROFCLAW_RUN_MAX_ATTEMPTS)')
     .option('--max-tokens <n>', 'Token budget, 0 disables (env PROFCLAW_RUN_MAX_TOKENS)')
     .option('--max-cost <usd>', 'Dollar budget, 0 disables (env PROFCLAW_RUN_MAX_COST_USD)')
@@ -114,11 +138,6 @@ export function runCommand(): Command {
     .option('--json', 'Output the result as JSON')
     .action(async (goal: string, options: RunCliOptions) => {
       try {
-        if (!options.agentCmd) {
-          error('No agent configured. The built-in model agent is not wired into this spike yet; pass --agent-cmd "<command>".');
-          process.exitCode = 2;
-          return;
-        }
         const flags: Partial<VerifiedRunLimits> = {
           maxAttempts: parseNumber(options.maxAttempts, '--max-attempts'),
           maxTokens: parseNumber(options.maxTokens, '--max-tokens'),
@@ -130,10 +149,21 @@ export function runCommand(): Command {
           if (flags[key] === undefined) delete flags[key];
         }
         const verifyCommand = options.verify;
+        const limits = resolveLimits(flags);
+        const agent: AgentRunner = options.agentCmd
+          ? new CommandAgent(options.agentCmd)
+          : await createDefaultExecutorRunner({
+              goal,
+              model: options.model,
+              config: { escalateAfter: parseNumber(options.escalateAfter, '--escalate-after') },
+              maxTokens: limits.maxTokens,
+              maxCostUsd: limits.maxCostUsd,
+              onEvent: options.json ? undefined : printRunnerEvent,
+            });
         const result = await runVerifiedGoal({
           goal,
           verifyCommand,
-          agent: new CommandAgent(options.agentCmd),
+          agent,
           projectRoot: process.cwd(),
           limits: flags,
           branchName: options.branch,
