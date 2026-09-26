@@ -42,6 +42,10 @@ export interface AgentAttemptResult {
   summary: string;
   tokensUsed: number;
   costUsd: number;
+  /** Model the attempt ran on, when the runner chose one */
+  model?: string;
+  /** Fraction of prompt tokens served from cache (0 to 1), when known */
+  cacheHitRate?: number;
 }
 
 /** The only seam to an LLM. Real integrations and test fakes implement this. */
@@ -124,6 +128,8 @@ export interface AttemptRecord {
   rolledBack: boolean;
   tokensUsed: number;
   costUsd: number;
+  model?: string;
+  cacheHitRate?: number;
 }
 
 export interface VerifiedRunResult {
@@ -249,6 +255,8 @@ export async function runVerifiedGoal(options: VerifiedRunOptions): Promise<Veri
       record.agentSummary = result.summary;
       record.tokensUsed = result.tokensUsed;
       record.costUsd = result.costUsd;
+      record.model = result.model;
+      record.cacheHitRate = result.cacheHitRate;
       totalTokens += result.tokensUsed;
       totalCost += result.costUsd;
     } catch (error: unknown) {
