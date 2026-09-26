@@ -872,7 +872,13 @@ export async function* streamAgenticChat(
   };
 
   // Store raw tool definitions - we'll convert to AI SDK format per-provider
-  const toolDefinitions = request.tools;
+  // Per-turn tool selection, same as the non-streaming path
+  const turnUserMessage = [...request.messages].reverse().find((m) => m.role === 'user');
+  const toolDefinitions = selectToolsForRequest(
+    request.tools,
+    request.conversationId,
+    typeof turnUserMessage?.content === 'string' ? turnUserMessage.content : '',
+  );
 
   // Build messages with system prompt
   const messages = [

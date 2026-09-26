@@ -37,6 +37,7 @@ import {
   applyAnthropicToolCache,
   extractCacheUsage,
 } from "../providers/prompt-cache.js";
+import { trackChatUsage } from "../costs/token-tracker.js";
 import { ResultStore } from "./result-store.js";
 import type { AgentEvent } from "./events.js";
 import { getAgentSummaryTracker } from "./agent-summary.js";
@@ -381,6 +382,7 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
             this.state.outputTokensUsed += stepOutput;
 
             const cacheUsage = extractCacheUsage(step.usage);
+            this.trackStepUsage(model, stepInput, stepOutput, cacheUsage);
             if (cacheUsage.cacheReadTokens > 0 || cacheUsage.cacheWriteTokens > 0) {
               logger.debug("[AgentExecutor] Prompt cache usage", {
                 sessionId: this.state.sessionId,
@@ -1198,6 +1200,30 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
         projects.push(project);
         this.state.context.availableProjects = projects;
       }
+    }
+  }
+
+  /** Route one step's usage (with cache tokens) into the cost tracker. */
+  private trackStepUsage(
+    model: LanguageModel,
+    inputTokens: number,
+    outputTokens: number,
+    cache: { cacheReadTokens: number; cacheWriteTokens: number },
+  ): void {
+    const total = inputTokens + outputTokens;
+    if (total <= 0) return;
+    const modelId = typeof model === "string" ? model : getRecord(model)?.modelId;
+    if (typeof modelId !== "string" || modelId.length === 0) return;
+    try {
+      trackChatUsage(modelId, total, inputTokens, outputTokens, {
+        cacheReadTokens: cache.cacheReadTokens,
+        cacheWriteTokens: cache.cacheWriteTokens,
+      });
+    } catch (err: unknown) {
+      logger.warn("[AgentExecutor] Usage tracking failed", {
+        sessionId: this.state.sessionId,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 

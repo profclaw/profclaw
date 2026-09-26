@@ -65,6 +65,9 @@ export interface ChatToolHandler {
     approvalId: string,
     decision: 'allow-once' | 'allow-always' | 'deny'
   ): Promise<ToolExecutionResult | null>;
+
+  /** Delete spilled tool-result temp files. Call when the request/run ends. */
+  dispose(): Promise<void>;
 }
 
 // In-Memory Session Manager for Chat
@@ -296,6 +299,10 @@ export async function createChatToolHandler(
         command: a.command,
         params: a.params,
       }));
+    },
+
+    async dispose(): Promise<void> {
+      await resultStore.cleanup();
     },
 
     async handleApproval(

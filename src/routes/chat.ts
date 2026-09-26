@@ -76,6 +76,17 @@ let streamAgenticChat: typeof import("../chat/index.js")["streamAgenticChat"];
 let getGroupChatManager: typeof import("../chat/index.js")["getGroupChatManager"];
 let trackChatUsage: typeof import("../costs/token-tracker.js")["trackChatUsage"];
 
+/** Best-effort removal of spilled tool-result temp files at request end. */
+async function disposeToolHandler(handler: { dispose?: () => Promise<void> }): Promise<void> {
+  try {
+    await handler.dispose?.();
+  } catch (error) {
+    logger.warn("[Chat] Tool handler dispose failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 async function ensureChatRuntime(): Promise<void> {
   if (!chatRuntimePromise) {
     chatRuntimePromise = Promise.all([
@@ -1643,6 +1654,7 @@ chatRoutes.post(
 
       // Get any pending approvals
       const pendingApprovals = toolHandler.getPendingApprovals();
+      await disposeToolHandler(toolHandler);
 
       const inferToolCallStatus = (
         result: unknown,
@@ -1931,6 +1943,7 @@ chatRoutes.post(
 
       // Check for pending approvals
       const pendingApprovals = toolHandler.getPendingApprovals();
+      await disposeToolHandler(toolHandler);
 
       return c.json({
         id: response.id,
@@ -2272,10 +2285,8 @@ chatRoutes.post(
                 collectedToolCalls.length > 0 ? collectedToolCalls : undefined,
             });
 
-            // Track in-memory usage for cost dashboard
-            if (totalTokens > 0 && finalModel) {
-              trackChatUsage(finalModel, totalTokens, inputTokensTotal, outputTokensTotal);
-            }
+            // Cost tracking for agentic runs happens per step inside AgentExecutor;
+            // tracking totals here as well would double count.
 
             // Send final saved message event
             await stream.write(
@@ -2304,6 +2315,8 @@ chatRoutes.post(
               timestamp: Date.now(),
             })}\n\n`,
           );
+        } finally {
+          await disposeToolHandler(toolHandler);
         }
       });
     } catch (error) {

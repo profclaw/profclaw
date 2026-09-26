@@ -430,7 +430,12 @@ ${context.user.role ? `- Role: ${context.user.role}` : ''}`);
         // Only include top 15 most relevant skills, not all 55
         const prioritySkills = entries
           .filter((e) => e.enabled !== false)
-          .sort((a, b) => ((b.metadata as Record<string, unknown>)?.priority as number ?? 0) - ((a.metadata as Record<string, unknown>)?.priority as number ?? 0))
+          .sort((a, b) => {
+            const pa = (a.metadata as Record<string, unknown>)?.priority as number ?? 0;
+            const pb = (b.metadata as Record<string, unknown>)?.priority as number ?? 0;
+            // Name tie-break keeps the cached prompt prefix byte-stable
+            return pb - pa || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+          })
           .slice(0, 15);
         const skillLines = prioritySkills
           .map((e) => `- ${e.name}: ${e.description || 'No description'}`)
