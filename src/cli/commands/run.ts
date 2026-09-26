@@ -18,6 +18,7 @@
 
 import { spawn } from 'node:child_process';
 import { Command } from 'commander';
+import { describeSandbox, resolveSandboxMode } from '../../agents/command-sandbox.js';
 import { CommandVerifier } from '../../agents/verifier.js';
 import { runVerifiedGoal, resolveLimits } from '../../agents/verified-run.js';
 import { createDefaultExecutorRunner } from '../../agents/executor-runner.js';
@@ -35,6 +36,7 @@ import { error, info, success, warn, formatCost, formatTokens } from '../utils/o
 interface RunCliOptions {
   verify: string;
   agentCmd?: string;
+  sandboxVerify?: boolean;
   model?: string;
   escalateAfter?: string;
   maxAttempts?: string;
@@ -134,6 +136,7 @@ export function runCommand(): Command {
     .option('--breaker <n>', 'Non-improving attempts before the circuit breaker trips (env PROFCLAW_RUN_BREAKER_THRESHOLD)')
     .option('--verify-timeout <ms>', 'Verifier timeout (env PROFCLAW_RUN_VERIFY_TIMEOUT_MS)')
     .option('--branch <name>', 'Branch name for the run (default profclaw/run-<id>)')
+    .option('--sandbox-verify', 'Also run the verify command under the OS sandbox (env PROFCLAW_RUN_SANDBOX_VERIFY=1); default off')
     .option('--cleanup', 'Remove the worktree afterwards (the branch is kept)')
     .option('--json', 'Output the result as JSON')
     .action(async (goal: string, options: RunCliOptions) => {
@@ -149,6 +152,9 @@ export function runCommand(): Command {
           if (flags[key] === undefined) delete flags[key];
         }
         const verifyCommand = options.verify;
+        const sandboxMode = resolveSandboxMode();
+        const sandboxVerify = options.sandboxVerify === true || process.env.PROFCLAW_RUN_SANDBOX_VERIFY === '1';
+        if (!options.json) info(`${describeSandbox(sandboxMode)}${sandboxVerify ? '; verify command sandboxed' : ''}`);
         const limits = resolveLimits(flags);
         const agent: AgentRunner = options.agentCmd
           ? new CommandAgent(options.agentCmd)
@@ -174,6 +180,7 @@ export function runCommand(): Command {
               cwd,
               timeoutMs: flags.verifyTimeoutMs ?? Number(process.env.PROFCLAW_RUN_VERIFY_TIMEOUT_MS ?? 600_000),
               maxOutputChars: Number(process.env.PROFCLAW_RUN_MAX_OUTPUT_CHARS ?? 4_000),
+              sandbox: sandboxVerify ? { mode: sandboxMode } : undefined,
             }),
         });
 

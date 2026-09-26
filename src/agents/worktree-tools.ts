@@ -8,18 +8,21 @@
  * or open pull requests are denied. Cautious and dangerous tools also go
  * through the existing PermissionManager (src/agents/permissions.ts).
  *
- * Limitation: the shell tool runs with the worktree as cwd and a scrubbed
- * environment, but a shell cannot be fully sandboxed without OS-level
- * isolation. Pattern screening is a guard rail, not a jail.
+ * The shell tool runs with the worktree as cwd and a scrubbed environment,
+ * confined by an OS sandbox when available (src/agents/command-sandbox.ts).
+ * Without one it falls back to pattern screening, a guard rail, not a jail.
  */
 
-import { spawn } from 'node:child_process';
-import { mkdir, readdir, readFile, realpath, writeFile } from 'node:fs/promises';
-import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
+import { execFile, spawn } from 'node:child_process';
+import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { jsonSchema, tool } from 'ai';
 import type { ToolSet } from 'ai';
 import { PermissionManager } from './permissions.js';
 import type { ToolExecuteHandler } from './executor.js';
+import { planSandboxedCommand, resolveAllowNetwork, resolveExtraWritable } from './command-sandbox.js';
+import type { PlanOptions, SandboxOptions } from './command-sandbox.js';
 
 export interface WorktreeToolsOptions {
   /** Root every file operation is confined to */
@@ -29,11 +32,17 @@ export interface WorktreeToolsOptions {
   commandTimeoutMs: number;
   /** Cap on text returned to the model per tool call */
   maxOutputChars: number;
+  /** Sandbox overrides (mode, availability check); defaults come from PROFCLAW_RUN_SANDBOX */
+  sandbox?: PlanOptions;
+  /** Override PROFCLAW_RUN_ALLOW_NETWORK */
+  allowNetwork?: boolean;
 }
 
 export interface WorktreeToolset {
   tools: ToolSet;
   execute: ToolExecuteHandler;
+  /** Remove the per-run sandbox temp dir */
+  dispose: () => Promise<void>;
 }
 
 /** Tools the agent must never be given, denied even if requested by name. */
@@ -108,16 +117,33 @@ function truncateTail(text: string, max: number): string {
   return text.length <= max ? text : `...[truncated]\n${text.slice(-max)}`;
 }
 
+/** Git dirs a linked worktree must write to (index, refs, objects), minus hooks and config. */
+async function resolveGitSandboxPaths(workdir: string): Promise<{ writable: string[]; readOnly: string[] }> {
+  const run = (arg: string): Promise<string> =>
+    new Promise((res) => {
+      execFile('git', ['-C', workdir, 'rev-parse', arg], (err, stdout) => res(err ? '' : stdout.trim()));
+    });
+  const writable = new Set<string>();
+  const readOnly: string[] = [];
+  for (const dir of [await run('--git-dir'), await run('--git-common-dir')]) {
+    if (dir === '') continue;
+    const abs = resolve(workdir, dir);
+    writable.add(abs);
+    readOnly.push(join(abs, 'hooks'), join(abs, 'config'));
+  }
+  return { writable: [...writable], readOnly };
+}
+
 function runShell(
-  command: string,
+  spec: { file: string; args: string[]; env: Record<string, string> },
   cwd: string,
   timeoutMs: number,
   maxChars: number,
 ): Promise<{ exitCode: number | null; output: string; timedOut: boolean }> {
   return new Promise((resolvePromise) => {
-    const env: NodeJS.ProcessEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
+    const env: NodeJS.ProcessEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0', ...spec.env };
     for (const key of SCRUBBED_ENV_KEYS) delete env[key];
-    const child = spawn('/bin/sh', ['-c', command], { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(spec.file, spec.args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '';
     let timedOut = false;
     const append = (d: Buffer): void => {
@@ -155,6 +181,27 @@ function schemaTool(description: string, properties: Record<string, { type: 'str
 export function createWorktreeToolset(options: WorktreeToolsOptions): WorktreeToolset {
   const { workdir, commandTimeoutMs, maxOutputChars } = options;
   const permissions = options.permissions ?? createRunPermissionManager();
+  let sandboxBase: Promise<SandboxOptions> | undefined;
+  const getSandboxBase = (): Promise<SandboxOptions> => {
+    sandboxBase ??= (async () => {
+      const tempDir = await mkdtemp(join(tmpdir(), 'profclaw-run-'));
+      const git = await resolveGitSandboxPaths(workdir);
+      return {
+        workdir,
+        tempDir,
+        allowNetwork: options.allowNetwork ?? resolveAllowNetwork(),
+        extraWritable: [...git.writable, ...resolveExtraWritable()],
+        extraReadOnly: git.readOnly,
+      };
+    })();
+    return sandboxBase;
+  };
+  const dispose = async (): Promise<void> => {
+    if (!sandboxBase) return;
+    const base = await sandboxBase;
+    sandboxBase = undefined;
+    await rm(base.tempDir, { recursive: true, force: true });
+  };
 
   const tools: ToolSet = {
     read_file: schemaTool('Read a UTF-8 text file inside the working directory.', { path: { type: 'string' } }, ['path']),
@@ -222,7 +269,8 @@ export function createWorktreeToolset(options: WorktreeToolsOptions): WorktreeTo
           if (isBlockedCommand(command)) {
             return { success: false, error: 'Command denied: pushing and opening pull requests are not allowed' };
           }
-          const result = await runShell(command, workdir, commandTimeoutMs, maxOutputChars);
+          const spec = planSandboxedCommand(command, await getSandboxBase(), options.sandbox);
+          const result = await runShell(spec, workdir, commandTimeoutMs, maxOutputChars);
           return {
             success: result.exitCode === 0,
             data: { exitCode: result.exitCode, timedOut: result.timedOut, output: result.output },
@@ -239,5 +287,5 @@ export function createWorktreeToolset(options: WorktreeToolsOptions): WorktreeTo
     }
   };
 
-  return { tools, execute };
+  return { tools, execute, dispose };
 }

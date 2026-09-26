@@ -14,6 +14,11 @@
  */
 
 import { spawn } from 'node:child_process';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { planSandboxedCommand, resolveAllowNetwork, resolveExtraWritable } from './command-sandbox.js';
+import type { PlanOptions, SandboxPlan } from './command-sandbox.js';
 
 // Types
 
@@ -35,6 +40,12 @@ export interface VerifierOptions {
   /** Max characters of output kept for feedback (head and tail are kept) */
   maxOutputChars: number;
   env?: NodeJS.ProcessEnv;
+  /**
+   * Run the command under the OS sandbox (see command-sandbox.ts). Off by
+   * default: user supplied verify commands often need network or write
+   * outside the worktree (package caches).
+   */
+  sandbox?: PlanOptions & { allowNetwork?: boolean };
 }
 
 /** Anything that can judge a workspace. Tests inject fakes. */
@@ -113,7 +124,36 @@ export class CommandVerifier implements Verifier {
 // Cap on raw bytes retained in memory regardless of trim setting.
 const RAW_CAPTURE_LIMIT = 2_000_000;
 
-function runCommand(command: string, options: VerifierOptions): Promise<VerifierResult> {
+async function runCommand(command: string, options: VerifierOptions): Promise<VerifierResult> {
+  if (!options.sandbox) return spawnCommand({ file: '/bin/sh', args: ['-c', command], env: {}, backend: 'none' }, options);
+  const tempDir = await mkdtemp(join(tmpdir(), 'profclaw-verify-'));
+  try {
+    const plan = planSandboxedCommand(
+      command,
+      {
+        workdir: options.cwd,
+        tempDir,
+        allowNetwork: options.sandbox.allowNetwork ?? resolveAllowNetwork(),
+        extraWritable: resolveExtraWritable(),
+      },
+      options.sandbox,
+    );
+    return await spawnCommand(plan, options);
+  } catch (error: unknown) {
+    return {
+      passed: false,
+      exitCode: null,
+      timedOut: false,
+      durationMs: 0,
+      output: `Verifier sandbox error: ${error instanceof Error ? error.message : String(error)}`,
+      truncated: false,
+    };
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+}
+
+function spawnCommand(plan: SandboxPlan, options: VerifierOptions): Promise<VerifierResult> {
   return new Promise((resolve) => {
     const started = Date.now();
     let buffer = '';
@@ -121,9 +161,9 @@ function runCommand(command: string, options: VerifierOptions): Promise<Verifier
     let timedOut = false;
     let settled = false;
 
-    const child = spawn('/bin/sh', ['-c', command], {
+    const child = spawn(plan.file, plan.args, {
       cwd: options.cwd,
-      env: { ...process.env, ...options.env, CI: process.env.CI ?? '1' },
+      env: { ...process.env, ...options.env, ...plan.env, CI: process.env.CI ?? '1' },
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: true,
     });

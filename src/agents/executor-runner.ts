@@ -326,6 +326,8 @@ export class ExecutorRunner implements AgentRunner {
     } catch (error: unknown) {
       failure = error instanceof Error ? error.message : String(error);
       finalState = loop.getState();
+    } finally {
+      await toolset.dispose();
     }
 
     const inputTokens = finalState.inputTokensUsed;
