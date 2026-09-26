@@ -38,6 +38,7 @@ function getExperienceStore(): Promise<typeof import('../memory/experience-store
 import { normalizeToolSchema } from '../providers/schema-utils.js';
 import { logger } from '../utils/logger.js';
 import type { ChatToolHandler } from './tool-handler.js';
+import { selectToolsForRequest } from '../agents/tool-selector.js';
 import {
   runWithModelFallback,
   getUserFriendlyErrorMessage,
@@ -457,7 +458,13 @@ export async function executeAgenticChat(
   };
 
   // Store raw tool definitions - we'll convert to AI SDK format per-provider
-  const toolDefinitions = request.tools;
+  // Per-turn tool selection (core set + relevant groups + load_tools meta-tool)
+  const turnUserMessage = [...request.messages].reverse().find((m) => m.role === 'user');
+  const toolDefinitions = selectToolsForRequest(
+    request.tools,
+    request.conversationId,
+    typeof turnUserMessage?.content === 'string' ? turnUserMessage.content : '',
+  );
 
   // Build messages with system prompt
   const messages = [

@@ -23,6 +23,14 @@ import type {
 } from '../providers/ai-sdk.js';
 import { logger } from '../utils/logger.js';
 import { SAFE_BROWSER_TOOL_NAMES } from '../browser/index.js';
+import { ResultStore } from '../agents/result-store.js';
+import { truncateAndStore, isTruncationEnabled } from '../agents/output-truncator.js';
+import {
+  LOAD_TOOLS_NAME,
+  FETCH_RESULT_NAME,
+  getToolSelectorSession,
+} from '../agents/tool-selector.js';
+import { runLoadTools, runFetchResult } from './meta-tool-handlers.js';
 
 // Types
 
@@ -143,6 +151,23 @@ export async function createChatToolHandler(
   const registry = getToolRegistry();
   const executor = getToolExecutor();
   const sessionManager = new ChatSessionManager();
+  const resultStore = new ResultStore(options.conversationId.replace(/[^a-zA-Z0-9_-]/g, '_'));
+
+  /** Cap large results before they reach the model; the full result stays in the store. */
+  const capForModel = async (toolName: string, toolCallId: string, data: unknown): Promise<unknown> => {
+    if (!isTruncationEnabled() || toolName === FETCH_RESULT_NAME || toolName === LOAD_TOOLS_NAME) {
+      return data;
+    }
+    try {
+      return (await truncateAndStore(resultStore, toolCallId, data)).value;
+    } catch (error) {
+      logger.warn(`[ChatToolHandler] Output truncation failed for ${toolName}`, {
+        component: 'ChatToolHandler',
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return data;
+    }
+  };
 
   // Build security policy
   const securityPolicy: SecurityPolicy = {
@@ -161,7 +186,7 @@ export async function createChatToolHandler(
     sessionManager,
   });
 
-  return {
+  const handler: ChatToolHandler = {
     getTools(): NativeToolDefinition[] {
       const tools = registry.list();
       return tools.map((tool) => ({
@@ -181,7 +206,27 @@ export async function createChatToolHandler(
         toolCallId,
       });
 
+      // Meta-tools are served locally, not through the registry
+      if (toolName === LOAD_TOOLS_NAME) {
+        const allTools = registry.list().map((t) => ({
+          name: t.name,
+          description: t.description,
+          parameters: t.parameters,
+        }));
+        return {
+          result: await runLoadTools(args, {
+            session: getToolSelectorSession(options.conversationId),
+            allTools,
+            invoke: async (tool, toolArgs) => (await handler.executeTool(tool, toolArgs, randomUUID())).result,
+          }),
+        };
+      }
+      if (toolName === FETCH_RESULT_NAME) {
+        return { result: await runFetchResult(args, resultStore) };
+      }
+
       try {
+        getToolSelectorSession(options.conversationId).noteToolUse(toolName);
         const context = createContext(toolCallId);
         const result = await executor.execute(
           {
@@ -214,7 +259,7 @@ export async function createChatToolHandler(
         // The AI only sees `result` — `output` is preserved for UI rendering
         if (result.result.success) {
           // Extract clean data for the AI model
-          const aiResult = result.result.data ?? { success: true };
+          const aiResult = await capForModel(toolName, toolCallId, result.result.data ?? { success: true });
           return {
             result: aiResult,
             output: result.result.output,  // Sidecar for UI display
@@ -273,7 +318,7 @@ export async function createChatToolHandler(
         }
 
         if (result.result.success) {
-          const aiResult = result.result.data ?? { success: true };
+          const aiResult = await capForModel(approvalId, randomUUID(), result.result.data ?? { success: true });
           return {
             result: aiResult,
             output: result.result.output,
@@ -297,6 +342,7 @@ export async function createChatToolHandler(
       }
     },
   };
+  return handler;
 }
 
 // Tool Categories for Chat
