@@ -16,6 +16,7 @@ import { z } from 'zod';
 import { logger } from '../utils/logger.js';
 import { normalizeToolSchema } from './schema-utils.js';
 import {
+  aggregateStepUsage,
   applyAnthropicMessageCache,
   applyAnthropicToolCache,
   calculateCachedInputCost,
@@ -1496,8 +1497,8 @@ class AIProviderManager {
       const duration = Date.now() - startTime;
       const modelInfo = this.getModelInfo(modelRef.model);
 
-      // Calculate usage
-      const { promptTokens, completionTokens, cacheReadTokens, cacheWriteTokens } = extractCacheUsage(result.usage);
+      // Calculate usage, summed across all steps (result.usage is last-step only)
+      const { promptTokens, completionTokens, cacheReadTokens, cacheWriteTokens } = aggregateStepUsage(result.steps, result.usage);
       const cost = modelInfo
         ? calculateCachedInputCost(promptTokens, cacheReadTokens, cacheWriteTokens, modelInfo.costPer1MInput) +
           (completionTokens / 1_000_000) * modelInfo.costPer1MOutput

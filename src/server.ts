@@ -946,6 +946,10 @@ async function main() {
   initTokenTracker();
   appLog.info('Token tracker initialized');
 
+  // Sweep stale tool-result temp dirs left by crashed runs (fire-and-forget)
+  const { ResultStore } = await import('./agents/result-store.js');
+  void ResultStore.sweepStale();
+
   // Initialize agents from config
   const { getAgentRegistry } = await import('./adapters/registry.js');
   const registry = getAgentRegistry();

@@ -150,6 +150,27 @@ export function extractCacheUsage(usage: unknown): CacheUsage {
 }
 
 /**
+ * Sum usage across multi-step runs (tokens plus cache read/write). Falls back to
+ * `fallback` (the run-level usage) when there are no per-step usages, because
+ * result.usage only reflects the last step in AI SDK v6.
+ */
+export function aggregateStepUsage(steps: unknown, fallback: unknown): CacheUsage {
+  const usages: unknown[] = Array.isArray(steps)
+    ? steps.map((s) => rec(s)?.['usage']).filter((u) => u !== undefined && u !== null)
+    : [];
+  if (usages.length === 0) return extractCacheUsage(fallback);
+  const total: CacheUsage = { promptTokens: 0, completionTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+  for (const usage of usages) {
+    const u = extractCacheUsage(usage);
+    total.promptTokens += u.promptTokens;
+    total.completionTokens += u.completionTokens;
+    total.cacheReadTokens += u.cacheReadTokens;
+    total.cacheWriteTokens += u.cacheWriteTokens;
+  }
+  return total;
+}
+
+/**
  * Input cost in USD for a prompt that may include cached tokens.
  * Uncached tokens bill at the base rate, reads and writes at the multiplied rate.
  */

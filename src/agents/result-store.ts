@@ -6,7 +6,7 @@
  * large tool outputs (e.g. file reads, API dumps).
  */
 
-import { writeFile, unlink, mkdir } from "node:fs/promises";
+import { writeFile, unlink, mkdir, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -20,6 +20,14 @@ const MAX_TOTAL_SIZE = 5_000_000;
 
 /** Number of chars to include in the inline preview */
 const PREVIEW_LENGTH = 500;
+
+const TEMP_DIR_PREFIX = "profclaw-results-";
+
+/** Stale temp dir TTL, env-configurable (PROFCLAW_RESULT_STORE_TTL_MS, default 24h) */
+function getResultStoreTtlMs(): number {
+  const parsed = Number.parseInt(process.env.PROFCLAW_RESULT_STORE_TTL_MS ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 24 * 60 * 60 * 1000;
+}
 
 export interface StoredResult {
   /** Summary string (or full result if small enough) that goes into context */
@@ -37,7 +45,7 @@ export class ResultStore {
   private tempDir: string;
 
   constructor(sessionId: string) {
-    this.tempDir = join(tmpdir(), `profclaw-results-${sessionId}`);
+    this.tempDir = join(tmpdir(), `${TEMP_DIR_PREFIX}${sessionId}`);
   }
 
   /**
@@ -122,6 +130,42 @@ export class ResultStore {
     logger.debug("[ResultStore] Cleaned up temp files", {
       count: deletions.length,
     });
+  }
+
+  /**
+   * Remove stale result directories (e.g. from crashed runs) older than the TTL.
+   * TTL comes from PROFCLAW_RESULT_STORE_TTL_MS (default 24h). Returns the
+   * number of directories removed. Never throws.
+   */
+  static async sweepStale(
+    ttlMs: number = getResultStoreTtlMs(),
+    baseDir: string = tmpdir(),
+    now: number = Date.now(),
+  ): Promise<number> {
+    let removed = 0;
+    try {
+      const entries = await readdir(baseDir);
+      for (const name of entries) {
+        if (!name.startsWith(TEMP_DIR_PREFIX)) continue;
+        const dir = join(baseDir, name);
+        try {
+          const info = await stat(dir);
+          if (!info.isDirectory() || now - info.mtimeMs <= ttlMs) continue;
+          await rm(dir, { recursive: true, force: true });
+          removed++;
+        } catch (err: unknown) {
+          logger.warn("[ResultStore] Failed to sweep stale dir", {
+            dir,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+    } catch (err: unknown) {
+      logger.warn("[ResultStore] Stale sweep failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    return removed;
   }
 
   private async writeTempFile(toolCallId: string, content: string): Promise<string> {

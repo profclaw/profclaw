@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { ModelMessage, ToolSet } from 'ai';
 import { tool, jsonSchema } from 'ai';
 import {
+  aggregateStepUsage,
   applyAnthropicMessageCache,
   applyAnthropicToolCache,
   cacheHitRate,
@@ -130,5 +131,24 @@ describe('cost and hit rate', () => {
   it('computes hit rate safely', () => {
     expect(cacheHitRate(800, 1000)).toBe(0.8);
     expect(cacheHitRate(0, 0)).toBe(0);
+  });
+});
+
+describe('aggregateStepUsage', () => {
+  it('sums tokens and cache counts across steps', () => {
+    const steps = [
+      { usage: { inputTokens: 100, outputTokens: 10, inputTokenDetails: { cacheReadTokens: 40, cacheWriteTokens: 20 } } },
+      { usage: { inputTokens: 150, outputTokens: 30, inputTokenDetails: { cacheReadTokens: 100, cacheWriteTokens: 0 } } },
+    ];
+    expect(aggregateStepUsage(steps, { inputTokens: 150, outputTokens: 30 })).toEqual({
+      promptTokens: 250,
+      completionTokens: 40,
+      cacheReadTokens: 140,
+      cacheWriteTokens: 20,
+    });
+  });
+
+  it('falls back to run-level usage when there are no steps', () => {
+    expect(aggregateStepUsage(undefined, { inputTokens: 5, outputTokens: 2 }).promptTokens).toBe(5);
   });
 });
