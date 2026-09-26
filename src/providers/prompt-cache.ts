@@ -49,6 +49,29 @@ export function getPromptCacheConfig(env: NodeJS.ProcessEnv = process.env): Prom
   };
 }
 
+/**
+ * Cache reads bill at 5% of the base input price on Opus 5.5 and 2.5% on Fable 5.1,
+ * versus the 10% default elsewhere (Anthropic models overview, pricing notes).
+ */
+const MODEL_READ_MULTIPLIERS: ReadonlyArray<readonly [RegExp, number]> = [
+  [/fable-5-1/, 0.025],
+  [/opus-5-5/, 0.05],
+];
+
+/**
+ * Cache config for one model. An explicit PROFCLAW_CACHE_READ_MULTIPLIER always wins,
+ * otherwise the model's documented read multiplier applies.
+ */
+export function getCacheConfigForModel(
+  model: string,
+  env: NodeJS.ProcessEnv = process.env,
+): PromptCacheConfig {
+  const base = getPromptCacheConfig(env);
+  if ((env['PROFCLAW_CACHE_READ_MULTIPLIER'] ?? '').trim() !== '') return base;
+  const match = MODEL_READ_MULTIPLIERS.find(([pattern]) => pattern.test(model));
+  return match ? { ...base, readMultiplier: match[1] } : base;
+}
+
 function cacheProviderOptions(config: PromptCacheConfig): {
   anthropic: { cacheControl: { type: 'ephemeral'; ttl?: '1h' } };
 } {

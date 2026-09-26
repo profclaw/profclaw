@@ -8,6 +8,7 @@ import {
   cacheHitRate,
   calculateCachedInputCost,
   extractCacheUsage,
+  getCacheConfigForModel,
   getPromptCacheConfig,
 } from '../prompt-cache.js';
 
@@ -150,5 +151,28 @@ describe('aggregateStepUsage', () => {
 
   it('falls back to run-level usage when there are no steps', () => {
     expect(aggregateStepUsage(undefined, { inputTokens: 5, outputTokens: 2 }).promptTokens).toBe(5);
+  });
+});
+
+describe('getCacheConfigForModel', () => {
+  it('uses the documented read multiplier for Opus 5.5 and Fable 5.1', () => {
+    expect(getCacheConfigForModel('claude-opus-5-5', {}).readMultiplier).toBe(0.05);
+    expect(getCacheConfigForModel('anthropic/claude-fable-5-1', {}).readMultiplier).toBe(0.025);
+  });
+
+  it('keeps the default for other models', () => {
+    expect(getCacheConfigForModel('claude-sonnet-5', {}).readMultiplier).toBe(0.1);
+    expect(getCacheConfigForModel('claude-haiku-4-5-20251001', {}).readMultiplier).toBe(0.1);
+  });
+
+  it('lets an explicit env multiplier win over the per-model default', () => {
+    const cfg = getCacheConfigForModel('claude-opus-5-5', { PROFCLAW_CACHE_READ_MULTIPLIER: '0.2' });
+    expect(cfg.readMultiplier).toBe(0.2);
+  });
+
+  it('prices a cache read cheaper on Opus 5.5 than on Sonnet 5 at the same input rate', () => {
+    const opus = calculateCachedInputCost(10_000, 10_000, 0, 4, getCacheConfigForModel('claude-opus-5-5', {}));
+    const sonnet = calculateCachedInputCost(10_000, 10_000, 0, 4, getCacheConfigForModel('claude-sonnet-5', {}));
+    expect(opus).toBeLessThan(sonnet);
   });
 });

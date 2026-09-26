@@ -26,7 +26,7 @@ import { classifyComplexity, selectModel } from '../providers/smart-router.js';
 import type { ComplexityTier } from '../providers/smart-router.js';
 import { getModelInfo, resolveModelAlias } from '../providers/core/models.js';
 import type { ProviderType } from '../providers/core/types.js';
-import { extractCacheUsage, getPromptCacheConfig } from '../providers/prompt-cache.js';
+import { extractCacheUsage, getCacheConfigForModel } from '../providers/prompt-cache.js';
 import type { PromptCacheConfig } from '../providers/prompt-cache.js';
 
 // Model ladder
@@ -225,7 +225,7 @@ function stepUsage(result: unknown): unknown {
 
 export class ExecutorRunner implements AgentRunner {
   private readonly config: ExecutorRunnerConfig;
-  private readonly cache: PromptCacheConfig;
+  private readonly env: NodeJS.ProcessEnv | undefined;
   private readonly permissions: PermissionManager;
   private tierIndex = 0;
   private failuresOnTier = 0;
@@ -235,7 +235,7 @@ export class ExecutorRunner implements AgentRunner {
   constructor(private readonly options: ExecutorRunnerOptions) {
     if (options.ladder.length === 0) throw new Error('ExecutorRunner needs at least one model');
     this.config = resolveRunnerConfig(options.config ?? {}, options.env);
-    this.cache = getPromptCacheConfig(options.env);
+    this.env = options.env;
     this.permissions = options.permissions ?? createRunPermissionManager();
   }
 
@@ -310,7 +310,7 @@ export class ExecutorRunner implements AgentRunner {
       const usage = extractCacheUsage(stepUsage(result));
       cacheRead += usage.cacheReadTokens;
       cacheWrite += usage.cacheWriteTokens;
-      if (computeCostUsd(choice, usageNow(state), this.cache) >= costLeft && !budgetStopped) {
+      if (computeCostUsd(choice, usageNow(state), getCacheConfigForModel(choice.model, this.env)) >= costLeft && !budgetStopped) {
         budgetStopped = true;
         loop.cancel();
       }
@@ -331,7 +331,7 @@ export class ExecutorRunner implements AgentRunner {
     const inputTokens = finalState.inputTokensUsed;
     const outputTokens = finalState.outputTokensUsed;
     const tokens = inputTokens + outputTokens > 0 ? inputTokens + outputTokens : finalState.usedBudget;
-    const costUsd = computeCostUsd(choice, usageNow(finalState), this.cache);
+    const costUsd = computeCostUsd(choice, usageNow(finalState), getCacheConfigForModel(choice.model, this.env));
     this.spentTokens += tokens;
     this.spentUsd += costUsd;
 

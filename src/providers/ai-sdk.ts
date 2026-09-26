@@ -7,7 +7,7 @@
  * @see https://sdk.vercel.ai/docs
  */
 
-import { generateText, streamText, tool as createTool, type LanguageModel, type Tool as AiSdkTool, type ToolSet, jsonSchema } from 'ai';
+import { generateText, streamText, stepCountIs, tool as createTool, type LanguageModel, type Tool as AiSdkTool, type ToolSet, jsonSchema } from 'ai';
 // Provider SDKs are lazily imported inside ensureProvider() to reduce startup memory
 // (each SDK is ~15MB; loading all 6 at startup costs ~100MB even if unused)
 import { zodToJsonSchema } from 'zod-to-json-schema';
@@ -20,6 +20,7 @@ import {
   applyAnthropicMessageCache,
   applyAnthropicToolCache,
   calculateCachedInputCost,
+  getCacheConfigForModel,
   extractCacheUsage,
 } from './prompt-cache.js';
 
@@ -1011,7 +1012,7 @@ class AIProviderManager {
       // Calculate cost - AI SDK v6 uses usage.totalTokens and similar
       const { promptTokens, completionTokens, cacheReadTokens, cacheWriteTokens } = extractCacheUsage(result.usage);
       const cost = modelInfo
-        ? calculateCachedInputCost(promptTokens, cacheReadTokens, cacheWriteTokens, modelInfo.costPer1MInput) +
+        ? calculateCachedInputCost(promptTokens, cacheReadTokens, cacheWriteTokens, modelInfo.costPer1MInput, getCacheConfigForModel(modelInfo.id)) +
           (completionTokens / 1_000_000) * modelInfo.costPer1MOutput
         : 0;
 
@@ -1108,7 +1109,7 @@ class AIProviderManager {
 
       const { promptTokens, completionTokens, cacheReadTokens, cacheWriteTokens } = extractCacheUsage(usage);
       const cost = modelInfo
-        ? calculateCachedInputCost(promptTokens, cacheReadTokens, cacheWriteTokens, modelInfo.costPer1MInput) +
+        ? calculateCachedInputCost(promptTokens, cacheReadTokens, cacheWriteTokens, modelInfo.costPer1MInput, getCacheConfigForModel(modelInfo.id)) +
           (completionTokens / 1_000_000) * modelInfo.costPer1MOutput
         : 0;
 
@@ -1274,7 +1275,7 @@ class AIProviderManager {
 
       const { promptTokens, completionTokens, cacheReadTokens, cacheWriteTokens } = extractCacheUsage(result.usage);
       const cost = modelInfo
-        ? calculateCachedInputCost(promptTokens, cacheReadTokens, cacheWriteTokens, modelInfo.costPer1MInput) +
+        ? calculateCachedInputCost(promptTokens, cacheReadTokens, cacheWriteTokens, modelInfo.costPer1MInput, getCacheConfigForModel(modelInfo.id)) +
           (completionTokens / 1_000_000) * modelInfo.costPer1MOutput
         : 0;
 
@@ -1490,9 +1491,9 @@ class AIProviderManager {
         tools: Object.keys(tools).length > 0 ? applyAnthropicToolCache(tools, modelRef.provider) : undefined,
         temperature: request.temperature ?? 0.7,
         maxOutputTokens: request.maxTokens ?? 4096,
-        maxSteps: request.maxToolRoundtrips ?? 5,
+        stopWhen: stepCountIs(request.maxToolRoundtrips ?? 5),
         abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS),
-      } as Parameters<typeof generateText>[0]));
+      }));
 
       const duration = Date.now() - startTime;
       const modelInfo = this.getModelInfo(modelRef.model);
@@ -1500,7 +1501,7 @@ class AIProviderManager {
       // Calculate usage, summed across all steps (result.usage is last-step only)
       const { promptTokens, completionTokens, cacheReadTokens, cacheWriteTokens } = aggregateStepUsage(result.steps, result.usage);
       const cost = modelInfo
-        ? calculateCachedInputCost(promptTokens, cacheReadTokens, cacheWriteTokens, modelInfo.costPer1MInput) +
+        ? calculateCachedInputCost(promptTokens, cacheReadTokens, cacheWriteTokens, modelInfo.costPer1MInput, getCacheConfigForModel(modelInfo.id)) +
           (completionTokens / 1_000_000) * modelInfo.costPer1MOutput
         : 0;
 
@@ -1659,9 +1660,9 @@ class AIProviderManager {
         tools: Object.keys(tools).length > 0 ? applyAnthropicToolCache(tools, modelRef.provider) : undefined,
         temperature: request.temperature ?? 0.7,
         maxOutputTokens: request.maxTokens ?? 4096,
-        maxSteps: request.maxToolRoundtrips ?? 5,
+        stopWhen: stepCountIs(request.maxToolRoundtrips ?? 5),
         abortSignal: AbortSignal.timeout(AI_TIMEOUT_MS),
-      } as Parameters<typeof streamText>[0]);
+      });
 
       let fullText = '';
 
@@ -1676,7 +1677,7 @@ class AIProviderManager {
 
       const { promptTokens, completionTokens, cacheReadTokens, cacheWriteTokens } = extractCacheUsage(usage);
       const cost = modelInfo
-        ? calculateCachedInputCost(promptTokens, cacheReadTokens, cacheWriteTokens, modelInfo.costPer1MInput) +
+        ? calculateCachedInputCost(promptTokens, cacheReadTokens, cacheWriteTokens, modelInfo.costPer1MInput, getCacheConfigForModel(modelInfo.id)) +
           (completionTokens / 1_000_000) * modelInfo.costPer1MOutput
         : 0;
 

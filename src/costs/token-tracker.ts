@@ -1,6 +1,6 @@
 import { onTaskEvent } from '../queue/index.js';
 import { calculateCost, getModelPricing } from './pricing.js';
-import { cacheHitRate, calculateCachedInputCost } from '../providers/prompt-cache.js';
+import { cacheHitRate, calculateCachedInputCost, getCacheConfigForModel } from '../providers/prompt-cache.js';
 import { logger } from '../utils/logger.js';
 import { recordCost } from './persistence.js';
 import type { Task, TaskResult } from '../types/task.js';
@@ -144,7 +144,13 @@ function calculateChatCost(
   cacheWrite: number,
 ): number {
   if (cacheRead === 0 && cacheWrite === 0) return calculateCost(model, input, output);
-  const inputCost = calculateCachedInputCost(input, cacheRead, cacheWrite, getModelPricing(model).inputRate);
+  const inputCost = calculateCachedInputCost(
+    input,
+    cacheRead,
+    cacheWrite,
+    getModelPricing(model).inputRate,
+    getCacheConfigForModel(model),
+  );
   const outputCost = calculateCost(model, 0, output);
   return Math.round((inputCost + outputCost) * 1_000_000) / 1_000_000;
 }
