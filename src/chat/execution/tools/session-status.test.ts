@@ -70,8 +70,8 @@ describe('session status tool', () => {
     });
 
     expect(result.success).toBe(true);
-    expect(getSessionModel('conv-1')).toBe('anthropic/claude-opus-4-6');
-    expect(result.output).toContain('claude-opus-4-6');
+    expect(getSessionModel('conv-1')).toBe('anthropic/claude-opus-5-5');
+    expect(result.output).toContain('claude-opus-5-5');
   });
 
   it('returns UNKNOWN_MODEL for unsupported model names', async () => {
