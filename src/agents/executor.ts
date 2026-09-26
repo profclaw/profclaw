@@ -32,6 +32,11 @@ import { EFFORT_BUDGET_MAP } from "./types.js";
 import { defaultStopConditions, taskCompleted } from "./stop-conditions.js";
 import { ToolCircuitBreaker } from "./circuit-breaker.js";
 import { logger } from "../utils/logger.js";
+import {
+  applyAnthropicMessageCache,
+  applyAnthropicToolCache,
+  extractCacheUsage,
+} from "../providers/prompt-cache.js";
 import { ResultStore } from "./result-store.js";
 import type { AgentEvent } from "./events.js";
 import { getAgentSummaryTracker } from "./agent-summary.js";
@@ -353,8 +358,8 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
 
         const result = await generateText<ExecutorTools>({
           model,
-          messages,
-          tools: hasTools ? executableTools : undefined,
+          messages: applyAnthropicMessageCache(messages, providerHint ?? ''),
+          tools: hasTools ? applyAnthropicToolCache(executableTools, providerHint ?? '') : undefined,
           ...(providerOptions ? { providerOptions } : {}),
           stopWhen: [
             sdkStepCountIs(this.config.maxSteps),
@@ -374,6 +379,16 @@ export class AgentExecutor extends EventEmitter<AgentEvents> {
             this.state.usedBudget += tokensUsed;
             this.state.inputTokensUsed += stepInput;
             this.state.outputTokensUsed += stepOutput;
+
+            const cacheUsage = extractCacheUsage(step.usage);
+            if (cacheUsage.cacheReadTokens > 0 || cacheUsage.cacheWriteTokens > 0) {
+              logger.debug("[AgentExecutor] Prompt cache usage", {
+                sessionId: this.state.sessionId,
+                cacheReadTokens: cacheUsage.cacheReadTokens,
+                cacheWriteTokens: cacheUsage.cacheWriteTokens,
+                promptTokens: cacheUsage.promptTokens,
+              });
+            }
 
             // Update summary tracker with step progress
             getAgentSummaryTracker().update(this.state.sessionId, {
