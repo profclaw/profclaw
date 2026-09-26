@@ -3,6 +3,24 @@
 
 pricing:
   # Anthropic Models
+  # Verified: https://platform.claude.com/docs/en/about-claude/models/overview (2026-09-26)
+  claude-fable-5-1:
+    provider: anthropic
+    inputRate: 10.00
+    outputRate: 50.00
+  claude-opus-5-5:
+    provider: anthropic
+    inputRate: 4.00
+    outputRate: 20.00
+  claude-sonnet-5:
+    provider: anthropic
+    inputRate: 2.00
+    outputRate: 10.00
+  claude-haiku-4-5:
+    provider: anthropic
+    inputRate: 1.00
+    outputRate: 5.00
+  # Legacy (unverified this pass)
   claude-3-5-sonnet:
     provider: anthropic
     inputRate: 3.00
@@ -16,7 +34,7 @@ pricing:
     inputRate: 0.25
     outputRate: 1.25
 
-  # OpenAI Models
+  # OpenAI Models (unverified this pass, left unchanged)
   gpt-4o:
     provider: openai
     inputRate: 5.00
@@ -30,7 +48,7 @@ pricing:
     inputRate: 0.50
     outputRate: 1.50
 
-  # Google Models
+  # Google Models (unverified this pass, left unchanged)
   gemini-1.5-pro:
     provider: google
     inputRate: 3.50
@@ -39,6 +57,12 @@ pricing:
     provider: google
     inputRate: 0.35
     outputRate: 1.05
+
+  # Local open-weight models via Ollama: no per-token cost
+  gemma4:
+    provider: other
+    inputRate: 0
+    outputRate: 0
 
 defaultPricing:
   provider: other
