@@ -10,8 +10,11 @@ import { ProviderType, type ModelInfo } from './types.js';
 
 export const MODEL_ALIASES: Record<string, { provider: ProviderType; model: string }> = {
   // Anthropic
-  opus: { provider: 'anthropic', model: 'claude-opus-4-6' },
-  sonnet: { provider: 'anthropic', model: 'claude-sonnet-4-5-20250929' },
+  opus: { provider: 'anthropic', model: 'claude-opus-5-5' },
+  sonnet: { provider: 'anthropic', model: 'claude-sonnet-5' },
+  fable: { provider: 'anthropic', model: 'claude-fable-5-1' },
+  'opus-legacy': { provider: 'anthropic', model: 'claude-opus-4-6' },
+  'sonnet-legacy': { provider: 'anthropic', model: 'claude-sonnet-4-5-20250929' },
   haiku: { provider: 'anthropic', model: 'claude-haiku-4-5-20251001' },
 
   // OpenAI
@@ -144,6 +147,45 @@ export const MODEL_ALIASES: Record<string, { provider: ProviderType; model: stri
 
 export const MODEL_CATALOG: ModelInfo[] = [
   // Anthropic - All support native function calling
+  // Current Anthropic models. ids, context, max output and prices verified against
+  // https://platform.claude.com/docs/en/about-claude/models/overview (2026-09-26).
+  {
+    id: 'claude-fable-5-1',
+    name: 'Claude Fable 5.1',
+    provider: 'anthropic',
+    contextWindow: 1000000,
+    maxOutput: 128000,
+    supportsVision: true,
+    supportsStreaming: true,
+    supportsTools: true,
+    costPer1MInput: 10,
+    costPer1MOutput: 50,
+  },
+  {
+    id: 'claude-opus-5-5',
+    name: 'Claude Opus 5.5',
+    provider: 'anthropic',
+    contextWindow: 1000000,
+    maxOutput: 128000,
+    supportsVision: true,
+    supportsStreaming: true,
+    supportsTools: true,
+    costPer1MInput: 4,
+    costPer1MOutput: 20,
+  },
+  {
+    id: 'claude-sonnet-5',
+    name: 'Claude Sonnet 5',
+    provider: 'anthropic',
+    contextWindow: 1000000,
+    maxOutput: 128000,
+    supportsVision: true,
+    supportsStreaming: true,
+    supportsTools: true,
+    costPer1MInput: 2,
+    costPer1MOutput: 10,
+  },
+  // Legacy entries kept because other code and tests reference them.
   {
     id: 'claude-opus-4-6',
     name: 'Claude Opus 4.6',
@@ -173,12 +215,12 @@ export const MODEL_CATALOG: ModelInfo[] = [
     name: 'Claude Haiku 4.5',
     provider: 'anthropic',
     contextWindow: 200000,
-    maxOutput: 8192,
+    maxOutput: 64000,
     supportsVision: true,
     supportsStreaming: true,
     supportsTools: true,
-    costPer1MInput: 0.25,
-    costPer1MOutput: 1.25,
+    costPer1MInput: 1,
+    costPer1MOutput: 5,
   },
 
   // OpenAI - GPT-4+ supports function calling
@@ -417,21 +459,7 @@ export const MODEL_CATALOG: ModelInfo[] = [
     costPer1MOutput: 60.0,
   },
 
-  // Qwen 3 (local) — best small model for tool calling
-  {
-    id: 'qwen3:4b',
-    name: 'Qwen 3 4B (Local)',
-    provider: 'ollama',
-    contextWindow: 32768,
-    maxOutput: 8192,
-    supportsVision: false,
-    supportsStreaming: true,
-    supportsTools: true,
-    costPer1MInput: 0,
-    costPer1MOutput: 0,
-  },
-
-  // Gemma 4 (local) — supports native tool calling + multimodal
+  // Gemma 4 (local): supports native tool calling + multimodal
   {
     id: 'gemma4:e4b',
     name: 'Gemma 4 E4B (Local)',
@@ -451,6 +479,20 @@ export const MODEL_CATALOG: ModelInfo[] = [
     contextWindow: 128000,
     maxOutput: 8192,
     supportsVision: true,
+    supportsStreaming: true,
+    supportsTools: true,
+    costPer1MInput: 0,
+    costPer1MOutput: 0,
+  },
+
+  // Qwen 3 (local): best small model for tool calling
+  {
+    id: 'qwen3:4b',
+    name: 'Qwen 3 4B (Local)',
+    provider: 'ollama',
+    contextWindow: 32768,
+    maxOutput: 8192,
+    supportsVision: false,
     supportsStreaming: true,
     supportsTools: true,
     costPer1MInput: 0,
