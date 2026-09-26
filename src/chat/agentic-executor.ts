@@ -38,6 +38,7 @@ function getExperienceStore(): Promise<typeof import('../memory/experience-store
 import { normalizeToolSchema } from '../providers/schema-utils.js';
 import { logger } from '../utils/logger.js';
 import type { ChatToolHandler } from './tool-handler.js';
+import { selectToolsForRequest } from '../agents/tool-selector.js';
 import {
   runWithModelFallback,
   getUserFriendlyErrorMessage,
@@ -390,7 +391,9 @@ export async function executeAgenticChat(
 
   // Clone the base system prompt to avoid mutating the request object on retry
   const baseSystemPrompt = request.systemPrompt ?? '';
-  let augmentedSystemPrompt = baseSystemPrompt;
+  // Volatile per-request context is kept out of the base prompt so the base stays byte-stable
+  // for prompt caching (a second system message follows the stable one)
+  let volatileContext = '';
 
   // Recall relevant past experiences to enhance system prompt
   try {
@@ -409,7 +412,7 @@ export async function executeAgenticChat(
         });
 
       if (hints.length > 0) {
-        augmentedSystemPrompt += `\n\nRelevant past experiences:\n${hints.join('\n')}`;
+        volatileContext += `\n\nRelevant past experiences:\n${hints.join('\n')}`;
         logger.debug('[AgenticChat] Injected experience context', { count: hints.length });
         for (const exp of similar.slice(0, 2)) {
           store.markUsed(exp.id).catch(() => {});
@@ -434,7 +437,7 @@ export async function executeAgenticChat(
         const contextBlock = context.sources
           .map(s => `[${s.type}${s.path ? `: ${s.path}` : ''}]\n${s.content.slice(0, 500)}`)
           .join('\n\n');
-        augmentedSystemPrompt += `\n\nProject context (auto-gathered):\n${contextBlock}`;
+        volatileContext += `\n\nProject context (auto-gathered):\n${contextBlock}`;
         logger.debug('[AgenticChat] Injected project context', {
           sources: context.sources.length,
           tokens: context.tokens,
@@ -455,11 +458,18 @@ export async function executeAgenticChat(
   };
 
   // Store raw tool definitions - we'll convert to AI SDK format per-provider
-  const toolDefinitions = request.tools;
+  // Per-turn tool selection (core set + relevant groups + load_tools meta-tool)
+  const turnUserMessage = [...request.messages].reverse().find((m) => m.role === 'user');
+  const toolDefinitions = selectToolsForRequest(
+    request.tools,
+    request.conversationId,
+    typeof turnUserMessage?.content === 'string' ? turnUserMessage.content : '',
+  );
 
   // Build messages with system prompt
   const messages = [
-    { role: 'system' as const, content: augmentedSystemPrompt },
+    { role: 'system' as const, content: baseSystemPrompt },
+    ...(volatileContext ? [{ role: 'system' as const, content: volatileContext.trim() }] : []),
     ...request.messages.map((m) => ({
       role: m.role as 'user' | 'assistant' | 'system',
       content: m.content,
@@ -862,7 +872,13 @@ export async function* streamAgenticChat(
   };
 
   // Store raw tool definitions - we'll convert to AI SDK format per-provider
-  const toolDefinitions = request.tools;
+  // Per-turn tool selection, same as the non-streaming path
+  const turnUserMessage = [...request.messages].reverse().find((m) => m.role === 'user');
+  const toolDefinitions = selectToolsForRequest(
+    request.tools,
+    request.conversationId,
+    typeof turnUserMessage?.content === 'string' ? turnUserMessage.content : '',
+  );
 
   // Build messages with system prompt
   const messages = [

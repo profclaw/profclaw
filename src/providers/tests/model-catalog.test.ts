@@ -152,7 +152,22 @@ describe('Model Catalog', () => {
       const result = resolveModelAlias('opus');
       expect(result).toBeDefined();
       expect(result!.provider).toBe('anthropic');
-      expect(result!.model).toBe('claude-opus-4-6');
+      expect(result!.model).toBe('claude-opus-5-5');
+    });
+
+    it('current Anthropic catalog entries have documented pricing', () => {
+      const expected: Array<[string, number, number]> = [
+        ['claude-fable-5-1', 10, 50],
+        ['claude-opus-5-5', 4, 20],
+        ['claude-sonnet-5', 2, 10],
+        ['claude-haiku-4-5-20251001', 1, 5],
+      ];
+      for (const [id, input, output] of expected) {
+        const m = MODEL_CATALOG.find((x) => x.id === id && x.provider === 'anthropic');
+        expect(m).toBeDefined();
+        expect(m!.costPer1MInput).toBe(input);
+        expect(m!.costPer1MOutput).toBe(output);
+      }
     });
 
     it('resolves provider/model format', () => {

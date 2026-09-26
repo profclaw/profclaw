@@ -418,11 +418,16 @@ function getCandidatesForTier(
 
   // Sort by tier strategy
   switch (tier) {
-    case 'trivial':
-      // Cheapest first (total cost = input + output rate)
-      return eligible.sort((a, b) =>
-        (a.costPer1MInput + a.costPer1MOutput) - (b.costPer1MInput + b.costPer1MOutput),
-      );
+    case 'trivial': {
+      // Cheapest first (total cost = input + output rate). Ties (e.g. several free local
+      // models) prefer the configured free trivial model (default Gemma 4 via Ollama).
+      const preferred = process.env['SMART_ROUTER_TRIVIAL_PREFERRED_MODEL'] ?? 'gemma4:e4b';
+      return eligible.sort((a, b) => {
+        const diff = (a.costPer1MInput + a.costPer1MOutput) - (b.costPer1MInput + b.costPer1MOutput);
+        if (diff !== 0) return diff;
+        return Number(b.id === preferred) - Number(a.id === preferred);
+      });
+    }
 
     case 'standard':
       // Best value: capability (context * tool support) per dollar

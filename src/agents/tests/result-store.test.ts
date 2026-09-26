@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { readFile, stat } from "node:fs/promises";
+import { readFile, stat, mkdtemp, mkdir, writeFile, utimes, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { ResultStore } from "../result-store.js";
 
 describe("ResultStore", () => {
@@ -85,5 +87,27 @@ describe("ResultStore", () => {
 
     // Retrieve should return undefined after cleanup
     expect(store.retrieve("call-5")).toBeUndefined();
+  });
+});
+
+describe("ResultStore.sweepStale", () => {
+  it("removes only stale profclaw-results dirs older than the TTL", async () => {
+    const base = await mkdtemp(join(tmpdir(), "sweep-test-"));
+    const stale = join(base, "profclaw-results-old");
+    const fresh = join(base, "profclaw-results-new");
+    const other = join(base, "unrelated-old");
+    for (const dir of [stale, fresh, other]) {
+      await mkdir(dir);
+      await writeFile(join(dir, "f.json"), "{}");
+    }
+    const old = new Date(Date.now() - 10_000);
+    await utimes(stale, old, old);
+    await utimes(other, old, old);
+
+    const removed = await ResultStore.sweepStale(5_000, base);
+
+    expect(removed).toBe(1);
+    expect((await readdir(base)).sort()).toEqual(["profclaw-results-new", "unrelated-old"]);
+    await rm(base, { recursive: true, force: true });
   });
 });

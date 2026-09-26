@@ -141,6 +141,13 @@ describe('Smart Model Router', () => {
       expect(decision.savingsPercent).toBeGreaterThan(0);
     });
 
+    it('prefers free Gemma 4 via Ollama for trivial queries when available', () => {
+      const complexity = classifyComplexity('hello');
+      const decision = selectModel(complexity, new Set<ProviderType>(['anthropic', 'ollama']));
+      expect(decision.selectedModel.id).toBe('gemma4:e4b');
+      expect(decision.selectedModel.costPer1MInput).toBe(0);
+    });
+
     it('selects capable model for complex queries', () => {
       const complexity = classifyComplexity(
         'design a distributed system with trade-offs analysis for scaling our microservices',
