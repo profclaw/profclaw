@@ -108,7 +108,8 @@ function run(
     checkpoints: noCheckpoints,
     runId: 'test',
     env: {},
-    limits,
+    // Scripted verifiers list results per attempt, so skip the baseline run unless a test asks for it.
+    limits: { baseline: 0, ...limits },
   });
 }
 
@@ -241,6 +242,7 @@ describe('runVerifiedGoal', () => {
       goal: 'g', verifyCommand: 'v', agent: new ScriptedAgent(ws, [() => undefined]),
       createVerifier: () => new ScriptedVerifier([pass()]), projectRoot: reportDir, reportDir,
       workspace: ws, checkpoints: noCheckpoints, env: {}, signal: controller.signal,
+      limits: { baseline: 0 },
     });
     expect(res.stopReason).toBe('aborted');
     expect(res.attempts).toHaveLength(0);
@@ -324,7 +326,8 @@ describe('GitRunWorkspace with a real repo', () => {
     });
 
     expect(res.verified).toBe(true);
-    expect(res.attempts.map((a) => a.outcome)).toEqual(['improved', 'worse', 'verified']);
+    // The baseline run already shows one failing line, so attempt 1 (still one line) is unchanged.
+    expect(res.attempts.map((a) => a.outcome)).toEqual(['unchanged', 'worse', 'verified']);
     expect(res.branch).toBe('profclaw/run-' + res.runId);
     // junk from the rolled back attempt is gone
     expect(existsSync(join(res.workspacePath, 'junk.txt'))).toBe(false);
@@ -335,5 +338,50 @@ describe('GitRunWorkspace with a real repo', () => {
     expect(await readFile(join(repo, 'status.txt'), 'utf-8')).toBe('broken\n');
     expect(git('branch', '--list', res.branch)).toContain(res.branch);
     expect(existsSync(res.reportPath as string)).toBe(true);
+  });
+});
+
+describe('baseline verification', () => {
+  it('rolls back a first attempt that is worse than the starting state', async () => {
+    const ws = new FakeWorkspace();
+    const agent = new ScriptedAgent(ws, [
+      (w) => void w.files.set('junk.txt', 'x'),
+      (w) => void w.files.set('fixed.txt', 'y'),
+    ]);
+    const verifier = new ScriptedVerifier([
+      fail('FAIL a'),
+      fail('FAIL a\nFAIL b\nFAIL c'),
+      pass(),
+    ]);
+    const res = await run(ws, agent, verifier, { baseline: 1 });
+    expect(res.attempts.map((a) => a.outcome)).toEqual(['worse', 'verified']);
+    expect(res.attempts[0].rolledBack).toBe(true);
+    expect(ws.files.has('junk.txt')).toBe(false);
+    expect(res.verified).toBe(true);
+  });
+
+  it('shows the agent the real failure output on attempt 1', async () => {
+    const ws = new FakeWorkspace();
+    const agent = new ScriptedAgent(ws, [(w) => void w.files.set('a.txt', '1')]);
+    await run(ws, agent, new ScriptedVerifier([fail('FAIL foo.test'), pass()]), { baseline: 1 });
+    expect(agent.inputs[0].feedback).toContain('FAIL foo.test');
+  });
+
+  it('makes no attempt when the verifier already passes', async () => {
+    const ws = new FakeWorkspace();
+    const agent = new ScriptedAgent(ws, [() => undefined]);
+    const res = await run(ws, agent, new ScriptedVerifier([pass()]), { baseline: 1 });
+    expect(res.stopReason).toBe('already_passing');
+    expect(res.verified).toBe(false);
+    expect(res.attempts).toHaveLength(0);
+    expect(agent.inputs).toHaveLength(0);
+  });
+
+  it('skips the baseline run when disabled', async () => {
+    const ws = new FakeWorkspace();
+    const verifier = new ScriptedVerifier([pass()]);
+    const agent = new ScriptedAgent(ws, [() => undefined]);
+    await run(ws, agent, verifier, { baseline: 0 });
+    expect(verifier.calls).toBe(1);
   });
 });

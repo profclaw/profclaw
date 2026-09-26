@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { writeFile, mkdir, rm, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { SessionDiffTracker } from '../session-diff.js';
+import { SessionDiffTracker, shortestEditScript } from '../session-diff.js';
 
 async function makeTempDir(): Promise<string> {
   const dir = path.join(
@@ -181,5 +181,64 @@ describe('SessionDiffTracker', () => {
 
     expect(createdEntry?.status).toBe('created');
     expect(modifiedEntry?.status).toBe('modified');
+  });
+});
+
+describe('shortestEditScript', () => {
+  function replay(edits: Array<['+' | '-' | '=', string]>): { before: string[]; after: string[] } {
+    const before: string[] = [];
+    const after: string[] = [];
+    for (const [type, line] of edits) {
+      if (type !== '+') before.push(line);
+      if (type !== '-') after.push(line);
+    }
+    return { before, after };
+  }
+
+  it('reports a one-line change as one removal and one addition in place', () => {
+    const oldLines = ['a', 'b', 'c', 'd'];
+    const newLines = ['a', 'b', 'C', 'd'];
+    const edits = shortestEditScript(oldLines, newLines);
+    expect(edits.filter(([t]) => t !== '=')).toEqual([
+      ['-', 'c'],
+      ['+', 'C'],
+    ]);
+    expect(replay(edits)).toEqual({ before: oldLines, after: newLines });
+  });
+
+  it('reconstructs both inputs for random inputs and never exceeds the trivial edit cost', () => {
+    let seed = 12345;
+    const rand = (n: number): number => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed % n;
+    };
+    const alphabet = ['a', 'b', 'c', 'd', 'e'];
+    for (let i = 0; i < 300; i++) {
+      const oldLines = Array.from({ length: rand(9) }, () => alphabet[rand(alphabet.length)]);
+      const newLines = Array.from({ length: rand(9) }, () => alphabet[rand(alphabet.length)]);
+      const edits = shortestEditScript(oldLines, newLines);
+      const { before, after } = replay(edits);
+      expect(before).toEqual(oldLines);
+      expect(after).toEqual(newLines);
+      const cost = edits.filter(([t]) => t !== '=').length;
+      expect(cost).toBeLessThanOrEqual(oldLines.length + newLines.length);
+    }
+  });
+
+  it('produces the right unified diff for a change on the third line', async () => {
+    const dir = await makeTempDir();
+    try {
+      const file = path.join(dir, 'math.js');
+      const original = 'one\ntwo\nthree + 1\nfour\n';
+      await writeFile(file, 'one\ntwo\nthree\nfour\n');
+      const t = new SessionDiffTracker();
+      t.recordOriginal(file, original);
+      const diff = await t.generateDiff();
+      expect(diff).toContain('-three + 1');
+      expect(diff).toContain('+three');
+      expect(diff).not.toMatch(/^[+-]one$/m);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

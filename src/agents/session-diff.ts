@@ -235,7 +235,8 @@ function renderHunk(hunk: { header: string; lines: string[] }): string {
  * Produce a minimal edit script using the Myers diff algorithm.
  * Returns an array of [type, line] tuples where type is '+', '-', or '='.
  */
-function shortestEditScript(
+/** Myers shortest edit script. Exported for tests. */
+export function shortestEditScript(
   oldLines: string[],
   newLines: string[],
 ): Array<['+' | '-' | '=', string]> {
@@ -276,38 +277,29 @@ function shortestEditScript(
   let x = n;
   let y = m;
 
-  for (let d = trace.length - 1; d >= 0 && (x > 0 || y > 0); d--) {
+  for (let d = trace.length - 1; d >= 0; d--) {
     const vPrev = trace[d];
     const k = x - y;
-    const ki = k + max;
 
-    let prevK: number;
-    if (k === -d || (k !== d && vPrev[ki - 1] < vPrev[ki + 1])) {
-      prevK = k + 1;
-    } else {
-      prevK = k - 1;
-    }
-
+    const down = k === -d || (k !== d && vPrev[k - 1 + max] < vPrev[k + 1 + max]);
+    const prevK = down ? k + 1 : k - 1;
     const prevX = vPrev[prevK + max];
     const prevY = prevX - prevK;
 
-    while (x > prevX + 1 && y > prevY + 1) {
+    // Follow the diagonal (matching lines) back to where this round's edit ended.
+    while (x > prevX && y > prevY) {
       edits.unshift(['=', oldLines[x - 1]]);
       x--;
       y--;
     }
 
     if (d > 0) {
-      if (x > prevX && y > prevY) {
-        edits.unshift(['=', oldLines[x - 1]]);
-        x--;
-        y--;
-      } else if (x > prevX) {
-        edits.unshift(['-', oldLines[x - 1]]);
-        x--;
-      } else if (y > prevY) {
+      if (down) {
         edits.unshift(['+', newLines[y - 1]]);
         y--;
+      } else {
+        edits.unshift(['-', oldLines[x - 1]]);
+        x--;
       }
     }
   }

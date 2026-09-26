@@ -65,6 +65,8 @@ export interface VerifiedRunLimits {
   breakerWindowMs: number;
   verifyTimeoutMs: number;
   maxOutputChars: number;
+  /** 1 runs the verifier once before attempt 1 to measure the starting state, 0 skips it */
+  baseline: number;
 }
 
 export const DEFAULT_LIMITS: VerifiedRunLimits = {
@@ -75,6 +77,7 @@ export const DEFAULT_LIMITS: VerifiedRunLimits = {
   breakerWindowMs: 3_600_000,
   verifyTimeoutMs: 600_000,
   maxOutputChars: 4_000,
+  baseline: 1,
 };
 
 function envNumber(env: NodeJS.ProcessEnv, key: string): number | undefined {
@@ -99,6 +102,7 @@ export function resolveLimits(
     breakerWindowMs: pick('breakerWindowMs', 'PROFCLAW_RUN_BREAKER_WINDOW_MS'),
     verifyTimeoutMs: pick('verifyTimeoutMs', 'PROFCLAW_RUN_VERIFY_TIMEOUT_MS'),
     maxOutputChars: pick('maxOutputChars', 'PROFCLAW_RUN_MAX_OUTPUT_CHARS'),
+    baseline: pick('baseline', 'PROFCLAW_RUN_BASELINE'),
   };
   limits.maxAttempts = Math.max(1, Math.floor(limits.maxAttempts));
   limits.breakerThreshold = Math.max(1, Math.floor(limits.breakerThreshold));
@@ -113,7 +117,8 @@ export type StopReason =
   | 'token_budget'
   | 'cost_budget'
   | 'circuit_open'
-  | 'aborted';
+  | 'aborted'
+  | 'already_passing';
 
 export type AttemptOutcome = 'verified' | 'improved' | 'unchanged' | 'worse' | 'agent_error';
 
@@ -222,7 +227,21 @@ export async function runVerifiedGoal(options: VerifiedRunOptions): Promise<Veri
   };
   const breakerOpen = (): boolean => breaker.getStatus().get(breakerKey)?.state === 'open';
 
-  for (let attempt = 1; attempt <= limits.maxAttempts; attempt++) {
+  // Measure the starting state so attempt 1 can be judged (and rolled back) like any other,
+  // and so the agent sees the real failure output from the first attempt.
+  let alreadyPassing = false;
+  if (limits.baseline > 0) {
+    const baseline = await verifier.verify();
+    if (baseline.passed) {
+      alreadyPassing = true;
+      stopReason = 'already_passing';
+    } else {
+      bestScore = score(baseline);
+      feedback = formatFailureFeedback(baseline, options.verifyCommand);
+    }
+  }
+
+  for (let attempt = 1; attempt <= limits.maxAttempts && !alreadyPassing; attempt++) {
     if (options.signal?.aborted) {
       stopReason = 'aborted';
       break;
@@ -393,7 +412,11 @@ async function buildDiff(changes: WorkspaceChange[]): Promise<string> {
 
 export function buildEvidenceReport(result: VerifiedRunResult, limits: VerifiedRunLimits): string {
   const lines: string[] = [];
-  const status = result.verified ? 'VERIFIED' : 'NOT VERIFIED';
+  const status = result.verified
+    ? 'VERIFIED'
+    : result.stopReason === 'already_passing'
+      ? 'NOT RUN (verifier already passes)'
+      : 'NOT VERIFIED';
   lines.push(`# Evidence report: ${status}`, '');
   lines.push(`- Run: \`${result.runId}\``);
   lines.push(`- Goal: ${result.goal}`);

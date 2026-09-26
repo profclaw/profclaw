@@ -183,11 +183,14 @@ export function runCommand(): Command {
           success(`Verified after ${result.attempts.length} attempt(s), cost ${formatCost(result.totalCostUsd)}`);
           info(`Branch ${result.branch} is ready for review (not pushed).`);
           if (result.reportPath) info(`Evidence: ${result.reportPath}`);
+        } else if (result.stopReason === 'already_passing') {
+          warn('The verify command already passes before any change, so no attempt was made.');
+          if (result.reportPath) info(`Report: ${result.reportPath}`);
         } else {
           error(`Not verified (${result.stopReason}) after ${result.attempts.length} attempt(s)`);
           if (result.reportPath) info(`Report: ${result.reportPath}`);
         }
-        process.exitCode = result.verified ? 0 : 1;
+        process.exitCode = result.verified || result.stopReason === 'already_passing' ? 0 : 1;
       } catch (err: unknown) {
         error(err instanceof Error ? err.message : 'Verified run failed');
         process.exitCode = 1;

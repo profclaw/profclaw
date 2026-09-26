@@ -238,7 +238,7 @@ describe('cascade escalation', () => {
       workspace: new StaticWorkspace(workdir),
       checkpoints: { save: async () => undefined },
       createVerifier: () => new CountingVerifier(3),
-      limits: { maxAttempts: 5 },
+      limits: { maxAttempts: 5, baseline: 0 },
       env: {},
     });
     expect(result.verified).toBe(true);
