@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.4.0](https://github.com/profclaw/profclaw/compare/v2.3.0...v2.4.0) (2026-09-27)
+
+
+### Features
+
+* OS-level sandbox for the run bash tool ([#71](https://github.com/profclaw/profclaw/issues/71)) ([cc6ab33](https://github.com/profclaw/profclaw/commit/cc6ab33a7f683b20137b118e600300a200e88d72))
+* token-efficient harness and verified autonomous run ([#68](https://github.com/profclaw/profclaw/issues/68)) ([68826ca](https://github.com/profclaw/profclaw/commit/68826ca9cd627aac6a6a9119b1c2178d6b7407be))
+
+
+### Bug Fixes
+
+* judge the first run attempt against a baseline, fix wrong unified diffs ([#70](https://github.com/profclaw/profclaw/issues/70)) ([19b47ad](https://github.com/profclaw/profclaw/commit/19b47ad6aa330e557f202c8a00d44d371153eb81))
+* time out the Docker ping so a wedged daemon cannot hang startup ([#72](https://github.com/profclaw/profclaw/issues/72)) ([72dd4f2](https://github.com/profclaw/profclaw/commit/72dd4f2ef42df0a0e5624518fb3b1b02ff0e374e))
+
 ## [2.3.0](https://github.com/profclaw/profclaw/compare/v2.2.0...v2.3.0) (2026-04-13)
 
 
