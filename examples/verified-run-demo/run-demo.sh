@@ -49,3 +49,18 @@ PROFCLAW_DEMO_STATE="$DEMO/attempt-count" \
 
 echo "--- evidence report"
 cat .profclaw/runs/*/evidence.md
+
+echo "--- verify the run receipt (hash chain)"
+RECEIPT=$(ls .profclaw/runs/*/receipt.jsonl)
+node "$ROOT/profclaw.mjs" receipt verify "$RECEIPT" 2>&1 | grep -vE 'WARN|INFO|punycode|trace-deprecation'
+
+echo "--- terminal summary"
+node "$ROOT/profclaw.mjs" receipt view "$RECEIPT" 2>&1 | grep -vE 'WARN|INFO|punycode|trace-deprecation'
+
+echo "--- self-contained HTML viewer"
+node "$ROOT/profclaw.mjs" receipt view "$RECEIPT" --html "$DEMO/receipt.html" 2>&1 | grep -vE 'WARN|INFO|punycode|trace-deprecation'
+echo "Open: $DEMO/receipt.html"
+
+echo "--- tamper with a copy: flip the final verdict, verification must fail"
+sed 's/"verified":true/"verified":false/' "$RECEIPT" > "$DEMO/tampered.jsonl"
+if node "$ROOT/profclaw.mjs" receipt verify "$DEMO/tampered.jsonl" 2>&1 | grep -vE 'WARN|INFO|punycode|trace-deprecation'; then :; fi

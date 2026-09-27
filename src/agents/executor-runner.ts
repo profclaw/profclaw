@@ -183,6 +183,15 @@ export interface CreateLoopArgs {
 export type RunnerEvent =
   | { type: 'model_selected'; attempt: number; choice: ModelChoice; escalated: boolean };
 
+/** One tool invocation by the agent, reported after it finishes. */
+export interface ToolCallEvent {
+  attempt: number;
+  name: string;
+  args: Record<string, unknown>;
+  durationMs: number;
+  ok: boolean;
+}
+
 export interface ExecutorRunnerOptions {
   ladder: ModelChoice[];
   createModel: (choice: ModelChoice) => Promise<LanguageModel>;
@@ -194,6 +203,8 @@ export interface ExecutorRunnerOptions {
   permissions?: PermissionManager;
   createLoop?: (args: CreateLoopArgs) => AgentLoop;
   onEvent?: (event: RunnerEvent) => void;
+  /** Called after every tool call (used for run receipts) */
+  onToolCall?: (event: ToolCallEvent) => void;
 }
 
 const SYSTEM_PROMPT = [
@@ -221,6 +232,13 @@ export function buildAgentMessages(input: AgentAttemptInput): ModelMessage[] {
 
 function stepUsage(result: unknown): unknown {
   return typeof result === 'object' && result !== null ? (result as Record<string, unknown>)['usage'] : undefined;
+}
+
+/** Tool results that report failure as data ({ success: false } or { error }) rather than throwing. */
+function isFailedToolResult(out: unknown): boolean {
+  if (typeof out !== 'object' || out === null) return false;
+  const rec = out as Record<string, unknown>;
+  return rec['success'] === false || rec['ok'] === false || (typeof rec['error'] === 'string' && rec['error'] !== '');
 }
 
 export class ExecutorRunner implements AgentRunner {
@@ -322,7 +340,21 @@ export class ExecutorRunner implements AgentRunner {
     let finalState: AgentState;
     try {
       const model = await this.options.createModel(choice);
-      finalState = await loop.run(model, buildAgentMessages(input), toolset.tools, toolset.execute, choice.provider);
+      const onToolCall = this.options.onToolCall;
+      const execute: ToolExecuteHandler = onToolCall
+        ? async (name, args) => {
+            const startedAt = Date.now();
+            try {
+              const out = await toolset.execute(name, args);
+              onToolCall({ attempt: input.attempt, name, args, durationMs: Date.now() - startedAt, ok: !isFailedToolResult(out) });
+              return out;
+            } catch (error: unknown) {
+              onToolCall({ attempt: input.attempt, name, args, durationMs: Date.now() - startedAt, ok: false });
+              throw error;
+            }
+          }
+        : toolset.execute;
+      finalState = await loop.run(model, buildAgentMessages(input), toolset.tools, execute, choice.provider);
     } catch (error: unknown) {
       failure = error instanceof Error ? error.message : String(error);
       finalState = loop.getState();
@@ -342,7 +374,14 @@ export class ExecutorRunner implements AgentRunner {
 
     const summary = this.summarize(finalState, failure, budgetStopped);
     const cacheHitRate = inputTokens > 0 && cacheRead + cacheWrite > 0 ? cacheRead / inputTokens : undefined;
-    return { summary, tokensUsed: tokens, costUsd, model: choice.model, cacheHitRate };
+    return {
+      summary,
+      tokensUsed: tokens,
+      costUsd,
+      model: choice.model,
+      cacheHitRate,
+      usage: { inputTokens, outputTokens, cacheReadTokens: cacheRead, cacheWriteTokens: cacheWrite },
+    };
   }
 
   private summarize(state: AgentState, failure: string | undefined, budgetStopped: boolean): string {
@@ -367,6 +406,7 @@ export interface DefaultRunnerArgs {
   maxCostUsd?: number;
   env?: NodeJS.ProcessEnv;
   onEvent?: (event: RunnerEvent) => void;
+  onToolCall?: (event: ToolCallEvent) => void;
 }
 
 /** Build a runner on the configured providers via the smart router. */
@@ -383,5 +423,6 @@ export async function createDefaultExecutorRunner(args: DefaultRunnerArgs): Prom
     maxTokens: args.maxTokens,
     maxCostUsd: args.maxCostUsd,
     onEvent: args.onEvent,
+    onToolCall: args.onToolCall,
   });
 }
