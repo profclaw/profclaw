@@ -38,6 +38,7 @@ import { historyCommands } from './commands/history.js';
 import { planCommands } from './commands/plan.js';
 import { initCommand } from './commands/init.js';
 import { runCommand } from './commands/run.js';
+import { receiptCommand } from './commands/receipt.js';
 
 const VERSION = '2.0.0';
 
@@ -100,6 +101,7 @@ program.addCommand(historyCommands());
 program.addCommand(planCommands());
 program.addCommand(initCommand());
 program.addCommand(runCommand());
+program.addCommand(receiptCommand());
 
 // Default action (no command) - show banner and help
 program.action(() => {

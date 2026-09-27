@@ -12,7 +12,7 @@
  * an LLM. Nothing here pushes or opens a PR.
  */
 
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { logger } from '../utils/logger.js';
@@ -22,6 +22,8 @@ import { SessionDiffTracker } from './session-diff.js';
 import { formatFailureFeedback } from './verifier.js';
 import type { Verifier, VerifierResult } from './verifier.js';
 import { GitRunWorkspace } from './verified-run-git.js';
+import { sha256Hex } from './receipt/receipt-writer.js';
+import type { ReceiptDataMap, ReceiptEventType, ReceiptSink } from './receipt/receipt-types.js';
 import type { RunWorkspace, WorkspaceChange } from './verified-run-git.js';
 
 // Agent interface
@@ -46,6 +48,8 @@ export interface AgentAttemptResult {
   model?: string;
   /** Fraction of prompt tokens served from cache (0 to 1), when known */
   cacheHitRate?: number;
+  /** Token breakdown, when the runner knows it (recorded in the run receipt) */
+  usage?: { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number };
 }
 
 /** The only seam to an LLM. Real integrations and test fakes implement this. */
@@ -182,6 +186,10 @@ export interface VerifiedRunOptions {
   onEvent?: (event: RunEvent) => void;
   /** Lower is better. Default counts failure-looking lines in verifier output. */
   scoreFailure?: (result: VerifierResult) => number;
+  /** Records a tamper-evident receipt of the run when set (see docs/specs/run-receipt-v0.md) */
+  receipt?: ReceiptSink;
+  /** Tool name and version written to the receipt's run_start */
+  toolInfo?: { name: string; version: string };
 }
 
 // Failure scoring
@@ -201,6 +209,7 @@ export async function runVerifiedGoal(options: VerifiedRunOptions): Promise<Veri
   const limits = resolveLimits(options.limits ?? {}, options.env ?? process.env);
   const runId = options.runId ?? randomUUID().slice(0, 8);
   const score = options.scoreFailure ?? defaultFailureScore;
+  const env = options.env ?? process.env;
   const emit = options.onEvent ?? ((): void => undefined);
   const workspace =
     options.workspace ?? new GitRunWorkspace(options.projectRoot, runId, options.branchName);
@@ -208,7 +217,17 @@ export async function runVerifiedGoal(options: VerifiedRunOptions): Promise<Veri
   const breaker = new ToolCircuitBreaker(limits.breakerThreshold, limits.breakerWindowMs);
   const breakerKey = 'verified-run';
 
+  const rcpt = <K extends ReceiptEventType>(type: K, data: ReceiptDataMap[K]): void =>
+    recordReceipt(options.receipt, type, data);
+
   const baseRef = await workspace.prepare();
+  rcpt('run_start', {
+    goal: options.goal,
+    verifyCommand: options.verifyCommand,
+    repoHead: baseRef,
+    branch: workspace.branch,
+    tool: options.toolInfo ?? { name: 'profclaw', version: 'unknown' },
+  });
   emit({ type: 'start', runId, branch: workspace.branch, workspacePath: workspace.path });
   const verifier = options.createVerifier(workspace.path);
 
@@ -232,6 +251,7 @@ export async function runVerifiedGoal(options: VerifiedRunOptions): Promise<Veri
   let alreadyPassing = false;
   if (limits.baseline > 0) {
     const baseline = await verifier.verify();
+    rcpt('verifier_result', verifierData(0, options.verifyCommand, baseline, score(baseline)));
     if (baseline.passed) {
       alreadyPassing = true;
       stopReason = 'already_passing';
@@ -253,6 +273,7 @@ export async function runVerifiedGoal(options: VerifiedRunOptions): Promise<Veri
     }
 
     emit({ type: 'attempt_start', attempt });
+    rcpt('attempt_start', { attempt });
     const record: AttemptRecord = {
       attempt,
       outcome: 'agent_error',
@@ -278,14 +299,26 @@ export async function runVerifiedGoal(options: VerifiedRunOptions): Promise<Veri
       record.cacheHitRate = result.cacheHitRate;
       totalTokens += result.tokensUsed;
       totalCost += result.costUsd;
+      rcpt('usage', {
+        attempt,
+        inputTokens: result.usage?.inputTokens ?? 0,
+        outputTokens: result.usage?.outputTokens ?? 0,
+        cacheReadTokens: result.usage?.cacheReadTokens ?? 0,
+        cacheWriteTokens: result.usage?.cacheWriteTokens ?? 0,
+        totalTokens: result.tokensUsed,
+        costUsd: result.costUsd,
+        ...(result.model ? { model: result.model } : {}),
+      });
     } catch (error: unknown) {
       record.agentError = error instanceof Error ? error.message : String(error);
       logger.warn('[VerifiedRun] Agent attempt threw', { attempt, error: record.agentError });
       await workspace.restore(goodRef);
       record.rolledBack = true;
+      rcpt('rollback', { attempt, reason: `agent error: ${record.agentError}` });
       breaker.recordFailure(breakerKey);
       feedback = `The previous attempt crashed: ${record.agentError}. The workspace was restored to the last good state.`;
       attempts.push(record);
+      rcpt('attempt_end', { attempt, outcome: record.outcome, rolledBack: record.rolledBack });
       emit({ type: 'attempt_end', record });
       const stop = budgetStop() ?? (breakerOpen() ? 'circuit_open' : null);
       if (stop) {
@@ -298,11 +331,13 @@ export async function runVerifiedGoal(options: VerifiedRunOptions): Promise<Veri
     const verdict = await verifier.verify();
     record.verifier = verdict;
     record.failureScore = score(verdict);
+    rcpt('verifier_result', verifierData(attempt, options.verifyCommand, verdict, record.failureScore));
 
     if (verdict.passed) {
       record.outcome = 'verified';
       await workspace.checkpoint(`attempt ${attempt} verified`);
       attempts.push(record);
+      rcpt('attempt_end', { attempt, outcome: record.outcome, rolledBack: false });
       emit({ type: 'attempt_end', record });
       stopReason = 'verified';
       break;
@@ -312,6 +347,10 @@ export async function runVerifiedGoal(options: VerifiedRunOptions): Promise<Veri
       record.outcome = 'worse';
       await workspace.restore(goodRef);
       record.rolledBack = true;
+      rcpt('rollback', {
+        attempt,
+        reason: `failure score ${record.failureScore} is worse than the best so far (${bestScore})`,
+      });
       breaker.recordFailure(breakerKey);
     } else {
       const improved = record.failureScore < bestScore;
@@ -325,6 +364,7 @@ export async function runVerifiedGoal(options: VerifiedRunOptions): Promise<Veri
 
     feedback = formatFailureFeedback(verdict, options.verifyCommand);
     attempts.push(record);
+    rcpt('attempt_end', { attempt, outcome: record.outcome, rolledBack: record.rolledBack });
     emit({ type: 'attempt_end', record });
 
     const stop = budgetStop() ?? (breakerOpen() ? 'circuit_open' : null);
@@ -338,6 +378,16 @@ export async function runVerifiedGoal(options: VerifiedRunOptions): Promise<Veri
 
   const changes = await workspace.changedFiles();
   const diff = await buildDiff(changes);
+  if (options.receipt) {
+    for (const change of changes) {
+      rcpt('file_change', await fileChangeData(change, env));
+    }
+    rcpt('run_end', {
+      stopReason,
+      verified: stopReason === 'verified',
+      totals: { attempts: attempts.length, totalTokens, costUsd: totalCost, filesChanged: changes.length },
+    });
+  }
   const result: VerifiedRunResult = {
     runId,
     goal: options.goal,
@@ -360,6 +410,68 @@ export async function runVerifiedGoal(options: VerifiedRunOptions): Promise<Veri
 
   if (options.removeWorktree) await workspace.dispose();
   return result;
+}
+
+// Receipt helpers
+
+/** Receipt writing is best effort: a failure is logged and never fails the run. */
+function recordReceipt<K extends ReceiptEventType>(
+  sink: ReceiptSink | undefined,
+  type: K,
+  data: ReceiptDataMap[K],
+): void {
+  if (!sink) return;
+  try {
+    sink.append(type, data);
+  } catch (error: unknown) {
+    logger.warn('[VerifiedRun] Failed to write receipt event', {
+      type,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+function verifierData(
+  attempt: number,
+  command: string,
+  result: VerifierResult,
+  failureScore: number,
+): ReceiptDataMap['verifier_result'] {
+  return {
+    attempt,
+    command,
+    exitCode: result.exitCode,
+    passed: result.passed,
+    output: result.output,
+    failureScore,
+    durationMs: result.durationMs,
+    timedOut: result.timedOut,
+  };
+}
+
+/** Largest per-file diff embedded in a receipt (env PROFCLAW_RECEIPT_MAX_DIFF_CHARS). */
+function maxDiffChars(env: NodeJS.ProcessEnv): number {
+  const n = Number(env['PROFCLAW_RECEIPT_MAX_DIFF_CHARS']);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 200_000;
+}
+
+async function fileChangeData(change: WorkspaceChange, env: NodeJS.ProcessEnv): Promise<ReceiptDataMap['file_change']> {
+  let after: string | null = null;
+  try {
+    after = sha256Hex(await readFile(change.path));
+  } catch {
+    after = null;
+  }
+  const diff = await buildDiff([change]);
+  const cap = maxDiffChars(env);
+  return {
+    path: change.relPath,
+    status: change.status,
+    beforeSha256: change.original === null ? null : sha256Hex(change.original),
+    afterSha256: after,
+    diffSha256: sha256Hex(diff),
+    ...(diff.length <= cap ? { diff } : { diffTruncated: true }),
+  };
 }
 
 async function saveExecutorCheckpoint(

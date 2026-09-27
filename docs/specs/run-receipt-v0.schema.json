@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://profclaw.ai/specs/run-receipt-v0.schema.json",
+  "title": "Run receipt event, version 0",
+  "description": "One line of a receipt.jsonl file. Hash chain and signature checks are not expressible in JSON Schema; see run-receipt-v0.md.",
+  "type": "object",
+  "required": ["v", "seq", "ts", "type", "data", "prev", "hash"],
+  "properties": {
+    "v": { "const": "0" },
+    "seq": { "type": "integer", "minimum": 0 },
+    "ts": { "type": "string", "format": "date-time" },
+    "type": { "type": "string" },
+    "data": { "type": "object" },
+    "prev": { "$ref": "#/$defs/sha256hex" },
+    "hash": { "$ref": "#/$defs/sha256hex" },
+    "signature": { "$ref": "#/$defs/signature" }
+  },
+  "allOf": [
+    { "if": { "properties": { "type": { "const": "run_start" } } }, "then": { "properties": { "data": { "$ref": "#/$defs/run_start" } } } },
+    { "if": { "properties": { "type": { "const": "attempt_start" } } }, "then": { "properties": { "data": { "$ref": "#/$defs/attempt_start" } } } },
+    { "if": { "properties": { "type": { "const": "tool_call" } } }, "then": { "properties": { "data": { "$ref": "#/$defs/tool_call" } } } },
+    { "if": { "properties": { "type": { "const": "file_change" } } }, "then": { "properties": { "data": { "$ref": "#/$defs/file_change" } } } },
+    { "if": { "properties": { "type": { "const": "verifier_result" } } }, "then": { "properties": { "data": { "$ref": "#/$defs/verifier_result" } } } },
+    { "if": { "properties": { "type": { "const": "usage" } } }, "then": { "properties": { "data": { "$ref": "#/$defs/usage" } } } },
+    { "if": { "properties": { "type": { "const": "rollback" } } }, "then": { "properties": { "data": { "$ref": "#/$defs/rollback" } } } },
+    { "if": { "properties": { "type": { "const": "attempt_end" } } }, "then": { "properties": { "data": { "$ref": "#/$defs/attempt_end" } } } },
+    { "if": { "properties": { "type": { "const": "run_end" } } }, "then": { "properties": { "data": { "$ref": "#/$defs/run_end" } } } },
+    { "if": { "not": { "properties": { "type": { "const": "run_end" } } } }, "then": { "not": { "required": ["signature"] } } }
+  ],
+  "$defs": {
+    "sha256hex": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "attemptNo": { "type": "integer", "minimum": 0 },
+    "count": { "type": "integer", "minimum": 0 },
+    "signature": {
+      "type": "object",
+      "required": ["alg", "publicKey", "sig"],
+      "properties": {
+        "alg": { "const": "ed25519" },
+        "publicKey": { "type": "string", "description": "base64 SPKI DER" },
+        "sig": { "type": "string", "description": "base64 signature over the UTF-8 bytes of the run_end hash" }
+      }
+    },
+    "run_start": {
+      "type": "object",
+      "required": ["goal", "verifyCommand", "repoHead", "branch", "tool"],
+      "properties": {
+        "goal": { "type": "string" },
+        "verifyCommand": { "type": "string" },
+        "repoHead": { "type": ["string", "null"] },
+        "branch": { "type": "string" },
+        "tool": {
+          "type": "object",
+          "required": ["name", "version"],
+          "properties": { "name": { "type": "string" }, "version": { "type": "string" } }
+        }
+      }
+    },
+    "attempt_start": {
+      "type": "object",
+      "required": ["attempt"],
+      "properties": { "attempt": { "$ref": "#/$defs/attemptNo" }, "model": { "type": "string" } }
+    },
+    "tool_call": {
+      "type": "object",
+      "required": ["attempt", "name", "argsSummary", "redacted", "durationMs", "ok"],
+      "properties": {
+        "attempt": { "$ref": "#/$defs/attemptNo" },
+        "name": { "type": "string" },
+        "argsSummary": { "type": "string" },
+        "redacted": { "type": "boolean" },
+        "durationMs": { "type": "number", "minimum": 0 },
+        "ok": { "type": "boolean" }
+      }
+    },
+    "file_change": {
+      "type": "object",
+      "required": ["path", "status", "beforeSha256", "afterSha256", "diffSha256"],
+      "properties": {
+        "path": { "type": "string" },
+        "status": { "enum": ["created", "modified", "deleted"] },
+        "beforeSha256": { "oneOf": [{ "$ref": "#/$defs/sha256hex" }, { "type": "null" }] },
+        "afterSha256": { "oneOf": [{ "$ref": "#/$defs/sha256hex" }, { "type": "null" }] },
+        "diffSha256": { "$ref": "#/$defs/sha256hex" },
+        "diff": { "type": "string" },
+        "diffTruncated": { "type": "boolean" }
+      }
+    },
+    "verifier_result": {
+      "type": "object",
+      "required": ["attempt", "command", "exitCode", "passed", "output", "failureScore"],
+      "properties": {
+        "attempt": { "$ref": "#/$defs/attemptNo", "description": "0 is the baseline run before any attempt" },
+        "command": { "type": "string" },
+        "exitCode": { "type": ["integer", "null"] },
+        "passed": { "type": "boolean" },
+        "output": { "type": "string" },
+        "failureScore": { "type": "number", "minimum": 0 },
+        "durationMs": { "type": "number", "minimum": 0 },
+        "timedOut": { "type": "boolean" }
+      }
+    },
+    "usage": {
+      "type": "object",
+      "required": ["attempt", "inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens", "totalTokens", "costUsd"],
+      "properties": {
+        "attempt": { "$ref": "#/$defs/attemptNo" },
+        "inputTokens": { "$ref": "#/$defs/count" },
+        "outputTokens": { "$ref": "#/$defs/count" },
+        "cacheReadTokens": { "$ref": "#/$defs/count" },
+        "cacheWriteTokens": { "$ref": "#/$defs/count" },
+        "totalTokens": { "$ref": "#/$defs/count" },
+        "costUsd": { "type": "number", "minimum": 0 },
+        "model": { "type": "string" }
+      }
+    },
+    "rollback": {
+      "type": "object",
+      "required": ["attempt", "reason"],
+      "properties": { "attempt": { "$ref": "#/$defs/attemptNo" }, "reason": { "type": "string" } }
+    },
+    "attempt_end": {
+      "type": "object",
+      "required": ["attempt", "outcome", "rolledBack"],
+      "properties": {
+        "attempt": { "$ref": "#/$defs/attemptNo" },
+        "outcome": { "enum": ["verified", "improved", "unchanged", "worse", "agent_error"] },
+        "rolledBack": { "type": "boolean" }
+      }
+    },
+    "run_end": {
+      "type": "object",
+      "required": ["stopReason", "verified", "totals"],
+      "properties": {
+        "stopReason": { "type": "string" },
+        "verified": { "type": "boolean" },
+        "totals": {
+          "type": "object",
+          "required": ["attempts", "totalTokens", "costUsd", "filesChanged"],
+          "properties": {
+            "attempts": { "$ref": "#/$defs/count" },
+            "totalTokens": { "$ref": "#/$defs/count" },
+            "costUsd": { "type": "number", "minimum": 0 },
+            "filesChanged": { "$ref": "#/$defs/count" }
+          }
+        }
+      }
+    }
+  }
+}
