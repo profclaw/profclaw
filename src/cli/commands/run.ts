@@ -31,6 +31,7 @@ import type {
   RunEvent,
   VerifiedRunLimits,
 } from '../../agents/verified-run.js';
+import { setupRunReceipt, toolVersion } from '../../agents/receipt/receipt-cli.js';
 import { error, info, success, warn, formatCost, formatTokens } from '../utils/output.js';
 
 interface RunCliOptions {
@@ -47,6 +48,8 @@ interface RunCliOptions {
   branch?: string;
   cleanup?: boolean;
   json?: boolean;
+  receipt?: boolean;
+  signKey?: string;
 }
 
 /** Runs an external agent command, feeding the prompt on stdin. */
@@ -138,6 +141,8 @@ export function runCommand(): Command {
     .option('--branch <name>', 'Branch name for the run (default profclaw/run-<id>)')
     .option('--sandbox-verify', 'Also run the verify command under the OS sandbox (env PROFCLAW_RUN_SANDBOX_VERIFY=1); default off')
     .option('--cleanup', 'Remove the worktree afterwards (the branch is kept)')
+    .option('--no-receipt', 'Do not write a tamper-evident receipt.jsonl for the run')
+    .option('--sign-key <path>', 'Ed25519 private key (PEM) to sign the receipt (env PROFCLAW_RECEIPT_KEY)')
     .option('--json', 'Output the result as JSON')
     .action(async (goal: string, options: RunCliOptions) => {
       try {
@@ -156,6 +161,7 @@ export function runCommand(): Command {
         const sandboxVerify = options.sandboxVerify === true || process.env.PROFCLAW_RUN_SANDBOX_VERIFY === '1';
         if (!options.json) info(`${describeSandbox(sandboxMode)}${sandboxVerify ? '; verify command sandboxed' : ''}`);
         const limits = resolveLimits(flags);
+        const rc = setupRunReceipt({ enabled: options.receipt !== false, projectRoot: process.cwd(), signKeyPath: options.signKey });
         const agent: AgentRunner = options.agentCmd
           ? new CommandAgent(options.agentCmd)
           : await createDefaultExecutorRunner({
@@ -165,12 +171,16 @@ export function runCommand(): Command {
               maxTokens: limits.maxTokens,
               maxCostUsd: limits.maxCostUsd,
               onEvent: options.json ? undefined : printRunnerEvent,
+              onToolCall: rc.onToolCall,
             });
         const result = await runVerifiedGoal({
           goal,
           verifyCommand,
           agent,
           projectRoot: process.cwd(),
+          runId: rc.runId,
+          receipt: rc.receipt,
+          toolInfo: { name: 'profclaw', version: toolVersion() },
           limits: flags,
           branchName: options.branch,
           removeWorktree: options.cleanup,
@@ -190,6 +200,7 @@ export function runCommand(): Command {
           success(`Verified after ${result.attempts.length} attempt(s), cost ${formatCost(result.totalCostUsd)}`);
           info(`Branch ${result.branch} is ready for review (not pushed).`);
           if (result.reportPath) info(`Evidence: ${result.reportPath}`);
+          if (rc.receipt) info(`Receipt: ${rc.receipt.path}`);
         } else if (result.stopReason === 'already_passing') {
           warn('The verify command already passes before any change, so no attempt was made.');
           if (result.reportPath) info(`Report: ${result.reportPath}`);
