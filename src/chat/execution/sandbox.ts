@@ -55,6 +55,36 @@ const DEFAULT_CPU_LIMIT = '1';
 const CONTAINER_POOL_SIZE = 3;
 const CONTAINER_MAX_AGE_MS = 3600_000; // 1 hour
 const CLEANUP_INTERVAL_MS = 60_000; // 1 minute
+const DEFAULT_DOCKER_PING_TIMEOUT_MS = 3_000;
+
+/** How long to wait for the Docker daemon to answer before treating it as unavailable. */
+function getDockerPingTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
+  const parsed = Number(env['PROFCLAW_DOCKER_PING_TIMEOUT_MS']);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_DOCKER_PING_TIMEOUT_MS;
+}
+
+/**
+ * Ping the Docker daemon, giving up after a timeout. A wedged daemon (for example a
+ * half-started Docker Desktop) accepts the connection but never answers, which would
+ * otherwise hang startup forever.
+ */
+export async function pingDockerWithTimeout(
+  docker: { ping(): Promise<unknown> },
+  timeoutMs: number = getDockerPingTimeoutMs(),
+): Promise<void> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`Docker daemon did not respond within ${timeoutMs}ms`)),
+      timeoutMs,
+    );
+  });
+  try {
+    await Promise.race([docker.ping(), timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 const DEFAULT_SESSION_IDLE_MS = 600_000; // 10 minutes
 
 // Sandbox Manager
@@ -127,7 +157,7 @@ export class SandboxManager {
       }
 
       // Check Docker connection
-      await this.docker.ping();
+      await pingDockerWithTimeout(this.docker);
       logger.info('[Sandbox] Docker connection established', { component: 'Sandbox' });
 
       // Log active security level so operators know what enforcement is in place
